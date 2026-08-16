@@ -71,15 +71,10 @@ local function code_of(sig)
 	end
 end
 
+--- As in git.lua: real filesystem only, which also excludes `search://`.
 ---@param url Url
 ---@return boolean
-local function is_local(url)
-	local spec = url.spec
-	if spec ~= nil and spec.is_regular ~= nil then
-		return spec.is_regular
-	end
-	return url.is_regular ~= false
-end
+local function is_local(url) return url.spec.is_regular end
 
 --- Run chezmoi and return stdout, or nil if the binary is missing or errored.
 ---@param args string[]

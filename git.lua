@@ -222,16 +222,12 @@ function M.reduce_remove(st, cwd)
 end
 
 --- Only shell out for files that live on the real filesystem; a VFS URL
---- (sftp://, archive://, ...) has no local `git` to ask.
+--- (sftp://, trash://, ...) has no local `git` to ask. This also turns the
+--- column off inside a `search://` listing, whose files *are* local -- see the
+--- last of the known gaps in CLAUDE.md.
 ---@param url Url
 ---@return boolean
-local function is_local(url)
-	local spec = url.spec
-	if spec ~= nil and spec.is_regular ~= nil then
-		return spec.is_regular -- Yazi >= the Url.spec migration
-	end
-	return url.is_regular ~= false
-end
+local function is_local(url) return url.spec.is_regular end
 
 --- Register the "git" column. Called by main.lua with the plugin state so the
 --- render closure can read what the fetcher wrote.
