@@ -188,6 +188,7 @@ lua test/run.lua                    # unit tests (pure logic, stubbed globals)
 test/e2e.sh                         # render in a real Yazi, headless
 test/e2e.sh ~/.local/share/chezmoi  # …against a specific directory
 test/e2e.sh ~/src color             # …keeping ANSI escapes, to check gradients
+test/e2e.sh ~/src plain lua         # …searching for "lua" rather than "txt"
 test/manual.sh                      # the same, but interactive, for a human
 test/manual.sh --clean              # discard its scratch config and fixture
 
@@ -254,5 +255,8 @@ the common subset.
 - Gradients are relative to the current directory only; there is no absolute
   mode.
 - Cells wider than their `width` are not truncated.
-- Fetchers skip non-local (VFS) files, so those rows carry no Git or chezmoi
-  state.
+- Fetchers skip virtual files (`sftp://`, `trash://`), so those rows carry no
+  Git or chezmoi state. `search://` is not virtual and does work — see
+  `local_url` in `git.lua`.
+- Browsing the trash bin at all needs Full Disk Access on macOS; without it
+  Yazi cannot list `~/.Trash` and `test/e2e.sh` cannot reach that path.

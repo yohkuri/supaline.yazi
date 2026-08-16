@@ -14,6 +14,28 @@ that gap. Do not report that something works on the strength of `run.lua` alone.
 
 ---
 
+## Headless testing
+
+```sh
+test/e2e.sh                          # a generated fixture
+test/e2e.sh ~/src                    # any directory
+test/e2e.sh ~/src color              # keep the ANSI escapes, to see gradients
+test/e2e.sh ~/src plain lua          # search for "lua" rather than "txt"
+```
+
+Each run prints the target twice: once as an ordinary listing, once as a
+`search://` one. Point it at a directory of your own and the search term has to
+match something there, or the second screen is empty and proves nothing.
+
+**Read the exit code, not just the screen.** It is non-zero on a Lua error in
+the log *and* on a task that never succeeded. The second matters more than it
+looks: a broken fetcher writes its reason only to the task's own log, which
+nothing here can read, so the one signal that escapes is the status bar's
+`N left` counter. The screen looked entirely correct through the whole of the
+26.8.15 breakage, while all four fetchers were failing.
+
+---
+
 ## Manual testing
 
 ```sh
@@ -77,6 +99,13 @@ In the fixture root:
 
 Inside `src/`: `new.txt` untracked, `staged.txt` added, `tracked.txt` modified.
 Cross-check any of it with `git status --porcelain`.
+
+Then press `s`, search for `txt`, and confirm the same signs survive into the
+listing — `src/new.txt` untracked, `src/staged.txt` added, `src/tracked.txt`
+modified, all from directories other than the one you started in. Those URLs
+carry a `search://` scheme that supaline has to flatten before either the
+fetcher or the render path can match on it, and getting the two sides out of
+step blanks the column with no error anywhere.
 
 Merge conflicts are not in the fixture — every unmerged code (`DD`, `AU`, `UD`,
 `UA`, `DU`, `AA`, `UU`) must render as `updated`, and `test/git_spec.lua` pins
@@ -163,8 +192,14 @@ modified_sign  = "M"
 untracked_sign = "?"
 ```
 
-**No Git signs at all.** The fetcher only runs for local files, and only when
-the fetcher rules are registered — `setup.sh` does that. Check `git` is on PATH.
+**No Git signs at all.** The fetcher only runs for files on the local
+filesystem. Check `git` is on PATH. Note `setup.sh` deliberately writes no
+fetcher rules — supaline registers its own at setup, and this is what proves
+it — so a blank column may equally mean that registration broke.
+
+**Nothing at all in the trash bin (`g t`).** Reading `~/.Trash` needs Full Disk
+Access on macOS; without it Yazi cannot list it and shows
+`Operation not permitted`. Nothing to do with supaline.
 
 **No chezmoi signs.** Needs `chezmoi` on PATH and an initialised source state.
 The provider disables itself permanently for the session if either is missing,
@@ -188,5 +223,6 @@ grep -i lua ~/.local/state/yazi/yazi.log
 - A file edited in place, with the directory's file count unchanged, keeps a
   stale gradient until you leave and return.
 - `permissions` and `owner` are empty on Windows.
-- Files on a VFS (`sftp://`) carry no Git or chezmoi state; nothing shells out
-  for them.
+- Virtual files (`sftp://`, `trash://`) carry no Git or chezmoi state; nothing
+  shells out for them. A `search://` listing is *not* one of these — its files
+  are real, and both columns are expected to work there.
