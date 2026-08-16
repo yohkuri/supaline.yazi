@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; \"${CLAUDE_PROJECT_DIR:-.}/scripts/format-file.sh\" \"$f\"; } || true",
+            "statusMessage": "Formatting"
+          }
+        ]
+      }
+    ]
+  }
+}

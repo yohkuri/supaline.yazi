@@ -1,0 +1,9 @@
+.DS_Store
+
+.idea/
+.vscode/
+.zed/
+
+# `.claude/settings.json` is checked in: it carries the formatting hook that
+# CLAUDE.md documents. This one is per-machine, and is not.
+.claude/settings.local.json
