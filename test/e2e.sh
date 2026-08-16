@@ -2,9 +2,14 @@
 #
 # Render supaline in a real Yazi and print the resulting screen.
 #
-#   test/e2e.sh                   # a generated fixture directory
-#   test/e2e.sh ~/some/dir        # any directory
-#   test/e2e.sh ~/some/dir color  # keep the ANSI escapes, to inspect gradients
+#   test/e2e.sh                       # a generated fixture directory
+#   test/e2e.sh ~/some/dir            # any directory
+#   test/e2e.sh ~/some/dir color      # keep the ANSI escapes, to see gradients
+#   test/e2e.sh ~/some/dir plain lua  # search for "lua" rather than "txt"
+#
+# Each run prints two screens: the directory as an ordinary listing, and again
+# as a `search://` one. The search term only has to match something -- with a
+# directory of your own, pass one that does.
 #
 # This is the headless counterpart to manual.sh: same configuration, no
 # keyboard. Yazi queries the terminal for its capabilities on startup and
@@ -19,6 +24,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${1:-}"
 MODE="${2:-plain}"
+SEARCH="${3:-txt}" # matches several fixture files, in more than one directory
 SESSION="supaline-e2e-$$"
 
 for cmd in tmux yazi git; do
@@ -68,18 +74,46 @@ sleep 2
 # a moment to drain before reading it.
 tasks_left() { grep -oE '[1-9][0-9]* left' "$WORK/screen" | head -1 || true; }
 
-for _ in 1 2 3 4 5; do
-	tmux capture-pane -p -t "$SESSION" >"$WORK/screen"
-	[ -n "$(tasks_left)" ] || break
-	sleep 1
-done
+settle() {
+	for _ in 1 2 3 4 5; do
+		tmux capture-pane -p -t "$SESSION" >"$WORK/screen"
+		[ -n "$(tasks_left)" ] || break
+		sleep 1
+	done
+}
 
-# The plain capture above is what the checks below read; the escapes `color`
-# mode keeps would only get in their way.
-if [ "$MODE" = "color" ]; then
-	tmux capture-pane -p -e -t "$SESSION"
+# The plain capture `settle` leaves behind is what the checks at the bottom
+# read; the escapes `color` mode keeps would only get in their way.
+show() {
+	printf '\n===== %s =====\n' "$1"
+	if [ "$MODE" = "color" ]; then
+		tmux capture-pane -p -e -t "$SESSION"
+	else
+		cat "$WORK/screen"
+	fi
+}
+
+settle
+show "listing"
+
+# The same directory again as a `search://` listing. Those URLs carry a scheme
+# and a query, so supaline has to flatten them before either fetcher can reach
+# `git`/`chezmoi` and before the render path can match what was stored --
+# derive the two differently and the columns silently go blank. Nothing else
+# here exercises that. Yazi's `s` shells out to fd, so skip it if absent.
+if command -v fd >/dev/null; then
+	tmux send-keys -t "$SESSION" s
+	sleep 1
+	tmux send-keys -t "$SESSION" "$SEARCH"
+	sleep 1
+	tmux send-keys -t "$SESSION" Enter
+	sleep 4
+
+	settle
+	show "search listing (search: $SEARCH)"
 else
-	cat "$WORK/screen"
+	echo
+	echo "===== search listing: skipped, fd is not installed =====" >&2
 fi
 
 log="$WORK/state/yazi/yazi.log"

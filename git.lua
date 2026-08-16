@@ -221,13 +221,24 @@ function M.reduce_remove(st, cwd)
 	st.git.repos[repo] = nil
 end
 
---- Only shell out for files that live on the real filesystem; a VFS URL
---- (sftp://, trash://, ...) has no local `git` to ask. This also turns the
---- column off inside a `search://` listing, whose files *are* local -- see the
---- last of the known gaps in CLAUDE.md.
+--- Only shell out for files that live on the real filesystem; a virtual URL
+--- (sftp://, trash://, ...) has no local `git` to ask. Note this is
+--- `is_virtual`, not `is_regular`: a `search://` URL is neither, and its files
+--- are real ones that git can perfectly well be asked about.
 ---@param url Url
 ---@return boolean
-local function is_local(url) return url.spec.is_regular end
+local function is_local(url) return not url.spec.is_virtual end
+
+--- Flatten a URL to the plain local path underneath it.
+---
+--- A `search://` URL stringifies with its scheme and query attached
+--- (`search://txt:1:1/home/me/x`), which git would not accept as a pathspec and
+--- which would not match anything the fetcher stored. Converting once at each
+--- boundary keeps every path below here unaware that search listings exist.
+--- A regular URL is returned as-is, so the render path allocates nothing.
+---@param url Url
+---@return Url
+local function local_url(url) return url.spec.is_regular and url or Url(url.path) end
 
 --- Register the "git" column. Called by main.lua with the plugin state so the
 --- render closure can read what the fetcher wrote.
@@ -243,14 +254,17 @@ function M.setup(st, opts)
 		width = opts and opts.width or 1,
 		align = "left",
 		render = function(file, ctx)
+			-- Take `.base` before flattening, not after: in a search listing
+			-- `.base` is the search root, which is the key the fetcher stored,
+			-- whereas flattening first would yield the file's own directory.
 			local url = file.url
-			local repo = st.git.dirs[tostring(url.base or url.parent)]
+			local repo = st.git.dirs[tostring(local_url(url.base or url.parent))]
 
 			local code = CODES.unknown
 			if repo == CODES.excluded then
 				code = CODES.ignored
 			elseif repo then
-				code = st.git.repos[repo][tostring(url):sub(#repo + 2)] or CODES.clean
+				code = st.git.repos[repo][tostring(local_url(url)):sub(#repo + 2)] or CODES.clean
 			end
 
 			local sign = signs[code]
@@ -275,7 +289,9 @@ function M.fetch(job, add, remove)
 		return true
 	end
 
-	local cwd = url.base or url.parent
+	-- In a search listing `.base` is the search root: one directory covering
+	-- every hit, which is exactly the one `git status` wants to run in.
+	local cwd = local_url(url.base or url.parent)
 	local repo = root(cwd)
 	if not repo then
 		remove(tostring(cwd))
@@ -284,7 +300,7 @@ function M.fetch(job, add, remove)
 
 	local paths = {}
 	for _, file in ipairs(job.files) do
-		paths[#paths + 1] = tostring(file.url)
+		paths[#paths + 1] = tostring(local_url(file.url))
 	end
 
 	-- `-z` supersedes `core.quotePath`: it turns off path quoting entirely.
