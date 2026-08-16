@@ -87,9 +87,11 @@ boolean to table". `builtin.lua` returns `{}` for this reason.
 
 **Linemode dispatch.** `Linemode:solo()` reads `cx.active.pref.linemode` and
 calls `self[mode](self)`, so registering is just `Linemode[name] = fn`. `solo`
-already guards `in_current` and prepends a space, which is why the render path
-can assume `cx.active.current` is the right folder. An unknown mode name renders
-as literal text (`" " .. mode`), so a name registered late shows up on screen.
+already guards `in_current`, which is why the render path can assume
+`cx.active.current` is the right folder, and prepends a space — but only to a
+line that `:visible()` says has width, so returning `""` costs nothing. An
+unknown mode name renders as literal text (`" " .. mode`), so a name registered
+late shows up on screen.
 
 ## Rendering rules
 
@@ -234,10 +236,14 @@ the common subset.
 
 ## Known gaps
 
-- `types.yazi` does not declare `Err`, `Linemode` or `Entity`, so LuaLS reports
-  them as undefined globals. Upstream plugin authors see the same. Adding them
-  to `diagnostics.globals` in `.luarc.json` would fix it but would diverge from
-  the upstream config, which we are keeping verbatim.
+- `types.yazi` does not describe everything the runtime provides, so LuaLS
+  flags correct code. Undefined globals: `Err`, `Linemode`, `Entity`. Undefined
+  fields: `Url.spec`, `ya.co`, `ya.dict_merge`, and every custom theme section
+  (`th.git`, `th.chezmoi`, `th.supaline`). None of these are declared at
+  upstream HEAD either, so upgrading the package does not help and other plugin
+  authors see the same. Adding the globals to `diagnostics.globals` in
+  `.luarc.json` would silence half of it but would diverge from the upstream
+  config, which we are keeping verbatim.
 - Gradients are relative to the current directory only; there is no absolute
   mode.
 - Cells wider than their `width` are not truncated.
