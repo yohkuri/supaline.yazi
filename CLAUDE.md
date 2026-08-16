@@ -56,6 +56,13 @@ wrapping in `main.lua` is unconditional and in a fixed order — never inside an
 git"`, read from `job.args[1]`. `run = "supaline.git"` loads `git.lua` as its
 own entry and loses the shared state.
 
+`setup` declares those rules itself through `rt.plugin.fetchers:insert()`, so
+the user writes no `[[plugin.prepend_fetchers]]`. It runs early enough that the
+first directory is already covered. Yazi caps the list at 16 and matches only
+the first rule per `group`, so a user who also declares them by hand gets no
+double fetch — only wasted slots. `test/setup.sh` deliberately writes no
+fetcher blocks, which is what proves the registration works.
+
 **`fetch` returns a function, not a boolean.** Since 26.8.15 Yazi calls what
 `fetch` returns, repeatedly, and expects `file, { retry = …, error = … }` each
 time — nil ends it. Returning the old boolean fails with "error converting Lua

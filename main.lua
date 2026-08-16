@@ -102,6 +102,23 @@ local function render(name, file)
 	return ui.Line(out)
 end
 
+--- Declare the fetcher rules a provider needs, sparing the user a pair of
+--- `[[plugin.prepend_fetchers]]` blocks per provider in `yazi.toml`.
+---
+--- Two rules each, because `*` matches files and `*/` matches directories.
+--- They share one `group`, which is what stops both from firing for the same
+--- entry -- Yazi runs the first rule that matches per group.
+---@param which string `"git"` | `"chezmoi"`
+local function register_fetcher(which)
+	for _, url in ipairs { "*", "*/" } do
+		rt.plugin.fetchers:insert(1, {
+			url = url,
+			run = "supaline " .. which,
+			group = "supaline-" .. which,
+		})
+	end
+end
+
 ---@param spec table
 ---@param name string
 ---@return boolean
@@ -168,6 +185,31 @@ function M.setup(st, opts)
 	end
 	if wants.chezmoi then
 		chezmoi.setup(st, opts.chezmoi)
+	end
+
+	-- Set `fetchers = false` to declare them in `yazi.toml` yourself, which is
+	-- the only way to narrow their `url` patterns or change their `prio`.
+	if opts.fetchers ~= false then
+		-- A fixed order rather than `pairs(wants)`, so what lands in the
+		-- fetcher list does not depend on hash iteration order.
+		local ok, err = pcall(function()
+			for _, name in ipairs { "git", "chezmoi" } do
+				if wants[name] then
+					register_fetcher(name)
+				end
+			end
+		end)
+		if not ok then
+			-- Yazi caps the fetcher list, and its own message does not say who
+			-- overflowed it. Name ourselves, and the way out.
+			error(
+				string.format(
+					"supaline: could not register its fetchers (%s); declare them in "
+						.. "`yazi.toml` and pass `fetchers = false`",
+					tostring(err)
+				)
+			)
+		end
 	end
 
 	build()

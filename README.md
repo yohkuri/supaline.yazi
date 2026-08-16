@@ -49,8 +49,12 @@ require("supaline"):setup {
 linemode = "supaline"
 ```
 
-Providers that read the filesystem need a fetcher. Register only the ones you
-actually use:
+That is all. The `git` and `chezmoi` columns read the filesystem and so need a
+fetcher, but supaline declares its own at setup — and only for the providers
+your linemodes actually name, so an unused one costs nothing.
+
+To declare them yourself instead — the only way to narrow their `url` patterns
+or change their `prio` — pass `fetchers = false` and write them out:
 
 ```toml
 [[plugin.prepend_fetchers]]
@@ -62,21 +66,12 @@ group = "supaline-git"
 url   = "*/"
 run   = "supaline git"
 group = "supaline-git"
-
-[[plugin.prepend_fetchers]]
-url   = "*"
-run   = "supaline chezmoi"
-group = "supaline-chezmoi"
-
-[[plugin.prepend_fetchers]]
-url   = "*/"
-run   = "supaline chezmoi"
-group = "supaline-chezmoi"
 ```
 
-The provider is chosen by the argument after the plugin name -- `supaline git`,
-not `supaline.git`. (Yazi scopes a plugin's sync state to each *file*, so a
-separate entry could not reach the state `setup` populates.)
+Two rules per provider: `*` matches files and `*/` matches directories. Note
+`run = "supaline git"` and not `supaline.git` — the provider is chosen by the
+argument, because Yazi scopes a plugin's sync state to each *file* and a
+separate entry could not reach the state `setup` populates.
 
 ## Columns
 
@@ -293,8 +288,10 @@ A `base` option on the column itself wins over the theme.
 - **Wide columns are not truncated.** A cell wider than its `width` pushes the
   row out rather than being cut.
 - **`permissions` and `owner` are Unix-only.**
-- **Fetchers are skipped for non-local files.** Nothing shells out for files on
-  a VFS (`sftp://` and friends), so those rows show no Git or chezmoi state.
+- **Fetchers are skipped for virtual files.** Nothing shells out for files that
+  do not exist on the local filesystem (`sftp://`, `trash://`), so those rows
+  show no Git or chezmoi state. Search listings are not affected: the files
+  there are real ones, and both columns work.
 
 ## Credits
 

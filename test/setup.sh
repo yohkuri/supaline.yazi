@@ -38,30 +38,13 @@ mkdir -p "$CONFIG/plugins"
 rm -f "$CONFIG/plugins/supaline.yazi"
 ln -s "$ROOT" "$CONFIG/plugins/supaline.yazi"
 
+# No `[[plugin.prepend_fetchers]]` here on purpose: supaline declares its own,
+# and this is what checks that it does. Adding them back would mask a failure,
+# since Yazi runs only the first rule per group either way.
 cat >"$CONFIG/yazi.toml" <<'EOF'
 [mgr]
 linemode    = "supaline"
 show_hidden = true
-
-[[plugin.prepend_fetchers]]
-url   = "*"
-run   = "supaline git"
-group = "supaline-git"
-
-[[plugin.prepend_fetchers]]
-url   = "*/"
-run   = "supaline git"
-group = "supaline-git"
-
-[[plugin.prepend_fetchers]]
-url   = "*"
-run   = "supaline chezmoi"
-group = "supaline-chezmoi"
-
-[[plugin.prepend_fetchers]]
-url   = "*/"
-run   = "supaline chezmoi"
-group = "supaline-chezmoi"
 EOF
 
 # Several linemodes, so the interesting comparisons are a keystroke apart:
