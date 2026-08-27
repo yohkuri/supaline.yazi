@@ -175,7 +175,7 @@ local function child(self)
 	end
 
 	local name = cx.active.pref.linemode
-	local set = panes[name]
+	local set = name and panes[name]
 	if not set or not set[file.in_preview and "preview" or "parent"] then
 		return ""
 	end
