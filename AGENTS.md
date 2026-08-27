@@ -156,10 +156,26 @@ stylua --check .
 
 ## Verification
 
-Unit tests can only cover pure logic — colour maths, normalisation, padding,
-formatters — because they stub the Yazi globals. They can say nothing about
-rendering, fetchers or `ya.sync`, which is exactly where the bugs live. Run the
-plugin in a real Yazi and read the output before reporting that anything works.
+```sh
+lua test/run.lua            # unit tests
+lua test/run.lua column     # ... just the specs matching "column"
+test/e2e.sh                 # render in a real Yazi, headless
+test/e2e.sh --keep          # ... and leave the scratch config behind
+```
+
+Unit tests can only cover pure logic — normalisation, layout, the ratio
+contract, the built-in formatters — because they stub the Yazi globals. They
+can say nothing about rendering, fetchers or `ya.sync`, which is exactly where
+the bugs live. Run the plugin in a real Yazi and read the output before
+reporting that anything works.
+
+The stubs are only worth as much as their fidelity, so `ui.truncate` is a
+line-by-line port of Yazi's own and `truncate_spec.lua` pins it against the
+assertions in Yazi's test suite. If you stub something new, pin it the same
+way.
+
+Keep the test code within the Lua 5.1 subset: the local interpreter may be 5.1,
+CI runs 5.4, and Yazi itself runs 5.5.
 
 Two things make headless runs behave unlike a real terminal:
 

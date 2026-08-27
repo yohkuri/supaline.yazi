@@ -1,0 +1,393 @@
+--- Stubs for the Yazi globals the plugin touches, so the pure logic can run
+--- under a plain Lua interpreter.
+---
+--- These are only worth anything if they behave like the real thing.
+--- `ui.truncate` in particular is a line-by-line port of Yazi's own, because
+--- the layout code leans on two of its habits: it appends an ellipsis of its
+--- own, and it returns *at most* `max` cells. `truncate_spec.lua` pins the port
+--- against the assertions in Yazi's own test suite.
+---
+--- What the stubs cannot cover is exactly what `test/e2e.sh` is for: rendering,
+--- fetchers, and `ya.sync`.
+
+-- The stubs deliberately implement only what the plugin touches, so LuaLS
+-- comparing them against the full types.yazi declarations is noise.
+---@diagnostic disable: missing-fields, missing-return
+
+local M = {}
+
+-- --- Unicode ---------------------------------------------------------------
+
+--- Iterate the UTF-8 characters of `s` as (byte index, character), the byte
+--- index being 0-based to mirror the Rust this mirrors.
+---@param s string
+---@return function
+local function chars(s)
+	local i = 1
+	return function()
+		if i > #s then
+			return nil
+		end
+		local ch = s:match("^[^\128-\191][\128-\191]*", i)
+		local at = i - 1
+		i = i + #ch
+		return at, ch
+	end
+end
+
+---@param ch string one UTF-8 character
+---@return integer
+local function codepoint(ch)
+	local b1 = ch:byte(1)
+	if #ch == 1 then
+		return b1
+	elseif #ch == 2 then
+		return (b1 - 192) * 64 + (ch:byte(2) - 128)
+	elseif #ch == 3 then
+		return (b1 - 224) * 4096 + (ch:byte(2) - 128) * 64 + (ch:byte(3) - 128)
+	end
+	return (b1 - 240) * 262144 + (ch:byte(2) - 128) * 4096 + (ch:byte(3) - 128) * 64 + (ch:byte(4) - 128)
+end
+
+-- The East Asian Wide and Fullwidth blocks, which is as much of `unicode-width`
+-- as anything here needs.
+local WIDE = {
+	{ 0x1100, 0x115F },
+	{ 0x2E80, 0x303E },
+	{ 0x3041, 0x33FF },
+	{ 0x3400, 0x4DBF },
+	{ 0x4E00, 0x9FFF },
+	{ 0xA000, 0xA4CF },
+	{ 0xAC00, 0xD7A3 },
+	{ 0xF900, 0xFAFF },
+	{ 0xFE30, 0xFE6F },
+	{ 0xFF00, 0xFF60 },
+	{ 0xFFE0, 0xFFE6 },
+	{ 0x20000, 0x3FFFD },
+}
+
+---@param ch string
+---@return integer
+local function char_width(ch)
+	local cp = codepoint(ch)
+	for _, range in ipairs(WIDE) do
+		if cp >= range[1] and cp <= range[2] then
+			return 2
+		end
+	end
+	return 1
+end
+
+---@param s string
+---@return integer
+local function str_width(s)
+	local w = 0
+	for _, ch in chars(s) do
+		w = w + char_width(ch)
+	end
+	return w
+end
+
+M.str_width = str_width
+
+-- --- ui.truncate -----------------------------------------------------------
+
+---@param s string
+---@param at integer 0-based byte index
+---@return string
+local function char_at(s, at) return s:match("^[^\128-\191][\128-\191]*", at + 1) end
+
+--- A port of `Utils::truncate` from `yazi-plugin/src/ui/utils.rs`.
+---@param s string
+---@param opts table `{ max: integer, rtl: boolean? }`
+---@return string
+local function truncate(s, opts)
+	local max = opts.max
+	if #s == 0 then
+		return s
+	elseif #s <= max then
+		return s
+	elseif max < 1 then
+		return ""
+	end
+
+	local seq = {}
+	for at, ch in chars(s) do
+		seq[#seq + 1] = { at, ch }
+	end
+	if opts.rtl then
+		for i = 1, math.floor(#seq / 2) do
+			seq[i], seq[#seq - i + 1] = seq[#seq - i + 1], seq[i]
+		end
+	end
+
+	-- `take_while` evaluates its predicate on the first failing element too, so
+	-- `last` advances one step further than `idx` does.
+	local adv, last, idx = 0, 0, nil
+	for _, c in ipairs(seq) do
+		last, adv = adv, adv + char_width(c[2])
+		if adv > max then
+			break
+		end
+		idx = c[1]
+	end
+
+	if idx == nil then
+		return "…"
+	elseif adv <= max then
+		return s
+	end
+
+	if not opts.rtl then
+		if last == max then
+			return s:sub(1, idx) .. "…"
+		end
+		return s:sub(1, idx + #char_at(s, idx)) .. "…"
+	elseif last == max then
+		return "…" .. s:sub(idx + #char_at(s, idx) + 1)
+	end
+	return "…" .. s:sub(idx + 1)
+end
+
+M.truncate = truncate
+
+-- --- ui elements -----------------------------------------------------------
+
+local Style = {}
+Style.__index = Style
+
+--- Immutable, as Yazi's has been since 26.5.6: every setter returns a new one.
+local function new_style(t)
+	local s = setmetatable({}, Style)
+	for k, v in pairs(t or {}) do
+		s[k] = v
+	end
+	return s
+end
+
+for _, key in ipairs { "fg", "bg" } do
+	Style[key] = function(self, value)
+		local s = new_style(self)
+		s[key] = value
+		return s
+	end
+end
+for _, key in ipairs { "bold", "italic", "underline", "dim", "reverse" } do
+	Style[key] = function(self, value)
+		local s = new_style(self)
+		s[key] = value == nil or value
+		return s
+	end
+end
+
+local Span = {}
+Span.__index = Span
+function Span:style(s)
+	self._style = s
+	return self
+end
+
+local Line = {}
+Line.__index = Line
+
+--- The plain text of anything renderable, which is all the assertions need.
+---@param x any
+---@return string
+local function text_of(x)
+	if x == nil then
+		return ""
+	elseif type(x) == "string" then
+		return x
+	elseif getmetatable(x) == Span then
+		return x._text
+	elseif getmetatable(x) == Line then
+		local out = {}
+		for _, part in ipairs(x._parts) do
+			out[#out + 1] = text_of(part)
+		end
+		return table.concat(out)
+	end
+	error("not renderable: " .. type(x))
+end
+
+M.text_of = text_of
+
+--- The style attached to a Span, so a test can check what colour a column
+--- asked for.
+---@param x any
+---@return table?
+function M.style_of(x) return getmetatable(x) == Span and x._style or nil end
+
+--- The first style found anywhere inside a renderable, for asserting on what a
+--- linemode came back with without unpicking its structure.
+---@param x any
+---@return table?
+function M.first_style(x)
+	local own = M.style_of(x)
+	if own then
+		return own
+	elseif type(x) == "table" and x._parts then
+		for _, part in ipairs(x._parts) do
+			local found = M.first_style(part)
+			if found then
+				return found
+			end
+		end
+	end
+	return nil
+end
+
+function Line:width() return str_width(text_of(self)) end
+function Line:visible() return self:width() > 0 end
+function Line:style(s)
+	self._style = s
+	return self
+end
+
+function Line:truncate(opts)
+	local ellipsis = opts.ellipsis == nil and "…" or opts.ellipsis
+	local text = text_of(self)
+	if opts.max < 1 then
+		return M.Line("")
+	elseif str_width(text) <= opts.max then
+		return self
+	end
+
+	local keep = opts.max - str_width(ellipsis)
+	local out, w = {}, 0
+	for _, ch in chars(text) do
+		local cw = char_width(ch)
+		if w + cw > keep then
+			break
+		end
+		out[#out + 1], w = ch, w + cw
+	end
+	return M.Line(table.concat(out) .. ellipsis)
+end
+
+function M.Line(x)
+	if getmetatable(x) == Line then
+		return x
+	end
+	local parts = x
+	if type(x) ~= "table" or getmetatable(x) == Span then
+		parts = { x }
+	end
+	return setmetatable({ _parts = parts }, Line)
+end
+
+function M.Span(text) return setmetatable({ _text = text }, Span) end
+
+-- --- fixtures --------------------------------------------------------------
+
+--- A stand-in for `fs::File`. Everything the built-in columns read is either
+--- passed in or defaulted to something harmless.
+---@param t table
+---@return table
+function M.file(t)
+	local name = t.name or "file.txt"
+	local file
+	file = {
+		name = name,
+		in_current = t.in_current == nil and true or t.in_current,
+		in_preview = t.in_preview or false,
+		is_hovered = t.is_hovered or false,
+		url = {
+			ext = name:match("%.([^.]+)$"),
+			__tostring = nil,
+		},
+		cha = {
+			is_dir = t.is_dir or false,
+			mtime = t.mtime,
+			btime = t.btime,
+			atime = t.atime,
+			uid = t.uid,
+			gid = t.gid,
+			perm = function() return t.perm end,
+		},
+		size = function() return t.size end,
+	}
+	setmetatable(file.url, { __tostring = function() return "/tmp/" .. name end })
+	return file
+end
+
+--- A stand-in for a folder, with a `cwd` that stringifies and a file list.
+---@param cwd string
+---@param files table
+---@return table
+function M.folder(cwd, files)
+	return {
+		cwd = setmetatable({}, { __tostring = function() return cwd end }),
+		files = files,
+	}
+end
+
+-- --- installation ----------------------------------------------------------
+
+--- Put the stubs in place as globals, and teach `require` Yazi's relative
+--- form so `require(".column")` finds `column.lua` next to it.
+---@param root string repository root
+function M.install(root)
+	_G.ui = {
+		Line = M.Line,
+		Span = M.Span,
+		Style = function() return new_style {} end,
+		truncate = truncate,
+		width = function(x) return str_width(text_of(x)) end,
+		render = function() end,
+	}
+
+	_G.th = {}
+	_G.ya = {
+		readable_size = function(size)
+			local units = { "B", "K", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
+			local i = 1
+			while size > 1024 and i < #units do
+				size = size / 1024
+				i = i + 1
+			end
+			local s = string.format("%.1f%s", size, units[i]):gsub("[.,]0", "", 1)
+			return s
+		end,
+		user_name = function(uid) return "user" .. tostring(uid) end,
+		group_name = function(gid) return "group" .. tostring(gid) end,
+		dbg = function() end,
+		err = function() end,
+	}
+
+	M.subs = {}
+	_G.ps = {
+		sub = function(kind, fn)
+			M.subs[kind] = M.subs[kind] or {}
+			table.insert(M.subs[kind], fn)
+		end,
+	}
+
+	M.children = {}
+	_G.Linemode = {
+		children_add = function(_, fn, order)
+			table.insert(M.children, { fn = fn, order = order })
+			return #M.children
+		end,
+	}
+
+	_G.cx = { active = { pref = {}, history = function() return nil end } }
+
+	local loaded, real = {}, require
+	_G.require = function(name)
+		if name:sub(1, 1) ~= "." then
+			return real(name)
+		end
+		if loaded[name] == nil then
+			local chunk = assert(loadfile(root .. "/" .. name:sub(2) .. ".lua"))
+			loaded[name] = chunk() or {}
+		end
+		return loaded[name]
+	end
+end
+
+--- Forget every module loaded through the shim, so a spec can start from a
+--- clean registry.
+function M.reset(root) M.install(root) end
+
+return M
