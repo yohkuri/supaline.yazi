@@ -35,29 +35,36 @@ command -v yazi >/dev/null 2>&1 || {
 cat <<'EOF'
 supaline manual test
 ────────────────────────────────────────────────────────────────────────────
+  m 0   one column                      press against m s to compare
   m 1   size + mtime                    the everyday case
   m 2   every built-in column           widths and alignment at a glance
+
   m 3   fixed vs auto width             column 2 fits the folder, 3 caps at 8
-  m 4   ellipsis / clip / grow          one long name, three ways
-  m 5   panes = current                 the other two panes stay bare
-  m 6   panes = current + parent        the left pane fills in
-  m 7   panes = current + preview       the right pane fills in
-  m 8   separators                      default, none, and "│"
+  m 4   ellipsis / clip / grow          one name, three ways
+  m 5   separators                      default, none, and "│"
+
+  m 6   panes = current                 the other two panes stay bare
+  m 7   panes = current + parent        the left pane fills in
+  m 8   panes = current + preview       the right pane fills in
+
   m 9   user-written columns            a registered one and an inline one
 
-  m s   Yazi's own size linemode        press against m 1 to compare
-  m n   Yazi's own "none"
+  m s   Yazi's own size linemode        m n turns the linemode off
   T     reload the theme                watch [supaline] colours arrive
 ────────────────────────────────────────────────────────────────────────────
-  Start in `sub/`, so the parent pane has rows of its own. Hover `deep` or
-  `never-opened` to give the preview pane a folder. `never-opened` is the
-  directory the `size` and `count` columns have no entry count for until you
-  have been inside it.
+  You start in `data/`, which carries the awkward cases: CJK and emoji names,
+  one far too long, and sizes either side of the 1K boundary. `sibling-one`
+  and `sibling-two` give the parent pane rows; hover `nested` to give the
+  preview pane a folder.
 
-  The preview pane keeps its last peek, so m 5 to m 7 only reach it once the
-  hover moves.
+  `never-opened` is the directory the size and count columns have no entry
+  count for until you have been inside it.
+
+  The preview pane keeps its last peek, so m 6 to m 8 only reach it once the
+  hover has moved.
 
   Quit with q. `test/manual.sh --clean` throws the fixture away.
+  What to look for: test/MANUAL.md
 ────────────────────────────────────────────────────────────────────────────
 EOF
 
