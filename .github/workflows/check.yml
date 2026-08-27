@@ -14,20 +14,16 @@ permissions:
 
 jobs:
   test:
-    # 5.5 is what Yazi itself runs, and 5.1 is what a contributor is most likely
-    # to have to hand. The test code has to stay in the subset they all accept,
-    # so all three are run rather than assumed.
-    name: Unit tests (Lua ${{ matrix.lua }})
+    # 5.5, because that is the Lua Yazi runs. No other version has a claim on
+    # this code: the plugin is only ever loaded by Yazi, and the tests exist to
+    # say something about the plugin.
+    name: Unit tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        lua: ["5.1", "5.4", "5.5"]
     steps:
       - uses: actions/checkout@v7
       - uses: leafo/gh-actions-lua@v13
         with:
-          luaVersion: ${{ matrix.lua }}
+          luaVersion: "5.5"
       - run: lua test/run.lua
 
   format:
