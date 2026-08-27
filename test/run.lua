@@ -9,8 +9,8 @@
 ---     lua test/run.lua            every spec
 ---     lua test/run.lua column     the specs whose name contains "column"
 ---
---- Keep the code here within the Lua 5.1 subset: the local interpreter may be
---- 5.1, CI runs 5.4, and Yazi itself runs 5.5.
+--- Written for Lua 5.5, the version Yazi runs. Nothing else loads this plugin,
+--- so nothing else has a claim on the tests either.
 
 local ROOT = (arg[0]:match("^(.*)[/\\]test[/\\]run%.lua$")) or "."
 local FILTER = arg[1]
