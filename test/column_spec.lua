@@ -122,6 +122,17 @@ test("cell: a renderable comes back padded around, not inside", function()
 	eq(text_of(out), "   ab")
 end)
 
+test("cell: a truncated renderable is padded back to width", function()
+	-- `Line:truncate` returns at most `width`, exactly like `ui.truncate`: a
+	-- wide character straddling the edge comes back a cell short. Left
+	-- unpadded, every column after this one shifts.
+	for _, mode in ipairs { "ellipsis", "clip" } do
+		local col =
+			column.normalize({ render = function() return ui.Line("你好，世界") end, width = 4, overflow = mode }, CFG)
+		eq(stub.str_width(text_of(column.cell(col, stub.file {}))), 4, mode)
+	end
+end)
+
 test("cell: a renderable is truncated too", function()
 	local col = column.normalize({ render = function() return ui.Line("abcdefgh") end, width = 4 }, CFG)
 	eq(text_of(column.cell(col, stub.file {})), "abc…")
@@ -196,6 +207,17 @@ test("width: a stated number is used as is", function()
 	local col = column.normalize({ render = function() return "" end, width = 4 }, CFG)
 	eq(column.resolve_width(col, FILES, nil), 4)
 	eq(col.needs_pass, false, "a stated width needs no pass over the folder")
+end)
+
+test("width: a stated width still takes the pass when stats are declared", function()
+	-- Gating the folder pass on whoever consumes the result left a column whose
+	-- `render` reads `ctx.stats` directly with nothing to read.
+	local col = column.normalize({
+		render = function() return "" end,
+		width = 4,
+		stats = function() return { min = 1, max = 2 } end,
+	}, CFG)
+	eq(col.needs_pass, true)
 end)
 
 test("width: a function is handed the folder's statistics", function()
