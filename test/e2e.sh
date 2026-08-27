@@ -101,9 +101,18 @@ done
 [ "$fails" -eq 0 ] && echo "  m0 to m9 all drew"
 
 echo "== columns =="
-grep -q "87.9M" "$DIR/screen-m0.txt" && echo "  m0: size" || fail "m0: no size column"
-grep -q "87.9M 05/06  2024" "$DIR/screen-m1.txt" && echo "  m1: size + mtime" || fail "m1: no size + mtime"
-grep -q "drwxr-xr-x" "$DIR/screen-m2.txt" && echo "  m2: permissions" || fail "m2: no permissions column"
+# `A && B || C` would run C when B fails, and shellcheck is right to say so.
+check() { # <label> <pattern> <file>
+	if grep -q "$2" "$3"; then
+		echo "  $1"
+	else
+		fail "$1"
+	fi
+}
+
+check "m0: size" "87.9M" "$DIR/screen-m0.txt"
+check "m1: size + mtime" "87.9M 05/06  2024" "$DIR/screen-m1.txt"
+check "m2: permissions" "drwxr-xr-x" "$DIR/screen-m2.txt"
 
 # m4 puts one over-long name through ellipsis, clip and grow, so the same row
 # must carry all three renderings of it. Grepping the screen as a whole is not
