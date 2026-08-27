@@ -1,0 +1,6 @@
+# Local, per-machine AI agent context. Never tracked.
+.ai-local/
+CLAUDE.local.md
+
+# Personal per-checkout Claude Code overrides.
+.claude/settings.local.json
