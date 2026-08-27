@@ -42,18 +42,20 @@ local seps = {} ---@type table<string, string> separator per linemode
 -- `cd`, which is the trade that keeps rendering O(1) per row.
 local cache, cache_n, bound = {}, 0, nil
 
-local PANES_HELP = 'supaline: `panes` takes "current", "parent", "preview", "all", '
-	.. 'or a list of those -- e.g. { "current", "preview" }'
+local DEFAULT_PANES = { "current" }
 
---- Which panes a linemode draws in. A single name, or any combination of them
---- as a list; `"all"` is shorthand for every pane and may appear either way.
+local PANES_HELP = 'supaline: `panes` takes a list of "current", "parent" and/or '
+	.. '"preview" -- e.g. { "current", "preview" }'
+
+--- Which panes a linemode draws in. Always a list, so there is one way to say
+--- any given combination; listing all three is how you ask for all three.
 ---@param spec table
 ---@return table<string, boolean>
 local function panes_of(spec)
-	local want = spec.panes or "current" ---@type string|table
+	local want = spec.panes or DEFAULT_PANES
 
 	if type(want) == "string" then
-		want = { want }
+		error(string.format('%s; got the string `%s` -- write { "%s" }', PANES_HELP, want, want))
 	elseif type(want) ~= "table" then
 		error(string.format("%s; got a %s", PANES_HELP, type(want)))
 	elseif #want == 0 then
@@ -65,20 +67,14 @@ local function panes_of(spec)
 
 	local set = {}
 	for _, name in ipairs(want) do
-		if name == "all" then
-			for _, pane in ipairs(PANES) do
-				set[pane] = true
-			end
-		else
-			local ok = false
-			for _, pane in ipairs(PANES) do
-				ok = ok or name == pane
-			end
-			if not ok then
-				error(string.format("%s; got `%s`", PANES_HELP, tostring(name)))
-			end
-			set[name] = true
+		local ok = false
+		for _, pane in ipairs(PANES) do
+			ok = ok or name == pane
 		end
+		if not ok then
+			error(string.format("%s; got `%s`", PANES_HELP, tostring(name)))
+		end
+		set[name] = true
 	end
 	return set
 end
