@@ -1,0 +1,74 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # 5.5 is what Yazi itself runs, and 5.1 is what a contributor is most likely
+    # to have to hand. The test code has to stay in the subset they all accept,
+    # so all three are run rather than assumed.
+    name: Unit tests (Lua ${{ matrix.lua }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua: ["5.1", "5.4", "5.5"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: ${{ matrix.lua }}
+      - run: lua test/run.lua
+
+  format:
+    name: stylua
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Pinned, not `latest`: a stylua release that changes its defaults would
+      # otherwise fail CI on files the local hook had just formatted.
+      - uses: JohnnyMorganz/stylua-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 2.5.2
+          args: --check .
+
+  shell:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck test/*.sh
+
+  since:
+    # Yazi enforces the annotation: a plugin file without it does not load, and
+    # the failure is a refusal to start rather than anything subtle.
+    name: "@since annotations"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every plugin file declares one
+        run: |
+          rc=0
+          for f in *.lua; do
+            if ! head -1 "$f" | grep -q '^--- @since '; then
+              echo "$f: first line is not '--- @since <version>'"
+              rc=1
+            fi
+          done
+          exit $rc
+
+# `test/e2e.sh` and `test/manual.sh` are deliberately not here. They need a real
+# Yazi binary and a real terminal, and what they check -- rendering, and how
+# wide a cell came out -- is not what a runner is good at. Run them locally
+# before saying that anything about the screen works.
