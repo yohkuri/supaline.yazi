@@ -160,8 +160,19 @@ stylua --check .
 lua test/run.lua            # unit tests
 lua test/run.lua column     # ... just the specs matching "column"
 test/e2e.sh                 # render in a real Yazi, headless
-test/e2e.sh --keep          # ... and leave the scratch config behind
+test/e2e.sh --keep          # ... and leave the scratch directory behind
+test/manual.sh              # ... interactively, for a human to look at
+test/manual.sh --clean      # discard the manual fixture
 ```
+
+`e2e.sh` and `manual.sh` both build their configuration and fixture with
+`test/setup.sh`, so what a person looks at and what the headless run asserts on
+cannot drift apart. The fixture opens on a directory carrying the cases that
+break width arithmetic — CJK, emoji, an over-long name, sizes either side of
+the 1K boundary — with siblings above it and a subdirectory below, so all three
+panes have rows. `m1` to `m9` switch between the linemodes, one per decision
+worth looking at; Yazi's own `m s` and `m n` still work, which is what makes
+them worth comparing against.
 
 Unit tests can only cover pure logic — normalisation, layout, the ratio
 contract, the built-in formatters — because they stub the Yazi globals. They

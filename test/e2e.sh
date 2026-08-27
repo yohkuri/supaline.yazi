@@ -3,10 +3,13 @@
 #
 # The unit tests stub the Yazi globals, so they can say nothing about
 # rendering. This can, and it is the only thing that can: both layout bugs
-# found so far were invisible to the unit tests until this script drew them.
+# found so far were invisible to the unit tests until something drew them.
 #
 #     test/e2e.sh            run it
-#     test/e2e.sh --keep     leave the scratch config and fixture behind
+#     test/e2e.sh --keep     leave the scratch directory behind
+#
+# The configuration and the fixture come from `test/setup.sh`, which
+# `manual.sh` also uses, so this and the interactive run cannot drift apart.
 #
 # Needs tmux. Yazi queries the terminal at startup and aborts if nothing
 # answers, so a `script`-style pseudo-terminal will not do; tmux is a real
@@ -14,15 +17,11 @@
 # which is why `app:theme` is sent by hand before anything is captured --
 # without it the user's theme is never applied and every `th.*` read returns
 # preset values.
-#
-# Neither your own Yazi configuration nor anything outside the scratch
-# directory is touched.
 
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-SCRATCH="${TMPDIR:-/tmp}/supaline-e2e"
-MARKER=".supaline-e2e"
+DIR="${TMPDIR:-/tmp}/supaline-e2e"
 SESSION="supaline-e2e"
 KEEP=""
 [ "${1:-}" = "--keep" ] && KEEP=1
@@ -34,142 +33,54 @@ for tool in tmux yazi; do
 	}
 done
 
-# The script rewrites this directory wholesale, so refuse any that it did not
-# create itself. A mistyped path would otherwise take a real directory with it.
-if [ -e "$SCRATCH" ] && [ ! -f "$SCRATCH/$MARKER" ]; then
-	echo "e2e: $SCRATCH exists and is not ours; move it aside" >&2
-	exit 2
-fi
-
-rm -rf "$SCRATCH"
-mkdir -p "$SCRATCH/config/plugins" "$SCRATCH/state" "$SCRATCH/fixture/sub/deep"
-: >"$SCRATCH/$MARKER"
-ln -sfn "$ROOT" "$SCRATCH/config/plugins/supaline.yazi"
-
-# --- the fixture -----------------------------------------------------------
-# Spans four orders of magnitude and three years, and carries a CJK name and an
-# over-long one, because that is where the width arithmetic goes wrong.
-cd "$SCRATCH/fixture"
-: >empty.txt
-dd if=/dev/zero of=small.bin bs=1 count=900 2>/dev/null
-dd if=/dev/zero of=medium.bin bs=1k count=800 2>/dev/null
-dd if=/dev/zero of=large.bin bs=1k count=9000 2>/dev/null
-printf 'x' >"日本語のファイル名.txt"
-printf 'x' >"a-very-long-file-name-that-yazi-itself-has-to-truncate.txt"
-touch -t 202301021504 large.bin
-touch -t 202405060708 medium.bin
-printf 'x' >sub/inner-a.txt
-dd if=/dev/zero of=sub/inner-b.bin bs=1k count=300 2>/dev/null
-touch -t 202312250000 sub/inner-a.txt
-printf 'x' >sub/deep/deepest.txt
-cd "$ROOT"
-
-# --- the configuration -----------------------------------------------------
-cat >"$SCRATCH/config/yazi.toml" <<'EOF'
-[mgr]
-linemode = "current_only"
-show_hidden = true
-EOF
-
-# One field is a style table and the other a plain string, because the theme
-# section accepts either and both have to resolve.
-cat >"$SCRATCH/config/theme.toml" <<'EOF'
-[supaline]
-size  = { fg = "#ff8800" }
-mtime = "green"
-EOF
-
-cat >"$SCRATCH/config/keymap.toml" <<'EOF'
-[[mgr.prepend_keymap]]
-on  = "T"
-run = "app:theme"
-
-[[mgr.prepend_keymap]]
-on  = [ "m", "1" ]
-run = "linemode current_only"
-
-[[mgr.prepend_keymap]]
-on  = [ "m", "2" ]
-run = "linemode every_pane"
-
-[[mgr.prepend_keymap]]
-on  = [ "m", "3" ]
-run = "linemode measured"
-EOF
-
-cat >"$SCRATCH/config/init.lua" <<'EOF'
-local supaline = require("supaline")
-
--- A user column, registered through the same entry point the built-ins use.
-supaline.column("ext", {
-	width = 5,
-	align = "left",
-	base = "magenta",
-	render = function(file, ctx) return file.url.ext or "", ctx.base end,
-})
-
-supaline:setup({
-	linemodes = {
-		current_only = { "size", "mtime" },
-		every_pane = {
-			"permissions",
-			"owner",
-			"size",
-			"mtime",
-			panes = { "current", "parent", "preview" },
-		},
-		measured = {
-			{ "ext" },
-			{ "size", width = "auto", sep = false },
-			{ "owner", width = "auto", max_width = 8 },
-		},
-	},
-})
-EOF
+"$ROOT/test/setup.sh" "$DIR"
 
 # --- run -------------------------------------------------------------------
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION" -x 170 -y 40 \
-	"env YAZI_CONFIG_HOME=$SCRATCH/config XDG_STATE_HOME=$SCRATCH/state YAZI_LOG=debug yazi '$SCRATCH/fixture/sub'"
+	"env YAZI_CONFIG_HOME=$DIR/config XDG_STATE_HOME=$DIR/state YAZI_LOG=debug yazi '$DIR/fixture/data'"
 sleep 4
 
-# Apply the user's theme. Everything before this point is drawn with preset
-# colours, so a capture taken now would prove nothing about `th.supaline`.
-tmux capture-pane -t "$SESSION" -p -e >"$SCRATCH/before-theme.txt"
+# Everything up to here is drawn with preset colours, so this capture is what
+# proves the theme was not applied before `app:theme` ran.
+tmux capture-pane -t "$SESSION" -p -e >"$DIR/before-theme.txt"
 tmux send-keys -t "$SESSION" T
 sleep 2
 
 shot() {
-	tmux capture-pane -t "$SESSION" -p >"$SCRATCH/screen-$1.txt"
-	tmux capture-pane -t "$SESSION" -p -e >"$SCRATCH/color-$1.txt"
+	tmux capture-pane -t "$SESSION" -p >"$DIR/screen-$1.txt"
+	tmux capture-pane -t "$SESSION" -p -e >"$DIR/color-$1.txt"
 }
 
-shot current_only
-tmux send-keys -t "$SESSION" m 2
-sleep 1
-# Switching linemode does not re-peek the preview; move the hover to force one.
-tmux send-keys -t "$SESSION" j
-sleep 1
-tmux send-keys -t "$SESSION" k
-sleep 2
-shot every_pane
-
-tmux send-keys -t "$SESSION" m 3
-sleep 2
-shot measured
+# Every linemode the manual harness offers, so a broken one cannot hide.
+for n in 1 2 3 4 5 6 7 8 9; do
+	tmux send-keys -t "$SESSION" m "$n"
+	sleep 1
+	# Switching linemode does not re-peek the preview; move the hover to force
+	# one, so the preview pane is drawn under the mode that is now active.
+	tmux send-keys -t "$SESSION" j
+	sleep 1
+	tmux send-keys -t "$SESSION" k
+	sleep 1
+	shot "m$n"
+done
 
 tmux send-keys -t "$SESSION" q
 sleep 1
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
 # --- check -----------------------------------------------------------------
-LOG="$SCRATCH/state/yazi/yazi.log"
+LOG="$DIR/state/yazi/yazi.log"
 fails=0
 
 fail() {
 	echo "  FAIL $1" >&2
 	fails=$((fails + 1))
 }
+
+# The current pane is the middle column and the parent pane the left one, so a
+# row's leading cells belong to the parent.
+parent_of() { sed -n '3,8p' "$DIR/screen-$1.txt" | cut -c1-20; }
 
 echo "== log =="
 if [ -f "$LOG" ] && grep -qiE "ERROR|WARN|attempt to|error converting" "$LOG"; then
@@ -179,53 +90,78 @@ else
 	echo "  clean"
 fi
 
-echo "== rendering =="
-# The current pane is the middle column; the parent pane is the left one.
-if grep -q "300K" "$SCRATCH/screen-current_only.txt"; then
-	echo "  columns drawn in the current pane"
+echo "== every linemode drew something =="
+for n in 1 2 3 4 5 6 7 8 9; do
+	if sed -n '3,8p' "$DIR/screen-m$n.txt" | grep -qE "[A-Za-z0-9]"; then
+		:
+	else
+		fail "m$n drew an empty linemode"
+	fi
+done
+[ "$fails" -eq 0 ] && echo "  m1 to m9 all drew"
+
+echo "== columns =="
+grep -q "87.9M" "$DIR/screen-m1.txt" && echo "  m1: size" || fail "m1: no size column"
+grep -q "drwxr-xr-x" "$DIR/screen-m2.txt" && echo "  m2: permissions" || fail "m2: no permissions column"
+
+# m4 puts one over-long name through ellipsis, clip and grow, so the same row
+# must carry all three renderings of it. Grepping the screen as a whole is not
+# enough: Yazi truncates long names in the parent pane by itself, and that
+# ellipsis would satisfy a looser check.
+# `exactly-1k.bin` is 14 characters against a column of 12, and short enough
+# that all three cells stay on screen: "exactly-1k.…", "exactly-1k.b", and the
+# name whole.
+m4row=$(grep -n "exactly-1k" "$DIR/screen-m4.txt" | head -1 | cut -d: -f1)
+if [ -z "$m4row" ]; then
+	fail "m4: the fixture name to overflow is not on screen"
 else
-	fail "no size column in the current pane"
+	row=$(sed -n "${m4row}p" "$DIR/screen-m4.txt")
+	ok=1
+	echo "$row" | grep -q "exactly-1k.…" || ok=""
+	echo "$row" | grep -q "exactly-1k.b " || ok=""
+	echo "$row" | grep -q "exactly-1k.bin" || ok=""
+	if [ -n "$ok" ]; then
+		echo "  m4: ellipsis, clip and grow all rendered on one row"
+	else
+		fail "m4: the three overflow modes did not render differently"
+	fi
 fi
 
-if grep -q "drwxr-xr-x" "$SCRATCH/screen-every_pane.txt"; then
-	echo "  permissions drawn"
+echo "== panes =="
+if parent_of m5 | grep -qE "[0-9]{2}/[0-9]{2}"; then
+	fail "m5: the parent pane drew under panes = { current }"
 else
-	fail "no permissions column"
+	echo "  m5: parent pane left alone"
 fi
-
-# `every_pane` lists all three, so the parent pane's own rows carry columns;
-# `current_only` does not, so the same rows are bare.
-parent_row_wide=$(sed -n '4p' "$SCRATCH/screen-every_pane.txt" | cut -c1-20)
-parent_row_solo=$(sed -n '4p' "$SCRATCH/screen-current_only.txt" | cut -c1-20)
-if echo "$parent_row_wide" | grep -qE "[0-9]"; then
-	echo "  parent pane drawn under { current, parent, preview }"
+if parent_of m6 | grep -qE "[0-9]{2}/[0-9]{2}"; then
+	echo "  m6: parent pane drawn"
 else
-	fail "parent pane bare under { current, parent, preview }"
+	fail "m6: the parent pane stayed bare under panes = { current, parent }"
 fi
-if echo "$parent_row_solo" | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	fail "parent pane drawn under the default { current }"
+if parent_of m7 | grep -qE "[0-9]{2}/[0-9]{2}"; then
+	fail "m7: the parent pane drew under panes = { current, preview }"
 else
-	echo "  parent pane left alone by the default"
+	echo "  m7: parent pane left alone"
 fi
 
 echo "== theme =="
-# `[supaline] size` is #ff8800, which is 255;136;0 once tmux writes it out.
-before=$(grep -c '255;136;0' "$SCRATCH/before-theme.txt" || true)
-after=$(grep -c '255;136;0' "$SCRATCH/color-current_only.txt" || true)
+# `[supaline] size` is #ff8800, which tmux writes out as 255;136;0.
+before=$(grep -c '255;136;0' "$DIR/before-theme.txt" || true)
+after=$(grep -c '255;136;0' "$DIR/color-m1.txt" || true)
 if [ "$before" -eq 0 ] && [ "$after" -gt 0 ]; then
-	echo "  base colour applied on app:theme (before=$before after=$after)"
+	echo "  base colour arrives with app:theme (before=$before after=$after)"
 else
 	fail "theme colour did not arrive with app:theme (before=$before after=$after)"
 fi
 
 echo
-sed -n '2,8p' "$SCRATCH/screen-every_pane.txt"
+sed -n '2,7p' "$DIR/screen-m6.txt"
 echo
 
 if [ -z "$KEEP" ]; then
-	rm -rf "$SCRATCH"
+	rm -rf "$DIR"
 else
-	echo "kept: $SCRATCH"
+	echo "kept: $DIR"
 fi
 
 if [ "$fails" -gt 0 ]; then
