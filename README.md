@@ -99,9 +99,16 @@ linemodes = {
 | `panes`     | `"current"`   | Which panes this linemode draws in.           |
 | `separator` | from `setup`  | Overrides the plugin-wide separator.          |
 
-`panes` takes `"current"`, `"parent"`, `"preview"`, a list of those, or `"all"`.
-Yazi itself only ever draws a linemode in the current pane; the other two are
-supaline's own addition.
+`panes` takes one pane name, or any combination of them as a list:
+
+```lua
+panes = "current"                 -- the default, and all Yazi itself does
+panes = { "current", "preview" }  -- any combination
+panes = "all"                     -- every pane
+```
+
+Yazi only ever draws a linemode in the current pane; the parent and preview
+panes are supaline's own addition.
 
 ### Column specs
 
