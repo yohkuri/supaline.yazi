@@ -53,7 +53,7 @@ shot() {
 }
 
 # Every linemode the manual harness offers, so a broken one cannot hide.
-for n in 1 2 3 4 5 6 7 8 9; do
+for n in 0 1 2 3 4 5 6 7 8 9; do
 	tmux send-keys -t "$SESSION" m "$n"
 	sleep 1
 	# Switching linemode does not re-peek the preview; move the hover to force
@@ -91,17 +91,18 @@ else
 fi
 
 echo "== every linemode drew something =="
-for n in 1 2 3 4 5 6 7 8 9; do
+for n in 0 1 2 3 4 5 6 7 8 9; do
 	if sed -n '3,8p' "$DIR/screen-m$n.txt" | grep -qE "[A-Za-z0-9]"; then
 		:
 	else
 		fail "m$n drew an empty linemode"
 	fi
 done
-[ "$fails" -eq 0 ] && echo "  m1 to m9 all drew"
+[ "$fails" -eq 0 ] && echo "  m0 to m9 all drew"
 
 echo "== columns =="
-grep -q "87.9M" "$DIR/screen-m1.txt" && echo "  m1: size" || fail "m1: no size column"
+grep -q "87.9M" "$DIR/screen-m0.txt" && echo "  m0: size" || fail "m0: no size column"
+grep -q "87.9M 05/06  2024" "$DIR/screen-m1.txt" && echo "  m1: size + mtime" || fail "m1: no size + mtime"
 grep -q "drwxr-xr-x" "$DIR/screen-m2.txt" && echo "  m2: permissions" || fail "m2: no permissions column"
 
 # m4 puts one over-long name through ellipsis, clip and grow, so the same row
@@ -128,20 +129,20 @@ else
 fi
 
 echo "== panes =="
-if parent_of m5 | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	fail "m5: the parent pane drew under panes = { current }"
-else
-	echo "  m5: parent pane left alone"
-fi
 if parent_of m6 | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	echo "  m6: parent pane drawn"
+	fail "m6: the parent pane drew under panes = { current }"
 else
-	fail "m6: the parent pane stayed bare under panes = { current, parent }"
+	echo "  m6: parent pane left alone"
 fi
 if parent_of m7 | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	fail "m7: the parent pane drew under panes = { current, preview }"
+	echo "  m7: parent pane drawn"
 else
-	echo "  m7: parent pane left alone"
+	fail "m7: the parent pane stayed bare under panes = { current, parent }"
+fi
+if parent_of m8 | grep -qE "[0-9]{2}/[0-9]{2}"; then
+	fail "m8: the parent pane drew under panes = { current, preview }"
+else
+	echo "  m8: parent pane left alone"
 fi
 
 echo "== theme =="
@@ -155,7 +156,7 @@ else
 fi
 
 echo
-sed -n '2,7p' "$DIR/screen-m6.txt"
+sed -n '2,7p' "$DIR/screen-m7.txt"
 echo
 
 if [ -z "$KEEP" ]; then
