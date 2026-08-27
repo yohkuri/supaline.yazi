@@ -185,8 +185,15 @@ line-by-line port of Yazi's own and `truncate_spec.lua` pins it against the
 assertions in Yazi's test suite. If you stub something new, pin it the same
 way.
 
-Keep the test code within the Lua 5.1 subset: the local interpreter may be 5.1,
-CI runs 5.4, and Yazi itself runs 5.5.
+Keep the test code within the Lua 5.1 subset: your interpreter may be 5.1 while
+Yazi runs 5.5. CI runs the unit tests on 5.1, 5.4 and 5.5 rather than assuming
+the subset holds.
+
+CI also checks stylua, shellcheck over `test/*.sh`, and that every plugin file
+opens with `--- @since` — Yazi refuses to load one that does not. **The e2e and
+manual harnesses are not in CI**: they need a real Yazi and a real terminal, and
+what they check is not what a runner is good at. Run them yourself before
+claiming anything about the screen.
 
 Two things make headless runs behave unlike a real terminal:
 
