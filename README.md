@@ -74,7 +74,12 @@ desc = "Linemode: size and mtime"
 | `scale`     | `"linear"`  | Default normalisation for columns that take a range. |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
-A linemode name is 1 to 20 characters; `none` and `solo` are reserved by Yazi.
+A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
+own machinery on the table the linemodes are looked up on, so `new`, `redraw`,
+`padding`, `children_add`, `children_remove` and anything beginning with `_` are
+refused, as are `none` and `solo`. Naming a linemode after one of Yazi's own —
+`size`, `mtime`, `btime`, `permissions`, `owner` — replaces it, which is
+allowed.
 
 ### Linemode options
 
@@ -108,7 +113,8 @@ panes = { "current", "parent", "preview" }  -- every pane
 ```
 
 Yazi only ever draws a linemode in the current pane; the parent and preview
-panes are supaline's own addition.
+panes are supaline's own addition. Leaving `current` off the list is allowed and
+means what it says — the current pane draws nothing for that linemode.
 
 ### Column specs
 
@@ -170,9 +176,12 @@ building an intermediate line, and is what the built-in columns do.
 There is no `ctime` column: Yazi's `Cha` exposes `atime`, `btime` and `mtime`
 only.
 
-Widths are stated rather than measured, so the default configuration costs no
-pass over the folder. Set `width = "auto"` on any of them to have it fit
-instead.
+Widths are stated rather than measured, so none of them renders the folder
+twice. Set `width = "auto"` on any of them to have it fit instead.
+
+They do each declare `stats`, and a column that declares `stats` takes one pass
+over the listing every time you enter a folder — cheap next to what Yazi has
+already done to list it, and the same pass the gradient will read from.
 
 ## Writing a column
 

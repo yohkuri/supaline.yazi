@@ -133,9 +133,11 @@ function M.normalize(spec, cfg)
 		error(string.format('supaline: `width` of column `%s` must be a number, "auto", or a function', name or "?"))
 	end
 
-	-- A folder-wide pass is only worth making when something actually consumes
-	-- it: a gradient ramp, or a width that is derived from the listing.
-	col.needs_pass = (col.stats ~= nil and cfg.gradient) or col.auto or col.width_of ~= nil
+	-- A column that declares `stats` gets the folder pass, full stop. Gating it
+	-- on whoever happens to consume the result -- a gradient ramp, a derived
+	-- width -- leaves a column whose `render` reads `ctx.stats` directly with
+	-- nothing to read, and says nothing about it.
+	col.needs_pass = col.stats ~= nil or col.auto or col.width_of ~= nil
 
 	-- One context table per column, reused across rows. main.lua rebinds
 	-- `stats` and `width` whenever the folder being drawn changes, not per row.
@@ -285,10 +287,17 @@ function M.cell(col, file)
 		elseif col.overflow == "clip" then
 			-- An empty ellipsis is how `Line:truncate` is asked to cut cleanly;
 			-- left to itself it inserts "…" like `ui.truncate` does.
-			return line:truncate { max = width, ellipsis = "" }
+			line = line:truncate { max = width, ellipsis = "" }
+		else
+			line = line:truncate { max = width }
 		end
-		return line:truncate { max = width }
-	elseif w < width then
+		-- Like `ui.truncate`, this returns *at most* `width`: a wide character
+		-- straddling the edge comes back one cell short, and an unpadded cell
+		-- drags every column after it out of line.
+		w = line:width()
+	end
+
+	if w < width then
 		local pad = string.rep(" ", width - w)
 		return col.align == "left" and ui.Line { line, pad } or ui.Line { pad, line }
 	end
