@@ -88,11 +88,29 @@ test("setup: an empty configuration is refused", function()
 	throws(function() main.setup({}, { linemodes = {} }) end, "`linemodes` is empty")
 end)
 
-test("setup: names Yazi has already spoken for are refused", function()
-	-- `solo()` returns early for both, so the registration would never be
-	-- reached and the linemode would silently do nothing.
-	throws(function() main.setup({}, { linemodes = { none = { "size" } } }) end, "reserved by Yazi")
-	throws(function() main.setup({}, { linemodes = { solo = { "size" } } }) end, "reserved by Yazi")
+test("setup: names that are part of the Linemode component are refused", function()
+	-- Yazi keeps the component's machinery on the same table the linemodes are
+	-- looked up on. `linemodes.new` replaced the constructor and took every
+	-- linemode down with it, not just its own.
+	local before = Linemode.new
+	for _, name in ipairs { "new", "redraw", "padding", "children_add", "children_remove", "_children", "_inc" } do
+		throws(
+			function() main.setup({}, { linemodes = { [name] = { "size" } } }) end,
+			"part of Yazi's `Linemode` component"
+		)
+	end
+	eq(Linemode.new, before, "the constructor survived")
+
+	-- `solo()` returns early for these two, so they would silently do nothing.
+	throws(function() main.setup({}, { linemodes = { none = { "size" } } }) end, "`Linemode` component")
+	throws(function() main.setup({}, { linemodes = { solo = { "size" } } }) end, "`Linemode` component")
+end)
+
+test("setup: overriding one of Yazi's own linemode names is still allowed", function()
+	-- Replacing the `size` linemode is a thing to want; replacing `redraw` is
+	-- not, and the two live on the same table.
+	setup { size = { { "size", width = 4 }, { "size", width = 4 } } }
+	eq(draw("size", CURRENT.files[1]), "  1B   1B")
 end)
 
 test("setup: a name Yazi cannot hold is refused", function()
@@ -141,6 +159,14 @@ test("panes: the current pane is never drawn twice", function()
 	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
 	-- `solo()` has already drawn it, so the child has to stand down.
 	eq(draw_child(CURRENT.files[1]), "")
+end)
+
+test("panes: a linemode that never asked for the current pane is bare there", function()
+	-- The pane set used to be consulted only by the parent/preview child, so
+	-- leaving `current` out of the list changed nothing at all.
+	setup { detail = { { "size", width = 4 }, panes = { "parent" } } }
+	eq(draw("detail", CURRENT.files[1]), "", "the current pane")
+	eq(draw_child(stub.file { name = "current", in_current = false, size = 1 }), "   1B", "the parent pane")
 end)
 
 test("panes: everything but a list of pane names is refused", function()
@@ -201,6 +227,22 @@ test("stats: the pass runs once per folder, not once per row", function()
 		draw("detail", file)
 	end
 	eq(calls, 1, "three rows, one pass")
+end)
+
+test("stats: a column with a stated width still receives them", function()
+	local seen = "not called"
+	main.column("stated", {
+		width = 6,
+		stats = function() return { min = 1, max = 42 } end,
+		render = function(_, ctx)
+			seen = ctx.stats and ctx.stats.max or "nil"
+			return ""
+		end,
+	})
+
+	setup { detail = { "stated" } }
+	draw("detail", CURRENT.files[1])
+	eq(seen, 42, "the folder pass was skipped because nothing else consumed it")
 end)
 
 test("stats: each pane is measured against its own folder", function()

@@ -44,6 +44,22 @@ local cache, cache_n, bound = {}, 0, nil
 
 local DEFAULT_PANES = { "current" }
 
+-- Yazi keeps the component's own machinery on the very table the linemodes are
+-- looked up on, so a linemode named after any of it silently replaces the
+-- machinery -- `new` takes out the constructor, `padding` takes out a child
+-- every row draws. Overriding a built-in *linemode* (`size`, `mtime`, ...) is
+-- fair game and stays allowed; `none` and `solo` are refused because `solo()`
+-- returns before it could ever dispatch to them.
+local RESERVED = {
+	none = true,
+	solo = true,
+	new = true,
+	redraw = true,
+	padding = true,
+	children_add = true,
+	children_remove = true,
+}
+
 local PANES_HELP = 'supaline: `panes` takes a list of "current", "parent" and/or '
 	.. '"preview" -- e.g. { "current", "preview" }'
 
@@ -236,10 +252,15 @@ function M.setup(_st, opts)
 	for name, spec in pairs(specs) do
 		if type(name) ~= "string" or #name < 1 or #name > 20 then
 			error(string.format("supaline: a linemode name must be 1 to 20 characters, got `%s`", tostring(name)))
-		elseif name == "none" or name == "solo" then
-			-- `solo()` returns early for both, so the registration would never
-			-- be reached and the linemode would silently do nothing.
-			error(string.format("supaline: `%s` is reserved by Yazi and cannot be a linemode name", name))
+		elseif RESERVED[name] or name:sub(1, 1) == "_" then
+			error(
+				string.format(
+					"supaline: `%s` is part of Yazi's `Linemode` component; a linemode of "
+						.. "that name would replace it. Overriding a built-in linemode "
+						.. "(`size`, `mtime`, ...) is fine, replacing the component is not",
+					name
+				)
+			)
 		elseif type(spec) ~= "table" then
 			error(string.format("supaline: linemode `%s` must be a list of columns", name))
 		end
@@ -250,8 +271,17 @@ function M.setup(_st, opts)
 
 	build()
 
+	-- Registered whatever `panes` says, because an unregistered name is not
+	-- inert: `solo()` draws it as literal text. A linemode that has not asked
+	-- for the current pane draws nothing there instead.
 	for name in pairs(specs) do
-		Linemode[name] = function(self) return render(name, self._file) end
+		Linemode[name] = function(self)
+			local set = panes[name]
+			if not set or not set.current then
+				return ""
+			end
+			return render(name, self._file)
+		end
 	end
 
 	-- Added once, here rather than in `build`, so a theme reload does not stack

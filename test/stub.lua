@@ -363,12 +363,22 @@ function M.install(root)
 		end,
 	}
 
+	-- Shaped like Yazi's own: the component keeps its machinery on the very
+	-- table the linemodes are looked up on, which is why a linemode may not be
+	-- named after any of it.
 	M.children = {}
 	_G.Linemode = {
+		_inc = 1000,
+		_children = { { "solo", id = 1, order = 1000 }, { "padding", id = 2, order = 2000 } },
+		new = function(self, file) return setmetatable({ _file = file }, { __index = self }) end,
+		solo = function() return "" end,
+		redraw = function() return M.Line("") end,
+		padding = function() return " " end,
 		children_add = function(_, fn, order)
 			table.insert(M.children, { fn = fn, order = order })
 			return #M.children
 		end,
+		children_remove = function() end,
 	}
 
 	_G.cx = { active = { pref = {}, history = function() return nil end } }
