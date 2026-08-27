@@ -96,11 +96,19 @@ EOF
 # Yazi's own linemode leader is `m`, and it only binds letters, so the digits
 # are free. `m s` and `m n` still reach Yazi's built-ins, which is what makes
 # them worth comparing against.
+#
+# The order climbs: m0 to m2 are the built-in columns at increasing richness,
+# m3 to m5 the layout decisions, m6 to m8 the panes, and m9 extensibility.
 cat >"$DIR/config/keymap.toml" <<'EOF'
 [[mgr.prepend_keymap]]
 on   = "T"
 run  = "app:theme"
 desc = "Reload the theme"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "0" ]
+run  = "linemode plain"
+desc = "supaline: one column, to compare against m s"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "1" ]
@@ -124,23 +132,23 @@ desc = "supaline: ellipsis / clip / grow"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "5" ]
+run  = "linemode seps"
+desc = "supaline: separators"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "6" ]
 run  = "linemode pane_cur"
 desc = "supaline: panes = current"
 
 [[mgr.prepend_keymap]]
-on   = [ "m", "6" ]
+on   = [ "m", "7" ]
 run  = "linemode pane_par"
 desc = "supaline: panes = current + parent"
 
 [[mgr.prepend_keymap]]
-on   = [ "m", "7" ]
+on   = [ "m", "8" ]
 run  = "linemode pane_prev"
 desc = "supaline: panes = current + preview"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "8" ]
-run  = "linemode seps"
-desc = "supaline: separators"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "9" ]
@@ -168,39 +176,43 @@ supaline.column("name", {
 
 supaline:setup({
 	linemodes = {
-		-- m1: the everyday case.
+		-- m0: one column, so `m s` is a fair comparison.
+		plain = { "size" },
+
+		-- m1: the everyday case, and the one the README opens with.
 		default = { "size", "mtime" },
 
 		-- m2: every built-in column at its own default width.
 		everything = { "permissions", "owner", "size", "mtime", "count" },
 
 		-- m3: the same value stated, measured, and measured with a cap. The
-		-- second column should fit the folder exactly; the third stops at 8.
+		-- stated width is deliberately wider than any size in the fixture, so the
+		-- measured column beside it is visibly narrower from the first frame.
 		widths = {
-			{ "size", width = 7 },
+			{ "size", width = 10 },
 			{ "size", width = "auto" },
 			{ "owner", width = "auto", max_width = 8 },
 		},
 
-		-- m4: one long value, three ways. Only the first should show "…".
+		-- m4: one name, three ways. Only the first should show "…".
 		overflow = {
 			{ "name", overflow = "ellipsis" },
 			{ "name", overflow = "clip" },
 			{ "name", overflow = "grow" },
 		},
 
-		-- m5 to m7: the panes. The difference shows in the left and right
-		-- panes, never in the middle one.
-		pane_cur = { "size", "mtime", panes = { "current" } },
-		pane_par = { "size", "mtime", panes = { "current", "parent" } },
-		pane_prev = { "size", "mtime", panes = { "current", "preview" } },
-
-		-- m8: the default separator, none at all, and one of your own.
+		-- m5: the default separator, none at all, and one of your own.
 		seps = {
 			{ "ext" },
 			{ "size", sep = false },
 			{ "mtime", sep = "│" },
 		},
+
+		-- m6 to m8: the panes. The difference shows in the left and right
+		-- panes, never in the middle one.
+		pane_cur = { "size", "mtime", panes = { "current" } },
+		pane_par = { "size", "mtime", panes = { "current", "parent" } },
+		pane_prev = { "size", "mtime", panes = { "current", "preview" } },
 
 		-- m9: a registered user column, and an inline function.
 		custom = {

@@ -170,8 +170,8 @@ test/manual.sh --clean      # discard the manual fixture
 cannot drift apart. The fixture opens on a directory carrying the cases that
 break width arithmetic — CJK, emoji, an over-long name, sizes either side of
 the 1K boundary — with siblings above it and a subdirectory below, so all three
-panes have rows. `m1` to `m9` switch between the linemodes, one per decision
-worth looking at; Yazi's own `m s` and `m n` still work, which is what makes
+panes have rows. `m0` to `m9` switch between the linemodes, one per decision
+worth looking at, and `test/MANUAL.md` says what to look for in each; Yazi's own `m s` and `m n` still work, which is what makes
 them worth comparing against.
 
 Unit tests can only cover pure logic — normalisation, layout, the ratio
