@@ -51,6 +51,12 @@ local bound_name, bound_cwd, bound_n = nil, nil, nil
 
 local DEFAULT_PANES = { "current" }
 
+-- What a previous `setup` left on `Linemode` and on the DDS bus. Held across
+-- calls because neither may simply be added a second time -- see the end of
+-- `setup`.
+local child_id = nil ---@type integer?
+local subscribed = false
+
 -- Yazi keeps the component's own machinery on the very table the linemodes are
 -- looked up on, so a linemode named after any of it silently replaces the
 -- machinery -- `new` takes out the constructor, `padding` takes out a child
@@ -201,16 +207,20 @@ local function bind(name, cols, folder)
 	bound_name, bound_cwd, bound_n = name, cwd, n
 end
 
+--- Draw one row. The caller resolves the pane, because both of them already
+--- know it: `solo()` only dispatches for `in_current` rows, and `child` has
+--- just asked `pane_of`. `folder` is nil for a pane that has none -- the
+--- parent of the filesystem root -- which `bind` handles.
 ---@param name string
 ---@param file table `fs::File`
+---@param folder table? the folder the row belongs to
 ---@return unknown an `AsLine`
-local function render(name, file)
+local function render(name, file, folder)
 	local cols = linemodes[name]
 	if not cols or #cols == 0 then
 		return ""
 	end
 
-	local _, folder = pane_of(file)
 	bind(name, cols, folder)
 
 	local sep, out = seps[name], {}
@@ -230,7 +240,7 @@ end
 ---@return unknown an `AsLine`
 local function child(self)
 	local file = self._file
-	local pane = pane_of(file)
+	local pane, folder = pane_of(file)
 	if pane == "current" then
 		return ""
 	end
@@ -243,31 +253,51 @@ local function child(self)
 
 	-- `solo()` prepends a space to a line that has width; match it, so the two
 	-- panes line up.
-	local line = ui.Line(render(name, file))
+	local line = ui.Line(render(name, file, folder))
 	return line:visible() and ui.Line { " ", line } or line
 end
 
---- (Re)build every linemode from the stored specs. Run once at setup and again
---- on every `theme` event: until that event fires `th.*` still holds preset
---- values, so any base colour resolved earlier is the wrong one.
-local function build()
-	local next_modes, next_panes, next_seps = {}, {}, {}
-	for name, spec in pairs(specs) do
+--- Turn a set of specs into runtime linemodes. Pure, and the only place that
+--- validates a spec: `column.normalize` and `panes_of` both raise, so a
+--- configuration that does not compile never reaches module state.
+---@param from table<string, table>
+---@param with table plugin-wide options
+---@return table modes, table sets, table separators
+local function compile(from, with)
+	local modes, sets, separators = {}, {}, {}
+	for name, spec in pairs(from) do
 		local cols = {}
 		for i, entry in ipairs(spec) do
-			cols[i] = column.normalize(entry, cfg)
+			cols[i] = column.normalize(entry, with)
 		end
-		next_modes[name], next_panes[name] = cols, panes_of(spec)
-		next_seps[name] = spec.separator or cfg.separator
+		modes[name], sets[name] = cols, panes_of(spec)
+		separators[name] = spec.separator or with.separator
 	end
+	return modes, sets, separators
+end
 
-	linemodes, panes, seps = next_modes, next_panes, next_seps
+--- Put a compiled set of linemodes into service, dropping everything derived
+--- from the last one.
+local function install(modes, sets, separators)
+	linemodes, panes, seps = modes, sets, separators
 	cache, cache_n = {}, 0
 	bound_name, bound_cwd, bound_n = nil, nil, nil
 
 	-- `smart` compares against the current year, which is a constant for the
 	-- life of a session and must not be asked for once per row.
 	builtin.refresh()
+end
+
+--- Rebuild every linemode from the stored specs. Subscribed to `theme`: until
+--- that event fires `th.*` still holds preset values, so any base colour
+--- resolved earlier is the wrong one.
+local function build() install(compile(specs, cfg)) end
+
+--- A file operation can move a file between buckets, or change how wide the
+--- widest cell is, so drop the cached pass and let the next frame redo it.
+local function invalidate()
+	cache, cache_n = {}, 0
+	bound_name, bound_cwd, bound_n = nil, nil, nil
 end
 
 --- Register a reusable column, before `setup`, then refer to it by name from a
@@ -294,20 +324,27 @@ function M.setup(_st, opts)
 	end
 	opts = opts or {}
 
-	cfg = {
+	-- Everything up to the commit below works on locals. A `setup` that is
+	-- refused must leave the configuration already running untouched: the
+	-- `theme` handler reads `specs`, so a rejected spec left there would make
+	-- every later theme event throw instead of rebuilding.
+	local next_cfg = {
 		separator = opts.separator or DEFAULTS.separator,
 		order = opts.order or DEFAULTS.order,
 		scale = opts.scale or DEFAULTS.scale,
 	}
 
-	specs = opts.linemodes or {}
-	if not next(specs) then
+	local next_specs = opts.linemodes or {}
+	if not next(next_specs) then
 		error("supaline: `linemodes` is empty; there is nothing to render")
 	end
 
-	local wants_child = false
-	for name, spec in pairs(specs) do
-		if type(name) ~= "string" or #name < 1 or #name > 20 then
+	for name, spec in pairs(next_specs) do
+		-- Yazi's limit is 1 to 20 *characters*; `#name` would refuse a CJK
+		-- name of seven. `utf8.len` returns nil for a string that is not
+		-- valid UTF-8, and such a name is Yazi's to refuse, not ours.
+		local len = type(name) == "string" and (utf8.len(name) or #name) or nil
+		if not len or len < 1 or len > 20 then
 			error(string.format("supaline: a linemode name must be 1 to 20 characters, got `%s`", tostring(name)))
 		elseif is_yazis(name) then
 			error(
@@ -321,16 +358,31 @@ function M.setup(_st, opts)
 		elseif type(spec) ~= "table" then
 			error(string.format("supaline: linemode `%s` must be a list of columns", name))
 		end
-
-		local set = panes_of(spec)
-		wants_child = wants_child or set.parent or set.preview
 	end
 
-	build()
+	-- Compiling is what validates the columns and the `panes` list, so it also
+	-- has to happen before the commit -- and only once, rather than again
+	-- inside `build`.
+	local modes, sets, separators = compile(next_specs, next_cfg)
+
+	local wants_child = false
+	for _, set in pairs(sets) do
+		if set.parent or set.preview then
+			wants_child = true
+		end
+	end
+
+	-- Committed. Nothing below here may raise on a configuration that got this
+	-- far.
+	cfg, specs = next_cfg, next_specs
+	install(modes, sets, separators)
 
 	-- Registered whatever `panes` says, because an unregistered name is not
 	-- inert: `solo()` draws it as literal text. A linemode that has not asked
 	-- for the current pane draws nothing there instead.
+	--
+	-- `solo()` only dispatches for a row it has already found `in_current`, so
+	-- the folder is the current one without asking.
 	for name in pairs(specs) do
 		ours[name] = true
 		Linemode[name] = function(self)
@@ -338,29 +390,37 @@ function M.setup(_st, opts)
 			if not set or not set.current then
 				return ""
 			end
-			return render(name, self._file)
+			return render(name, self._file, cx.active.current)
 		end
 	end
 
-	-- Added once, here rather than in `build`, so a theme reload does not stack
-	-- up another child on every event.
+	-- Replace the child a previous `setup` added rather than stacking another:
+	-- `Linemode:redraw()` calls every child it holds, so a second one draws
+	-- the parent and preview panes twice over.
+	if child_id then
+		Linemode:children_remove(child_id)
+		child_id = nil
+	end
 	if wants_child then
-		Linemode:children_add(child, cfg.order)
+		child_id = Linemode:children_add(child, cfg.order)
 	end
 
-	ps.sub("theme", build)
-
-	-- A file operation can move a file between buckets, or change how wide the
-	-- widest cell is, so drop the cached pass and let the next frame redo it.
+	-- Subscribed once for the life of the session, for the same reason. Both
+	-- handlers read the module state this call has just replaced, so a second
+	-- `setup` needs no second subscription and a second one would only run
+	-- them twice per event.
 	--
 	-- `bulk-rename`, not `bulk`: 26.8.15 renamed the event without saying so,
 	-- and `ps.sub` accepts an unknown kind without complaining.
-	local invalidate = function()
-		cache, cache_n = {}, 0
-		bound_name, bound_cwd, bound_n = nil, nil, nil
-	end
-	for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
-		ps.sub(kind, invalidate)
+	if not subscribed then
+		subscribed = true
+		ps.sub("theme", build)
+		-- The year `mtime` compares against is read in `install`; `cd` is the
+		-- event that fires often enough to keep it current.
+		ps.sub("cd", builtin.refresh)
+		for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
+			ps.sub(kind, invalidate)
+		end
 	end
 end
 

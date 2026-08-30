@@ -142,6 +142,15 @@ end)
 test("setup: a name Yazi cannot hold is refused", function()
 	local long = string.rep("x", 21)
 	throws(function() main.setup({}, { linemodes = { [long] = { "size" } } }) end, "1 to 20 characters")
+
+	-- Yazi counts characters. This one is ten of them and thirty bytes, so a
+	-- byte-length check would refuse a name Yazi is happy to hold.
+	local cjk = "詳細表示モードの名前"
+	setup { [cjk] = { { "size", width = 3 } } }
+	eq(type(Linemode[cjk]), "function", "a CJK name well inside the limit is kept")
+
+	-- ... and twenty-one characters is still too many, however few bytes.
+	throws(function() main.setup({}, { linemodes = { [string.rep("あ", 21)] = { "size" } } }) end, "1 to 20 characters")
 end)
 
 test("setup: a linemode has to be a list of columns", function()
@@ -188,6 +197,40 @@ test("panes: every preview row draws, not just the one Yazi flags", function()
 
 	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
 	eq(draw_child(PREVIEW.files[2]), "", "and it is not mistaken for a parent row")
+end)
+
+test("setup: a second call replaces the child rather than stacking one", function()
+	-- `Linemode:redraw()` calls every child it holds, so a second one draws
+	-- the parent and preview panes twice over.
+	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
+	eq(#stub.children, 1, "one child after the first setup")
+
+	setup { detail = { { "size", width = 3 }, panes = { "current", "preview" } } }
+	eq(#stub.children, 1, "still one after the second")
+
+	setup { detail = { "size" } }
+	eq(#stub.children, 0, "and none once no linemode leaves the current pane")
+
+	-- The handlers read the state `setup` replaces, so one subscription each
+	-- is right however many times it is called.
+	eq(#stub.subs.theme, 1, "the theme handler is subscribed once")
+	eq(#stub.subs.rename, 1, "and so is each invalidation handler")
+end)
+
+test("setup: a refused configuration leaves the running one alone", function()
+	setup { good = { { "size", width = 3 } } }
+	local before = draw("good", CURRENT.files[1])
+
+	throws(
+		function() main.setup({}, { linemodes = { good = { "size" }, bad = { "size", panes = { "nope" } } } }) end,
+		"`panes` takes a list"
+	)
+
+	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
+	-- The `theme` handler rebuilds from the stored specs, so a rejected one
+	-- left there would make every later theme event throw.
+	stub.subs.theme[1]()
+	eq(draw("good", CURRENT.files[1]), before, "and a theme event still rebuilds it")
 end)
 
 test("panes: the current pane is never drawn twice", function()

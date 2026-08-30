@@ -61,9 +61,11 @@ column.register("size", {
 })
 
 -- The current year, so `smart` does not ask `os.date` for it once per row on
--- top of the call it already makes for the file. `M.refresh` re-reads it, and
--- main.lua's `build()` calls that -- once at setup and again on every `theme`
--- event, which is often enough to survive a session left open overnight.
+-- top of the call it already makes for the file. `M.refresh` re-reads it:
+-- main.lua calls it whenever a linemode is installed, and subscribes it to
+-- `cd`, which is the event that fires often enough to keep it current. A
+-- session left open across New Year and never navigated still shows the old
+-- year's formatting until something moves.
 local THIS_YEAR = os.date("%Y")
 
 --- Yazi's preset formatting: time of day within the current year, the year
