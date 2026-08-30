@@ -188,7 +188,11 @@ way.
 Write the test code for **Lua 5.5**, the version Yazi runs, and install that to
 run it. No other version has a claim on this code: the plugin is only ever
 loaded by Yazi, so a suite that passes on an older interpreter has proved
-nothing extra. CI runs the tests on 5.5 alone.
+nothing extra. CI runs the tests on 5.5 alone, and `test/run.lua` refuses to
+run on anything else — a suite that quietly passes on 5.1 proves nothing.
+
+`mise.toml` pins 5.5.1, so `mise install` is enough to get the right
+interpreter; without mise, put a 5.5 `lua` on `PATH` yourself.
 
 CI also checks stylua, shellcheck over `test/*.sh`, and that every plugin file
 opens with `--- @since` — Yazi refuses to load one that does not. **The e2e and
