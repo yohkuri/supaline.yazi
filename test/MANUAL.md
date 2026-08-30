@@ -97,6 +97,11 @@ a cap of 8.
 - The two size columns hold the same value, but the first is padded to ten
   cells whether the folder needs them or not. The measured one takes **seven**
   here — the width of `1023.4K`, the widest size in this folder.
+- Those ten cells are hard to see on most rows: Yazi gives the file name
+  whatever the linemode leaves over, so the padding to the *left* of the first
+  column looks the same at any width. The row to read is
+  `a-very-long-file-name…`, the one Yazi had to truncate — there the name fills
+  its budget exactly, so the gap after it is the column's own padding.
 - Now enter `nested`, where the widest size is `300K`. The measured column
   should **narrow to four** while the stated one does not move:
 

@@ -154,10 +154,15 @@ fi
 # m3: `size` stated at 10 beside `size` measured. In `data/` the widest size is
 # "1023.4K", so the measured column is 7 and the two are three spaces apart.
 check "m3: a stated width and a measured one differ" "1024B   1024B" "$DIR/screen-m3.txt"
-# ... and in `nested/` the widest is "300K", so the measured column narrows to 4
-# while the stated one does not move: six spaces of padding, then one space of
-# separator. Asserting both halves in one string is what pins the pair.
+# ... and in `nested/` the widest is "300K", so the measured column narrows to 4.
 check "m3: the measured width follows the folder" "      300K 300K" "$DIR/screen-m3-nested.txt"
+# Neither of those pins the *stated* column: Yazi absorbs whatever the linemode
+# does not use into the file name's padding, so the spaces to the left of the
+# first column stay put however wide it is. The one row that cannot absorb
+# anything is the one whose name Yazi had to truncate -- there the name fills
+# its budget exactly, so the gap after it is the stated column's own padding:
+# one space of separator, then 10 less the two cells of "1B".
+check "m3: a stated width does not shrink to fit" "….txt         1B" "$DIR/screen-m3.txt"
 
 # m5: `ext` (5, left), then `size` with `sep = false`, then `mtime` behind "│".
 check "m5: sep = false and a separator of one's own" "bin    1024B│" "$DIR/screen-m5.txt"
