@@ -300,6 +300,33 @@ function M.Span(text) return setmetatable({ _text = text }, Span) end
 
 -- --- fixtures --------------------------------------------------------------
 
+-- Yazi's `AuthKind`, and which side of `is_local()` each variant falls on.
+-- Written out rather than derived from a pair of comparisons, because the
+-- partition is the claim being made about Yazi: a typo in a spec's `url_kind`
+-- would otherwise pass as virtual and make a test succeed for the wrong
+-- reason. `auth_spec.lua` pins all six.
+M.AUTH_KINDS = {
+	regular = { is_regular = true, is_search = false, is_virtual = false },
+	search = { is_regular = false, is_search = true, is_virtual = false },
+	mount = { is_regular = false, is_search = false, is_virtual = true },
+	hub = { is_regular = false, is_search = false, is_virtual = true },
+	scope = { is_regular = false, is_search = false, is_virtual = true },
+	sftp = { is_regular = false, is_search = false, is_virtual = true },
+}
+
+--- The `Url.spec` of a file whose URL has the given `AuthKind`.
+---@param kind string
+---@return table
+function M.spec_of(kind)
+	local flags = M.AUTH_KINDS[kind] or error("stub: no such AuthKind: " .. tostring(kind))
+	return {
+		kind = kind,
+		is_regular = flags.is_regular,
+		is_search = flags.is_search,
+		is_virtual = flags.is_virtual,
+	}
+end
+
 --- A stand-in for `fs::File`. Everything the built-in columns read is either
 --- passed in or defaulted to something harmless.
 ---@param t table
@@ -309,8 +336,7 @@ function M.file(t)
 	--- The `AuthKind` of the file's URL: `regular`, `search`, `mount`, `hub`,
 	--- `scope` or `sftp`.
 	local kind = t.url_kind or "regular"
-	local file
-	file = {
+	local file = {
 		name = name,
 		in_current = t.in_current == nil and true or t.in_current,
 		is_hovered = t.is_hovered or false,
@@ -322,20 +348,13 @@ function M.file(t)
 		-- plugin trust it.
 		url = {
 			ext = name:match("%.([^.]+)$"),
-			-- Yazi's `Url.spec`. `is_virtual` is derived rather than passed
-			-- in, because the partition is the whole point: Yazi's own
-			-- `AuthKind` calls `regular` and `search` local and everything
-			-- else virtual, so a search result keeps its owner names and an
-			-- `sftp` file does not. A stub that took the flag directly would
-			-- let a column key on `is_regular` -- which is false for a search
-			-- result too -- and still pass.
-			spec = {
-				kind = kind,
-				is_regular = kind == "regular",
-				is_search = kind == "search",
-				is_virtual = kind ~= "regular" and kind ~= "search",
-			},
-			__tostring = nil,
+			-- Yazi's `Url.spec`, from the `AuthKind` table above rather than
+			-- from a flag the caller hands in: `regular` and `search` are
+			-- local and everything else is virtual, so a search result keeps
+			-- its owner names and an `sftp` file does not. A stub that took
+			-- the flag directly would let a column key on `is_regular` --
+			-- which is false for a search result too -- and still pass.
+			spec = M.spec_of(kind),
 		},
 		cha = {
 			is_dir = t.is_dir or false,
@@ -367,6 +386,16 @@ function M.file(t)
 		end,
 	})
 	return file
+end
+
+--- Fire every handler subscribed to a DDS event, in subscription order. One
+--- way to say it, rather than reaching into `M.subs` by index -- which quietly
+--- does nothing the day the subscription order changes.
+---@param kind string
+function M.fire(kind)
+	for _, fn in ipairs(M.subs[kind] or {}) do
+		fn()
+	end
 end
 
 --- A stand-in for a folder, with a `cwd` that stringifies and a file list.
