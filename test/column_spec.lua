@@ -28,6 +28,15 @@ test("normalize: a name with its options overridden", function()
 	eq(cell { "fixed", width = 5, align = "left" }, "ab   ")
 end)
 
+test("normalize: an option written on the definition survives, `false` and all", function()
+	-- `sep` is the only option whose meaningful value is `false`, and the
+	-- `opts[k] == nil and def[k] or opts[k]` idiom collapsed it to nil, so a
+	-- definition that said `sep = false` still got a separator drawn.
+	column.register("tight", { width = 3, sep = false, render = function() return "x" end })
+	eq(column.normalize("tight", CFG).sep, false)
+	eq(column.normalize({ "tight", sep = "|" }, CFG).sep, "|", "the use site still wins")
+end)
+
 test("normalize: a bare function", function()
 	eq(cell(function() return "hi" end), "hi")
 end)
@@ -247,6 +256,17 @@ test('width: max_width caps "auto"', function()
 		max_width = 3,
 	}, CFG)
 	eq(column.resolve_width(col, FILES, nil), 3)
+end)
+
+test("width: a width function that returns no number is refused", function()
+	-- Returning nil here left the column with no width at all: no padding, no
+	-- truncation, and a cell free to push into the file name.
+	local col = column.normalize({
+		render = function() return "abcdefgh" end,
+		name = "wonky",
+		width = function() return nil end,
+	}, CFG)
+	throws(function() column.resolve_width(col, FILES, nil) end, "returned a nil; it must return a number")
 end)
 
 test('width: "auto" over an empty folder is zero', function()

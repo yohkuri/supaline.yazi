@@ -10,8 +10,8 @@
 --- per folder and cached here, then bound onto each column whenever the folder
 --- being drawn changes.
 
+local builtin = require(".builtin")
 local column = require(".column")
-require(".builtin")
 
 -- Yazi calls `Linemode` for three panes. `solo()` guards `in_current` itself,
 -- so a linemode never reaches the other two; a child added with
@@ -40,25 +40,51 @@ local seps = {} ---@type table<string, string> separator per linemode
 -- count catches the common case of a file being added or removed; a write that
 -- leaves it unchanged keeps stale extremes until the next file operation or
 -- `cd`, which is the trade that keeps rendering O(1) per row.
-local cache, cache_n, bound = {}, 0, nil
+local cache, cache_n = {}, 0
+
+-- The pane last bound, held as its three parts rather than as the composed
+-- key. `bind` runs for every visible row on every frame and almost always
+-- finds nothing has changed, so the check it does first must not allocate:
+-- `tostring(cwd)` crosses into Rust to build a path string, and the key
+-- concatenates three more. Comparing the parts is enough to decide.
+local bound_name, bound_cwd, bound_n = nil, nil, nil
 
 local DEFAULT_PANES = { "current" }
 
 -- Yazi keeps the component's own machinery on the very table the linemodes are
 -- looked up on, so a linemode named after any of it silently replaces the
 -- machinery -- `new` takes out the constructor, `padding` takes out a child
--- every row draws. Overriding a built-in *linemode* (`size`, `mtime`, ...) is
--- fair game and stays allowed; `none` and `solo` are refused because `solo()`
--- returns before it could ever dispatch to them.
-local RESERVED = {
-	none = true,
-	solo = true,
-	new = true,
-	redraw = true,
-	padding = true,
-	children_add = true,
-	children_remove = true,
+-- every row draws.
+--
+-- The check asks `Linemode` what it holds rather than listing it: Yazi is on
+-- CalVer and adds to the component between releases, and a name written down
+-- here goes stale the moment it does. Only Yazi's own linemodes are exempt --
+-- replacing `size` is a thing to want, replacing `redraw` is not. `none` is
+-- deliberately not among them, because `solo()` returns before it could ever
+-- dispatch to it.
+local OVERRIDABLE = {
+	size = true,
+	permissions = true,
+	btime = true,
+	mtime = true,
+	atime = true,
+	owner = true,
 }
+
+-- Names supaline itself put on `Linemode`, so calling `setup` twice does not
+-- refuse everything the first call registered.
+local ours = {} ---@type table<string, boolean>
+
+--- Whether `name` would replace something of Yazi's rather than sit alongside
+--- it.
+---@param name string
+---@return boolean
+local function is_yazis(name)
+	if OVERRIDABLE[name] or ours[name] then
+		return false
+	end
+	return Linemode[name] ~= nil or name:sub(1, 1) == "_"
+end
 
 local PANES_HELP = 'supaline: `panes` takes a list of "current", "parent" and/or '
 	.. '"preview" -- e.g. { "current", "preview" }'
@@ -116,8 +142,8 @@ end
 ---@param folder table?
 local function bind(name, cols, folder)
 	if not folder then
-		if bound ~= false then
-			bound = false
+		if bound_name ~= false then
+			bound_name, bound_cwd, bound_n = false, nil, nil
 			for _, col in ipairs(cols) do
 				column.bind(col, {})
 			end
@@ -125,12 +151,13 @@ local function bind(name, cols, folder)
 		return
 	end
 
-	local files = folder.files
-	local key = name .. "\0" .. tostring(folder.cwd) .. "\0" .. #files
-	if bound == key then
+	local files, cwd = folder.files, folder.cwd
+	local n = #files
+	if bound_name == name and bound_n == n and bound_cwd == cwd then
 		return
 	end
 
+	local key = name .. "\0" .. tostring(cwd) .. "\0" .. n
 	local entries = cache[key]
 	if not entries then
 		entries = {}
@@ -155,7 +182,7 @@ local function bind(name, cols, folder)
 	for i, col in ipairs(cols) do
 		column.bind(col, entries[i])
 	end
-	bound = key
+	bound_name, bound_cwd, bound_n = name, cwd, n
 end
 
 ---@param name string
@@ -217,7 +244,12 @@ local function build()
 	end
 
 	linemodes, panes, seps = next_modes, next_panes, next_seps
-	cache, cache_n, bound = {}, 0, nil
+	cache, cache_n = {}, 0
+	bound_name, bound_cwd, bound_n = nil, nil, nil
+
+	-- `smart` compares against the current year, which is a constant for the
+	-- life of a session and must not be asked for once per row.
+	builtin.refresh()
 end
 
 --- Register a reusable column, before `setup`, then refer to it by name from a
@@ -235,6 +267,13 @@ end
 ---@param _st table plugin state, supplied by Yazi
 ---@param opts table?
 function M.setup(_st, opts)
+	-- `.setup{...}` as well as `:setup{...}`, matching `M.column`. The dot form
+	-- lands the options in the state parameter, which is Yazi's own table and
+	-- never carries `linemodes`; without this the error names the one thing the
+	-- user got right.
+	if opts == nil and type(_st) == "table" and _st.linemodes ~= nil then
+		opts = _st
+	end
 	opts = opts or {}
 
 	cfg = {
@@ -252,7 +291,7 @@ function M.setup(_st, opts)
 	for name, spec in pairs(specs) do
 		if type(name) ~= "string" or #name < 1 or #name > 20 then
 			error(string.format("supaline: a linemode name must be 1 to 20 characters, got `%s`", tostring(name)))
-		elseif RESERVED[name] or name:sub(1, 1) == "_" then
+		elseif is_yazis(name) then
 			error(
 				string.format(
 					"supaline: `%s` is part of Yazi's `Linemode` component; a linemode of "
@@ -275,6 +314,7 @@ function M.setup(_st, opts)
 	-- inert: `solo()` draws it as literal text. A linemode that has not asked
 	-- for the current pane draws nothing there instead.
 	for name in pairs(specs) do
+		ours[name] = true
 		Linemode[name] = function(self)
 			local set = panes[name]
 			if not set or not set.current then
@@ -298,7 +338,8 @@ function M.setup(_st, opts)
 	-- `bulk-rename`, not `bulk`: 26.8.15 renamed the event without saying so,
 	-- and `ps.sub` accepts an unknown kind without complaining.
 	local invalidate = function()
-		cache, cache_n, bound = {}, 0, nil
+		cache, cache_n = {}, 0
+		bound_name, bound_cwd, bound_n = nil, nil, nil
 	end
 	for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
 		ps.sub(kind, invalidate)

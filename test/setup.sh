@@ -80,6 +80,9 @@ cat >"$DIR/config/yazi.toml" <<'EOF'
 [mgr]
 linemode    = "default"
 show_hidden = true
+# Stated rather than left to the default, because `e2e.sh` goes to the top of
+# `data/` and presses `l` expecting to land in `nested/`.
+sort_dir_first = true
 EOF
 
 # One field is a style table and the other a plain string, because the custom
