@@ -21,17 +21,22 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-DIR="${TMPDIR:-/tmp}/supaline-e2e"
-# The PID keeps the session ours. A fixed name would have to be cleared before
-# `new-session` could take it, and clearing one this script did not start kills
-# whatever was running inside it -- a concurrent run of this same script, or a
-# session a person happened to name the same, along with its unsaved work.
-# Nothing here kills a session it did not start; if the name is somehow taken,
-# `new-session` fails and `set -e` stops the run.
+# Both names carry the PID, so a run owns everything it touches.
 #
-# The scratch directory needs no such treatment: `setup.sh` refuses a directory
-# that does not carry its own marker file.
-SESSION="supaline-e2e-$$"
+# A fixed session name would have to be cleared before `new-session` could take
+# it, and clearing one this script did not start kills whatever was running
+# inside it -- a concurrent run of this same script, or a session a person
+# happened to name the same, along with its unsaved work. Nothing here kills a
+# session it did not start; if the name is somehow taken, `new-session` fails
+# and `set -e` stops the run.
+#
+# A fixed scratch directory is no safer. `setup.sh` refuses one that does not
+# carry its marker file, but a concurrent run of this script left that marker,
+# so the guard passes and `rm -rf` takes the other run's fixture out from under
+# its Yazi.
+RUN=$$
+DIR="${TMPDIR:-/tmp}/supaline-e2e.$RUN"
+SESSION="supaline-e2e-$RUN"
 KEEP=""
 [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -42,10 +47,20 @@ for tool in tmux yazi; do
 	}
 done
 
-# Leave no session behind when a check fails, or when the run is interrupted
-# part-way. `exit` from a signal trap runs the EXIT one too, so this is the
-# only place the session is torn down on the way out.
-cleanup() { tmux kill-session -t "$SESSION" 2>/dev/null || true; }
+stop() { tmux kill-session -t "$SESSION" 2>/dev/null || true; }
+
+# Leave nothing behind when a check fails, or when the run is interrupted
+# part-way -- the scratch directory now carries the PID, so one left lying
+# around is one nothing will ever reuse. `exit` from a signal trap runs the
+# EXIT one too, so this is the only place the run is torn down.
+cleanup() {
+	stop
+	if [ -z "$KEEP" ]; then
+		rm -rf "$DIR"
+	elif [ -d "$DIR" ]; then
+		echo "kept: $DIR"
+	fi
+}
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -98,8 +113,9 @@ sleep 1
 tmux send-keys -t "$SESSION" q
 sleep 1
 # Explicit rather than left to the trap: the checks below read what Yazi wrote,
-# so it has to be gone before they run.
-cleanup
+# so it has to be gone before they run. The scratch directory stays until the
+# trap fires.
+stop
 
 # --- check -----------------------------------------------------------------
 LOG="$DIR/state/yazi/yazi.log"
@@ -112,10 +128,13 @@ fail() {
 
 # The current pane is the middle column, so the parent pane is everything
 # before the first divider and the preview pane everything past the last one.
+# Both start on row 2, the first row under the header: the parent pane's first
+# row is its hovered one, and a check that skipped it would be blind to exactly
+# the single-row mistakes this suite exists to catch.
 # Whole panes rather than a fixed column count: `cut -c` counts bytes here, and
 # a row opening with a three-byte icon pushes a one-cell column past any window
 # that looks wide enough. The preview's rows are `nested/`, two files.
-parent_of() { sed -n '3,8p' "$DIR/screen-$1.txt" | sed 's/\xe2\x94\x82.*//'; }
+parent_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/\xe2\x94\x82.*//'; }
 preview_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/.*\xe2\x94\x82//'; }
 # A row that drew ends in the trio's one column: `mark`, a single "d" or "f"
 # after the name. A bare row ends in the name itself.
@@ -248,12 +267,6 @@ fi
 echo
 sed -n '2,7p' "$DIR/screen-m7.txt"
 echo
-
-if [ -z "$KEEP" ]; then
-	rm -rf "$DIR"
-else
-	echo "kept: $DIR"
-fi
 
 if [ "$fails" -gt 0 ]; then
 	echo "e2e: $fails check(s) failed" >&2
