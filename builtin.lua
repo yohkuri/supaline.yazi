@@ -60,20 +60,33 @@ column.register("size", {
 	end,
 })
 
--- The current year, so `smart` does not ask `os.date` for it once per row on
--- top of the call it already makes for the file. `M.refresh` re-reads it:
--- main.lua calls it whenever a linemode is installed, and subscribes it to
--- `cd`, which is the event that fires often enough to keep it current. A
--- session left open across New Year and never navigated still shows the old
--- year's formatting until something moves.
-local THIS_YEAR = os.date("%Y")
+-- The current year as an epoch range, so `smart` decides which format to use
+-- with an integer comparison. Asking `os.date("%Y", time)` per row would mean
+-- a `localtime`, a `strftime` and a fresh string for every timestamp cell on
+-- every frame, only to pick a branch.
+--
+-- `os.time` reads its table as local time, so the bounds follow the same
+-- offset -- and the same DST -- that `os.date` would have applied.
+local YEAR_FROM, YEAR_TO = 0, 0
+
+--- Re-read the year. Declared as the `refresh` hook of every time column, so
+--- main.lua runs it whenever a linemode is installed and on every `cd`. A
+--- session left open across New Year and never navigated still shows the old
+--- year's formatting until something moves.
+local function refresh_year()
+	local y = tonumber(os.date("%Y")) --[[@as integer]]
+	YEAR_FROM = os.time { year = y, month = 1, day = 1, hour = 0, min = 0, sec = 0 }
+	YEAR_TO = os.time { year = y + 1, month = 1, day = 1, hour = 0, min = 0, sec = 0 }
+end
+
+refresh_year()
 
 --- Yazi's preset formatting: time of day within the current year, the year
 --- itself for anything older, so the column keeps one width either way.
 ---@param time integer
 ---@return string
 local function smart(time)
-	if os.date("%Y", time) == THIS_YEAR then
+	if time >= YEAR_FROM and time < YEAR_TO then
 		return os.date("%m/%d %H:%M", time) --[[@as string]]
 	end
 	return os.date("%m/%d  %Y", time) --[[@as string]]
@@ -91,6 +104,7 @@ local function register_time(field)
 		align = "right",
 		base = "blue",
 		stats = extremes(get),
+		refresh = refresh_year,
 		render = function(file, ctx)
 			local time = get(file)
 			if not time or time == 0 then
@@ -136,7 +150,9 @@ column.register("owner", {
 		-- true for `mount`, `hub`, `scope` and `sftp`. Keying on it rather
 		-- than on the `sftp` scheme errs towards the numbers, so a remote
 		-- scheme added in a later Yazi is never given a name it has not
-		-- earned. `Url.spec` is a cached field, so this costs one read.
+		-- earned. `file.url` and `.spec` are both cached fields, so this is
+		-- two field reads: measured at roughly twice a `cha.uid` read on a
+		-- real 26.8.15, which is far below anything worth hoisting.
 		if file.url.spec.is_virtual then
 			return string.format("%s:%s", cha.uid, cha.gid), ctx.base
 		end
@@ -158,10 +174,8 @@ column.register("count", {
 	end,
 })
 
--- Yazi wraps every module in a state table, so a file that exists mostly for
--- its side effects still has to return one.
-return {
-	--- Re-read whatever the built-in columns cache across rows. Called from
-	--- main.lua's `build()`.
-	refresh = function() THIS_YEAR = os.date("%Y") end,
-}
+-- Yazi wraps every module in a state table, so a file that exists only for its
+-- side effects still has to return one. There is nothing to export: a column
+-- that caches something across rows says so with a `refresh` field on its own
+-- definition, which is a user column's route as much as a built-in's.
+return {}

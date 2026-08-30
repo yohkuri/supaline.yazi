@@ -199,7 +199,7 @@ test("panes: every preview row draws, not just the one Yazi flags", function()
 	eq(draw_child(PREVIEW.files[2]), "", "and it is not mistaken for a parent row")
 end)
 
-test("setup: a second call replaces the child rather than stacking one", function()
+test("setup: a second call replaces what the first installed", function()
 	-- `Linemode:redraw()` calls every child it holds, so a second one draws
 	-- the parent and preview panes twice over.
 	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
@@ -211,10 +211,53 @@ test("setup: a second call replaces the child rather than stacking one", functio
 	setup { detail = { "size" } }
 	eq(#stub.children, 0, "and none once no linemode leaves the current pane")
 
-	-- The handlers read the state `setup` replaces, so one subscription each
-	-- is right however many times it is called.
+	-- Subscribed at load, not in `setup`, so no number of calls can stack them.
 	eq(#stub.subs.theme, 1, "the theme handler is subscribed once")
 	eq(#stub.subs.rename, 1, "and so is each invalidation handler")
+end)
+
+test("setup: a linemode a later setup drops is unregistered", function()
+	setup { alpha = { { "size", width = 3 } }, beta = { { "size", width = 3 } } }
+	eq(type(Linemode.beta), "function")
+
+	setup { alpha = { { "size", width = 3 } } }
+	-- Not left registered and empty: Yazi draws an unregistered name as
+	-- literal text, and a name that silently draws nothing hides the mistake.
+	eq(Linemode.beta, nil, "the dropped name is off the component")
+end)
+
+test("setup: an override of Yazi's own linemode is handed back", function()
+	local before = Linemode.size
+	-- Pinned, not assumed: if an earlier test's `setup` failed to hand `size`
+	-- back, this captures the damage as the baseline and the test below then
+	-- passes for the wrong reason.
+	eq(type(before), "function", "Yazi's own `size` is in place to begin with")
+
+	setup { size = { { "size", width = 3 } } }
+	assert(Linemode.size ~= before, "expected supaline to have taken `size` over")
+
+	setup { detail = { "size" } }
+	eq(Linemode.size, before, "Yazi's own is back once supaline stops claiming it")
+end)
+
+test("setup: a column may declare a refresh hook, built-in or not", function()
+	local ran = 0
+	main.column("ticking", {
+		width = 2,
+		render = function(_, ctx) return "ok", ctx.base end,
+		refresh = function() ran = ran + 1 end,
+	})
+
+	setup { detail = { "ticking" } }
+	eq(ran, 1, "run once when the linemode is installed")
+
+	stub.fire("cd")
+	eq(ran, 2, "and again on every cd")
+
+	-- A linemode that no longer uses the column stops paying for its hook.
+	setup { detail = { "size" } }
+	stub.fire("cd")
+	eq(ran, 2, "a column no longer in service is not refreshed")
 end)
 
 test("setup: a refused configuration leaves the running one alone", function()
@@ -229,7 +272,7 @@ test("setup: a refused configuration leaves the running one alone", function()
 	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
 	-- The `theme` handler rebuilds from the stored specs, so a rejected one
 	-- left there would make every later theme event throw.
-	stub.subs.theme[1]()
+	stub.fire("theme")
 	eq(draw("good", CURRENT.files[1]), before, "and a theme event still rebuilds it")
 end)
 
@@ -268,9 +311,7 @@ test("theme: base colours are resolved on the event, not at setup", function()
 	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "cyan", "the column's own default")
 
 	th.supaline = { size = "#ff8800" }
-	for _, fn in ipairs(stub.subs.theme) do
-		fn()
-	end
+	stub.fire("theme")
 	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
 	-- Put it back: a colour left set here would reach every test after this one,
 	-- and the failure would point at the wrong one.
@@ -280,9 +321,7 @@ end)
 test("theme: a style table works as well as a colour string", function()
 	th.supaline = { size = ui.Style():fg("#00ff00"):bold() }
 	setup { detail = { { "size", width = 3 } } }
-	for _, fn in ipairs(stub.subs.theme) do
-		fn()
-	end
+	stub.fire("theme")
 
 	local style = stub.first_style(Linemode.detail { _file = CURRENT.files[1] })
 	eq(style.fg, "#00ff00")

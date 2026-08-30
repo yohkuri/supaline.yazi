@@ -85,6 +85,20 @@ local function style_of(base)
 	return base
 end
 
+--- Apply a column's `max_width`, if it has one. Every width a column can end
+--- up with passes through here exactly once -- the stated one when the spec is
+--- normalised, the derived ones when the folder is measured -- so `cell` never
+--- has to cap anything per row.
+---@param width integer?
+---@param max integer?
+---@return integer?
+local function cap(width, max)
+	if width and max and width > max then
+		return max
+	end
+	return width
+end
+
 --- Turn one entry of a linemode spec into a runtime column.
 ---@param spec string|table|function
 ---@param cfg table plugin-wide options
@@ -128,6 +142,7 @@ function M.normalize(spec, cfg)
 		max_width = pick("max_width"),
 		sep = pick("sep"),
 		stats = pick("stats"),
+		refresh = pick("refresh"),
 		render = opts.render or def.render,
 		scale = pick("scale") or cfg.scale,
 	}
@@ -138,7 +153,7 @@ function M.normalize(spec, cfg)
 	elseif type(width) == "function" then
 		col.width_of = width
 	elseif type(width) == "number" then
-		col.fixed = math.floor(width)
+		col.fixed = cap(math.floor(width), col.max_width)
 	elseif width ~= nil then
 		error(string.format('supaline: `width` of column `%s` must be a number, "auto", or a function', name or "?"))
 	end
@@ -272,10 +287,8 @@ function M.cell(col, file)
 		out = ""
 	end
 
+	-- Already capped by `max_width` in `bind`.
 	local width = col.ctx.width
-	if col.max_width and width and width > col.max_width then
-		width = col.max_width
-	end
 
 	if type(out) == "string" then
 		if width then
@@ -342,13 +355,14 @@ function M.resolve_width(col, files, stats)
 				)
 			)
 		end
-		return math.floor(w)
+		return cap(math.floor(w), col.max_width)
 	elseif not col.auto then
-		return col.fixed
+		return col.fixed -- capped when the spec was normalised
 	end
 
 	-- "auto": render every file in the folder once and keep the widest result.
-	-- O(n) per folder, cached by main.lua, and capped by `max_width`.
+	-- O(n) per folder, cached by main.lua. `bind` applies `max_width` to
+	-- whatever comes back, so there is no need to cap it here as well.
 	local max, ctx = 0, col.ctx
 	for i = 1, #files do
 		local out = col.render(files[i], ctx)
@@ -365,10 +379,7 @@ function M.resolve_width(col, files, stats)
 		end
 	end
 
-	if col.max_width and max > col.max_width then
-		max = col.max_width
-	end
-	return max
+	return cap(max, col.max_width)
 end
 
 return M

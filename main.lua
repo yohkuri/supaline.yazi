@@ -10,7 +10,9 @@
 --- per folder and cached here, then bound onto each column whenever the folder
 --- being drawn changes.
 
-local builtin = require(".builtin")
+-- Required for its side effects: loading it registers the built-in columns
+-- through `column.register`, the same entry point a user column uses.
+require(".builtin")
 local column = require(".column")
 
 -- Yazi calls `Linemode` for three panes. `solo()` guards `in_current` itself,
@@ -32,9 +34,17 @@ local M = {}
 
 local cfg = DEFAULTS
 local specs = {} ---@type table<string, table> the user's linemode definitions
-local linemodes = {} ---@type table<string, table> normalised columns
-local panes = {} ---@type table<string, table> which panes each linemode draws in
-local seps = {} ---@type table<string, string> separator per linemode
+
+-- One record per linemode -- `{ cols, panes, sep, outer }` -- rather than three
+-- tables keyed by the same name. `render` and `child` then take one hash
+-- lookup per row between them instead of three, and there is one thing to keep
+-- in step instead of three.
+local linemodes = {} ---@type table<string, table>
+
+-- The `refresh` hooks of every column in service, flattened. A column that
+-- caches something across rows -- the current year, say -- declares one, and it
+-- is run whenever a linemode is installed and on every `cd`.
+local refreshers = {} ---@type table<integer, function>
 
 -- Statistics and derived widths, keyed by linemode, folder and file count. The
 -- count catches the common case of a file being added or removed; a write that
@@ -44,18 +54,27 @@ local cache, cache_n = {}, 0
 
 -- The pane last bound, held as its three parts rather than as the composed
 -- key. `bind` runs for every visible row on every frame and almost always
--- finds nothing has changed, so the check it does first must not allocate:
+-- finds nothing has changed, so the check it does first has to be cheap:
 -- `tostring(cwd)` crosses into Rust to build a path string, and the key
 -- concatenates three more. Comparing the parts is enough to decide.
+--
+-- `folder.cwd` is a cached field, so within a frame both sides of the `cwd`
+-- test are the same userdata and Lua settles it by pointer without reaching
+-- for `__eq` at all; across frames it falls back to one Rust-side path
+-- comparison, which still allocates nothing.
 local bound_name, bound_cwd, bound_n = nil, nil, nil
 
 local DEFAULT_PANES = { "current" }
 
--- What a previous `setup` left on `Linemode` and on the DDS bus. Held across
--- calls because neither may simply be added a second time -- see the end of
--- `setup`.
-local child_id = nil ---@type integer?
-local subscribed = false
+-- Everything a previous `setup` put on `Linemode`, so the next one can take it
+-- back off. Two names and a child id would each be their own special case, and
+-- the one left without a case is the one that leaks: `Linemode[name]` was, and
+-- a linemode dropped by a second `setup` stayed registered and drew nothing --
+-- where Yazi draws an unregistered name as literal text.
+--
+-- `prev` holds what each name was bound to before, which is what lets an
+-- override of one of Yazi's own linemodes be handed back.
+local installed = { names = {}, prev = {}, child = nil } ---@type table
 
 -- Yazi keeps the component's own machinery on the very table the linemodes are
 -- looked up on, so a linemode named after any of it silently replaces the
@@ -127,9 +146,12 @@ local function panes_of(spec)
 	return set
 end
 
---- The pane a row is being drawn in, and the folder it belongs to. Statistics
---- for a parent- or preview-pane row have to come from that pane's folder, not
---- from `cx.active.current`.
+--- Which of the two panes outside the current one a row is in, and the folder
+--- it belongs to. Statistics for such a row have to come from that pane's
+--- folder, not from `cx.active.current`.
+---
+--- Only ever asked about a row already known not to be `in_current`, because
+--- that is one free field read and this is not.
 ---
 --- `in_preview` is not the counterpart of `in_current` its name suggests.
 --- `in_current` is folder-wide -- Yazi compares the row's folder against the
@@ -144,9 +166,6 @@ end
 ---@param file table
 ---@return string pane, table? folder
 local function pane_of(file)
-	if file.in_current then
-		return "current", cx.active.current
-	end
 	-- `idx` is the row's 1-based position in its own folder, so this is O(1).
 	local folder = cx.active.preview.folder
 	local at = folder and folder.files[file.idx]
@@ -207,23 +226,24 @@ local function bind(name, cols, folder)
 	bound_name, bound_cwd, bound_n = name, cwd, n
 end
 
---- Draw one row. The caller resolves the pane, because both of them already
---- know it: `solo()` only dispatches for `in_current` rows, and `child` has
---- just asked `pane_of`. `folder` is nil for a pane that has none -- the
---- parent of the filesystem root -- which `bind` handles.
----@param name string
+--- Draw one row. The caller has already looked the linemode up and resolved
+--- the pane, because both of them had to: `solo()` only dispatches for
+--- `in_current` rows, and `child` has just asked `pane_of`. `folder` is nil
+--- for a pane that has none -- the parent of the filesystem root -- which
+--- `bind` handles.
+---@param mode table the linemode's record
 ---@param file table `fs::File`
 ---@param folder table? the folder the row belongs to
 ---@return unknown an `AsLine`
-local function render(name, file, folder)
-	local cols = linemodes[name]
-	if not cols or #cols == 0 then
+local function render(mode, file, folder)
+	local cols = mode.cols
+	if #cols == 0 then
 		return ""
 	end
 
-	bind(name, cols, folder)
+	bind(mode.name, cols, folder)
 
-	local sep, out = seps[name], {}
+	local sep, out = mode.sep, {}
 	for i, col in ipairs(cols) do
 		if i > 1 and col.sep ~= false then
 			out[#out + 1] = col.sep or sep
@@ -240,21 +260,48 @@ end
 ---@return unknown an `AsLine`
 local function child(self)
 	local file = self._file
-	local pane, folder = pane_of(file)
-	if pane == "current" then
-		return ""
+	-- Cheapest first. One child serves every linemode, so it is called for
+	-- every parent and preview row even when the active linemode wants
+	-- neither, and `pane_of` is far dearer than either of these tests.
+	if file.in_current then
+		return "" -- `solo()` has already drawn it
 	end
 
 	local name = cx.active.pref.linemode
-	local set = name and panes[name]
-	if not set or not set[pane] then
+	local mode = name and linemodes[name]
+	if not mode or not mode.outer then
+		return ""
+	end
+
+	local pane, folder = pane_of(file)
+	if not mode.panes[pane] then
 		return ""
 	end
 
 	-- `solo()` prepends a space to a line that has width; match it, so the two
-	-- panes line up.
-	local line = ui.Line(render(name, file, folder))
+	-- panes line up. `render` returns a Line or the empty string, so there is
+	-- nothing to re-wrap.
+	local line = render(mode, file, folder)
+	if line == "" then
+		return ""
+	end
 	return line:visible() and ui.Line { " ", line } or line
+end
+
+--- A file operation can move a file between buckets, or change how wide the
+--- widest cell is, so drop the cached pass and let the next frame redo it.
+local function invalidate()
+	cache, cache_n = {}, 0
+	bound_name, bound_cwd, bound_n = nil, nil, nil
+end
+
+--- Run every column's `refresh` hook. Subscribed to `cd`, which is the event
+--- that fires often enough to keep a value cached across rows -- the current
+--- year -- from going stale in a session left open.
+local function refresh()
+	for i = 1, #refreshers do
+		refreshers[i]()
+	end
 end
 
 --- Turn a set of specs into runtime linemodes. Pure, and the only place that
@@ -262,42 +309,75 @@ end
 --- configuration that does not compile never reaches module state.
 ---@param from table<string, table>
 ---@param with table plugin-wide options
----@return table modes, table sets, table separators
+---@return table modes, table hooks, boolean outer whether any mode leaves the current pane
 local function compile(from, with)
-	local modes, sets, separators = {}, {}, {}
+	local modes, hooks, outer = {}, {}, false
 	for name, spec in pairs(from) do
 		local cols = {}
 		for i, entry in ipairs(spec) do
-			cols[i] = column.normalize(entry, with)
+			local col = column.normalize(entry, with)
+			cols[i] = col
+			if col.refresh then
+				hooks[#hooks + 1] = col.refresh
+			end
 		end
-		modes[name], sets[name] = cols, panes_of(spec)
-		separators[name] = spec.separator or with.separator
+
+		local set = panes_of(spec)
+		local reaches = set.parent or set.preview or false
+		outer = outer or reaches
+		modes[name] = {
+			name = name,
+			cols = cols,
+			panes = set,
+			outer = reaches,
+			sep = spec.separator or with.separator,
+		}
 	end
-	return modes, sets, separators
+	return modes, hooks, outer
 end
 
 --- Put a compiled set of linemodes into service, dropping everything derived
 --- from the last one.
-local function install(modes, sets, separators)
-	linemodes, panes, seps = modes, sets, separators
-	cache, cache_n = {}, 0
-	bound_name, bound_cwd, bound_n = nil, nil, nil
+local function install(modes, hooks)
+	linemodes, refreshers = modes, hooks
+	invalidate()
+	refresh()
+end
 
-	-- `smart` compares against the current year, which is a constant for the
-	-- life of a session and must not be asked for once per row.
-	builtin.refresh()
+--- Take back everything the last `setup` put on `Linemode`. Names go back to
+--- what they were bound to, so an override of one of Yazi's own linemodes is
+--- handed back rather than left as a supaline one that draws nothing.
+local function uninstall()
+	for _, name in ipairs(installed.names) do
+		Linemode[name] = installed.prev[name]
+	end
+	if installed.child then
+		-- `Linemode:redraw()` calls every child it holds, so a second one
+		-- would draw the parent and preview panes twice over.
+		Linemode:children_remove(installed.child)
+	end
+	installed = { names = {}, prev = {}, child = nil }
 end
 
 --- Rebuild every linemode from the stored specs. Subscribed to `theme`: until
 --- that event fires `th.*` still holds preset values, so any base colour
---- resolved earlier is the wrong one.
-local function build() install(compile(specs, cfg)) end
+--- resolved earlier is the wrong one. Which panes a linemode wants cannot
+--- change under a theme reload, so the third value is not wanted here.
+local function build()
+	local modes, hooks = compile(specs, cfg)
+	install(modes, hooks)
+end
 
---- A file operation can move a file between buckets, or change how wide the
---- widest cell is, so drop the cached pass and let the next frame redo it.
-local function invalidate()
-	cache, cache_n = {}, 0
-	bound_name, bound_cwd, bound_n = nil, nil, nil
+-- Subscribed at load rather than in `setup`, so calling `setup` twice cannot
+-- subscribe twice and there is no flag to keep. Every handler reads module
+-- state, which is empty and harmless until `setup` fills it.
+--
+-- `bulk-rename`, not `bulk`: 26.8.15 renamed the event without saying so, and
+-- `ps.sub` accepts an unknown kind without complaining.
+ps.sub("theme", build)
+ps.sub("cd", refresh)
+for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
+	ps.sub(kind, invalidate)
 end
 
 --- Register a reusable column, before `setup`, then refer to it by name from a
@@ -363,19 +443,13 @@ function M.setup(_st, opts)
 	-- Compiling is what validates the columns and the `panes` list, so it also
 	-- has to happen before the commit -- and only once, rather than again
 	-- inside `build`.
-	local modes, sets, separators = compile(next_specs, next_cfg)
-
-	local wants_child = false
-	for _, set in pairs(sets) do
-		if set.parent or set.preview then
-			wants_child = true
-		end
-	end
+	local modes, hooks, wants_child = compile(next_specs, next_cfg)
 
 	-- Committed. Nothing below here may raise on a configuration that got this
 	-- far.
 	cfg, specs = next_cfg, next_specs
-	install(modes, sets, separators)
+	uninstall()
+	install(modes, hooks)
 
 	-- Registered whatever `panes` says, because an unregistered name is not
 	-- inert: `solo()` draws it as literal text. A linemode that has not asked
@@ -385,42 +459,19 @@ function M.setup(_st, opts)
 	-- the folder is the current one without asking.
 	for name in pairs(specs) do
 		ours[name] = true
+		installed.names[#installed.names + 1] = name
+		installed.prev[name] = Linemode[name]
 		Linemode[name] = function(self)
-			local set = panes[name]
-			if not set or not set.current then
+			local mode = linemodes[name]
+			if not mode or not mode.panes.current then
 				return ""
 			end
-			return render(name, self._file, cx.active.current)
+			return render(mode, self._file, cx.active.current)
 		end
 	end
 
-	-- Replace the child a previous `setup` added rather than stacking another:
-	-- `Linemode:redraw()` calls every child it holds, so a second one draws
-	-- the parent and preview panes twice over.
-	if child_id then
-		Linemode:children_remove(child_id)
-		child_id = nil
-	end
 	if wants_child then
-		child_id = Linemode:children_add(child, cfg.order)
-	end
-
-	-- Subscribed once for the life of the session, for the same reason. Both
-	-- handlers read the module state this call has just replaced, so a second
-	-- `setup` needs no second subscription and a second one would only run
-	-- them twice per event.
-	--
-	-- `bulk-rename`, not `bulk`: 26.8.15 renamed the event without saying so,
-	-- and `ps.sub` accepts an unknown kind without complaining.
-	if not subscribed then
-		subscribed = true
-		ps.sub("theme", build)
-		-- The year `mtime` compares against is read in `install`; `cd` is the
-		-- event that fires often enough to keep it current.
-		ps.sub("cd", builtin.refresh)
-		for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
-			ps.sub(kind, invalidate)
-		end
+		installed.child = Linemode:children_add(child, cfg.order)
 	end
 end
 
