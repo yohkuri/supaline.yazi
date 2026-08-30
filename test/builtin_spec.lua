@@ -116,6 +116,14 @@ test("owner: a name longer than the column is truncated, not allowed to push", f
 	eq(render("owner", stub.file { uid = 501, gid = 20 }), "user501:gro…")
 end)
 
+test("owner: a remote file keeps its numbers, a local one gets names", function()
+	-- `ya.user_name` resolves against this machine, so a name is only right
+	-- for a file that lives on it. A search result does, an SFTP one does not.
+	eq(render("owner", stub.file { uid = 501, gid = 20, url_kind = "search" }), "user501:gro…")
+	eq(render("owner", stub.file { uid = 501, gid = 20, url_kind = "sftp" }), "501:20      ")
+	eq(render("owner", stub.file { uid = 501, gid = 20, url_kind = "mount" }), "501:20      ")
+end)
+
 test("count: directories only", function()
 	with_history({ files = { 1, 2 } }, function()
 		eq(render("count", stub.file { name = "d", is_dir = true }), "    2")
