@@ -121,17 +121,33 @@ local function panes_of(spec)
 	return set
 end
 
---- The folder a row belongs to. Statistics for a parent- or preview-pane row
---- have to come from that pane's folder, not from `cx.active.current`.
+--- The pane a row is being drawn in, and the folder it belongs to. Statistics
+--- for a parent- or preview-pane row have to come from that pane's folder, not
+--- from `cx.active.current`.
+---
+--- `in_preview` is not the counterpart of `in_current` its name suggests.
+--- `in_current` is folder-wide -- Yazi compares the row's folder against the
+--- tab's current one -- but `in_preview` is
+---
+---     me.idx == me.folder.cursor && tab.hovered() is this folder
+---
+--- so it is set on the previewed folder's *cursor row alone*. Every other
+--- preview row reports false, and there is no `in_parent` to tell it apart
+--- from a parent-pane row: both are simply "not current". Ask the preview
+--- folder whether the row is one of its own instead.
 ---@param file table
----@return table?
-local function folder_of(file)
+---@return string pane, table? folder
+local function pane_of(file)
 	if file.in_current then
-		return cx.active.current
-	elseif file.in_preview then
-		return cx.active.preview.folder
+		return "current", cx.active.current
 	end
-	return cx.active.parent
+	-- `idx` is the row's 1-based position in its own folder, so this is O(1).
+	local folder = cx.active.preview.folder
+	local at = folder and folder.files[file.idx]
+	if at and at.url == file.url then
+		return "preview", folder
+	end
+	return "parent", cx.active.parent
 end
 
 --- Bind one folder's statistics and widths onto every column of a linemode.
@@ -194,7 +210,8 @@ local function render(name, file)
 		return ""
 	end
 
-	bind(name, cols, folder_of(file))
+	local _, folder = pane_of(file)
+	bind(name, cols, folder)
 
 	local sep, out = seps[name], {}
 	for i, col in ipairs(cols) do
@@ -213,13 +230,14 @@ end
 ---@return unknown an `AsLine`
 local function child(self)
 	local file = self._file
-	if file.in_current then
+	local pane = pane_of(file)
+	if pane == "current" then
 		return ""
 	end
 
 	local name = cx.active.pref.linemode
 	local set = name and panes[name]
-	if not set or not set[file.in_preview and "preview" or "parent"] then
+	if not set or not set[pane] then
 		return ""
 	end
 

@@ -140,12 +140,23 @@ The same name, three ways, against a column of twelve.
 
 ### `m 6` to `m 8` — panes
 
-The middle pane looks the same in all three; the difference is at the edges.
+All three draw one column, `mark` — a single `d` or `f`. The middle pane looks
+the same in all three; the difference is at the edges.
 
 - `m 6` — the left and right panes carry no columns at all.
-- `m 7` — the left pane fills in. `sibling-one` and `sibling-two` get a size and
-  a date, measured against **their own folder**, not this one.
-- `m 8` — the right pane fills in. Hover `nested` to give it a folder.
+- `m 7` — the left pane fills in. `sibling-one` and `sibling-two` get a marker,
+  measured against **their own folder**, not this one.
+- `m 8` — the right pane fills in. Hover `nested` to give it a folder. Check
+  **both** rows: Yazi's `in_preview` is true for the hovered row alone, so a
+  pane bug here shows up on the second row and nowhere else.
+
+One cell, and not a built-in, on purpose. Yazi gives the linemode priority over
+the file name, and the parent pane is an eighth of the terminal — 21 cells at
+170 columns, 10 at 80. `size` and `mtime` together are 19, which leaves nothing
+at all for the name; even `mtime` alone does not fit an 80-column parent pane.
+Every built-in is 5 to 12 cells wide, so what belongs at the edges is a narrow
+marker, and there is no built-in that narrow to demonstrate it with. `mark` is
+the fixture's own, defined in `setup.sh` beside the m9 columns.
 
 The preview pane keeps whatever its last peek drew, so switching between these
 without moving the hover leaves the right pane showing the previous mode. Move

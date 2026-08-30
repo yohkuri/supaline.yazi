@@ -15,6 +15,13 @@ local CURRENT = stub.folder("/current", {
 local PARENT = stub.folder("/", {
 	stub.file { name = "current", is_dir = true, in_current = false },
 })
+-- The folder under the cursor, drawn in the preview pane. Two rows, because
+-- Yazi flags only the first of them as `in_preview` and the second is what
+-- catches a pane test that trusts the flag.
+local PREVIEW = stub.folder("/current/nested", {
+	stub.file { name = "p1.txt", in_current = false, size = 1 },
+	stub.file { name = "p2.bin", in_current = false, size = 2 },
+})
 
 --- Configure the plugin and point the stubbed context at the folders above.
 ---@param linemodes table
@@ -26,6 +33,7 @@ local function setup(linemodes, opts)
 
 	cx.active.current = CURRENT
 	cx.active.parent = PARENT
+	cx.active.preview = { folder = PREVIEW }
 	cx.active.pref.linemode = next(linemodes)
 end
 
@@ -168,9 +176,18 @@ test("panes: a pane left off the list stays bare", function()
 	local parent_row = stub.file { name = "current", in_current = false, size = 1 }
 	eq(draw_child(parent_row), "", "the parent pane was not asked for")
 
-	local preview_row = stub.file { name = "p", in_current = false, in_preview = true, size = 1 }
-	cx.active.preview = { folder = CURRENT }
-	eq(draw_child(preview_row), "  1B")
+	eq(draw_child(PREVIEW.files[1]), "  1B", "the preview pane draws")
+end)
+
+test("panes: every preview row draws, not just the one Yazi flags", function()
+	-- `in_preview` is true for the previewed folder's cursor row alone, so a
+	-- pane test that reads it passes on the first row and leaves the rest of
+	-- the pane bare -- and, under `panes = { parent }`, draws them instead.
+	setup { detail = { { "size", width = 3 }, panes = { "current", "preview" } } }
+	eq(draw_child(PREVIEW.files[2]), "  2B", "the second preview row")
+
+	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
+	eq(draw_child(PREVIEW.files[2]), "", "and it is not mistaken for a parent row")
 end)
 
 test("panes: the current pane is never drawn twice", function()

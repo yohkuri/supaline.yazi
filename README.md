@@ -116,6 +116,23 @@ Yazi only ever draws a linemode in the current pane; the parent and preview
 panes are supaline's own addition. Leaving `current` off the list is allowed and
 means what it says — the current pane draws nothing for that linemode.
 
+**Mind the width at the edges.** `panes` applies the whole column set to every
+pane it names, and Yazi gives the linemode priority over the file name: what
+does not fit is taken out of the name, not out of the columns. The parent pane
+is an eighth of the terminal under Yazi's default `ratio`, so:
+
+| Terminal | Parent pane |
+| -------- | ----------- |
+| 170      | 21 cells    |
+| 120      | 15 cells    |
+| 80       | 10 cells    |
+
+`size` (7) and `mtime` (11) come to 19 cells with the separator, which leaves an
+80-column parent pane nothing for the name and a 170-column one a cell or two.
+Every built-in column is 5 to 12 cells wide. The parent pane is worth turning on
+for a **narrow marker** — one or two cells — and not for the built-ins as they
+stand. The preview pane is three eighths, so it is far less tight.
+
 ### Column specs
 
 A column is written in one of four shapes:

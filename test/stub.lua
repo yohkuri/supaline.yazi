@@ -305,8 +305,13 @@ function M.file(t)
 	file = {
 		name = name,
 		in_current = t.in_current == nil and true or t.in_current,
-		in_preview = t.in_preview or false,
 		is_hovered = t.is_hovered or false,
+		-- `idx` is the row's 1-based position in its own folder. `M.folder`
+		-- overwrites it, so a file placed in one always agrees with it.
+		idx = t.idx or 1,
+		-- `in_preview` is deliberately absent here and computed below: Yazi
+		-- derives it per read, and a stub that stored a flag would let the
+		-- plugin trust it.
 		url = {
 			ext = name:match("%.([^.]+)$"),
 			__tostring = nil,
@@ -323,17 +328,39 @@ function M.file(t)
 		size = function() return t.size end,
 	}
 	setmetatable(file.url, { __tostring = function() return "/tmp/" .. name end })
+	-- Yazi computes `in_preview` on every read as
+	--
+	--     me.idx == me.folder.cursor && tab.hovered() is this folder
+	--
+	-- so it is true for the previewed folder's cursor row and false for every
+	-- other row of the same pane. Reproduce that exactly: a stub that instead
+	-- flagged the whole pane would let the plugin read it as the counterpart
+	-- of `in_current`, which is the bug this fidelity exists to catch.
+	setmetatable(file, {
+		__index = function(_, k)
+			if k ~= "in_preview" then
+				return nil
+			end
+			local folder = cx.active.preview and cx.active.preview.folder
+			return folder ~= nil and folder.files[folder.cursor] == file
+		end,
+	})
 	return file
 end
 
 --- A stand-in for a folder, with a `cwd` that stringifies and a file list.
 ---@param cwd string
 ---@param files table
+---@param cursor integer? the hovered row, 1-based; the first by default
 ---@return table
-function M.folder(cwd, files)
+function M.folder(cwd, files, cursor)
+	for i = 1, #files do
+		files[i].idx = i
+	end
 	return {
 		cwd = setmetatable({}, { __tostring = function() return cwd end }),
 		files = files,
+		cursor = cursor or 1,
 	}
 end
 
@@ -401,7 +428,10 @@ function M.install(root)
 		_G.Linemode[name] = function() return "" end
 	end
 
-	_G.cx = { active = { pref = {}, history = function() return nil end } }
+	-- `preview` is always a table: Yazi has one whether or not a folder is
+	-- being previewed, and the plugin reads `preview.folder` on every row that
+	-- is not in the current pane.
+	_G.cx = { active = { pref = {}, preview = {}, history = function() return nil end } }
 
 	local loaded, real = {}, require
 	_G.require = function(name)
