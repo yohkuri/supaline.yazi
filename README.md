@@ -176,8 +176,10 @@ width follows from the extremes.
 | `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`.       |
 | `ctx.style(r)` | The style for a ratio. Flat for now; the gradient hooks in here. |
 
-`render` may return one renderable, or `text, style` — the second form skips
-building an intermediate line, and is what the built-in columns do.
+`render` may return one renderable, or a value and a style. Returning
+`text, style` skips building an intermediate line, and is what the built-in
+columns do; a style returned alongside a renderable is applied to it, so a
+column that styles its own spans can still set the ground under them.
 
 ## Built-in columns
 

@@ -14,8 +14,9 @@
 --- O(1). Anything that needs to look at the whole folder belongs in
 --- `stats(files)`, which main.lua computes once per folder and caches.
 ---
---- `render` may return a single `AsLine`, or `text, style`. The latter skips
---- building an intermediate Line, which is what the built-in columns do.
+--- `render` may return a single `AsLine`, or a value and a style. Returning
+--- `text, style` skips building an intermediate Line, which is what the
+--- built-in columns do; a style handed back with a Line is applied to it.
 
 local M = { _registry = {} }
 
@@ -285,6 +286,13 @@ function M.cell(col, file)
 
 	-- A Line or Span came back; pad around it rather than inside it.
 	local line = ui.Line(out)
+	if style then
+		-- `render` may hand back a style alongside a renderable as well as
+		-- alongside a string, and dropping it here would lose the colour
+		-- silently. A Line's style sits under its spans, so one that styled
+		-- its own keeps them.
+		line = line:style(style)
+	end
 	if not width then
 		return line
 	end
