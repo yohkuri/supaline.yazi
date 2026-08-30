@@ -8,8 +8,13 @@ single source of truth — do not copy rules into agent-specific files.
 
 supaline is a [Yazi](https://github.com/sxyazi/yazi) plugin that replaces the
 linemode with a configurable set of columns: sizes and timestamps coloured on an
-eza-style gradient, plus Git and chezmoi status. Built-in columns and
-user-written ones go through the same interface; neither has a privileged path.
+eza-style gradient. Built-in columns and user-written ones go through the same
+interface; neither has a privileged path.
+
+Whether supaline ships status columns of its own — version control, dotfile
+management — is **undecided**. Do not describe them as planned or forthcoming,
+and do not justify a design choice by pointing at one; if such a column has to
+come up at all, say plainly that it is hypothetical.
 
 ## Language
 
