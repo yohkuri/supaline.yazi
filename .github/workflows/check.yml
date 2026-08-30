@@ -56,12 +56,20 @@ jobs:
       - name: Every plugin file declares one
         run: |
           rc=0
-          for f in *.lua; do
-            if ! head -1 "$f" | grep -q '^--- @since '; then
-              echo "$f: first line is not '--- @since <version>'"
+          # Every tracked Lua file outside the test harness is a plugin file,
+          # wherever it sits -- a glob of the root would miss one added in a
+          # subdirectory. The version is pinned rather than left open because
+          # an annotation older than the Yazi it names is exactly the stale
+          # one this job exists to catch; AGENTS.md holds the number.
+          # Fed by process substitution, not a pipe, so the loop runs in this
+          # shell and `rc` survives it -- every offender is named, not just
+          # the first.
+          while IFS= read -r -d '' f; do
+            if ! head -1 "$f" | grep -q '^--- @since 26\.8\.15$'; then
+              echo "$f: first line is not '--- @since 26.8.15'"
               rc=1
             fi
-          done
+          done < <(git ls-files -z '*.lua' ':!:test/*')
           exit $rc
 
 # `test/e2e.sh` and `test/manual.sh` are deliberately not here. They need a real
