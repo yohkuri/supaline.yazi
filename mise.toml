@@ -1,0 +1,4 @@
+# Yazi embeds Lua 5.5, so the test suite is written for it and `test/run.lua`
+# refuses to run on anything else. Pin the same version here.
+[tools]
+lua = "5.5.1"
