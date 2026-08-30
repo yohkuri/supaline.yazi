@@ -2,20 +2,29 @@
 # Build the throwaway Yazi configuration and the fixture both test harnesses
 # use.
 #
-#     test/setup.sh <dir>
+#     test/setup.sh <dir>           build the fixture in <dir>
+#     test/setup.sh --clean <dir>   throw it away again
 #
 # `e2e.sh` and `manual.sh` both call this, so what a human looks at and what
 # the headless run asserts on cannot drift apart. Nothing outside <dir> is
 # touched, and your own Yazi configuration is never read.
 #
-# <dir> is rewritten wholesale, so it is refused unless it is empty or carries
-# the marker file this script leaves behind.
+# Both forms rewrite or remove <dir> wholesale, so both refuse it unless it is
+# empty or carries the marker file this script leaves behind. That guard lives
+# here alone: a harness that wrote its own `rm -rf` would be the copy that
+# forgets it.
 
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-DIR=${1:?usage: setup.sh <dir>}
 MARKER=".supaline-fixture"
+
+CLEAN=""
+if [ "${1:-}" = "--clean" ]; then
+	CLEAN=1
+	shift
+fi
+DIR=${1:?usage: setup.sh [--clean] <dir>}
 
 if [ -e "$DIR" ] && [ ! -f "$DIR/$MARKER" ]; then
 	echo "setup: $DIR exists and is not ours; move it aside" >&2
@@ -23,6 +32,7 @@ if [ -e "$DIR" ] && [ ! -f "$DIR/$MARKER" ]; then
 fi
 
 rm -rf "$DIR"
+[ -z "$CLEAN" ] || exit 0
 mkdir -p "$DIR/config/plugins" "$DIR/state"
 mkdir -p "$DIR/fixture/data/nested" "$DIR/fixture/data/never-opened"
 mkdir -p "$DIR/fixture/sibling-one" "$DIR/fixture/sibling-two"
