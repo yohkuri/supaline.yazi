@@ -5,7 +5,9 @@
 --- `ui.truncate` in particular is a line-by-line port of Yazi's own, because
 --- the layout code leans on two of its habits: it appends an ellipsis of its
 --- own, and it returns *at most* `max` cells. `truncate_spec.lua` pins the port
---- against the assertions in Yazi's own test suite.
+--- against the assertions in Yazi's own test suite, and pins `Line:truncate`
+--- -- which has no upstream test suite to copy -- against what a real Yazi put
+--- on screen and against the contract `column.cell` relies on.
 ---
 --- What the stubs cannot cover is exactly what `test/e2e.sh` is for: rendering,
 --- fetchers, and `ya.sync`.
@@ -49,8 +51,11 @@ local function codepoint(ch)
 	return (b1 - 240) * 262144 + (ch:byte(2) - 128) * 4096 + (ch:byte(3) - 128) * 64 + (ch:byte(4) - 128)
 end
 
--- The East Asian Wide and Fullwidth blocks, which is as much of `unicode-width`
--- as anything here needs.
+-- The East Asian Wide and Fullwidth blocks, plus emoji presentation, which is
+-- as much of `unicode-width` as anything here needs. The emoji spans are
+-- coarser than the real property -- a handful of text-presentation symbols
+-- inside them are one cell -- but a file name that carries an emoji carries a
+-- two-cell one, and the fixture has such a name on purpose.
 local WIDE = {
 	{ 0x1100, 0x115F },
 	{ 0x2E80, 0x303E },
@@ -64,6 +69,16 @@ local WIDE = {
 	{ 0xFF00, 0xFF60 },
 	{ 0xFFE0, 0xFFE6 },
 	{ 0x20000, 0x3FFFD },
+	{ 0x1F004, 0x1F004 },
+	{ 0x1F0CF, 0x1F0CF },
+	{ 0x1F18E, 0x1F18E },
+	{ 0x1F191, 0x1F19A },
+	{ 0x1F200, 0x1F2FF },
+	{ 0x1F300, 0x1F64F },
+	{ 0x1F680, 0x1F6FF },
+	{ 0x1F7E0, 0x1F7EB },
+	{ 0x1F900, 0x1F9FF },
+	{ 0x1FA70, 0x1FAFF },
 }
 
 ---@param ch string
@@ -380,6 +395,11 @@ function M.install(root)
 		end,
 		children_remove = function() end,
 	}
+	-- Yazi's own linemodes sit on that same table, which is the whole reason
+	-- the plugin cannot simply refuse every name already on it.
+	for _, name in ipairs { "none", "size", "permissions", "btime", "mtime", "owner" } do
+		_G.Linemode[name] = function() return "" end
+	end
 
 	_G.cx = { active = { pref = {}, history = function() return nil end } }
 
@@ -395,9 +415,5 @@ function M.install(root)
 		return loaded[name]
 	end
 end
-
---- Forget every module loaded through the shim, so a spec can start from a
---- clean registry.
-function M.reset(root) M.install(root) end
 
 return M

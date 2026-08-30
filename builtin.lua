@@ -60,12 +60,18 @@ column.register("size", {
 	end,
 })
 
+-- The current year, so `smart` does not ask `os.date` for it once per row on
+-- top of the call it already makes for the file. `M.refresh` re-reads it, and
+-- main.lua's `build()` calls that -- once at setup and again on every `theme`
+-- event, which is often enough to survive a session left open overnight.
+local THIS_YEAR = os.date("%Y")
+
 --- Yazi's preset formatting: time of day within the current year, the year
 --- itself for anything older, so the column keeps one width either way.
 ---@param time integer
 ---@return string
 local function smart(time)
-	if os.date("%Y", time) == os.date("%Y") then
+	if os.date("%Y", time) == THIS_YEAR then
 		return os.date("%m/%d %H:%M", time) --[[@as string]]
 	end
 	return os.date("%m/%d  %Y", time) --[[@as string]]
@@ -132,6 +138,10 @@ column.register("count", {
 	end,
 })
 
--- Yazi wraps every module in a state table, so a file that exists purely for
+-- Yazi wraps every module in a state table, so a file that exists mostly for
 -- its side effects still has to return one.
-return {}
+return {
+	--- Re-read whatever the built-in columns cache across rows. Called from
+	--- main.lua's `build()`.
+	refresh = function() THIS_YEAR = os.date("%Y") end,
+}
