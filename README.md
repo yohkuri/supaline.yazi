@@ -16,12 +16,13 @@ same interface — neither has a privileged path.
 
 ## Status
 
-The column framework and the built-in columns are in place. Two things named
-in the design are not here yet:
+The column framework and the built-in columns are in place. **Gradients** are
+not: columns draw flat, in their base colour. The eza-style Oklab ramp lands
+next, and the `base` and `scale` options are already wired for it.
 
-- **Gradients.** Columns draw flat, in their base colour. The eza-style Oklab
-  ramp lands next, and the `base` and `scale` options are already wired for it.
-- **Git and chezmoi status columns.**
+Whether supaline ships status columns of its own — version control, dotfile
+management — is undecided. Nothing here depends on the answer: such a column
+would go through `column.register` like any other.
 
 ## Requirements
 
@@ -228,8 +229,8 @@ belongs in `stats`, which runs once per folder and is cached.
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
 your `init.lua` is never replayed on the async side, so a third-party column
-cannot own asynchronous state. Columns that need it — Git, chezmoi — are built
-into supaline.
+cannot own asynchronous state. A column that needs it has to be built into
+supaline itself.
 
 ## Theming
 
