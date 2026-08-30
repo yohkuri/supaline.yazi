@@ -151,6 +151,7 @@ Any option below can be set on the definition or overridden per use.
 | ----------- | ------------ | -------------------------------------------------------- |
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
 | `stats`     | `nil`        | `function(files)`, run once per folder; result reaches `ctx.stats`. |
+| `refresh`   | `nil`        | `function()`, run when the linemode is installed and on every `cd`. |
 | `width`     | `nil`        | A number, `"auto"`, or `function(stats) -> number`.      |
 | `max_width` | `nil`        | Caps the column's width, however it was derived.          |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
@@ -163,6 +164,12 @@ Any option below can be set on the definition or overridden per use.
 widest result. It is exact, and it costs a pass over the listing; a stated
 number costs nothing. `function(stats)` sits in between, for a column whose
 width follows from the extremes.
+
+`refresh` is for a column that caches something across rows which is not a
+property of any file — the built-in timestamp columns hold the current year, so
+`smart` can decide its format with an integer comparison instead of an
+`os.date` per cell. Nothing about the folder is passed in, because nothing
+about the folder is what changed.
 
 ### `ctx`
 
