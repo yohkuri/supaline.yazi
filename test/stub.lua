@@ -18,6 +18,11 @@
 
 local M = {}
 
+-- Captured here rather than inside `install`: that runs once per spec file,
+-- and taking `require` from the global there would capture the previous
+-- wrapper and nest one more level on every call.
+local REAL_REQUIRE = require
+
 -- --- Unicode ---------------------------------------------------------------
 
 --- Iterate the UTF-8 characters of `s` as (byte index, character), the byte
@@ -432,11 +437,21 @@ function M.install(root)
 		solo = function() return "" end,
 		redraw = function() return M.Line("") end,
 		padding = function() return " " end,
-		children_add = function(_, fn, order)
-			table.insert(M.children, { fn = fn, order = order })
-			return #M.children
+		-- Yazi's own: the id comes from `_inc` rather than the position, so it
+		-- stays valid once something before it has been removed.
+		children_add = function(self, fn, order)
+			self._inc = self._inc + 1
+			table.insert(M.children, { fn = fn, order = order, id = self._inc })
+			return self._inc
 		end,
-		children_remove = function() end,
+		children_remove = function(_, id)
+			for i, c in ipairs(M.children) do
+				if c.id == id then
+					table.remove(M.children, i)
+					break
+				end
+			end
+		end,
 	}
 	-- Yazi's own linemodes sit on that same table, which is the whole reason
 	-- the plugin cannot simply refuse every name already on it.
@@ -449,10 +464,10 @@ function M.install(root)
 	-- is not in the current pane.
 	_G.cx = { active = { pref = {}, preview = {}, history = function() return nil end } }
 
-	local loaded, real = {}, require
+	local loaded = {}
 	_G.require = function(name)
 		if name:sub(1, 1) ~= "." then
-			return real(name)
+			return REAL_REQUIRE(name)
 		end
 		if loaded[name] == nil then
 			local chunk = assert(loadfile(root .. "/" .. name:sub(2) .. ".lua"))
