@@ -98,6 +98,36 @@ parent pane. Decide explicitly whether a given child renders there, and
 remember that folder-wide statistics for such a row must come from the parent
 folder, not `cx.active.current`.
 
+### `in_preview` is not the counterpart of `in_current`
+
+The names suggest a pair of pane flags. They are not. In
+`yazi-actor/src/lives/file.rs`:
+
+```rust
+fields.add_field_method_get("in_current", |_, me| Ok(ptr::eq(&*me.folder, &me.tab.current)));
+fields.add_field_method_get("in_preview", |_, me| {
+  Ok(me.idx == me.folder.cursor && me.tab.hovered().is_some_and(|f| f.url == me.folder.url))
+});
+```
+
+`in_current` compares folders, so it holds for every row of the current pane.
+`in_preview` also requires `idx == cursor`, so it holds for the previewed
+folder's **hovered row alone** — one row of the pane, whatever the pane's
+length. There is no `in_parent`: every other preview row is
+`in_current == false, in_preview == false`, which is exactly what a parent-pane
+row reports.
+
+So a pane test written as `file.in_preview and "preview" or "parent"` draws the
+preview pane's first row and treats the rest as parent rows — bare when the
+preview was asked for, drawn when it was not, and measured against the wrong
+folder either way. To ask which pane a row is in, ask the preview folder
+whether the row is one of its own; `file.idx` is its 1-based position in its
+own folder, so `folder.files[file.idx]` settles it in O(1).
+
+The stub reproduces this rule rather than the name, so a regression fails the
+unit suite the same way it fails on screen: the second preview row, not the
+first.
+
 ### DDS event names are not all in the changelog
 
 26.8.15 renamed `bulk` to `bulk-rename` without saying so. `ps.sub` accepts any
