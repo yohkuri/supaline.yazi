@@ -106,11 +106,29 @@ test("setup: names that are part of the Linemode component are refused", functio
 	throws(function() main.setup({}, { linemodes = { solo = { "size" } } }) end, "`Linemode` component")
 end)
 
+test("setup: a member Yazi adds later is refused too", function()
+	-- The guard asks `Linemode` what it holds rather than listing it. Yazi is on
+	-- CalVer and adds to the component between releases; a hand-written denylist
+	-- would let this through the moment it did.
+	Linemode.reflow = function() return "" end
+	throws(function() main.setup({}, { linemodes = { reflow = { "size" } } }) end, "part of Yazi's `Linemode` component")
+	Linemode.reflow = nil
+end)
+
 test("setup: overriding one of Yazi's own linemode names is still allowed", function()
 	-- Replacing the `size` linemode is a thing to want; replacing `redraw` is
 	-- not, and the two live on the same table.
 	setup { size = { { "size", width = 4 }, { "size", width = 4 } } }
 	eq(draw("size", CURRENT.files[1]), "  1B   1B")
+end)
+
+test("setup: `.setup{...}` works as well as `:setup{...}`", function()
+	-- The dot form lands the options in the state parameter, and used to fail
+	-- with "`linemodes` is empty" -- naming the one thing the user got right.
+	main.setup { linemodes = { dotted = { { "size", width = 3 } } } }
+	cx.active.current = CURRENT
+	cx.active.pref.linemode = "dotted"
+	eq(draw("dotted", CURRENT.files[1]), " 1B")
 end)
 
 test("setup: a name Yazi cannot hold is refused", function()
@@ -194,6 +212,9 @@ test("theme: base colours are resolved on the event, not at setup", function()
 		fn()
 	end
 	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+	-- Put it back: a colour left set here would reach every test after this one,
+	-- and the failure would point at the wrong one.
+	th.supaline = nil
 end)
 
 test("theme: a style table works as well as a colour string", function()
@@ -226,7 +247,7 @@ test("stats: the pass runs once per folder, not once per row", function()
 	for _, file in ipairs(CURRENT.files) do
 		draw("detail", file)
 	end
-	eq(calls, 1, "three rows, one pass")
+	eq(calls, 1, "every row, one pass")
 end)
 
 test("stats: a column with a stated width still receives them", function()

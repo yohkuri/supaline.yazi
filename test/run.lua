@@ -12,6 +12,15 @@
 --- Written for Lua 5.5, the version Yazi runs. Nothing else loads this plugin,
 --- so nothing else has a claim on the tests either.
 
+-- Yazi runs Lua 5.5 and nothing else ever loads this plugin, so a pass under
+-- another interpreter proves nothing -- and says so quietly. The semantics
+-- diverge exactly where this code lives: `%z` in a pattern means the NUL byte
+-- on 5.1 and the letter `z` from 5.2 on, and `utf8` does not exist before 5.3.
+if _VERSION ~= "Lua 5.5" then
+	io.stderr:write(string.format("test/run.lua: needs Lua 5.5, the version Yazi runs; got %s\n", _VERSION))
+	os.exit(2)
+end
+
 local ROOT = (arg[0]:match("^(.*)[/\\]test[/\\]run%.lua$")) or "."
 local FILTER = arg[1]
 

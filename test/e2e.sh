@@ -38,7 +38,7 @@ done
 # --- run -------------------------------------------------------------------
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION" -x 170 -y 40 \
-	"env YAZI_CONFIG_HOME=$DIR/config XDG_STATE_HOME=$DIR/state YAZI_LOG=debug yazi '$DIR/fixture/data'"
+	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state' YAZI_LOG=debug yazi '$DIR/fixture/data'"
 sleep 4
 
 # Everything up to here is drawn with preset colours, so this capture is what
@@ -64,6 +64,20 @@ for n in 0 1 2 3 4 5 6 7 8 9; do
 	sleep 1
 	shot "m$n"
 done
+
+# m3 states one size column at 10 and measures the other, so the widths have to
+# disagree -- and the measured one has to change when the folder does. Nothing
+# else in this run crosses a folder boundary, and `bind`'s per-folder cache key
+# is the piece most likely to get it wrong.
+tmux send-keys -t "$SESSION" m 3
+sleep 1
+tmux send-keys -t "$SESSION" g g
+sleep 1
+tmux send-keys -t "$SESSION" l
+sleep 2
+shot "m3-nested"
+tmux send-keys -t "$SESSION" h
+sleep 1
 
 tmux send-keys -t "$SESSION" q
 sleep 1
@@ -136,6 +150,22 @@ else
 		fail "m4: the three overflow modes did not render differently"
 	fi
 fi
+
+# m3: `size` stated at 10 beside `size` measured. In `data/` the widest size is
+# "1023.4K", so the measured column is 7 and the two are three spaces apart.
+check "m3: a stated width and a measured one differ" "1024B   1024B" "$DIR/screen-m3.txt"
+# ... and in `nested/` the widest is "300K", so the measured column narrows to 4
+# while the stated one does not move: six spaces of padding, then one space of
+# separator. Asserting both halves in one string is what pins the pair.
+check "m3: the measured width follows the folder" "      300K 300K" "$DIR/screen-m3-nested.txt"
+
+# m5: `ext` (5, left), then `size` with `sep = false`, then `mtime` behind "│".
+check "m5: sep = false and a separator of one's own" "bin    1024B│" "$DIR/screen-m5.txt"
+
+# m9: a registered column, one clipped to 8 without an ellipsis, and a bare
+# function in the spec.
+check "m9: user-written columns" "bin   exactly- file" "$DIR/screen-m9.txt"
+check "m9: a clipped cell carries no ellipsis" "never-op " "$DIR/screen-m9.txt"
 
 echo "== panes =="
 if parent_of m6 | grep -qE "[0-9]{2}/[0-9]{2}"; then

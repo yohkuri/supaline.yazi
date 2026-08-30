@@ -8,6 +8,21 @@ require(".builtin")
 
 local CFG = { scale = "linear" }
 
+--- Run `fn` with `cx.active:history` answering `folder`, and put the stub's own
+--- back afterwards: left reassigned, it reaches every test after this one and
+--- the failure points at the wrong one.
+---@param folder table?
+---@param fn function
+local function with_history(folder, fn)
+	local before = cx.active.history
+	cx.active.history = function() return folder end
+	local ok, err = pcall(fn)
+	cx.active.history = before
+	if not ok then
+		error(err, 0)
+	end
+end
+
 --- Render one built-in column for one file, returning plain text.
 ---@param name string
 ---@param file table
@@ -37,13 +52,14 @@ test("size: the widest readable size still fits the column", function()
 end)
 
 test("size: a directory falls back to its entry count", function()
-	cx.active.history = function() return { files = { 1, 2, 3 } } end
-	eq(render("size", stub.file { name = "d", is_dir = true }), "      3")
+	with_history(
+		{ files = { 1, 2, 3 } },
+		function() eq(render("size", stub.file { name = "d", is_dir = true }), "      3") end
+	)
 end)
 
 test("size: a directory Yazi has never listed shows a dash", function()
-	cx.active.history = function() return nil end
-	eq(render("size", stub.file { name = "d", is_dir = true }), "      -")
+	with_history(nil, function() eq(render("size", stub.file { name = "d", is_dir = true }), "      -") end)
 end)
 
 -- --- times -----------------------------------------------------------------
@@ -101,9 +117,10 @@ test("owner: a name longer than the column is truncated, not allowed to push", f
 end)
 
 test("count: directories only", function()
-	cx.active.history = function() return { files = { 1, 2 } } end
-	eq(render("count", stub.file { name = "d", is_dir = true }), "    2")
-	eq(render("count", stub.file { name = "f.txt" }), "     ")
+	with_history({ files = { 1, 2 } }, function()
+		eq(render("count", stub.file { name = "d", is_dir = true }), "    2")
+		eq(render("count", stub.file { name = "f.txt" }), "     ")
+	end)
 end)
 
 -- --- statistics ------------------------------------------------------------

@@ -75,11 +75,11 @@ desc = "Linemode: size and mtime"
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
 A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
-own machinery on the table the linemodes are looked up on, so `new`, `redraw`,
-`padding`, `children_add`, `children_remove` and anything beginning with `_` are
-refused, as are `none` and `solo`. Naming a linemode after one of Yazi's own —
-`size`, `mtime`, `btime`, `permissions`, `owner` — replaces it, which is
-allowed.
+own machinery on the table the linemodes are looked up on, so any name already
+on that table is refused — `new`, `redraw`, `padding`, `children_add`,
+`children_remove`, `solo`, `none` — as is anything beginning with `_`. The
+exception is Yazi's own linemodes: naming one `size`, `mtime`, `btime`,
+`atime`, `permissions` or `owner` replaces it, which is allowed.
 
 ### Linemode options
 
@@ -134,7 +134,7 @@ Any option below can be set on the definition or overridden per use.
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
 | `stats`     | `nil`        | `function(files)`, run once per folder; result reaches `ctx.stats`. |
 | `width`     | `nil`        | A number, `"auto"`, or `function(stats) -> number`.      |
-| `max_width` | `nil`        | Caps `"auto"`.                                            |
+| `max_width` | `nil`        | Caps the column's width, however it was derived.          |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `base`      | `nil`        | Base colour: `"#rrggbb"` or an ANSI colour name.         |

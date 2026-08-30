@@ -109,14 +109,23 @@ function M.normalize(spec, cfg)
 		error("supaline: a column must be a name, a function, or a table with `render`")
 	end
 
-	local pick = function(key) return opts[key] == nil and def[key] or opts[key] end
+	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:
+	-- that idiom collapses a `def` value of `false` to nil, and `false` is the
+	-- only value `sep` ever takes.
+	local pick = function(key)
+		local v = opts[key]
+		if v == nil then
+			v = def[key]
+		end
+		return v
+	end
 
 	local col = {
 		name = name,
 		align = pick("align") or "right",
 		overflow = pick("overflow") or "ellipsis",
 		max_width = pick("max_width"),
-		sep = opts.sep,
+		sep = pick("sep"),
 		stats = pick("stats"),
 		render = opts.render or def.render,
 		scale = pick("scale") or cfg.scale,
@@ -200,8 +209,6 @@ local function width_of(text)
 	return ui.width(text)
 end
 
-M.width_of = width_of
-
 --- Cut a string to `width` display cells and add nothing. `ui.truncate` cannot
 --- do this -- it always appends an ellipsis of its own -- so the general case
 --- is walked here, one UTF-8 character at a time. Only ever reached by a cell
@@ -215,7 +222,9 @@ local function hard_cut(text, width)
 	end
 
 	local out, w = {}, 0
-	for ch in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+	-- `[\0-\127\194-\244]` rather than `[%z...]`: `%z` stopped meaning the NUL
+	-- byte after Lua 5.1 and matches the letter `z` on the 5.5 Yazi runs.
+	for ch in text:gmatch("[\0-\127\194-\244][\128-\191]*") do
 		local cw = ui.width(ch)
 		if w + cw > width then
 			break
@@ -313,7 +322,19 @@ end
 function M.resolve_width(col, files, stats)
 	if col.width_of then
 		local w = col.width_of(stats)
-		return type(w) == "number" and math.floor(w) or nil
+		if type(w) ~= "number" then
+			-- Returning nil here would leave the column with no width at all:
+			-- no padding, no truncation, and a cell free to push into the file
+			-- name. A stated width and "auto" both fail loudly; so does this.
+			error(
+				string.format(
+					"supaline: the `width` function of column `%s` returned a %s; it must return a number",
+					col.name or "?",
+					type(w)
+				)
+			)
+		end
+		return math.floor(w)
 	elseif not col.auto then
 		return col.fixed
 	end
