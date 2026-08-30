@@ -13,14 +13,11 @@ set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DIR="${TMPDIR:-/tmp}/supaline-manual"
-MARKER=".supaline-fixture"
 
 if [ "${1:-}" = "--clean" ]; then
-	if [ -e "$DIR" ] && [ ! -f "$DIR/$MARKER" ]; then
-		echo "manual: $DIR is not ours; leaving it alone" >&2
-		exit 2
-	fi
-	rm -rf "$DIR"
+	# `setup.sh` owns the marker file and the "is this ours" guard, so it owns
+	# the removal too.
+	"$ROOT/test/setup.sh" --clean "$DIR"
 	echo "manual: removed $DIR"
 	exit 0
 fi

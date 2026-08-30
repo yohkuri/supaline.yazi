@@ -55,10 +55,10 @@ stop() { tmux kill-session -t "$SESSION" 2>/dev/null || true; }
 # EXIT one too, so this is the only place the run is torn down.
 cleanup() {
 	stop
-	if [ -z "$KEEP" ]; then
-		rm -rf "$DIR"
+	if [ -n "$KEEP" ]; then
+		[ ! -d "$DIR" ] || echo "kept: $DIR"
 	elif [ -d "$DIR" ]; then
-		echo "kept: $DIR"
+		"$ROOT/test/setup.sh" --clean "$DIR"
 	fi
 }
 trap cleanup EXIT
@@ -221,38 +221,38 @@ echo "== panes =="
 # with no linemode at all -- the baseline for the other two. Comparing whole
 # panes rather than grepping for a column keeps this independent of which
 # columns the fixture happens to use.
+#
+# The pass and fail arms are inverted between neighbouring checks here, which
+# is exactly the shape that hides a mistake when it is spelled out five times.
+# `same` and `differs` are the `check` of this section.
+same() { # <label> <actual> <expected>
+	if [ "$2" = "$3" ]; then
+		echo "  $1"
+	else
+		fail "$1"
+	fi
+}
+differs() { # <label> <actual> <unwanted>
+	if [ "$2" = "$3" ]; then
+		fail "$1"
+	else
+		echo "  $1"
+	fi
+}
+
 bare_parent=$(parent_of m6)
 bare_preview=$(preview_of m6)
 
-if [ "$(parent_of m7)" = "$bare_parent" ]; then
-	fail "m7: the parent pane stayed bare under panes = { current, parent }"
-else
-	echo "  m7: parent pane drawn"
-fi
-if [ "$(parent_of m8)" = "$bare_parent" ]; then
-	echo "  m8: parent pane left alone"
-else
-	fail "m8: the parent pane drew under panes = { current, preview }"
-fi
-if [ "$(preview_of m7)" = "$bare_preview" ]; then
-	echo "  m7: preview pane left alone"
-else
-	fail "m7: the preview pane drew under panes = { current, parent }"
-fi
+differs "m7: parent pane drawn" "$(parent_of m7)" "$bare_parent"
+same "m8: parent pane left alone" "$(parent_of m8)" "$bare_parent"
+same "m7: preview pane left alone" "$(preview_of m7)" "$bare_preview"
 
 # `panes` has to hold for every row of the preview pane, not just the one Yazi
 # marks `in_preview` -- it sets that on the previewed folder's cursor row alone,
 # so a check that passes on one row proves nothing about the second.
-if [ "$(drawn_in_preview m8)" -eq 2 ]; then
-	echo "  m8: preview pane drawn, both rows"
-else
-	fail "m8: the preview pane drew $(drawn_in_preview m8) of 2 rows"
-fi
-if [ "$(drawn_in_preview m6)" -eq 0 ]; then
-	echo "  m6: both edges left alone"
-else
-	fail "m6: the preview pane drew under panes = { current }"
-fi
+drew=$(drawn_in_preview m8)
+same "m8: preview pane drawn, both rows (drew $drew)" "$drew" "2"
+same "m6: both edges left alone" "$(drawn_in_preview m6)" "0"
 
 echo "== theme =="
 # `[supaline] size` is #ff8800, which tmux writes out as 255;136;0.
