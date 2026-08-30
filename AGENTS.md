@@ -150,6 +150,26 @@ file fails with "error converting Lua boolean to table"; return `{}` instead.
 `Url.is_regular`, `Url.is_search` and `Url.domain` are deprecated in 26.8.15 in
 favour of `Url.spec.is_regular`, `Url.spec.is_search` and `Url.spec.domain`.
 
+`is_regular` does not mean "a real file on disk". Yazi's `AuthKind` has six
+variants and `is_regular` holds for exactly one of them; a search result is a
+local file with `kind = "search"`, `is_regular = false` and
+`is_virtual = false`. A check written as `not is_regular` therefore demotes
+every search hit along with the remote ones.
+
+The partition worth asking for is the one Yazi uses itself,
+`AuthKind::is_local()`: `regular` and `search` are local, `mount`, `hub`,
+`scope` and `sftp` are not. That method is not bound to Lua, but it is the
+exact complement of `spec.is_virtual`, which is; `spec.kind` gives the variant
+name as a lowercase string. `Url.spec` is a cached field, so reading it once
+per row costs nothing.
+
+It matters wherever a value only means something on the machine Yazi is running
+on. `ya.user_name` and `ya.group_name` read that machine's passwd and group
+databases, and an SFTP file's UID was minted on the server, where the same
+number is very likely a different account. Yazi's own `Linemode:owner` resolves
+them regardless, so the `owner` column deliberately differs from it and prints
+the numbers instead.
+
 ## Rendering budget
 
 `render` runs for every visible row on every frame. It must be O(1) and

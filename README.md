@@ -188,11 +188,18 @@ building an intermediate line, and is what the built-in columns do.
 | `btime`       | 11    | right | Birth time.                                       |
 | `atime`       | 11    | right | Access time.                                      |
 | `permissions` | 10    | left  | Unix only.                                        |
-| `owner`       | 12    | left  | `user:group`. Unix only.                          |
+| `owner`       | 12    | left  | `user:group`. Unix only; numeric off this machine. |
 | `count`       | 5     | right | Entry count, directories only.                    |
 
 There is no `ctime` column: Yazi's `Cha` exposes `atime`, `btime` and `mtime`
 only.
+
+`owner` prints `501:20` rather than `user:group` for a file that is not on the
+machine Yazi is running on -- an SFTP one, say. The names come from this
+machine's passwd and group databases, and a remote file's numbers were minted
+on the server, where the same number is very likely a different account. Yazi's
+own `owner` linemode resolves them regardless, so the two disagree there on
+purpose.
 
 Widths are stated rather than measured, so none of them renders the folder
 twice. Set `width = "auto"` on any of them to have it fit instead.
