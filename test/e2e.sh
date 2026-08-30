@@ -22,7 +22,16 @@ set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DIR="${TMPDIR:-/tmp}/supaline-e2e"
-SESSION="supaline-e2e"
+# The PID keeps the session ours. A fixed name would have to be cleared before
+# `new-session` could take it, and clearing one this script did not start kills
+# whatever was running inside it -- a concurrent run of this same script, or a
+# session a person happened to name the same, along with its unsaved work.
+# Nothing here kills a session it did not start; if the name is somehow taken,
+# `new-session` fails and `set -e` stops the run.
+#
+# The scratch directory needs no such treatment: `setup.sh` refuses a directory
+# that does not carry its own marker file.
+SESSION="supaline-e2e-$$"
 KEEP=""
 [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -33,10 +42,17 @@ for tool in tmux yazi; do
 	}
 done
 
+# Leave no session behind when a check fails, or when the run is interrupted
+# part-way. `exit` from a signal trap runs the EXIT one too, so this is the
+# only place the session is torn down on the way out.
+cleanup() { tmux kill-session -t "$SESSION" 2>/dev/null || true; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 "$ROOT/test/setup.sh" "$DIR"
 
 # --- run -------------------------------------------------------------------
-tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION" -x 170 -y 40 \
 	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state' YAZI_LOG=debug yazi '$DIR/fixture/data'"
 sleep 4
@@ -81,7 +97,9 @@ sleep 1
 
 tmux send-keys -t "$SESSION" q
 sleep 1
-tmux kill-session -t "$SESSION" 2>/dev/null || true
+# Explicit rather than left to the trap: the checks below read what Yazi wrote,
+# so it has to be gone before they run.
+cleanup
 
 # --- check -----------------------------------------------------------------
 LOG="$DIR/state/yazi/yazi.log"
