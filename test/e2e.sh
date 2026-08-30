@@ -92,9 +92,16 @@ fail() {
 	fails=$((fails + 1))
 }
 
-# The current pane is the middle column and the parent pane the left one, so a
-# row's leading cells belong to the parent.
-parent_of() { sed -n '3,8p' "$DIR/screen-$1.txt" | cut -c1-20; }
+# The current pane is the middle column, so the parent pane is everything
+# before the first divider and the preview pane everything past the last one.
+# Whole panes rather than a fixed column count: `cut -c` counts bytes here, and
+# a row opening with a three-byte icon pushes a one-cell column past any window
+# that looks wide enough. The preview's rows are `nested/`, two files.
+parent_of() { sed -n '3,8p' "$DIR/screen-$1.txt" | sed 's/\xe2\x94\x82.*//'; }
+preview_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/.*\xe2\x94\x82//'; }
+# A row that drew ends in the trio's one column: `mark`, a single "d" or "f"
+# after the name. A bare row ends in the name itself.
+drawn_in_preview() { preview_of "$1" | grep -cE " [df]$" || true; }
 
 echo "== log =="
 if [ -f "$LOG" ] && grep -qiE "ERROR|WARN|attempt to|error converting" "$LOG"; then
@@ -173,20 +180,41 @@ check "m9: user-written columns" "bin   exactly- file" "$DIR/screen-m9.txt"
 check "m9: a clipped cell carries no ellipsis" "never-op " "$DIR/screen-m9.txt"
 
 echo "== panes =="
-if parent_of m6 | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	fail "m6: the parent pane drew under panes = { current }"
-else
-	echo "  m6: parent pane left alone"
-fi
-if parent_of m7 | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	echo "  m7: parent pane drawn"
-else
+# m6 asks for the current pane alone, so its edges are exactly what Yazi draws
+# with no linemode at all -- the baseline for the other two. Comparing whole
+# panes rather than grepping for a column keeps this independent of which
+# columns the fixture happens to use.
+bare_parent=$(parent_of m6)
+bare_preview=$(preview_of m6)
+
+if [ "$(parent_of m7)" = "$bare_parent" ]; then
 	fail "m7: the parent pane stayed bare under panes = { current, parent }"
-fi
-if parent_of m8 | grep -qE "[0-9]{2}/[0-9]{2}"; then
-	fail "m8: the parent pane drew under panes = { current, preview }"
 else
+	echo "  m7: parent pane drawn"
+fi
+if [ "$(parent_of m8)" = "$bare_parent" ]; then
 	echo "  m8: parent pane left alone"
+else
+	fail "m8: the parent pane drew under panes = { current, preview }"
+fi
+if [ "$(preview_of m7)" = "$bare_preview" ]; then
+	echo "  m7: preview pane left alone"
+else
+	fail "m7: the preview pane drew under panes = { current, parent }"
+fi
+
+# `panes` has to hold for every row of the preview pane, not just the one Yazi
+# marks `in_preview` -- it sets that on the previewed folder's cursor row alone,
+# so a check that passes on one row proves nothing about the second.
+if [ "$(drawn_in_preview m8)" -eq 2 ]; then
+	echo "  m8: preview pane drawn, both rows"
+else
+	fail "m8: the preview pane drew $(drawn_in_preview m8) of 2 rows"
+fi
+if [ "$(drawn_in_preview m6)" -eq 0 ]; then
+	echo "  m6: both edges left alone"
+else
+	fail "m6: the preview pane drew under panes = { current }"
 fi
 
 echo "== theme =="

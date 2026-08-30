@@ -170,6 +170,16 @@ supaline.column("ext", {
 	render = function(file, ctx) return file.url.ext or "", ctx.base end,
 })
 
+-- A one-cell marker. Every built-in is 5 to 12 cells wide and the parent pane
+-- is an eighth of the terminal, so none of them can demonstrate `panes` there
+-- without swallowing the file name; what fits at the edges is a marker.
+supaline.column("mark", {
+	width = 1,
+	align = "left",
+	base = "green",
+	render = function(file, ctx) return file.cha.is_dir and "d" or "f", ctx.base end,
+})
+
 -- Names vary in length, which is what makes the overflow modes legible.
 supaline.column("name", {
 	width = 12,
@@ -213,9 +223,13 @@ supaline:setup({
 
 		-- m6 to m8: the panes. The difference shows in the left and right
 		-- panes, never in the middle one.
-		pane_cur = { "size", "mtime", panes = { "current" } },
-		pane_par = { "size", "mtime", panes = { "current", "parent" } },
-		pane_prev = { "size", "mtime", panes = { "current", "preview" } },
+		-- `mark`, not `size` and `mtime`: Yazi gives the linemode priority
+		-- over the file name, and those two are 19 cells against a parent
+		-- pane 21 wide, so the names vanish entirely. What fits at the edges
+		-- is a marker, which is what these panes are for.
+		pane_cur = { "mark", panes = { "current" } },
+		pane_par = { "mark", panes = { "current", "parent" } },
+		pane_prev = { "mark", panes = { "current", "preview" } },
 
 		-- m9: a registered user column, and an inline function.
 		custom = {
