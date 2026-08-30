@@ -301,6 +301,9 @@ function M.Span(text) return setmetatable({ _text = text }, Span) end
 ---@return table
 function M.file(t)
 	local name = t.name or "file.txt"
+	--- The `AuthKind` of the file's URL: `regular`, `search`, `mount`, `hub`,
+	--- `scope` or `sftp`.
+	local kind = t.url_kind or "regular"
 	local file
 	file = {
 		name = name,
@@ -314,6 +317,19 @@ function M.file(t)
 		-- plugin trust it.
 		url = {
 			ext = name:match("%.([^.]+)$"),
+			-- Yazi's `Url.spec`. `is_virtual` is derived rather than passed
+			-- in, because the partition is the whole point: Yazi's own
+			-- `AuthKind` calls `regular` and `search` local and everything
+			-- else virtual, so a search result keeps its owner names and an
+			-- `sftp` file does not. A stub that took the flag directly would
+			-- let a column key on `is_regular` -- which is false for a search
+			-- result too -- and still pass.
+			spec = {
+				kind = kind,
+				is_regular = kind == "regular",
+				is_search = kind == "search",
+				is_virtual = kind ~= "regular" and kind ~= "search",
+			},
 			__tostring = nil,
 		},
 		cha = {

@@ -121,6 +121,24 @@ column.register("owner", {
 			return "", ctx.base
 		end
 
+		-- `ya.user_name` and `ya.group_name` read the passwd and group
+		-- databases of the machine Yazi is running on, so a name they return
+		-- only means anything for a file that lives on it. An SFTP file's IDs
+		-- were minted on the server, where the same number is very likely a
+		-- different account; resolving those here puts a confident and wrong
+		-- name on screen. Yazi's own `owner` linemode resolves them
+		-- unconditionally, so this column deliberately differs from it.
+		--
+		-- `spec.is_virtual` is the exposed complement of Yazi's internal
+		-- `AuthKind::is_local()`: false for the `regular` and `search` kinds,
+		-- true for `mount`, `hub`, `scope` and `sftp`. Keying on it rather
+		-- than on the `sftp` scheme errs towards the numbers, so a remote
+		-- scheme added in a later Yazi is never given a name it has not
+		-- earned. `Url.spec` is a cached field, so this costs one read.
+		if file.url.spec.is_virtual then
+			return string.format("%s:%s", cha.uid, cha.gid), ctx.base
+		end
+
 		local user = ya.user_name and ya.user_name(cha.uid) or cha.uid
 		local group = ya.group_name and ya.group_name(cha.gid) or cha.gid
 		return string.format("%s:%s", user, group), ctx.base
