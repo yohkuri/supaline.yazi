@@ -305,6 +305,35 @@ function M.Span(text) return setmetatable({ _text = text }, Span) end
 -- partition is the claim being made about Yazi: a typo in a spec's `url_kind`
 -- would otherwise pass as virtual and make a test succeed for the wrong
 -- reason. `auth_spec.lua` pins all six.
+
+--- Every DDS kind Yazi publishes, and so every kind `ps.sub` can be given
+--- that will ever fire.
+---
+--- The names come from `pub_after!` in `yazi-dds/src/pubsub.rs`, plus one that
+--- does not: `bulk-rename` is published by a hand-written
+--- `pub_after_bulk_rename` beside the macro, so reading the macro alone misses
+--- it. A `@` name is a static event -- `@yank` is the only one.
+M.DDS_KINDS = {}
+for _, kind in ipairs {
+	"tab",
+	"cd",
+	"load",
+	"hover",
+	"rename",
+	"@yank",
+	"duplicate",
+	"move",
+	"trash",
+	"delete",
+	"download",
+	"input",
+	"mount",
+	"theme",
+	"bulk-rename",
+} do
+	M.DDS_KINDS[kind] = true
+end
+
 M.AUTH_KINDS = {
 	regular = { is_regular = true, is_search = false, is_virtual = false },
 	search = { is_regular = false, is_search = true, is_virtual = false },
@@ -473,7 +502,16 @@ function M.install(root)
 
 	M.subs = {}
 	_G.ps = {
+		-- Yazi's own `ps.sub` takes any string and returns without
+		-- complaining, so a stale kind is a subscription that simply never
+		-- fires: no error, no warning, nothing on screen. This one refuses
+		-- instead. It is the same deliberate divergence `spec_of` makes for
+		-- `AuthKind` -- a stub that reproduces a silent failure lets a test
+		-- pass while the plugin is dead.
 		sub = function(kind, fn)
+			if not M.DDS_KINDS[kind] then
+				error("stub: no such DDS kind: " .. tostring(kind))
+			end
 			M.subs[kind] = M.subs[kind] or {}
 			table.insert(M.subs[kind], fn)
 		end,

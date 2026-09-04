@@ -27,6 +27,7 @@ local FILTER = arg[1]
 local SPECS = {
 	"truncate_spec",
 	"auth_spec",
+	"dds_spec",
 	"column_spec",
 	"builtin_spec",
 	"main_spec",
