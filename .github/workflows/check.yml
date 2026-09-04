@@ -72,6 +72,83 @@ jobs:
           done < <(git ls-files -z '*.lua' ':!:test/*')
           exit $rc
 
+  sync:
+    # Yazi binds a `ya.sync` block to the position of the call and matches the
+    # sync and async sides by it, so a call written inside an `if`, a loop or a
+    # function writes to a different state table than the same call at the top
+    # level. Nothing says so at runtime; the state is simply empty. This is the
+    # check that catches the first one, before there is a first one.
+    name: "ya.sync placement"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every call is unconditional, and in main.lua
+        run: |
+          rc=0
+          while IFS= read -r -d '' f; do
+            # Line comments go first. Every mention of `ya.sync` in this
+            # repository today is prose about the rule, and a check that fires
+            # on prose is one nobody keeps.
+            calls=$(sed 's/--.*//' "$f" | grep -n 'ya\.sync[[:space:]]*(' || true)
+            [ -n "$calls" ] || continue
+
+            if [ "$f" != "main.lua" ]; then
+              echo "$f: ya.sync may only be called from main.lua"
+              rc=1
+            fi
+
+            # stylua indents this repository with tabs, so a call starting in
+            # column 0 is exactly one that no condition or loop encloses.
+            nested=$(printf '%s\n' "$calls" | grep '^[0-9]*:[[:space:]]' || true)
+            if [ -n "$nested" ]; then
+              printf '%s: ya.sync is not at the top level:\n%s\n' "$f" "$nested"
+              rc=1
+            fi
+          done < <(git ls-files -z '*.lua' ':!:test/*')
+          exit $rc
+
+  spellings:
+    # Two Yazi APIs whose obvious use is the wrong one, and which this plugin
+    # therefore never uses. Both checks are refusals with a reason rather than
+    # lint for its own sake -- the reason is the whole payload, because the
+    # right spelling is not guessable from the wrong one. If a real use ever
+    # turns up, change the check; needing to should take a moment's thought.
+    #
+    # This is what a documented trap looks like once it can be caught. Neither
+    # of these fails a test: the unit suite pins the existing code, so a *new*
+    # column written the wrong way passes it green.
+    name: Forbidden spellings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: The plugin does not use these
+        run: |
+          rc=0
+          # Line comments go first: both names are discussed in prose here, and
+          # a check that fires on prose is one nobody keeps.
+          forbid() { # <pattern> <what to write instead>
+            while IFS= read -r -d '' f; do
+              hits=$(sed 's/--.*//' "$f" | grep -n "$1" || true)
+              [ -n "$hits" ] || continue
+              printf '%s:\n%s\n%s\n\n' "$f" "$2" "$hits"
+              rc=1
+            done < <(git ls-files -z '*.lua' ':!:test/*')
+          }
+
+          forbid 'in_preview' \
+            '  `in_preview` holds for the previewed folder'"'"'s cursor row alone, not
+            for the pane. Ask the preview folder whether the row is one of its
+            own instead: `file.idx` is its 1-based position in its own folder,
+            so `folder.files[file.idx]` settles it in O(1).'
+
+          forbid 'is_regular' \
+            '  `is_regular` holds for one of six AuthKind variants, so a check
+            written as `not is_regular` demotes every search hit along with the
+            remote ones. Use `spec.is_virtual`, which is the exposed complement
+            of Yazi'"'"'s own `AuthKind::is_local()`.'
+
+          exit $rc
+
 # `test/e2e.sh` and `test/manual.sh` are deliberately not here. They need a real
 # Yazi binary and a real terminal, and what they check -- rendering, and how
 # wide a cell came out -- is not what a runner is good at. Run them locally
