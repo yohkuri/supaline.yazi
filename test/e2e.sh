@@ -47,6 +47,20 @@ for tool in tmux yazi; do
 	}
 done
 
+# Every platform claim in AGENTS.md was established against one Yazi build, and
+# Yazi is on CalVer: it changes the plugin API between releases, sometimes
+# without saying so. Record which build this run actually proves anything
+# about, and say so when it is not the one the plugin annotates itself for --
+# that mismatch is the signal to go back and re-verify the constraints, not a
+# reason to stop, since running against a newer Yazi is how you would find out.
+YAZI_VERSION=$(yazi --version | sed -n 's/^[[:space:]]*Version:[[:space:]]*//p')
+[ -n "$YAZI_VERSION" ] || YAZI_VERSION=$(yazi --version | tr '\n' ' ')
+PINNED=$(sed -n '1s/^--- @since //p' "$ROOT/main.lua")
+case "$YAZI_VERSION" in
+"$PINNED"*) ;;
+*) echo "e2e: note: Yazi is $YAZI_VERSION, the plugin annotates $PINNED" ;;
+esac
+
 stop() { tmux kill-session -t "$SESSION" 2>/dev/null || true; }
 
 # Leave nothing behind when a check fails, or when the run is interrupted
@@ -66,6 +80,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 "$ROOT/test/setup.sh" "$DIR"
+echo "$YAZI_VERSION" >"$DIR/yazi-version.txt"
 
 # --- run -------------------------------------------------------------------
 tmux new-session -d -s "$SESSION" -x 170 -y 40 \
@@ -269,7 +284,7 @@ sed -n '2,7p' "$DIR/screen-m7.txt"
 echo
 
 if [ "$fails" -gt 0 ]; then
-	echo "e2e: $fails check(s) failed" >&2
+	echo "e2e: $fails check(s) failed on Yazi $YAZI_VERSION" >&2
 	exit 1
 fi
-echo "e2e: ok"
+echo "e2e: ok on Yazi $YAZI_VERSION"
