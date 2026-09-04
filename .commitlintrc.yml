@@ -1,0 +1,18 @@
+# Commit message rules. The Language section of AGENTS.md describes them in
+# prose; this file, plus the ASCII check in `.github/workflows/check.yml`, is
+# what enforces them.
+extends:
+  - "@commitlint/config-conventional"
+
+rules:
+  # `git log --oneline` and GitHub's commit list cut the header off past this,
+  # which is where the number comes from. Refuse one that is over.
+  header-max-length: [2, always, 72]
+
+  # A preference rather than a limit. Blocking on it would mean rewriting
+  # published history over a style point, so it is a warning.
+  subject-max-length: [1, always, 50]
+
+  # Conventional Commits requires the blank line before a body outright;
+  # config-conventional only warns about a missing one.
+  body-leading-blank: [2, always]
