@@ -149,6 +149,71 @@ jobs:
 
           exit $rc
 
+  commits:
+    # Only on a pull request: this is the last point at which a message can
+    # still be rewritten without touching published history.
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The default shallow clone has neither end of the range.
+          fetch-depth: 0
+      - name: Conventional Commits
+        # Pinned to a major. config-conventional tightens and adds rules
+        # between them, and a check that changes on its own is one that fails
+        # on a branch nobody touched.
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >
+          npx --yes -p @commitlint/cli@21 -p @commitlint/config-conventional@21
+          commitlint --from "$BASE" --to "$HEAD"
+      - name: English headers, and no Gitmoji
+        # Neither is something commitlint knows about, and the first is what
+        # lets its character counts mean columns.
+        #
+        # POSIX `tr` and `grep -E` only. The obvious spelling of both tests is
+        # `grep -P`, which BSD grep does not have -- and `if ... grep -q`
+        # reads grep's refusal to run as "no match", so the check would pass
+        # everything on any machine without it. Failing open is worse than not
+        # checking at all.
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          rc=0
+          for rev in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            header=$(git log -1 --format='%s' "$rev")
+            message=$(git log -1 --format='%B' "$rev")
+
+            # `header-max-length` counts characters, and a character occupies
+            # one column only while the text is ASCII. Requiring an ASCII
+            # header therefore does two jobs at once: it keeps that limit
+            # meaning what it says, and it applies the Language section to the
+            # one line `git log --oneline` shows. It also settles emoji there,
+            # since none of them are ASCII.
+            #
+            # Bodies are deliberately exempt. A commit explaining width
+            # arithmetic may quote a CJK string -- one in this history does --
+            # and a contributor's name in a trailer is theirs to spell.
+            if [ -n "$(printf '%s' "$header" | LC_ALL=C tr -d '\000-\177')" ]; then
+              echo "${rev:0:8} header is not ASCII: $header"
+              rc=1
+            fi
+
+            # Gitmoji shortcodes are ASCII, so the test above does not see
+            # them. Bounded by whitespace or a line end, which is what keeps
+            # `3:30:00` and `key: value` out of it.
+            if printf '%s' "$message" \
+              | grep -qE '(^|[[:space:]]):[a-z0-9][a-z0-9_+-]*:([[:space:]]|$)'; then
+              echo "${rev:0:8} carries a Gitmoji shortcode: $header"
+              rc=1
+            fi
+          done
+          exit $rc
+
 # `test/e2e.sh` and `test/manual.sh` are deliberately not here. They need a real
 # Yazi binary and a real terminal, and what they check -- rendering, and how
 # wide a cell came out -- is not what a runner is good at. Run them locally
