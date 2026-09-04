@@ -1,6 +1,15 @@
-# Local, per-machine AI agent context. Never tracked.
-.ai-local/
+# Per-checkout personal files, each named by the convention of the agent that
+# reads it, and none of them the project's. `AGENTS.override.md` is the one
+# worth being deliberate about: it replaces `AGENTS.md` at the same level
+# rather than adding to it, so committing one would silently swap this
+# project's canonical instructions out from under every agent that follows
+# the convention.
 CLAUDE.local.md
-
-# Personal per-checkout Claude Code overrides.
 .claude/settings.local.json
+AGENTS.override.md
+
+# Anything else you keep in your own checkout -- notes, scratch directories,
+# translations of these documents -- belongs in `.git/info/exclude`, or in the
+# global excludes file `git config --global core.excludesFile` names, and not
+# here. A rule in this file is the project telling every contributor what to
+# hide; those are yours to decide.
