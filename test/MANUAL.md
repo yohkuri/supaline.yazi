@@ -73,14 +73,15 @@ Every row ends with a size, right-aligned in seven cells.
 ### `m 2` — every built-in column
 
 ```
- link-broken -> nowhere-at-all lrwxr-xr-x yohkuri:sta…     14B 08/28 01:06
- nested                        drwxr-xr-x yohkuri:sta…       2 08/28 01:06     2
+ link-broken -> nowhere-at-all lrwxr-xr-x octocat:sta…     14B 08/28 01:06
+ nested                        drwxr-xr-x octocat:sta…       2 08/28 01:06     2
 ```
 
 - `link-broken` is `lrwxr-xr-x`, directories are `drwxr-xr-x`, and
   `read-only.txt` is `-r--------`.
-- The owner column is twelve cells and `yohkuri:staff` is thirteen, so it ends
-  in **exactly one** `…`. Two ellipses in a row was a real bug.
+- The owner column is twelve cells and holds your own `user:group`, so what to
+  look for depends on its length: over twelve it ends in **exactly one** `…`,
+  and under twelve it pads with none. Two ellipses in a row was a real bug.
 - `count` is blank for files and a number for directories.
 - The file name loses characters to make room. That is Yazi sizing the name
   against the linemode, not supaline overflowing.
@@ -91,7 +92,7 @@ Three columns: `size` stated as 10, `size` measured, and `owner` measured with
 a cap of 8.
 
 ```
- exactly-1k.bin           1024B   1024B yohkuri…
+ exactly-1k.bin           1024B   1024B octocat…
 ```
 
 - The two size columns hold the same value, but the first is padded to ten
@@ -106,11 +107,11 @@ a cap of 8.
   should **narrow to four** while the stated one does not move:
 
   ```
-   inner-b.bin              300K 300K yohkuri…
+   inner-b.bin              300K 300K octocat…
   ```
 
   Come back out and it widens again. Each folder is measured on its own.
-- The third column stops at eight: `yohkuri…`.
+- The third column never goes past its cap of eight — `octocat…` here.
 
 ### `m 4` — overflow
 
