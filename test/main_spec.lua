@@ -304,29 +304,41 @@ end)
 -- --- the theme -------------------------------------------------------------
 
 test("theme: base colours are resolved on the event, not at setup", function()
-	-- Until `app:theme` fires, `th.*` holds preset values only, so anything a
-	-- plugin reads at setup time is the wrong colour.
-	th.supaline = nil
-	setup { detail = { { "size", width = 3 } } }
-	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "cyan", "the column's own default")
+	-- The user's `[supaline]` section is on disk from the start. What makes it
+	-- unreadable at setup is Yazi's order: `THEME` is initialised from the
+	-- preset alone, and the user's `theme.toml` is merged inside the `app:theme`
+	-- actor, which fires `theme` afterwards.
+	--
+	-- Setting the section *before* `setup` is what makes this test say that. A
+	-- section that only appeared afterwards would pass for a plugin that read
+	-- `th` too early, because at setup there would have been nothing to read.
+	stub.themed = false -- Yazi has started; `app:theme` has not run yet
+	stub.th_merged.supaline = { size = "#ff8800" }
 
-	th.supaline = { size = "#ff8800" }
+	setup { detail = { { "size", width = 3 } } }
+	eq(
+		stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
+		"cyan",
+		"the column's own default, not the user's colour"
+	)
+
 	stub.fire("theme")
 	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+
 	-- Put it back: a colour left set here would reach every test after this one,
 	-- and the failure would point at the wrong one.
-	th.supaline = nil
+	stub.th_merged.supaline = nil
 end)
 
 test("theme: a style table works as well as a colour string", function()
-	th.supaline = { size = ui.Style():fg("#00ff00"):bold() }
+	stub.th_merged.supaline = { size = ui.Style():fg("#00ff00"):bold() }
 	setup { detail = { { "size", width = 3 } } }
 	stub.fire("theme")
 
 	local style = stub.first_style(Linemode.detail { _file = CURRENT.files[1] })
 	eq(style.fg, "#00ff00")
 	eq(style.bold, true)
-	th.supaline = nil
+	stub.th_merged.supaline = nil
 end)
 
 -- --- the per-folder pass ---------------------------------------------------
