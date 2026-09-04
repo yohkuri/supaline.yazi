@@ -93,8 +93,8 @@ end)
 test("cell: an overflowing cell gets exactly one ellipsis", function()
 	-- `ui.truncate` appends an ellipsis of its own; adding a second one was a
 	-- real bug, and it was invisible because the width still came out right.
-	local out = cell { render = function() return "yohkuri:wheel" end, width = 12 }
-	eq(out, "yohkuri:whe…")
+	local out = cell { render = function() return "octocat:wheel" end, width = 12 }
+	eq(out, "octocat:whe…")
 	eq(select(2, out:gsub("…", "")), 1, "ellipsis count")
 end)
 
