@@ -4,6 +4,14 @@ Canonical instructions for AI agents working in this repository. Claude Code
 reads this file through `CLAUDE.md`; other agents read it directly. Keep it the
 single source of truth — do not copy rules into agent-specific files.
 
+This file is the index, not the manual. What is here applies to every session.
+The detail lives in two skills under `.agents/skills/`, read when the task
+calls for them:
+
+- `yazi-platform-traps` — for a change that resolves a colour, writes a
+  fetcher, or touches the parent- or preview-pane child
+- `verify-supaline` — for a change under `test/`
+
 ## What this is
 
 supaline is a [Yazi](https://github.com/sxyazi/yazi) plugin that replaces the
@@ -16,19 +24,38 @@ management — is **undecided**. Do not describe them as planned or forthcoming,
 and do not justify a design choice by pointing at one; if such a column has to
 come up at all, say plainly that it is hypothetical.
 
+## Source of truth
+
+Prefer code, tests, Git history, and actual tool output over documentation when
+they conflict — this file included. Every platform claim below held for one
+Yazi build on one machine, and the Yazi in front of you is what decides. When a
+document turns out to be wrong, fix the document rather than working around it.
+
 ## Language
 
 This repository is public. **Everything tracked in Git is written in English** —
 code comments, documentation, README, user-facing error messages, and commit
 messages. This includes files only agents read.
 
-Contributors may keep translations outside the repository. Those are never
-authoritative and never tracked; when a translation disagrees with the English,
-the translation is wrong.
+Commit messages follow the Conventional Commits specification. Do not
+capitalise the first letter of the subject, and keep emoji out: none at all in
+the header, and no Gitmoji shortcode anywhere in the message.
 
-Commit messages follow the Conventional Commits specification. No emoji or
-Gitmoji anywhere in the message. Do not capitalise the first letter of the
-subject; keep the subject to 50 characters and the whole header to 72.
+The header — the whole first line — must be 72 characters or fewer, and that
+limit is hard. A subject of 50 characters or fewer is preferred; going over is
+a warning rather than a refusal, because a style point is not worth rewriting
+published history for.
+
+`.commitlintrc.yml` holds the Conventional Commits rules and CI runs
+`commitlint` over a pull request's commits. The ASCII and Gitmoji tests are a
+step beside it in `.github/workflows/check.yml`; the ASCII one covers the
+header alone, so a body may quote a CJK string and a name in a trailer is
+spelled the way its owner spells it. To run the same check here:
+
+```sh
+npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
+  commitlint --from origin/main --to HEAD
+```
 
 ## Target platform
 
@@ -40,230 +67,75 @@ Yazi is on CalVer and breaks the plugin API freely between releases. 26.8.15
 changed the fetcher calling convention and silently renamed a DDS event, so code
 written for 26.5.6 — let alone 0.4.x — will not run.
 
-## Platform constraints
+## Traps
 
-Each of these was found by instrumenting a running Yazi or by reading its
-source. None are in the official documentation. Writing code without accounting
-for them breaks things silently: no error, just an empty column.
+Eight behaviours of Yazi 26.8.15 break this plugin **silently** — no error, just
+an empty column, a stale colour, or a task that never finishes. Knowing that
+they exist is what this list is for, and for most changes it is the whole of
+what you need; the mechanism behind each is in
+`.agents/skills/yazi-platform-traps/`.
 
-### The theme is not loaded when `setup` runs
+- `THEME` holds preset values until the `theme` event — a colour resolved at
+  setup is the preset's, for good
+- `ya.sync` binds by the position of the call, per file — one written elsewhere
+  reads a different state table
+- a fetcher returns a function, not a boolean — the error reaches only the task
+  log, and the column still fills in
+- a linemode child is called for parent-pane rows too — `solo()` guards
+  `in_current`, a child does not
+- `in_preview` is not the counterpart of `in_current` — it holds for one row of
+  the preview pane, not for all of them
+- DDS renamed `bulk` to `bulk-rename` — a stale kind is a subscription that
+  never fires
+- every module must return a table — `return true` stops the plugin loading at
+  all
+- `is_regular` is one of six `AuthKind` variants, not "a real file" — a check
+  written as `not is_regular` demotes every search hit along with the remote
+  ones
 
-At startup `THEME` is initialised from the **preset theme only**
-(`THEME.init(Preset::theme(false))`). The user's `theme.toml` and flavor are
-merged exclusively inside the `app:theme` actor, which then fires the `theme`
-DDS event. This applies to built-in sections as much as to custom ones — a
-`[mgr] cwd` override written in `theme.toml` is not in effect when `setup` runs.
+**Five of the eight are refused by a check**, which prints what to write
+instead: `ya.sync` placement and the two forbidden spellings in CI, an
+unpublished DDS kind by the stub, a module returning a boolean by
+`test/module_spec.lua`. Nobody has to read about those.
 
-So: never cache anything read from `th.*` at setup time. Resolve base colours
-and build styles inside `ps.sub("theme", ...)`, and run that same builder once
-at setup so the plugin has something to draw with in the meantime.
+The other three are why the skill exists. The theme timing and the parent-pane
+child are pinned only against the code that is already here, so **new** code can
+repeat them and keep the suite green — measured, not assumed: a fresh column
+written with `not is_regular` passed all 103 tests before the spelling check
+existed. The fetcher one has no pin at all, because there is no fetcher yet.
 
-Custom theme sections are read as `th.<section>`. Section names are normalised
-from kebab-case to snake_case (`[my-plugin]` becomes `th.my_plugin`), field
-values may only be a style table or a string, and **built-in section names are
-reserved** — a custom field added to `[mgr]` is unreachable.
+So the skill is worth opening for a change that resolves a colour, writes a
+fetcher, or touches the parent- or preview-pane child — and not otherwise. A
+format string or a rename does not need it.
 
-### `ya.sync` state is scoped to the file the call is written in
+## Commands
 
-Yazi binds a `ya.sync` block to the name of the plugin being loaded and matches
-the async and sync sides **by the position of the call**. A closure written in
-one module therefore writes to a different state table than one written in
-another, and reordering the calls silently rebinds them.
-
-So: every `ya.sync` call lives at the top level of `main.lua`, unconditionally
-and in a fixed order. Never inside an `if`, never inside a `pairs` loop, never
-inside `setup`. Providers export plain reducers that `main.lua` wraps.
-
-This is also why a third-party column cannot own asynchronous state: a `ya.sync`
-call made from the user's `init.lua` is never replayed in the async VM.
-
-### Fetchers return a function, not a boolean
-
-Since 26.8.15 Yazi calls whatever `fetch` returns, repeatedly, and expects
-`file, { retry = …, error = … }` each time; `nil` ends the loop. Returning the
-old boolean fails with "error converting Lua boolean to function", and the
-failure is invisible — the side effects already ran, so the column still fills
-in, and the error is written only to the task log. Look for a stuck "N left" in
-the status bar.
-
-Every file in `job.files` must be reported exactly once. Omitting one gets it
-retried and logs the fetcher as having quit early; reporting one twice is a hard
-error. `retry = true` clears the loaded bit and runs again on the next visit.
-
-Fetchers can register themselves with `rt.plugin.fetchers:insert()`, sparing the
-user a `[[plugin.prepend_fetchers]]` block. Yazi caps the list at 16 and runs
-only the first matching rule per `group`.
-
-### Linemode children also render in the parent pane
-
-`Linemode:solo()` guards `in_current` itself, but a child added with
-`Linemode:children_add()` does not, and `parent.lua` calls
-`Linemode:new(f):redraw()` too. A child is therefore called for rows in the
-parent pane. Decide explicitly whether a given child renders there, and
-remember that folder-wide statistics for such a row must come from the parent
-folder, not `cx.active.current`.
-
-### `in_preview` is not the counterpart of `in_current`
-
-The names suggest a pair of pane flags. They are not. In
-`yazi-actor/src/lives/file.rs`:
-
-```rust
-fields.add_field_method_get("in_current", |_, me| Ok(ptr::eq(&*me.folder, &me.tab.current)));
-fields.add_field_method_get("in_preview", |_, me| {
-  Ok(me.idx == me.folder.cursor && me.tab.hovered().is_some_and(|f| f.url == me.folder.url))
-});
+```sh
+lua test/run.lua            # unit tests
+lua test/run.lua column     # ... just the specs matching "column"
+test/e2e.sh                 # render in a real Yazi, headless
+test/manual.sh              # ... interactively, for a human to look at
+stylua --check .            # formatting
 ```
 
-`in_current` compares folders, so it holds for every row of the current pane.
-`in_preview` also requires `idx == cursor`, so it holds for the previewed
-folder's **hovered row alone** — one row of the pane, whatever the pane's
-length. There is no `in_parent`: every other preview row is
-`in_current == false, in_preview == false`, which is exactly what a parent-pane
-row reports.
+`test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
+deliberately not in CI. Run them yourself before claiming anything about the
+screen — and note that a green exit is worth more than the screen looking
+right, because a broken fetcher shows up nowhere on it.
 
-So a pane test written as `file.in_preview and "preview" or "parent"` draws the
-preview pane's first row and treats the rest as parent rows — bare when the
-preview was asked for, drawn when it was not, and measured against the wrong
-folder either way. To ask which pane a row is in, ask the preview folder
-whether the row is one of its own; `file.idx` is its 1-based position in its
-own folder, so `folder.files[file.idx]` settles it in O(1).
-
-The stub reproduces this rule rather than the name, so a regression fails the
-unit suite the same way it fails on screen: the second preview row, not the
-first.
-
-### DDS event names are not all in the changelog
-
-26.8.15 renamed `bulk` to `bulk-rename` without saying so. `ps.sub` accepts any
-string, so a stale name is a subscription that simply never fires. The kinds
-actually published live in `pub_after!` in `yazi-dds/src/pubsub.rs`; read them
-there rather than trusting the changelog.
-
-### Every module must return a table
-
-Yazi wraps each module in a state table. `return true` from a side-effect-only
-file fails with "error converting Lua boolean to table"; return `{}` instead.
-
-### Prefer `Url.spec.*`
-
-`Url.is_regular`, `Url.is_search` and `Url.domain` are deprecated in 26.8.15 in
-favour of `Url.spec.is_regular`, `Url.spec.is_search` and `Url.spec.domain`.
-
-`is_regular` does not mean "a real file on disk". Yazi's `AuthKind` has six
-variants and `is_regular` holds for exactly one of them; a search result is a
-local file with `kind = "search"`, `is_regular = false` and
-`is_virtual = false`. A check written as `not is_regular` therefore demotes
-every search hit along with the remote ones.
-
-The partition worth asking for is the one Yazi uses itself,
-`AuthKind::is_local()`: `regular` and `search` are local, `mount`, `hub`,
-`scope` and `sftp` are not. That method is not bound to Lua, but it is the
-exact complement of `spec.is_virtual`, which is; `spec.kind` gives the variant
-name as a lowercase string. `Url.spec` is a cached field, so reading it once
-per row costs nothing.
-
-It matters wherever a value only means something on the machine Yazi is running
-on. `ya.user_name` and `ya.group_name` read that machine's passwd and group
-databases, and an SFTP file's UID was minted on the server, where the same
-number is very likely a different account. Yazi's own `Linemode:owner` resolves
-them regardless, so the `owner` column deliberately differs from it and prints
-the numbers instead.
-
-## Rendering budget
-
-`render` runs for every visible row on every frame. It must be O(1) and
-allocate as little as possible.
-
-- Gradient ramps are built once and quantised into buckets, so no colour maths
-  and no `ui.Style` allocation happens per row.
-- Anything that needs the whole folder belongs in `stats`, computed once per
-  folder and cached.
-- `render` may return `text, style` instead of a renderable, which skips
-  building an intermediate line. The built-in columns use this.
-- `ui.Style` is immutable as of 26.5.6, so `style:fg(c)` returns a new style.
-
-A linemode name is 1 to 20 characters. An unregistered name renders as literal
-text, so a name registered late shows up on screen.
+Running them needs nothing else. `.agents/skills/verify-supaline/SKILL.md` is
+for **changing** the harness — writing a spec, adding a stub, or editing one of
+the shell scripts — and says what a stub owes Yazi in fidelity, what the unit
+suite can and cannot prove, and how a headless run differs from a terminal.
 
 ## Formatting
 
 `stylua.toml` and `.luarc.json` are copied verbatim from
 [yazi-rs/plugins](https://github.com/yazi-rs/plugins). Keep them that way.
 
-`indent_width = 2` does **not** mean two spaces. `indent_type` defaults to
-`Tabs`, so `.lua` files are tab-indented, as upstream Yazi's are; `indent_width`
-is only the assumed display width of a tab when measuring against
-`column_width`.
-
-Markdown code blocks are the exception: a tab inside a fenced block renders at
-the viewer's tab width — 8 by default on GitHub — which makes a nested example
-look absurd. Keep documentation snippets on spaces and `.lua` files on tabs.
-
-Claude Code formats `.lua` files in this repository automatically: a
-`PostToolUse` hook in `.claude/settings.json` runs stylua after every write.
-The hook is scoped to `.lua` files inside this repository and never blocks a
-write. Other agents and hand edits are not covered — run stylua yourself:
-
-```sh
-stylua --check .
-```
-
-## Verification
-
-```sh
-lua test/run.lua            # unit tests
-lua test/run.lua column     # ... just the specs matching "column"
-test/e2e.sh                 # render in a real Yazi, headless
-test/e2e.sh --keep          # ... and leave the scratch directory behind
-test/manual.sh              # ... interactively, for a human to look at
-test/manual.sh --clean      # discard the manual fixture
-```
-
-`e2e.sh` and `manual.sh` both build their configuration and fixture with
-`test/setup.sh`, so what a person looks at and what the headless run asserts on
-cannot drift apart. The fixture opens on a directory carrying the cases that
-break width arithmetic — CJK, emoji, an over-long name, sizes either side of
-the 1K boundary — with siblings above it and a subdirectory below, so all three
-panes have rows. `m0` to `m9` switch between the linemodes, one per decision
-worth looking at, and `test/MANUAL.md` says what to look for in each; Yazi's own `m s` and `m n` still work, which is what makes
-them worth comparing against.
-
-Unit tests can only cover pure logic — normalisation, layout, the ratio
-contract, the built-in formatters — because they stub the Yazi globals. They
-can say nothing about rendering, fetchers or `ya.sync`, which is exactly where
-the bugs live. Run the plugin in a real Yazi and read the output before
-reporting that anything works.
-
-The stubs are only worth as much as their fidelity, so `ui.truncate` is a
-line-by-line port of Yazi's own and `truncate_spec.lua` pins it against the
-assertions in Yazi's test suite. If you stub something new, pin it the same
-way.
-
-Write the test code for **Lua 5.5**, the version Yazi runs, and install that to
-run it. No other version has a claim on this code: the plugin is only ever
-loaded by Yazi, so a suite that passes on an older interpreter has proved
-nothing extra. CI runs the tests on 5.5 alone, and `test/run.lua` refuses to
-run on anything else — a suite that quietly passes on 5.1 proves nothing.
-
-`mise.toml` pins 5.5.1, so `mise install` is enough to get the right
-interpreter; without mise, put a 5.5 `lua` on `PATH` yourself.
-
-CI also checks stylua, shellcheck over `test/*.sh`, and that every plugin file
-opens with `--- @since` — Yazi refuses to load one that does not. **The e2e and
-manual harnesses are not in CI**: they need a real Yazi and a real terminal, and
-what they check is not what a runner is good at. Run them yourself before
-claiming anything about the screen.
-
-Two things make headless runs behave unlike a real terminal:
-
-- A detached tmux never answers the terminal probe, so `rt.term.light()` stays
-  `nil` and `app:theme` never runs on its own. **Send `app:theme` before
-  capturing**, or the user's theme is not applied at all and every `th.*` read
-  returns preset values.
-- Yazi queries the terminal on startup and aborts if nothing answers, so
-  `script`-style pseudo-terminals do not work. Use tmux, which is a real
-  terminal emulator.
-
-A green exit is worth more than the screen looking right: a broken fetcher shows
-up nowhere on screen, only as a task that never succeeded.
+`.lua` files are tab-indented: `indent_width = 2` is a tab's assumed display
+width when measuring against `column_width`, not two spaces. Markdown code
+blocks are the exception — keep documentation snippets on spaces, because a tab
+inside a fenced block renders at the viewer's tab width, 8 by default on
+GitHub, which makes a nested example look absurd. Nothing checks that one;
+stylua and CI cover the Lua.
