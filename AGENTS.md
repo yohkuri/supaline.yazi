@@ -27,9 +27,11 @@ come up at all, say plainly that it is hypothetical.
 ## Source of truth
 
 Prefer code, tests, Git history, and actual tool output over documentation when
-they conflict — this file included. Every platform claim below held for one
-Yazi build on one machine, and the Yazi in front of you is what decides. When a
-document turns out to be wrong, fix the document rather than working around it.
+they conflict — this file included. Every platform claim below was measured on
+26.9.1, on one machine; where a measurement could only be taken so far, the
+skill says where it stops. The Yazi in front of you is still what decides.
+When a document turns out to be wrong, fix the document rather than working
+around it.
 
 ## Language
 
@@ -59,24 +61,29 @@ npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
 
 ## Target platform
 
-Yazi **26.8.15 or newer**. Start every Lua file with `--- @since 26.8.15` —
+Yazi **26.9.1 or newer**. Start every Lua file with `--- @since 26.9.1` —
 Yazi enforces the annotation, and an older Yazi refuses to load the plugin
 outright.
 
-Yazi is on CalVer and breaks the plugin API freely between releases. 26.8.15
-changed the fetcher calling convention and silently renamed a DDS event, so code
-written for 26.5.6 — let alone 0.4.x — will not run.
+Yazi is on CalVer and breaks the plugin API freely between releases, and not
+always in the changelog: recent ones changed the fetcher calling convention,
+renamed a DDS event silently, and moved when the user's theme is merged. Code
+written for 26.5.6 — let alone 0.4.x — will not run. Only one version is ever
+supported at a time, because supporting two means writing to whichever behaves
+more strictly and saying in every document which one a sentence is about.
 
 ## Traps
 
-Eight behaviours of Yazi 26.8.15 break this plugin **silently** — no error, just
-an empty column, a stale colour, or a task that never finishes. Knowing that
-they exist is what this list is for, and for most changes it is the whole of
-what you need; the mechanism behind each is in
+Eight behaviours of Yazi break this plugin **silently** — no error, just an
+empty column, a stale colour, or a task that never finishes. Knowing that they
+exist is what this list is for, and for most changes it is the whole of what you
+need; the mechanism behind each, and the experiment that established it, is in
 `.agents/skills/yazi-platform-traps/`.
 
-- `THEME` holds preset values until the `theme` event — a colour resolved at
-  setup is the preset's, for good
+- `app:theme` re-reads `theme.toml` mid-run — a colour resolved once and
+  cached goes stale, and nothing says so. (Read `th.*` freely at setup: 26.9.1
+  merges the user's theme before any plugin code runs; it is the *reload* that
+  bites)
 - `ya.sync` binds by the position of the call, per file — one written elsewhere
   reads a different state table
 - a fetcher returns a function, not a boolean — the error reaches only the task
@@ -98,15 +105,11 @@ instead: `ya.sync` placement and the two forbidden spellings in CI, an
 unpublished DDS kind by the stub, a module returning a boolean by
 `test/module_spec.lua`. Nobody has to read about those.
 
-The other three are why the skill exists. The theme timing and the parent-pane
-child are pinned only against the code that is already here, so **new** code can
-repeat them and keep the suite green — measured, not assumed: a fresh column
-written with `not is_regular` passed all 103 tests before the spelling check
-existed. The fetcher one has no pin at all, because there is no fetcher yet.
-
-So the skill is worth opening for a change that resolves a colour, writes a
-fetcher, or touches the parent- or preview-pane child — and not otherwise. A
-format string or a rename does not need it.
+The other three are why the skill exists, because a green suite says nothing
+about them. The parent-pane child is pinned against the code already here, so
+**new** code can repeat it and stay green — measured, not assumed: a fresh
+column written with `not is_regular` passed all 103 tests before the spelling
+check existed. The fetcher has no pin at all, because there is no fetcher yet.
 
 ## Commands
 
