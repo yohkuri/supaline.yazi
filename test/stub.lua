@@ -634,7 +634,13 @@ function M.install(root)
 	-- `preview` is always a table: Yazi has one whether or not a folder is
 	-- being previewed, and the plugin reads `preview.folder` on every row that
 	-- is not in the current pane.
-	_G.cx = { active = { pref = {}, preview = {}, history = function() return nil end } }
+	--
+	-- `history` is declared with the parameters Yazi's takes, and reads
+	-- neither. `types.yazi` does not describe `Tab:history` at all, so this
+	-- line is the only declaration a language server has for it, and a nullary
+	-- one makes the plugin's own `cx.active:history(url)` the thing that looks
+	-- wrong.
+	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
 
 	local loaded = {}
 	_G.require = function(name)
