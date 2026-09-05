@@ -35,9 +35,12 @@ around it.
 
 ## Language
 
-This repository is public. **Everything tracked in Git is written in English** —
-code comments, documentation, README, user-facing error messages, and commit
-messages. This includes files only agents read.
+This repository is private for now and will be made public once it is ready.
+**Everything tracked in Git is written in English** — code comments,
+documentation, README, user-facing error messages, and commit messages. This
+includes files only agents read. The rule holds from the first commit rather
+than from the day the repository opens, because the history is published along
+with the tree.
 
 Commit messages follow the Conventional Commits specification. Do not
 capitalise the first letter of the subject, and keep emoji out: none at all in
