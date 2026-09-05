@@ -42,7 +42,7 @@ comparing against.
 
 Every row ends with a size, right-aligned in seven cells.
 
-```
+```text
  exactly-1k.bin            1024B
  huge.bin                  87.9M
  nested                        2
@@ -58,7 +58,7 @@ Every row ends with a size, right-aligned in seven cells.
 
 ### `m 1` — size and mtime
 
-```
+```text
  empty.txt                    0B 08/28 01:10
  exactly-1k.bin            1024B 08/28 01:10
  huge.bin                  87.9M 05/06  2024
@@ -72,7 +72,7 @@ Every row ends with a size, right-aligned in seven cells.
 
 ### `m 2` — every built-in column
 
-```
+```text
  link-broken -> nowhere-at-all lrwxr-xr-x octocat:sta…     14B 08/28 01:06
  nested                        drwxr-xr-x octocat:sta…       2 08/28 01:06     2
 ```
@@ -91,7 +91,7 @@ Every row ends with a size, right-aligned in seven cells.
 Three columns: `size` stated as 10, `size` measured, and `owner` measured with
 a cap of 8.
 
-```
+```text
  exactly-1k.bin           1024B   1024B octocat…
 ```
 
@@ -106,7 +106,7 @@ a cap of 8.
 - Now enter `nested`, where the widest size is `300K`. The measured column
   should **narrow to four** while the stated one does not move:
 
-  ```
+  ```text
    inner-b.bin              300K 300K octocat…
   ```
 
@@ -117,7 +117,7 @@ a cap of 8.
 
 The same name, four ways, against a column of twelve.
 
-```
+```text
  exactly-1k.bin      exactly-1k.… exactly-1k.b exactly-1k.b exactly-1k.bin
 ```
 
@@ -133,7 +133,7 @@ The same name, four ways, against a column of twelve.
 
 ### `m 5` — separators
 
-```
+```text
  exactly-1k.bin      bin    1024B│08/28 01:10
 ```
 
@@ -170,7 +170,7 @@ previewer's output, not a supaline bug.
 
 ### `m 9` — user-written columns
 
-```
+```text
  exactly-1k.bin      bin   exactly- file
  nested                    nested   dir
 ```
