@@ -295,13 +295,23 @@ local function invalidate()
 	bound_name, bound_cwd, bound_n = nil, nil, nil
 end
 
---- Run every column's `refresh` hook. Subscribed to `cd`, which is the event
---- that fires often enough to keep a value cached across rows -- the current
---- year -- from going stale in a session left open.
+--- Run every column's `refresh` hook. Subscribed to `cd` through `moved`,
+--- which is the event that fires often enough to keep a value cached across
+--- rows -- the current year -- from going stale in a session left open.
 local function refresh()
 	for i = 1, #refreshers do
 		refreshers[i]()
 	end
+end
+
+--- A `cd` is both of the above at once. The cached pass goes with it: the key
+--- holds the folder and its file count, so a folder revisited after a write
+--- that left the count alone -- one file grown, one timestamp touched -- would
+--- otherwise be drawn with the extremes and the width measured on the way out.
+--- That is what "until the next file operation or `cd`" means.
+local function moved()
+	invalidate()
+	refresh()
 end
 
 --- Turn a set of specs into runtime linemodes. Pure, and the only place that
@@ -376,7 +386,7 @@ end
 -- `bulk-rename`, not `bulk`: the event was renamed without saying so, and
 -- `ps.sub` accepts an unknown kind without complaining.
 ps.sub("theme", build)
-ps.sub("cd", refresh)
+ps.sub("cd", moved)
 for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
 	ps.sub(kind, invalidate)
 end

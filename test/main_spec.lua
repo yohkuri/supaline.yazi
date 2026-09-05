@@ -406,3 +406,25 @@ test("stats: each pane is measured against its own folder", function()
 	eq(seen[1], #CURRENT.files)
 	eq(seen[2], #PARENT.files, "the parent row was measured against the parent folder")
 end)
+
+test("stats: a folder revisited after a write is measured again", function()
+	-- The cached pass is keyed by the linemode, the folder and its file count,
+	-- so a write that leaves the count alone -- one file grown, one timestamp
+	-- touched -- looks exactly like the visit before it. `cd` is the event that
+	-- says the listing may have moved on, and without dropping the cache there
+	-- the column keeps the width and the extremes of the first visit for as
+	-- long as the session lasts: this drew "9…" in a real Yazi, a measured
+	-- column two cells wide holding a six-cell size.
+	local grown = 1
+	local file = stub.file { name = "a.bin" }
+	file.size = function() return grown end
+	local folder = stub.folder("/elsewhere", { file })
+
+	setup { detail = { { "size", width = "auto" } } }
+	cx.active.current = folder
+	eq(draw("detail", file), "1B")
+
+	grown = 999999
+	stub.fire("cd")
+	eq(draw("detail", file), "976.6K", "the width and the value both follow the folder")
+end)
