@@ -74,7 +74,7 @@ more strictly and saying in every document which one a sentence is about.
 
 ## Traps
 
-Eight behaviours of Yazi break this plugin **silently** — no error, just an
+Nine behaviours of Yazi break this plugin **silently** — no error, just an
 empty column, a stale colour, or a task that never finishes. Knowing that they
 exist is what this list is for, and for most changes it is the whole of what you
 need; the mechanism behind each, and the experiment that established it, is in
@@ -99,11 +99,15 @@ need; the mechanism behind each, and the experiment that established it, is in
 - `is_regular` is one of six `AuthKind` variants, not "a real file" — a check
   written as `not is_regular` demotes every search hit along with the remote
   ones
+- both truncations count characters where the screen counts clusters — three
+  cells of `❤️abc` come back as four, and a Line cut without an ellipsis is a
+  cell shorter than the same string
 
-**Five of the eight are refused by a check**, which prints what to write
+**Six of the nine are refused by a check**, which prints what to write
 instead: `ya.sync` placement and the two forbidden spellings in CI, an
 unpublished DDS kind by the stub, a module returning a boolean by
-`test/module_spec.lua`. Nobody has to read about those.
+`test/module_spec.lua`, a cut that counts characters by `truncate_spec.lua`
+and `column_spec.lua`. Nobody has to read about those.
 
 The other three are why the skill exists, because a green suite says nothing
 about them. The parent-pane child is pinned against the code already here, so
