@@ -38,6 +38,15 @@ stub reproduces it exactly, name and all. `in_preview` is computed the way
 so a regression fails on the second preview row — which is how it fails on
 screen.
 
+The name is not the whole of it; the parameter list counts too. `types.yazi`
+describes no `Tab:history`, which leaves `stub.lua` as the only declaration of
+it anywhere in the workspace, and a nullary `function()` there made
+`lua-language-server` report the plugin's own `cx.active:history(url)` as
+over-supplied. The warning named `builtin.lua`; the stub was the file that had
+drifted. Write the parameters the real call takes, `self` included, whether or
+not the stub reads them, and set the fields Yazi always sets — `preview.skip`
+is one nothing here reads.
+
 ## What the unit suite can prove
 
 Pure logic — normalisation, layout, the ratio contract, the built-in

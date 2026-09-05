@@ -128,12 +128,27 @@ lua test/run.lua column           # ... just the specs matching "column"
 test/e2e.sh                       # render in a real Yazi, headless
 test/manual.sh                    # ... interactively, for a human to look at
 stylua --check .                  # Lua formatting
+lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
 ```
 
 The unit suite runs on **Lua 5.5**, the version Yazi embeds, and `test/run.lua`
 refuses any other. Any 5.5 does: `mise.toml` pins 5.5.1 for whoever uses mise,
 and CI installs its own — nothing here requires a version manager.
+
+`lua-language-server --check .` type-checks the plugin against Yazi's own
+annotations, which `.luarc.json` expects at
+`~/.config/yazi/plugins/types.yazi/`; `ya pkg add yazi-rs/plugins:types`
+installs them. Without that directory the check still runs and still finds
+nothing — it has quietly stopped comparing the plugin against anything but
+this repository. CI fetches a pinned revision of them in a step of its own, so
+that not getting them fails the job rather than weakening it.
+
+What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
+declared classes, so a misspelled field or a wrong arity on one is refused;
+the `file` and `ctx` a `render` receives are annotated `table`, and nothing
+read out of them is checked at all. Narrowing one of those annotations is how
+the check is made to reach further.
 
 `test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
 deliberately not in CI. Run them yourself before claiming anything about the
