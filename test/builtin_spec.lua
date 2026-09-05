@@ -15,7 +15,8 @@ local CFG = { scale = "linear" }
 ---@param fn function
 local function with_history(folder, fn)
 	local before = cx.active.history
-	cx.active.history = function() return folder end
+	-- Yazi's parameters, for the reason `stub.lua` gives beside its own.
+	cx.active.history = function(_, _url) return folder end
 	local ok, err = pcall(fn)
 	cx.active.history = before
 	if not ok then

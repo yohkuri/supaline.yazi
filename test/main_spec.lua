@@ -33,7 +33,10 @@ local function setup(linemodes, opts)
 
 	cx.active.current = CURRENT
 	cx.active.parent = PARENT
-	cx.active.preview = { folder = PREVIEW }
+	-- `skip` is how far the previewer has been scrolled, and nothing here reads
+	-- it. Yazi's preview always carries one, so leaving it out is the stub
+	-- starting to drift.
+	cx.active.preview = { folder = PREVIEW, skip = 0 }
 	cx.active.pref.linemode = next(linemodes)
 end
 
