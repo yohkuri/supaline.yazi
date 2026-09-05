@@ -35,11 +35,21 @@ local M = {}
 local cfg = DEFAULTS
 local specs = {} ---@type table<string, table> the user's linemode definitions
 
--- One record per linemode -- `{ cols, panes, sep, outer }` -- rather than three
--- tables keyed by the same name. `render` and `child` then take one hash
--- lookup per row between them instead of three, and there is one thing to keep
--- in step instead of three.
-local linemodes = {} ---@type table<string, table>
+-- One record per linemode -- the class below -- rather than three tables keyed
+-- by the same name. `render` and `child` then take one hash lookup per row
+-- between them instead of three, and there is one thing to keep in step
+-- instead of three.
+
+--- One linemode in service. `compile` is the only thing that builds one, and
+--- every field is read per row.
+---@class supaline.Mode
+---@field name string
+---@field cols supaline.Column[]
+---@field panes table<string, boolean> the panes it draws in, by name
+---@field outer boolean whether it draws anywhere but the current pane
+---@field sep string what goes between two columns
+
+local linemodes = {} ---@type table<string, supaline.Mode>
 
 -- The `refresh` hooks of every column in service, flattened. A column that
 -- caches something across rows -- the current year, say -- declares one, and it
@@ -50,7 +60,7 @@ local refreshers = {} ---@type table<integer, function>
 -- count catches the common case of a file being added or removed; a write that
 -- leaves it unchanged keeps stale extremes until the next file operation or
 -- `cd`, which is the trade that keeps rendering O(1) per row.
-local cache, cache_n = {}, 0
+local cache, cache_n = {}, 0 ---@type table<string, supaline.Entry[]>, integer
 
 -- The pane last bound, held as its three parts rather than as the composed
 -- key. `bind` runs for every visible row on every frame and almost always
@@ -164,23 +174,27 @@ end
 --- from a parent-pane row: both are simply "not current". Ask the preview
 --- folder whether the row is one of its own instead.
 ---@param file supaline.File
----@return string pane, table? folder
+---@return string pane, supaline.Folder? folder
 local function pane_of(file)
 	-- `idx` is the row's 1-based position in its own folder, so this is O(1).
-	local folder = cx.active.preview.folder
+	--
+	-- Cast at the boundary, here and below: Yazi hands back a `tab__Folder`,
+	-- and what makes it a `supaline.Folder` is the listing's element type,
+	-- which is this plugin's claim about Yazi rather than Yazi's own.
+	local folder = cx.active.preview.folder --[[@as supaline.Folder?]]
 	local at = folder and folder.files[file.idx]
 	if at and at.url == file.url then
 		return "preview", folder
 	end
-	return "parent", cx.active.parent
+	return "parent", cx.active.parent --[[@as supaline.Folder?]]
 end
 
 --- Bind one folder's statistics and widths onto every column of a linemode.
 --- Cheap and idempotent: it does nothing at all while the pane being drawn has
 --- not changed.
 ---@param name string
----@param cols table
----@param folder table?
+---@param cols supaline.Column[]
+---@param folder supaline.Folder?
 local function bind(name, cols, folder)
 	if not folder then
 		if bound_name ~= false then
@@ -231,9 +245,9 @@ end
 --- `in_current` rows, and `child` has just asked `pane_of`. `folder` is nil
 --- for a pane that has none -- the parent of the filesystem root -- which
 --- `bind` handles.
----@param mode table the linemode's record
+---@param mode supaline.Mode
 ---@param file supaline.File
----@param folder table? the folder the row belongs to
+---@param folder supaline.Folder? the folder the row belongs to
 ---@return unknown an `AsLine`
 local function render(mode, file, folder)
 	local cols = mode.cols
@@ -321,7 +335,7 @@ end
 --- configuration that does not compile never reaches module state.
 ---@param from table<string, table>
 ---@param with table plugin-wide options
----@return table modes, table hooks, boolean outer whether any mode leaves the current pane
+---@return table<string, supaline.Mode> modes, function[] hooks, boolean outer whether any mode leaves the current pane
 local function compile(from, with)
 	local modes, hooks, outer = {}, {}, false
 	for name, spec in pairs(from) do
@@ -479,7 +493,7 @@ function M.setup(_st, opts)
 			if not mode or not mode.panes.current then
 				return ""
 			end
-			return render(mode, self._file, cx.active.current)
+			return render(mode, self._file, cx.active.current --[[@as supaline.Folder]])
 		end
 	end
 
