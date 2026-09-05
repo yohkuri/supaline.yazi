@@ -128,6 +128,12 @@ function M.normalize(spec, cfg)
 	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:
 	-- that idiom collapses a `def` value of `false` to nil, and `false` is the
 	-- only value `sep` ever takes.
+	--
+	-- The return is annotated because it cannot be inferred. The key is a
+	-- variable, so a language server unions every field either table can
+	-- carry, the `render` function included, and then objects when a width
+	-- from here reaches `cap`.
+	---@return any
 	local pick = function(key)
 		local v = opts[key]
 		if v == nil then
