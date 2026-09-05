@@ -14,10 +14,16 @@ description: >-
 
 ## Stubs are worth exactly their fidelity
 
-`ui.truncate` is a line-by-line port of Yazi's own, and `truncate_spec.lua`
-pins it against the assertions in Yazi's test suite. If you stub something new,
-pin it the same way — a stub nothing measures is a stub that drifts, and it
-drifts towards making tests pass.
+`ui.truncate` and `Line:truncate` are line-by-line ports of Yazi's own, and
+`truncate_spec.lua` pins them: the first against the assertions in Yazi's test
+suite, the second against a table measured from a running 26.9.1, since it has
+no suite to copy. If you stub something new, pin it the same way — a stub
+nothing measures is a stub that drifts, and it drifts towards making tests
+pass.
+
+Width is two stubs because Yazi has two: `str_width` is what `ui.width`
+returns, `cp_width` what both truncations count. Collapsing them would be
+tidier and would hide a trap.
 
 Where Yazi fails silently, the stub deliberately fails **loudly** instead: an
 unknown `AuthKind`, an unpublished DDS kind, a write to `th`. Yazi accepts all

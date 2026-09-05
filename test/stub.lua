@@ -86,21 +86,48 @@ local WIDE = {
 	{ 0x1FA70, 0x1FAFF },
 }
 
+-- The combining marks, the zero-width characters -- the joiner among them --
+-- and the variation selectors. `unicode-width` gives each of them no cells of
+-- its own, which is the half of the rule that makes a cluster wider than the
+-- characters in it.
+local ZERO = {
+	{ 0x0300, 0x036F },
+	{ 0x200B, 0x200F },
+	{ 0xFE00, 0xFE0F },
+}
+
+local ZWJ, VS16 = 0x200D, 0xFE0F
+
+---@param cp integer
+---@param ranges table
+---@return boolean
+local function within(cp, ranges)
+	for _, range in ipairs(ranges) do
+		if cp >= range[1] and cp <= range[2] then
+			return true
+		end
+	end
+	return false
+end
+
+--- The width of one character on its own -- `char.width()` in Rust, which is
+--- what both of Yazi's truncations count with, one character at a time.
 ---@param ch string
 ---@return integer
 local function char_width(ch)
 	local cp = codepoint(ch)
-	for _, range in ipairs(WIDE) do
-		if cp >= range[1] and cp <= range[2] then
-			return 2
-		end
+	if within(cp, ZERO) then
+		return 0
+	elseif within(cp, WIDE) then
+		return 2
 	end
 	return 1
 end
 
+--- What the truncations count: the characters' own widths, added up.
 ---@param s string
 ---@return integer
-local function str_width(s)
+local function cp_width(s)
 	local w = 0
 	for _, ch in chars(s) do
 		w = w + char_width(ch)
@@ -108,6 +135,43 @@ local function str_width(s)
 	return w
 end
 
+--- What `ui.width` and `Line:width` return: the width of the *string*, which
+--- is not the sum above. A variation selector widens the character before it,
+--- and a joiner or a skin-tone modifier folds what follows into it. Measured
+--- on Yazi 26.9.1: `❤` is one cell, the selector after it is none, and `❤️` is
+--- two; `👩‍💻` and `👍🏽` are two apiece where their characters add up to four.
+---
+--- The two disagreeing is not a detail of the model. It is the reason
+--- `column.lua` cuts on cluster boundaries, and a stub that added characters
+--- up here would let that be deleted with the suite still green.
+---@param s string
+---@return integer
+local function str_width(s)
+	local w, prev, joined = 0, nil, false
+	for _, ch in chars(s) do
+		local cp = codepoint(ch)
+		if cp == VS16 then
+			-- Emoji presentation: the character before it takes a second cell.
+			w = w + (prev and char_width(prev) == 1 and 1 or 0)
+		elseif cp == ZWJ then
+			joined = true
+		elseif joined then
+			-- Only an emoji folds into the one the joiner came from. `👩‍💻` is one
+			-- two-cell character; `👩‍…`, which is what a truncation right after a
+			-- joiner leaves, is three cells.
+			joined = false
+			w = w + (cp >= 0x1F000 and char_width(ch) == 2 and 0 or char_width(ch))
+		elseif prev and cp >= 0x1F3FB and cp <= 0x1F3FF then
+			-- A skin-tone modifier, behind the emoji it recolours.
+		else
+			w = w + char_width(ch)
+		end
+		prev = ch
+	end
+	return w
+end
+
+M.cp_width = cp_width
 M.str_width = str_width
 
 -- --- ui.truncate -----------------------------------------------------------
@@ -264,25 +328,50 @@ function Line:style(s)
 	return self
 end
 
+--- A port of `Line::truncate` from `yazi-binding/src/elements/line.rs`, its
+--- two surprises included, because `column.cell` exists to correct them:
+---
+---   * it holds back the ellipsis's width and then drops the character that
+---     lands exactly on `max` as well, so an empty ellipsis still costs an
+---     ASCII line one cell;
+---   * it counts characters while `Line:width` measures the string, so a line
+---     it thinks fits can come back wider than `max`.
+---
+--- Reproduced rather than repaired: a stub that quietly did the right thing
+--- would let the correction be deleted with every test still green.
 function Line:truncate(opts)
-	local ellipsis = opts.ellipsis == nil and "…" or opts.ellipsis
-	local text = text_of(self)
-	if opts.max < 1 then
+	local max = opts.max
+	if max < 1 then
 		return M.Line("")
-	elseif str_width(text) <= opts.max then
-		return self
 	end
 
-	local keep = opts.max - str_width(ellipsis)
-	local out, w = {}, 0
-	for _, ch in chars(text) do
-		local cw = char_width(ch)
-		if w + cw > keep then
+	local ellipsis = opts.ellipsis == nil and "…" or opts.ellipsis
+	local text = text_of(self)
+	-- Yazi truncates the ellipsis to `max` first and reserves what is left of
+	-- it, so an ellipsis wider than the column cannot reserve more than one.
+	local threshold = max - math.min(cp_width(ellipsis), max)
+
+	-- `at` is the last position whose running width still fits the threshold,
+	-- and `fits` its width there.
+	local adv, at, fits = 0, nil, nil
+	for i, ch in chars(text) do
+		adv = adv + char_width(ch)
+		if adv <= threshold then
+			at, fits = i, adv
+		elseif adv > max then
 			break
 		end
-		out[#out + 1], w = ch, w + cw
 	end
-	return M.Line(table.concat(out) .. ellipsis)
+
+	if at == nil then
+		return M.Line(ellipsis)
+	elseif adv <= max then
+		return self -- it fits, by its own reckoning
+	end
+
+	-- The character the cut lands on is kept, unless it ends exactly on `max`.
+	local len = fits == max and 0 or #char_at(text, at)
+	return M.Line(text:sub(1, at + len) .. ellipsis)
 end
 
 function M.Line(x)

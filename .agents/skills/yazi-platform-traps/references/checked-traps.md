@@ -1,6 +1,6 @@
 # The traps a check already catches
 
-Five of the eight constraints are refused by a test or a CI job, so writing one
+Six of the nine constraints are refused by a test or a CI job, so writing one
 the wrong way fails on its own and prints what to write instead. They are here
 rather than in `SKILL.md` for that reason: reading about them in advance buys
 nothing the check does not already give you.
@@ -82,6 +82,47 @@ reading the macro alone misses it.
 **Checked.** The stub's `ps.sub` refuses a kind Yazi does not publish, so any
 subscription with a bad name fails the unit suite the moment a spec loads the
 module. `test/dds_spec.lua` holds the list of fifteen.
+
+## Truncation counts characters; the screen counts clusters
+
+`ui.width` measures a string the way the terminal draws it. Both of Yazi's
+truncations add up characters instead, and the two disagree wherever a cluster
+is not the sum of its parts. Measured on 26.9.1 across six strings, every `max`
+from 0 to 8, with and without an ellipsis:
+
+```
+-- \u{2764} is a heart, \u{FE0F} the selector that makes it an emoji. Spelled
+-- out because the pair is two characters and one character on screen.
+ui.width("\u{2764}") = 1     ui.width("\u{FE0F}") = 0
+ui.width("\u{2764}\u{FE0F}") = 2                    -- not the sum
+ui.truncate("\u{2764}\u{FE0F}abc", { max = 3 })  ->  "\u{2764}\u{FE0F}a…"
+                                              -- four cells, for a max of 3
+```
+
+So a cut asked for three cells hands back four, and the columns after it shift.
+The same count drops a skin-tone modifier from its emoji, and stops between a
+joiner and what it joined.
+
+`Line:truncate` adds a second habit. It holds back the ellipsis's width and
+then drops the character that lands exactly on `max` as well -- to make room --
+and goes on doing it when the ellipsis is empty, so a Line cut to twelve cells
+is eleven where the same string is twelve. And because it counts characters, a
+line it decides already fits comes back **wider** than `max`: `❤️abc` at
+`max = 4` is returned untouched, five cells. There is no `max` that cuts that
+line to four, which is why `column.cell` asks for one cell more than the column
+has and then cuts again while the result is still too wide.
+
+Two more things it does, worth knowing before reaching for it: it mutates the
+line it is called on and hands the same one back, and the spans of a Line
+cannot be read from Lua at all, so this is the only way in.
+
+**Checked.** `test/truncate_spec.lua` holds the measured table, `stub.lua`
+reproduces both habits rather than repairing them -- a stub that quietly did
+the right thing would let the correction be deleted with the suite still green
+-- and `test/column_spec.lua` pins the corrected cut in both directions. On the
+screen side, `test/e2e.sh` runs one column that hands back a string and one
+that hands back a Line through the same name and width, and fails unless the
+two read identically.
 
 ## Every module must return a table
 

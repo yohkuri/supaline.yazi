@@ -226,36 +226,111 @@ local function width_of(text)
 	return ui.width(text)
 end
 
+-- The mark `ui.truncate` leaves behind, and the one cell it takes.
+local ELLIPSIS = "…"
+
+-- Zero-width joiner. Whatever follows one belongs to the sequence it opened,
+-- however wide that character measures on its own.
+local ZWJ = "\226\128\141"
+
+--- Whether `ch` is a skin-tone modifier, or one half of a flag. Both are two
+--- cells alone and none at all behind what they attach to, so neither can be
+--- told from a base character by measuring it.
+---@param ch string one UTF-8 character
+---@return boolean
+local function is_tone(ch) return ch:find("^\240\159\143[\187-\191]$") ~= nil end
+
+---@param ch string one UTF-8 character
+---@return boolean
+local function is_flag(ch) return ch:find("^\240\159\135[\166-\191]$") ~= nil end
+
+--- Split `text` into grapheme clusters -- as much of that rule as a cell
+--- needs: a base character, plus everything after it that only means anything
+--- attached to it.
+---
+--- Necessary rather than tidy, because the width of a cluster is not the sum
+--- of its characters' widths. Measured on 26.9.1: `❤` is one cell and the
+--- variation selector after it is none, but `❤️` is two. A cut that counted
+--- characters would hand back a cell more than the column asked for, and every
+--- column after it would shift.
+---@param text string
+---@return table<integer, string>
+local function clusters(text)
+	local out, prev, half = {}, nil, false
+	-- `[\0-\127\194-\244]` rather than `[%z...]`: `%z` stopped meaning the NUL
+	-- byte after Lua 5.1 and matches the letter `z` on the 5.5 Yazi runs.
+	for ch in text:gmatch("[\0-\127\194-\244][\128-\191]*") do
+		local join
+		if #out == 0 then
+			join = false
+		elseif is_flag(ch) then
+			join = half -- a flag is a pair of regional indicators, never a third
+		else
+			-- Zero width covers the combining marks, the variation selectors and
+			-- the joiner itself.
+			join = ui.width(ch) == 0 or is_tone(ch) or prev == ZWJ
+		end
+
+		if join then
+			out[#out] = out[#out] .. ch
+		else
+			out[#out + 1] = ch
+		end
+		prev, half = ch, is_flag(ch) and not join
+	end
+	return out
+end
+
 --- Cut a string to `width` display cells and add nothing. `ui.truncate` cannot
 --- do this -- it always appends an ellipsis of its own -- so the general case
---- is walked here, one UTF-8 character at a time. Only ever reached by a cell
---- that overflows, and the ASCII path covers every built-in column.
+--- is walked here, one cluster at a time. Only ever reached by a cell that
+--- overflows, and the ASCII path covers every built-in column.
 ---@param text string
 ---@param width integer
 ---@return string
 local function hard_cut(text, width)
-	if not text:find("[\128-\255]") then
+	if width < 1 then
+		return ""
+	elseif not text:find("[\128-\255]") then
 		return text:sub(1, width)
 	end
 
 	local out, w = {}, 0
-	-- `[\0-\127\194-\244]` rather than `[%z...]`: `%z` stopped meaning the NUL
-	-- byte after Lua 5.1 and matches the letter `z` on the 5.5 Yazi runs.
-	for ch in text:gmatch("[\0-\127\194-\244][\128-\191]*") do
-		local cw = ui.width(ch)
+	for _, cluster in ipairs(clusters(text)) do
+		local cw = ui.width(cluster)
 		if w + cw > width then
 			break
 		end
-		out[#out + 1], w = ch, w + cw
+		out[#out + 1], w = cluster, w + cw
 	end
 	return table.concat(out)
 end
 
+--- Cut a string to `width` cells and mark the cut, as `ui.truncate` does.
+---
+--- Yazi's own is exact for ASCII, which is every built-in column, so that is
+--- still what an ASCII cell goes through. It counts one character at a time,
+--- though, and a cluster wider than its characters slips past: measured on
+--- 26.9.1, `ui.truncate("❤️abc", { max = 3 })` is `❤️a…`, four cells wide.
+--- So anything carrying a byte over 127 is cut here instead, on a cluster
+--- boundary and with the ellipsis's own cell held back.
+---@param text string
+---@param width integer
+---@return string
+local function soft_cut(text, width)
+	if not text:find("[\128-\255]") then
+		return ui.truncate(text, { max = width })
+	elseif width < 1 then
+		return ""
+	end
+	return hard_cut(text, width - 1) .. ELLIPSIS
+end
+
 --- Fit a plain string into `width`, padding or truncating as the column asks.
 ---
---- `ui.truncate` already appends its own ellipsis and returns *at most* `width`
---- cells -- it can come back short when a wide character straddles the
---- boundary -- so the result is measured again and padded.
+--- Either cut returns *at most* `width` cells, and either can come back short
+--- when a wide character straddles the boundary, so the result is measured
+--- again and padded.
 ---@return string
 local function fit(text, width, align, overflow)
 	local w = width_of(text)
@@ -266,7 +341,7 @@ local function fit(text, width, align, overflow)
 		elseif overflow == "clip" then
 			text = hard_cut(text, width)
 		else
-			text = ui.truncate(text, { max = width })
+			text = soft_cut(text, width)
 		end
 		w = width_of(text)
 	end
@@ -276,6 +351,43 @@ local function fit(text, width, align, overflow)
 		return align == "left" and text .. pad or pad .. text
 	end
 	return text
+end
+
+--- Cut a renderable to `width` cells.
+---
+--- `Line:truncate` is the only way in -- a Line's spans cannot be read back
+--- from Lua -- and it measures the line differently from `Line:width`, in two
+--- ways that have to be corrected from out here. Both were measured on 26.9.1
+--- and both come from one place: it counts one character at a time, and drops
+--- the character that lands exactly on `max` to make room for the ellipsis.
+---
+---   * With `ellipsis = ""` there is nothing to make room for, but the drop
+---     happens anyway: `{ max = 4 }` returns three cells of `abcdefgh`, where
+---     the same string cut as a string returns four. Asking for one cell more
+---     than the column has cancels it out exactly.
+---   * A cluster wider than its characters -- `❤️` is two cells and its two
+---     characters are one and none -- is left alone when it does not fit, so
+---     what comes back can be *wider* than `max`. No `max` cuts that to the
+---     cell, so cut again with a smaller one until it fits, and let it come
+---     back short: short is padded below, long shifts every column after it.
+---
+--- Yazi's truncate mutates the line it is given and hands it back, so each
+--- pass cuts the previous result further. `max = 0` empties a line whatever it
+--- held, so the loop always ends.
+---@param line unknown a ui.Line
+---@param width integer
+---@param ellipsis string? `""` to cut without a mark, nil for Yazi's own
+---@return unknown a ui.Line
+local function cut(line, width, ellipsis)
+	local max = ellipsis == "" and width + 1 or width
+	while max >= 0 do
+		line = line:truncate { max = max, ellipsis = ellipsis }
+		if line:width() <= width then
+			break
+		end
+		max = max - 1
+	end
+	return line
 end
 
 --- Render one column for one file, fitted to its effective width.
@@ -315,16 +427,13 @@ function M.cell(col, file)
 	if w > width then
 		if col.overflow == "grow" then
 			return line
-		elseif col.overflow == "clip" then
-			-- An empty ellipsis is how `Line:truncate` is asked to cut cleanly;
-			-- left to itself it inserts "…" like `ui.truncate` does.
-			line = line:truncate { max = width, ellipsis = "" }
-		else
-			line = line:truncate { max = width }
 		end
-		-- Like `ui.truncate`, this returns *at most* `width`: a wide character
-		-- straddling the edge comes back one cell short, and an unpadded cell
-		-- drags every column after it out of line.
+		-- An empty ellipsis is how `Line:truncate` is asked to cut cleanly; left
+		-- to itself it inserts "…" like `ui.truncate` does.
+		line = cut(line, width, col.overflow == "clip" and "" or nil)
+		-- `cut` returns *at most* `width`: a wide character straddling the edge
+		-- comes back one cell short, and an unpadded cell drags every column
+		-- after it out of line.
 		w = line:width()
 	end
 

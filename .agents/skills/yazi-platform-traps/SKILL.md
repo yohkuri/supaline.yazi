@@ -7,11 +7,12 @@ description: >-
   in the parent pane. Plus the budget a linemode render runs under. Read when
   a change resolves a colour or reads the theme, writes a fetcher, touches the
   parent- or preview-pane child, or adds a column's render or stats -- not for
-  every edit to plugin Lua, and not for a rename or a format string. Five
+  every edit to plugin Lua, and not for a rename or a format string. Six
   further traps -- ya.sync binding by call position, in_preview versus
   in_current, the bulk to bulk-rename rename, modules that must return a table,
-  and is_regular versus the six AuthKind variants -- are refused by a test or a
-  CI job instead, and are in references/checked-traps.md for when one of them
+  is_regular versus the six AuthKind variants, and truncation counting
+  characters where the screen counts clusters -- are refused by a test or a CI
+  job instead, and are in references/checked-traps.md for when one of them
   fires.
 ---
 
@@ -26,7 +27,7 @@ Every claim here and in `references/checked-traps.md` was measured on Yazi
 reason to re-run the experiment rather than trust the sentence — and when you
 do, write down what you ran.
 
-Five of the eight traps are refused by a test or a CI job that prints the fix,
+Six of the nine traps are refused by a test or a CI job that prints the fix,
 and live in `references/checked-traps.md`, worth opening when one fires. The
 three below are what no check catches. When you find a way to move one into the
 checked list, take it.
