@@ -16,6 +16,10 @@
 -- comparing them against the full types.yazi declarations is noise.
 ---@diagnostic disable: missing-fields, missing-return
 
+--- Named so `run.lua` can hand the specs something typed: a global reached
+--- through `dofile` is `unknown`, and a spec is then free to read a field off a
+--- stub that Yazi has no such field for.
+---@class supaline.Stub
 local M = {}
 
 -- Captured here rather than inside `install`: that runs once per spec file,
@@ -447,8 +451,14 @@ end
 
 --- A stand-in for `fs::File`. Everything the built-in columns read is either
 --- passed in or defaulted to something harmless.
+---
+--- Claiming `supaline.File` rather than `table` is what puts the specs under
+--- the same type check the plugin is under: a spec reaching for a field Yazi
+--- does not have is refused here too. It says nothing about the stub itself --
+--- the class is not `(exact)`, so the table below is accepted however little
+--- of it is filled in -- and fidelity is still read against a running Yazi.
 ---@param t table
----@return table
+---@return supaline.File
 function M.file(t)
 	local name = t.name or "file.txt"
 	--- The `AuthKind` of the file's URL: `regular`, `search`, `mount`, `hub`,
