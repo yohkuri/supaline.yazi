@@ -41,6 +41,7 @@ local SPECS = {
 	"main_spec",
 }
 
+---@type supaline.Stub
 local stub = dofile(ROOT .. "/test/stub.lua")
 
 local passed, failures, current = 0, {}, "?"
