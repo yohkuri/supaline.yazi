@@ -90,7 +90,7 @@ truncations add up characters instead, and the two disagree wherever a cluster
 is not the sum of its parts. Measured on 26.9.1 across six strings, every `max`
 from 0 to 8, with and without an ellipsis:
 
-```
+```text
 -- \u{2764} is a heart, \u{FE0F} the selector that makes it an emoji. Spelled
 -- out because the pair is two characters and one character on screen.
 ui.width("\u{2764}") = 1     ui.width("\u{FE0F}") = 0
@@ -154,7 +154,7 @@ the numbers instead.
 plugin Lua and prints this. The six variants and Yazi's own predicates are at
 the end of this file; `test/auth_spec.lua` pins the partition in the stub.
 
-# `in_preview`, in Yazi's own source
+## `in_preview`, in Yazi's own source
 
 From `yazi-actor/src/lives/file.rs`:
 
@@ -181,7 +181,7 @@ folder either way.
 the unit suite the same way it fails on screen: the second preview row, not the
 first.
 
-# `AuthKind`, and why `is_regular` is the wrong question
+## `AuthKind`, and why `is_regular` is the wrong question
 
 `Url.is_regular`, `Url.is_search`, `Url.domain` and `Url.scheme` are deprecated
 in favour of the same names under `Url.spec`; the binary carries a deprecation
@@ -191,7 +191,7 @@ warning for each of the four.
 variants and `is_regular` holds for exactly one of them. Measured, by asking a
 running Yazi:
 
-```
+```text
 Url("/tmp/plain.txt").spec
     kind=regular  domain=    reg=true   srch=false  virt=false
 Url("search://kw//tmp/plain.txt").spec
@@ -207,7 +207,7 @@ The six variants come from Yazi's own parser rather than from counting. Two are
 not configurable — `regular` and `search`, the two above — and the other four
 are what `vfs.toml` accepts as a service `kind`:
 
-```
+```console
 $ printf '[services.box]\nkind = "definitely-not-a-kind"\n' > vfs.toml
 unknown variant `definitely-not-a-kind`, expected one of `sftp`, `mount`, `hub`, `scope`
 ```
@@ -238,4 +238,3 @@ the numbers instead.
 Pinned by `test/auth_spec.lua`, which holds all six variants and the
 `is_virtual` / `is_local` complement, and by the stub, which refuses an
 `AuthKind` Yazi does not have rather than treating a typo as virtual.
-
