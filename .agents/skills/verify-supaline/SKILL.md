@@ -49,8 +49,10 @@ implementation it was written against, so a *new* column can repeat a trap and
 keep the suite green. That is why some constraints are CI spelling checks
 rather than tests.
 
-Write the test code for **Lua 5.5**. `test/run.lua` refuses any other version
-and says so, and `mise.toml` pins 5.5.1, so this needs no remembering.
+Write the test code for **Lua 5.5**, the version Yazi runs: `%z` in a pattern
+means the NUL byte on 5.1 and the letter `z` from 5.2 on, and `utf8` arrived in
+5.3. `test/run.lua` refuses any other version and says where to get one, so
+this needs no remembering.
 
 ## The fixture, shared by both harnesses
 
