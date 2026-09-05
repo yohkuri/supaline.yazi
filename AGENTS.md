@@ -125,6 +125,10 @@ test/manual.sh              # ... interactively, for a human to look at
 stylua --check .            # formatting
 ```
 
+The unit suite runs on **Lua 5.5**, the version Yazi embeds, and `test/run.lua`
+refuses any other. Any 5.5 does: `mise.toml` pins 5.5.1 for whoever uses mise,
+and CI installs its own — nothing here requires a version manager.
+
 `test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
 deliberately not in CI. Run them yourself before claiming anything about the
 screen — and note that a green exit is worth more than the screen looking
