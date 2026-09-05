@@ -4,7 +4,7 @@
 ---
 --- Yazi's `ps.sub` takes any string and returns without complaining, so a
 --- stale kind is a subscription that never fires -- no error, no warning, and
---- nothing on screen to notice. 26.8.15 renamed `bulk` to `bulk-rename`
+--- nothing on screen to notice. Yazi renamed `bulk` to `bulk-rename`
 --- without saying so, which is how the plugin came to have a subscription
 --- worth pinning.
 ---
@@ -42,7 +42,7 @@ test("DDS: every kind Yazi publishes, and no others", function()
 end)
 
 test("DDS: the renamed one is `bulk-rename`, and `bulk` is gone", function()
-	assert(stub.DDS_KINDS["bulk-rename"], "26.8.15 publishes `bulk-rename`")
+	assert(stub.DDS_KINDS["bulk-rename"], "Yazi publishes `bulk-rename`")
 	eq(stub.DDS_KINDS["bulk"], nil, "`bulk` was the name before it, and fires nothing now")
 end)
 

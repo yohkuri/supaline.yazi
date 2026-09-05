@@ -422,12 +422,6 @@ end
 --- does nothing the day the subscription order changes.
 ---@param kind string
 function M.fire(kind)
-	-- Yazi merges the user's theme inside the `app:theme` actor and publishes
-	-- `theme` afterwards, so the merged values are in place by the time a
-	-- handler runs, and not one moment before.
-	if kind == "theme" then
-		M.themed = true
-	end
 	for _, fn in ipairs(M.subs[kind] or {}) do
 		fn()
 	end
@@ -464,24 +458,22 @@ function M.install(root)
 		render = function() end,
 	}
 
-	-- Yazi initialises `THEME` from the preset theme alone
-	-- (`THEME.init(Preset::theme(false))`). The user's `theme.toml` and flavor
-	-- are merged inside the `app:theme` actor, which fires `theme` afterwards.
-	-- So a `[supaline]` section written on disk is simply not readable at
-	-- setup time, and a plugin that resolves a colour there keeps the preset's
-	-- one for good.
+	-- One table, because 26.9.1 has one state: the user's `theme.toml` and
+	-- flavor are merged before any plugin code runs, so `th.supaline` and a
+	-- `[mgr]` override alike are readable from the first line of `init.lua`.
+	-- Measured, not assumed -- a `[mgr] cwd` captured at load time paints the
+	-- user's colour, and a `Style` read out of `th` is a value frozen at that
+	-- moment, not a handle that follows later reloads.
 	--
-	-- Modelling that needs two tables and a flag, not one table a test writes
-	-- to: with one, a test can only make the section appear *after* setup by
-	-- hand, which is the timing it was supposed to be proving. Put the user's
-	-- section in `th_merged` before setup and the trap is reproduced -- the
-	-- section exists, and the plugin still cannot see it.
-	M.th_preset, M.th_merged, M.themed = {}, {}, false
+	-- What a test writes here is what the plugin can already see.
+	--
+	-- What survives is the reload: `app:theme` re-reads `theme.toml` from disk
+	-- mid-run, so a colour resolved once and cached goes stale with nothing to
+	-- say so. Write the new section here and `fire("theme")` to reproduce it.
+	M.th = {}
 	_G.th = setmetatable({}, {
-		__index = function(_, k) return (M.themed and M.th_merged or M.th_preset)[k] end,
-		__newindex = function(_, k)
-			error("stub: write to `stub.th_preset` or `stub.th_merged`, not `th." .. tostring(k) .. "`")
-		end,
+		__index = function(_, k) return M.th[k] end,
+		__newindex = function(_, k) error("stub: write to `stub.th`, not `th." .. tostring(k) .. "`") end,
 	})
 	_G.ya = {
 		readable_size = function(size)

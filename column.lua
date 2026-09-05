@@ -1,4 +1,4 @@
---- @since 26.8.15
+--- @since 26.9.1
 --- Column registry, spec normalisation, and cell layout.
 ---
 --- A column is written in one of four shapes, all of which collapse to the same
@@ -54,8 +54,9 @@ function M.get(name) return M._registry[name] end
 --- section, then the definition's own default.
 ---
 --- The theme section may hold either a style table or a plain string, so both
---- are accepted. This runs inside `build()`, never at setup: until the `theme`
---- event fires, `th.*` still holds preset values only.
+--- are accepted. This runs inside `build()` rather than once at setup: 26.9.1
+--- has the user's theme merged before any plugin code runs, but `app:theme`
+--- re-reads it mid-run, and a colour resolved once is the old one from then on.
 ---@param name string?
 ---@param opts table
 ---@param def table

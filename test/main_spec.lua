@@ -303,42 +303,52 @@ end)
 
 -- --- the theme -------------------------------------------------------------
 
-test("theme: base colours are resolved on the event, not at setup", function()
-	-- The user's `[supaline]` section is on disk from the start. What makes it
-	-- unreadable at setup is Yazi's order: `THEME` is initialised from the
-	-- preset alone, and the user's `theme.toml` is merged inside the `app:theme`
-	-- actor, which fires `theme` afterwards.
-	--
-	-- Setting the section *before* `setup` is what makes this test say that. A
-	-- section that only appeared afterwards would pass for a plugin that read
-	-- `th` too early, because at setup there would have been nothing to read.
-	stub.themed = false -- Yazi has started; `app:theme` has not run yet
-	stub.th_merged.supaline = { size = "#ff8800" }
+test("theme: a base colour comes from the user's `[supaline]` section", function()
+	-- Readable from the start on 26.9.1: the user's `theme.toml` is merged
+	-- before any plugin code runs, so `setup` resolves the user's colour rather
+	-- than the column's default.
+	stub.th.supaline = { size = "#ff8800" }
 
 	setup { detail = { { "size", width = 3 } } }
-	eq(
-		stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
-		"cyan",
-		"the column's own default, not the user's colour"
-	)
-
-	stub.fire("theme")
 	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
 
 	-- Put it back: a colour left set here would reach every test after this one,
 	-- and the failure would point at the wrong one.
-	stub.th_merged.supaline = nil
+	stub.th.supaline = nil
+end)
+
+test("theme: a reload replaces a colour already resolved", function()
+	-- This is the half that still fails silently. `app:theme` re-reads
+	-- `theme.toml` from disk mid-run, and a plugin that resolved its colours
+	-- once at `setup` goes on drawing the old ones with nothing to say so --
+	-- which is what `ps.sub("theme", build)` is for.
+	--
+	-- Changing the section *after* `setup` is what makes this test say that. A
+	-- section that never changed would pass for a plugin that never subscribed.
+	stub.th.supaline = { size = "#ff8800" }
+	setup { detail = { { "size", width = 3 } } }
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+
+	stub.th.supaline = { size = "#00ccff" }
+	stub.fire("theme")
+	eq(
+		stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
+		"#00ccff",
+		"the reloaded colour, not the one resolved at setup"
+	)
+
+	stub.th.supaline = nil
 end)
 
 test("theme: a style table works as well as a colour string", function()
-	stub.th_merged.supaline = { size = ui.Style():fg("#00ff00"):bold() }
+	stub.th.supaline = { size = ui.Style():fg("#00ff00"):bold() }
 	setup { detail = { { "size", width = 3 } } }
 	stub.fire("theme")
 
 	local style = stub.first_style(Linemode.detail { _file = CURRENT.files[1] })
 	eq(style.fg, "#00ff00")
 	eq(style.bold, true)
-	stub.th_merged.supaline = nil
+	stub.th.supaline = nil
 end)
 
 -- --- the per-folder pass ---------------------------------------------------

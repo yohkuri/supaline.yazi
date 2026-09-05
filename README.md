@@ -26,7 +26,7 @@ would go through `column.register` like any other.
 
 ## Requirements
 
-Yazi **26.8.15 or newer**. Older releases refuse to load the plugin: Yazi
+Yazi **26.9.1 or newer**. Older releases refuse to load the plugin: Yazi
 enforces the `--- @since` annotation, and the fetcher and theme APIs this is
 written against did not exist before.
 

@@ -65,8 +65,8 @@ jobs:
           # shell and `rc` survives it -- every offender is named, not just
           # the first.
           while IFS= read -r -d '' f; do
-            if ! head -1 "$f" | grep -q '^--- @since 26\.8\.15$'; then
-              echo "$f: first line is not '--- @since 26.8.15'"
+            if ! head -1 "$f" | grep -q '^--- @since 26\.9\.1$'; then
+              echo "$f: first line is not '--- @since 26.9.1'"
               rc=1
             fi
           done < <(git ls-files -z '*.lua' ':!:test/*')

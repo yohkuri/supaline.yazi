@@ -1,4 +1,4 @@
---- @since 26.8.15
+--- @since 26.9.1
 --- supaline -- a column framework for Yazi's linemode.
 ---
 --- `setup` turns each entry of `linemodes` into a real linemode, so
@@ -359,10 +359,11 @@ local function uninstall()
 	installed = { names = {}, prev = {}, child = nil }
 end
 
---- Rebuild every linemode from the stored specs. Subscribed to `theme`: until
---- that event fires `th.*` still holds preset values, so any base colour
---- resolved earlier is the wrong one. Which panes a linemode wants cannot
---- change under a theme reload, so the third value is not wanted here.
+--- Rebuild every linemode from the stored specs. Subscribed to `theme`
+--- because `app:theme` re-reads `theme.toml` from disk mid-run: a base colour
+--- resolved once at setup is the old one from then on, and nothing says so.
+--- Which panes a linemode wants cannot change under a theme reload, so the
+--- third value is not wanted here.
 local function build()
 	local modes, hooks = compile(specs, cfg)
 	install(modes, hooks)
@@ -372,7 +373,7 @@ end
 -- subscribe twice and there is no flag to keep. Every handler reads module
 -- state, which is empty and harmless until `setup` fills it.
 --
--- `bulk-rename`, not `bulk`: 26.8.15 renamed the event without saying so, and
+-- `bulk-rename`, not `bulk`: the event was renamed without saying so, and
 -- `ps.sub` accepts an unknown kind without complaining.
 ps.sub("theme", build)
 ps.sub("cd", refresh)

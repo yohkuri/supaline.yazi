@@ -182,10 +182,14 @@ previewer's output, not a supaline bug.
 The fixture sets a `[supaline]` section: size orange, mtime green, owner blue,
 extension magenta.
 
-Those colours should already be on screen when Yazi opens. `T` re-applies them,
-which is worth doing once to confirm nothing goes missing on a theme reload —
-and it is the only way the headless harness gets them at all, since a detached
-tmux never answers the terminal probe that triggers the load.
+Those colours should already be on screen when Yazi opens, without pressing
+anything: Yazi applies the user's theme before the plugin runs.
+
+What is worth doing here is the reload. Edit `[supaline]` in
+`$TMPDIR/supaline-manual/config/theme.toml` and press `T`. Every column built
+from that section should take the new colour at once. A colour that stays put is
+the failure this is looking for, and `e2e.sh` pins the same thing by rewriting
+the file and sending `app:theme` itself.
 
 ## The fixture
 
