@@ -46,6 +46,17 @@ jobs:
       - uses: actions/checkout@v7
       - run: shellcheck test/*.sh
 
+  docs:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The same command `.markdownlint-cli2.yaml` documents, and the same one
+      # to run by hand -- there is no configuration here for CI to get wrong.
+      # `gitignore: true` in that file needs the checkout to be a repository,
+      # which it is.
+      - run: npx --yes markdownlint-cli2@0.19
+
   since:
     # Yazi enforces the annotation: a plugin file without it does not load, and
     # the failure is a refusal to start rather than anything subtle.
