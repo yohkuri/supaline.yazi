@@ -145,10 +145,19 @@ this repository. CI fetches a pinned revision of them in a step of its own, so
 that not getting them fails the job rather than weakening it.
 
 What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
-declared classes, so a misspelled field or a wrong arity on one is refused;
-the `file` and `ctx` a `render` receives are annotated `table`, and nothing
-read out of them is checked at all. Narrowing one of those annotations is how
-the check is made to reach further.
+declared classes, so a misspelled field or a wrong arity on one is refused, and
+`column.lua` declares `supaline.File` and `supaline.Ctx` for the two values a
+`render` is handed, so the columns are read too — `file.cha.is_dirr` and
+`ctx.basee` are both refused, in a built-in column and in a spec alike. A
+folder and a linemode record are still plain tables, and nothing taken out of
+one is checked; narrowing those is how the check is made to reach further.
+
+Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
+neither `file.idx`, `file.in_current` nor `Url.spec`, and gives `Cha.perm` as a
+string where 26.9.1 has a method — so `column.lua` declares the difference
+itself, with the probe that established it written beside the classes. A newer
+Yazi is a reason to run that probe again and correct them there, never to work
+around them at the call site.
 
 `test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
 deliberately not in CI. Run them yourself before claiming anything about the
