@@ -8,7 +8,7 @@ together. supaline turns the linemode into a list of columns, and lets you
 write your own in Lua. Built-in columns and user-written ones go through the
 same interface — neither has a privileged path.
 
-```
+```text
  deep                             drwxr-xr-x octocat:wheel      1 08/27 23:52
  inner-a.txt                      -rw-r--r-- octocat:wheel     1B 12/25  2023
  inner-b.bin                      -rw-r--r-- octocat:wheel   300K 08/27 23:52
