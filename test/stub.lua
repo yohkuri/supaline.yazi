@@ -527,10 +527,13 @@ function M.fire(kind)
 end
 
 --- A stand-in for a folder, with a `cwd` that stringifies and a file list.
+---
+--- Claims `supaline.Folder` for the reason `M.file` claims `supaline.File`:
+--- it is what puts a spec's reads under the same check the plugin's are.
 ---@param cwd string
----@param files table
+---@param files supaline.File[]
 ---@param cursor integer? the hovered row, 1-based; the first by default
----@return table
+---@return supaline.Folder
 function M.folder(cwd, files, cursor)
 	for i = 1, #files do
 		files[i].idx = i
