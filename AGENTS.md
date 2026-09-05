@@ -5,12 +5,14 @@ reads this file through `CLAUDE.md`; other agents read it directly. Keep it the
 single source of truth — do not copy rules into agent-specific files.
 
 This file is the index, not the manual. What is here applies to every session.
-The detail lives in two skills under `.agents/skills/`, read when the task
+The detail lives in three skills under `.agents/skills/`, read when the task
 calls for them:
 
 - `yazi-platform-traps` — for a change that resolves a colour, writes a
   fetcher, or touches the parent- or preview-pane child
 - `verify-supaline` — for a change under `test/`
+- `document-supaline` — for a change to this file, to a skill, or to a rule
+  under `.claude/rules/`
 
 ## What this is
 
