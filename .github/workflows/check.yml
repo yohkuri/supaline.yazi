@@ -39,6 +39,41 @@ jobs:
           version: 2.5.2
           args: --check .
 
+  types:
+    # `.luarc.json` is upstream's, verbatim, and points `workspace.library` at
+    # a path in the developer's home directory. Installing the annotations
+    # there rather than pointing the config somewhere a runner likes better
+    # keeps this job checking exactly what a contributor's editor checks.
+    name: lua-language-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Yazi's annotations, where .luarc.json looks for them
+        # Their own step, because a missing library does not fail the check --
+        # it quietly reduces it to what this repository declares about itself,
+        # and a tree with nothing else wrong then passes. Here a failure to
+        # fetch them is a failure.
+        #
+        # Pinned like every other tool: these annotations follow Yazi's main
+        # branch, and a plugin that targets 26.9.1 has no business failing on
+        # ones written for the release after it.
+        run: |
+          git clone -q --filter=blob:none \
+            https://github.com/yazi-rs/plugins /tmp/plugins
+          git -C /tmp/plugins checkout -q 0be29a9
+          mkdir -p ~/.config/yazi/plugins
+          cp -R /tmp/plugins/types.yazi ~/.config/yazi/plugins/
+      - name: The server itself
+        # There is no npm package, so a release tarball. The archive puts the
+        # launcher at `bin/`, which is why nothing here globs for it.
+        run: |
+          curl -fsSL -o /tmp/luals.tar.gz \
+            https://github.com/LuaLS/lua-language-server/releases/download/3.19.1/lua-language-server-3.19.1-linux-x64.tar.gz
+          mkdir -p /tmp/luals
+          tar -xzf /tmp/luals.tar.gz -C /tmp/luals
+      # `--check` prints every diagnostic and exits 1 on the first warning.
+      - run: /tmp/luals/bin/lua-language-server --check .
+
   shell:
     name: shellcheck
     runs-on: ubuntu-latest
