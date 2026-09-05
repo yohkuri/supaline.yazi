@@ -163,7 +163,7 @@ end
 --- preview row reports false, and there is no `in_parent` to tell it apart
 --- from a parent-pane row: both are simply "not current". Ask the preview
 --- folder whether the row is one of its own instead.
----@param file table
+---@param file supaline.File
 ---@return string pane, table? folder
 local function pane_of(file)
 	-- `idx` is the row's 1-based position in its own folder, so this is O(1).
@@ -232,7 +232,7 @@ end
 --- for a pane that has none -- the parent of the filesystem root -- which
 --- `bind` handles.
 ---@param mode table the linemode's record
----@param file table `fs::File`
+---@param file supaline.File
 ---@param folder table? the folder the row belongs to
 ---@return unknown an `AsLine`
 local function render(mode, file, folder)
@@ -259,7 +259,9 @@ end
 ---@param self table
 ---@return unknown an `AsLine`
 local function child(self)
-	local file = self._file
+	-- Cast rather than annotated: `self` is Yazi's own linemode table, and the
+	-- only thing this needs from it is what `_file` holds.
+	local file = self._file --[[@as supaline.File]]
 	-- Cheapest first. One child serves every linemode, so it is called for
 	-- every parent and preview row even when the active linemode wants
 	-- neither, and `pane_of` is far dearer than either of these tests.

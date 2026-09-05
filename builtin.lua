@@ -14,7 +14,7 @@ local column = require(".column")
 --- Extremes of the current listing, the way `eza --color-scale-mode=gradient`
 --- takes them. Values that do not exist stay out of the range: a directory
 --- whose size Yazi has not evaluated must not drag the minimum to zero.
----@param get fun(file: table): number?
+---@param get fun(file: supaline.File): number?
 ---@return fun(files: table): table?
 local function extremes(get)
 	return function(files)
@@ -36,7 +36,7 @@ end
 
 --- The entry count of an already-visited directory. Yazi keeps folders it has
 --- listed in the tab's history; one it has never opened has no count to show.
----@param file table
+---@param file supaline.File
 ---@return string
 local function entries(file)
 	local folder = cx.active:history(file.url)
@@ -50,6 +50,7 @@ column.register("size", {
 	align = "right",
 	base = "cyan",
 	stats = extremes(function(file) return file:size() end),
+	---@type supaline.Render
 	render = function(file, ctx)
 		local size = file:size()
 		if size then
@@ -94,6 +95,7 @@ end
 
 ---@param field "mtime"|"btime"|"atime"
 local function register_time(field)
+	---@param file supaline.File
 	local get = function(file)
 		local t = file.cha[field]
 		return t and math.floor(t) or nil
@@ -105,6 +107,7 @@ local function register_time(field)
 		base = "blue",
 		stats = extremes(get),
 		refresh = refresh_year,
+		---@type supaline.Render
 		render = function(file, ctx)
 			local time = get(file)
 			if not time or time == 0 then
@@ -125,12 +128,14 @@ register_time("atime")
 column.register("permissions", {
 	width = 10,
 	align = "left",
+	---@type supaline.Render
 	render = function(file, ctx) return file.cha:perm() or "", ctx.base end,
 })
 
 column.register("owner", {
 	width = 12,
 	align = "left",
+	---@type supaline.Render
 	render = function(file, ctx)
 		local cha = file.cha
 		if not cha.uid then
@@ -166,6 +171,7 @@ column.register("owner", {
 column.register("count", {
 	width = 5,
 	align = "right",
+	---@type supaline.Render
 	render = function(file, ctx)
 		if not file.cha.is_dir then
 			return "", ctx.base
