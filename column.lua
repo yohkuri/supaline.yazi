@@ -47,11 +47,11 @@
 --- declares `Url.is_regular` -- the spelling CI refuses -- and not this one, so
 --- narrowing `file` without it would leave the type checker blessing the wrong
 --- field and rejecting the right one.
----@class supaline.Spec
+---@class supaline.UrlSpec
 ---@field is_virtual boolean
 
 ---@class supaline.Url : Url
----@field spec supaline.Spec
+---@field spec supaline.UrlSpec
 
 ---@class supaline.File : fs__File
 ---@field idx integer the row's 1-based position in its own folder
@@ -59,10 +59,22 @@
 ---@field cha supaline.Cha
 ---@field url supaline.Url
 
+--- Yazi's folder, with its listing narrowed. `tab__Folder.files` is an
+--- `fs__Files` of `fs__File`, which is the class without the two fields above,
+--- so the plugin would lose them the moment it took a row out of a folder
+--- rather than being handed one.
+---
+--- A list rather than `fs__Files`: `#files` and `files[i]` are the only two
+--- things done with one, both hold for Yazi's userdata and for the plain table
+--- the harness builds, and one type covering both is what lets a spec exercise
+--- the same code path.
+---@class supaline.Folder : tab__Folder
+---@field files supaline.File[]
+
 --- One per column, reused across rows: what `render` reads a folder's measured
 --- state out of. `bind` also keeps the ramp's endpoints on this table, under
---- names starting `_`; they are deliberately not declared, because a column
---- that reaches for them is reaching past `ratio`.
+--- names starting `_`; they are declared on `supaline.Ramp` below rather than
+--- here, because a column that reaches for them is reaching past `ratio`.
 ---@class supaline.Ctx
 ---@field base unknown the column's resolved colour, as a ui.Style
 ---@field opts table the options the column was specified with
@@ -71,7 +83,40 @@
 ---@field ratio fun(value: number?): number? where a value sits, 0 to 1
 ---@field style fun(ratio: number?): unknown a ui.Style for that position
 
+--- The same table, as `bind` and `ratio` see it: the endpoints `ratio`
+--- normalises against, and whether the scale is logarithmic. `bind` is the
+--- only writer and `ratio` the only reader.
+---@class supaline.Ramp : supaline.Ctx
+---@field _lo number?
+---@field _hi number?
+---@field _log boolean
+
 ---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
+
+--- A normalised column: what the four spec shapes above all collapse to, and
+--- the only shape the renderer ever sees.
+---@class supaline.Column
+---@field name string? nil for an inline definition, which has no name to give
+---@field align "left"|"right"
+---@field overflow "ellipsis"|"clip"|"grow"
+---@field max_width integer?
+---@field sep string|false|nil a separator of this column's own, `false` for none
+---@field stats fun(files: supaline.File[]): table?|nil
+---@field refresh function? run whenever a linemode is installed, and on `cd`
+---@field render supaline.Render
+---@field scale "linear"|"log"
+---@field auto boolean? `width = "auto"`: measure the folder
+---@field width_of fun(stats: any): number?|nil
+---@field fixed integer? a stated width, `max_width` already applied
+---@field needs_pass boolean whether this column costs a pass over the folder
+---@field ctx supaline.Ctx
+
+--- What one pass over one folder produced for one column. main.lua caches
+--- these per folder and binds them; a column that needs no pass gets an empty
+--- one.
+---@class supaline.Entry
+---@field stats any?
+---@field width integer?
 
 local M = { _registry = {} }
 
@@ -158,7 +203,7 @@ end
 --- Turn one entry of a linemode spec into a runtime column.
 ---@param spec string|table|function
 ---@param cfg table plugin-wide options
----@return table
+---@return supaline.Column
 function M.normalize(spec, cfg)
 	local name, opts, def
 
@@ -256,10 +301,10 @@ end
 
 --- Bind one folder's precomputed statistics and width onto a column, and
 --- prepare whatever `ctx.ratio` needs so that no work is repeated per row.
----@param col table
----@param entry table
+---@param col supaline.Column
+---@param entry supaline.Entry
 function M.bind(col, entry)
-	local ctx = col.ctx
+	local ctx = col.ctx --[[@as supaline.Ramp]]
 	ctx.stats = entry.stats
 	ctx.width = entry.width or col.fixed
 
@@ -452,7 +497,7 @@ local function cut(line, width, ellipsis)
 end
 
 --- Render one column for one file, fitted to its effective width.
----@param col table
+---@param col supaline.Column
 ---@param file supaline.File
 ---@return unknown an `AsLine`
 function M.cell(col, file)
@@ -507,7 +552,7 @@ end
 
 --- The effective width of a column for one folder, for the two shapes that
 --- derive it from the listing rather than stating it outright.
----@param col table
+---@param col supaline.Column
 ---@param files supaline.File[]
 ---@param stats any
 ---@return integer?
