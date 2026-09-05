@@ -197,6 +197,15 @@ supaline.column("name", {
 	render = function(file, ctx) return file.name, ctx.base end,
 })
 
+-- The same name handed back as a renderable rather than a string, so the cut
+-- goes through `Line:truncate` instead of `ui.truncate`. The two count
+-- differently, and nothing else here takes that path.
+supaline.column("name_line", {
+	width = 12,
+	align = "left",
+	render = function(file, ctx) return ui.Line { ui.Span(file.name) }, ctx.base end,
+})
+
 supaline:setup({
 	linemodes = {
 		-- m0: one column, so `m s` is a fair comparison.
@@ -217,10 +226,13 @@ supaline:setup({
 			{ "owner", width = "auto", max_width = 8 },
 		},
 
-		-- m4: one name, three ways. Only the first should show "…".
+		-- m4: one name, four ways. Only the first should show "…", and the two
+		-- clipped cells have to come out identical -- one is cut as a string and
+		-- the other as a Line.
 		overflow = {
 			{ "name", overflow = "ellipsis" },
 			{ "name", overflow = "clip" },
+			{ "name_line", overflow = "clip" },
 			{ "name", overflow = "grow" },
 		},
 

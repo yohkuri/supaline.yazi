@@ -208,12 +208,16 @@ else
 	row=$(sed -n "${m4row}p" "$DIR/screen-m4.txt")
 	ok=1
 	echo "$row" | grep -q "exactly-1k.…" || ok=""
-	echo "$row" | grep -q "exactly-1k.b " || ok=""
-	echo "$row" | grep -q "exactly-1k.bin" || ok=""
+	# The clipped string, the clipped Line, and the name whole. The two clips
+	# have to agree: a column that hands back a renderable is not a narrower
+	# column, and `Line:truncate` drops the character that lands exactly on the
+	# width, so the second of them read "exactly-1k." until `cell` asked for
+	# that cell back. Nothing else in the fixture takes the renderable path.
+	echo "$row" | grep -q "exactly-1k.b exactly-1k.b exactly-1k.bin" || ok=""
 	if [ -n "$ok" ]; then
-		echo "  m4: ellipsis, clip and grow all rendered on one row"
+		echo "  m4: ellipsis, clip, a clipped renderable and grow, on one row"
 	else
-		fail "m4: the three overflow modes did not render differently"
+		fail "m4: the overflow modes did not render as they should"
 	fi
 fi
 

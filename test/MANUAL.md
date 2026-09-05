@@ -26,7 +26,7 @@ comparing against.
 | `m 1` | `default`    | size + mtime — the everyday case                  |
 | `m 2` | `everything` | Every built-in column                             |
 | `m 3` | `widths`     | Stated width vs `"auto"` vs `max_width`           |
-| `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`                    |
+| `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`, string and Line   |
 | `m 5` | `seps`       | The separator, `sep = false`, and one of your own |
 | `m 6` | `pane_cur`   | `panes = { "current" }`                           |
 | `m 7` | `pane_par`   | `panes = { "current", "parent" }`                 |
@@ -115,16 +115,20 @@ a cap of 8.
 
 ### `m 4` — overflow
 
-The same name, three ways, against a column of twelve.
+The same name, four ways, against a column of twelve.
 
 ```
- exactly-1k.bin      exactly-1k.… exactly-1k.b exactly-1k.bin
+ exactly-1k.bin      exactly-1k.… exactly-1k.b exactly-1k.b exactly-1k.bin
 ```
 
 - Only the **first** carries an ellipsis.
 - The **second** is a hard cut — twelve cells, no ellipsis, nothing appended.
-- The **third** runs past twelve and pushes the file name over.
-- Look at `日本語のファイル名.txt`. Both truncating columns must land on a
+- The **third** is that same cut of a column that hands back a `ui.Line`
+  instead of a string, and has to read **identically** to the second. Yazi
+  cuts a Line one character shorter than it cuts a string, so this column read
+  `exactly-1k.` until the cell asked for that cell back.
+- The **fourth** runs past twelve and pushes the file name over.
+- Look at `日本語のファイル名.txt`. Every truncating column must land on a
   character boundary; half a character, or a column one cell short, is a bug.
 
 ### `m 5` — separators

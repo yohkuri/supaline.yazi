@@ -282,6 +282,9 @@ spec wins over the theme.
 - **A cell wider than its column is truncated, not allowed to push.** Yazi
   sizes the file name against whatever the linemode takes, so an overlong cell
   would otherwise eat the name. Use `overflow = "grow"` to opt out.
+- The cut lands on a grapheme cluster and counts what the terminal draws, so a
+  composed emoji is kept whole or dropped whole and a cell never comes back
+  wider than its column. It can come back a cell short, and is padded back.
 - Statistics and derived widths are cached per folder, keyed partly on the file
   count. A write that changes a file's size without changing the count keeps
   the previous extremes until the next file operation or `cd`.

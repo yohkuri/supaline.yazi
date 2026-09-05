@@ -118,6 +118,38 @@ test("cell: clip counts display cells, not bytes", function()
 	eq(stub.str_width(out), 5)
 end)
 
+test("cell: a cluster is cut whole, and never over the width", function()
+	-- Counting characters is what overran here. `❤️` is a one-cell character
+	-- followed by a zero-cell one, and two cells on screen, so a cut that added
+	-- them up handed back four cells for a column of three -- measured on Yazi
+	-- 26.9.1, where `ui.truncate("❤️abc", { max = 3 })` is `❤️a…`. A cell one
+	-- too wide is not a cosmetic problem: every column after it shifts.
+	local heart = "\u{2764}\u{FE0F}abc"
+	eq(cell { render = function() return heart end, width = 3, overflow = "clip" }, "\u{2764}\u{FE0F}a")
+	eq(cell { render = function() return heart end, width = 3, overflow = "ellipsis" }, "\u{2764}\u{FE0F}…")
+end)
+
+test("cell: a joined emoji is cut at the cluster, not inside it", function()
+	-- Yazi's own cut stops between the joiner and what it joined --
+	-- `ui.truncate("👩‍💻abc", { max = 3 })` is `👩‍…` -- and drops the modifier
+	-- from `👍🏽`. Both are one character as far as the screen is concerned, so
+	-- the whole of one fits or none of it does.
+	eq(
+		cell { render = function() return "\u{1F469}\u{200D}\u{1F4BB}abc" end, width = 3, overflow = "clip" },
+		"\u{1F469}\u{200D}\u{1F4BB}a"
+	)
+	eq(
+		cell { render = function() return "\u{1F44D}\u{1F3FB}abc" end, width = 3, overflow = "clip" },
+		"\u{1F44D}\u{1F3FB}a"
+	)
+	-- A flag is a pair of regional indicators and a third one starts a new
+	-- flag, so the pair is the unit, not the run.
+	eq(
+		cell { render = function() return "\u{1F1EF}\u{1F1F5}\u{1F1EF}\u{1F1F5}" end, width = 3, overflow = "clip" },
+		" \u{1F1EF}\u{1F1F5}"
+	)
+end)
+
 test("cell: grow leaves an overflowing cell alone", function()
 	eq(cell { render = function() return "abcdefgh" end, width = 4, overflow = "grow" }, "abcdefgh")
 end)
@@ -142,13 +174,32 @@ test("cell: a truncated renderable is padded back to width", function()
 	end
 end)
 
-test("cell: a renderable is truncated too", function()
+test("cell: a renderable is truncated too, to the same width as a string", function()
 	local col = column.normalize({ render = function() return ui.Line("abcdefgh") end, width = 4 }, CFG)
 	eq(text_of(column.cell(col, stub.file {})), "abc…")
 
+	-- `Line:truncate` drops the character that lands exactly on `max` to make
+	-- room for the ellipsis, and goes on doing it when the ellipsis is empty:
+	-- asked for four cells of these eight it returns three, where the same
+	-- string cut as a string returns four. A column that hands back a
+	-- renderable is not a narrower column, so `cell` asks for the cell back.
 	local clipped =
 		column.normalize({ render = function() return ui.Line("abcdefgh") end, width = 4, overflow = "clip" }, CFG)
 	eq(text_of(column.cell(clipped, stub.file {})), "abcd")
+end)
+
+test("cell: a renderable Yazi thinks fits is cut anyway", function()
+	-- The other half. `Line:truncate` counts characters, so it hands `❤️abc`
+	-- back untouched for a column of four -- five cells on screen, and no
+	-- `max` cuts it to exactly four. Coming back a cell short is fine, because
+	-- short is padded; coming back long is what shifts the columns after it.
+	for _, mode in ipairs { "ellipsis", "clip" } do
+		local col = column.normalize(
+			{ render = function() return ui.Line("\u{2764}\u{FE0F}abc") end, width = 4, overflow = mode },
+			CFG
+		)
+		eq(stub.str_width(text_of(column.cell(col, stub.file {}))), 4, mode)
+	end
 end)
 
 -- --- the ratio contract ----------------------------------------------------

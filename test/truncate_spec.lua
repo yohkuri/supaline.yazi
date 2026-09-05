@@ -2,12 +2,14 @@
 ---
 --- `ui.truncate` is pinned to the assertions in Yazi's own test suite
 --- (`yazi-plugin/src/ui/utils.rs`). `Line:truncate` has no upstream suite to
---- copy, so it is pinned to what a real Yazi drew in `test/e2e.sh` and to the
---- contract `column.cell` leans on: at most `max` cells, a character boundary,
---- and `ellipsis = ""` meaning a clean cut.
+--- copy, so it is pinned to a table measured against a real Yazi 26.9.1: six
+--- strings -- ASCII, CJK, and one each carrying a variation selector, a
+--- joiner, a skin-tone modifier and a flag -- cut at every `max` from 0 to 8,
+--- with and without an ellipsis. The stub reproduces all of it.
 ---
---- Everything the layout code believes about truncation rests on these, so if
---- either stub drifts the rest of the suite stops meaning anything.
+--- The two cuts do not agree, and the tests below say where. `column.cell` is
+--- what closes the gap, so a stub that quietly closed it here would let the
+--- correction be deleted with the suite still green.
 
 local function t(s, max, rtl) return stub.truncate(s, { max = max, rtl = rtl }) end
 
@@ -72,20 +74,49 @@ test("width: an emoji takes two cells, like an East Asian character", function()
 	eq(stub.str_width("絵文字🎨のなまえ.txt"), 20)
 end)
 
+test("width: a cluster is not the sum of its characters", function()
+	-- Measured on Yazi 26.9.1, and the reason `column.lua` cuts on cluster
+	-- boundaries: `str_width` is what `ui.width` and `Line:width` return, and
+	-- `cp_width` is what both truncations count. Every line here is a pair that
+	-- disagrees, in one direction or the other.
+	eq(stub.str_width("\u{2764}\u{FE0F}"), 2, "a variation selector widens what it follows")
+	eq(stub.cp_width("\u{2764}\u{FE0F}"), 1)
+	eq(stub.str_width("\u{1F469}\u{200D}\u{1F4BB}"), 2, "a joined pair is one two-cell character")
+	eq(stub.cp_width("\u{1F469}\u{200D}\u{1F4BB}"), 4)
+	eq(stub.str_width("\u{1F44D}\u{1F3FB}"), 2, "a skin-tone modifier adds nothing")
+	eq(stub.cp_width("\u{1F44D}\u{1F3FB}"), 4)
+	eq(stub.str_width("\u{1F1EF}\u{1F1F5}"), 2, "a flag is two one-cell halves")
+	eq(stub.str_width("e\u{0301}"), 1, "a combining mark adds nothing")
+end)
+
 -- --- Line:truncate ---------------------------------------------------------
 
 local function lt(s, max, ellipsis) return stub.text_of(stub.Line(s):truncate { max = max, ellipsis = ellipsis }) end
 
-test("Line:truncate: what a real Yazi drew", function()
-	-- `test/e2e.sh` renders `exactly-1k.bin` (fourteen cells) through a column
-	-- of twelve, three ways, and asserts these two on screen.
+test("Line:truncate: an empty ellipsis still costs a cell", function()
+	-- Where the two cuts part company. Yazi holds back the ellipsis's width and
+	-- then drops the character that lands exactly on `max` as well, and an
+	-- empty ellipsis does nothing about the second half: the same eight cells
+	-- cut to four come back as four from `ui.truncate` and three from here.
+	eq(lt("abcdefgh", 4, ""), "abc")
+	eq(t("abcdefgh", 4), "abc…")
+	eq(lt("abcdefgh", 4), "abc…")
+
+	-- `test/e2e.sh` renders `exactly-1k.bin` (fourteen cells) through columns
+	-- of twelve, and has one that hands back a Line rather than a string
+	-- precisely so this cell is on screen to be checked.
 	eq(lt("exactly-1k.bin", 12), "exactly-1k.…")
-	eq(lt("exactly-1k.bin", 12, ""), "exactly-1k.b")
+	eq(lt("exactly-1k.bin", 12, ""), "exactly-1k.")
 end)
 
-test("Line:truncate: an empty ellipsis is a clean cut", function()
-	eq(lt("abcdefgh", 4, ""), "abcd")
-	eq(lt("abcdefgh", 4), "abc…")
+test("Line:truncate: it counts characters, and can come back wider than max", function()
+	-- The other half of the gap. `❤️` is one character of one cell and one of
+	-- none, and two cells on screen; `Line:truncate` adds the characters up,
+	-- decides a five-cell line fits in four, and hands it back untouched.
+	-- Measured on Yazi 26.9.1 -- and there is no `max` that cuts this line to
+	-- exactly four, which is why `column.cell` cuts again rather than once.
+	eq(stub.Line("\u{2764}\u{FE0F}abc"):truncate({ max = 4, ellipsis = "" }):width(), 5)
+	eq(lt("\u{2764}\u{FE0F}abc", 3, ""), "\u{2764}\u{FE0F}a")
 end)
 
 test("Line:truncate: it fits, or it is left whole", function()
@@ -94,12 +125,12 @@ test("Line:truncate: it fits, or it is left whole", function()
 	eq(lt("abcdefgh", 0), "")
 end)
 
-test("Line:truncate: never more than max, and never mid character", function()
-	-- The contract `column.cell` rests on: it may come back a cell short when a
-	-- wide character straddles the edge, which is why the cell measures the
-	-- result again and pads. It may never come back long, and it may never cut
-	-- a character in half -- every byte of the result has to belong to a whole
-	-- one of the three-byte characters it was given.
+test("Line:truncate: a character it can measure is never overrun", function()
+	-- Where its own count agrees with the screen -- everything but the clusters
+	-- above -- it comes back at most `max` cells and on a character boundary.
+	-- It may come back short when a wide character straddles the edge, which is
+	-- why the cell measures the result again and pads. Every byte of the result
+	-- has to belong to a whole one of the three-byte characters it was given.
 	for _, ellipsis in ipairs { "…", "" } do
 		for max = 1, 12 do
 			local out = lt("你好，世界", max, ellipsis)
@@ -108,5 +139,5 @@ test("Line:truncate: never more than max, and never mid character", function()
 		end
 	end
 	eq(lt("你好，世界", 4), "你…")
-	eq(lt("你好，世界", 4, ""), "你好")
+	eq(lt("你好，世界", 4, ""), "你")
 end)
