@@ -47,9 +47,10 @@ drifted. Write the parameters the real call takes, `self` included, whether or
 not the stub reads them, and set the fields Yazi always sets — `preview.skip`
 is one nothing here reads.
 
-`stub.file` claims `supaline.File` rather than `table`, and `run.lua` types the
-global the specs reach it through, so a spec reading a field Yazi does not have
-is refused along with the plugin that would have read it. That is the whole of
+`stub.file` and `stub.folder` claim `supaline.File` and `supaline.Folder`
+rather than `table`, and `run.lua` types the global the specs reach them
+through, so a spec reading a field Yazi does not have is refused along with the
+plugin that would have read it. That is the whole of
 what it buys: the class is not `(exact)`, so the stub's own table is accepted
 however little of it is filled in. The annotation is a claim about Yazi, not a
 check on this file — fidelity is still read against a running Yazi.

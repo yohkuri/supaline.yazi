@@ -148,9 +148,11 @@ What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
 declared classes, so a misspelled field or a wrong arity on one is refused, and
 `column.lua` declares `supaline.File` and `supaline.Ctx` for the two values a
 `render` is handed, so the columns are read too — `file.cha.is_dirr` and
-`ctx.basee` are both refused, in a built-in column and in a spec alike. A
-folder and a linemode record are still plain tables, and nothing taken out of
-one is checked; narrowing those is how the check is made to reach further.
+`ctx.basee` are both refused, in a built-in column and in a spec alike. The
+records the plugin passes around carry classes as well: a linemode, a column, a
+folder and a bound entry. What is left untyped is the configuration a user
+writes — a linemode spec and the options beside it — which is four shapes wide
+and validated by `setup` raising, not by a class.
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
 neither `file.idx`, `file.in_current` nor `Url.spec`, and gives `Cha.perm` as a
@@ -158,6 +160,13 @@ string where 26.9.1 has a method — so `column.lua` declares the difference
 itself, with the probe that established it written beside the classes. A newer
 Yazi is a reason to run that probe again and correct them there, never to work
 around them at the call site.
+
+Those differences are declared by inheriting from Yazi's class, never by
+re-opening it, which means a folder taken off `cx` is cast where it arrives.
+The cast is the price of the subclass and it is worth paying: re-opening
+`fs__File` and `Cha` to write the fields straight onto them removed the casts
+and, in one arrangement, silently stopped refusing a misspelling — a check that
+quietly does nothing is the failure mode this whole job exists to avoid.
 
 `test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
 deliberately not in CI. Run them yourself before claiming anything about the
