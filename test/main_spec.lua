@@ -348,7 +348,9 @@ test("theme: a style table works as well as a colour string", function()
 	setup { detail = { { "size", width = 3 } } }
 	stub.fire("theme")
 
-	local style = stub.first_style(Linemode.detail { _file = CURRENT.files[1] })
+	-- Asserted rather than indexed straight: an unstyled cell here is a real
+	-- failure, and "attempt to index a nil value" names the harness for it.
+	local style = assert(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }), "the cell came back unstyled")
 	eq(style.fg, "#00ff00")
 	eq(style.bold, true)
 	stub.th.supaline = nil
