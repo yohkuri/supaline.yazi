@@ -233,9 +233,9 @@ rows of its own.
 ## If something looks wrong
 
 Note which linemode, which row, and what you expected. `test/e2e.sh --keep`
-leaves its captures in `$TMPDIR/supaline-e2e` — `screen-mN.txt` is the plain
-text and `color-mN.txt` keeps the escape sequences, which is how to tell a
-colour problem from a layout one.
+leaves its captures in `$TMPDIR/supaline-e2e.<pid>` and prints the path on the
+way out — `screen-mN.txt` is the plain text and `color-mN.txt` keeps the escape
+sequences, which is how to tell a colour problem from a layout one.
 
 A regression worth keeping should end up in `test/run.lua` if it is about the
 logic, or as a check in `test/e2e.sh` if it is about what reaches the screen.
