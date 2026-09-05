@@ -26,9 +26,14 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # A fixed session name would have to be cleared before `new-session` could take
 # it, and clearing one this script did not start kills whatever was running
 # inside it -- a concurrent run of this same script, or a session a person
-# happened to name the same, along with its unsaved work. Nothing here kills a
-# session it did not start; if the name is somehow taken, `new-session` fails
-# and `set -e` stops the run.
+# happened to name the same, along with its unsaved work. If the name is
+# somehow taken, `new-session` fails and `set -e` stops the run.
+#
+# That is not enough on its own: the run is torn down from an EXIT trap, which
+# is armed before the session exists and fires on that failure too. So the
+# teardown asks whether this run got as far as starting one, rather than
+# trusting the name -- a PID comes round again, and a session left behind by a
+# previous run carries a name a later one is entitled to.
 #
 # A fixed scratch directory is no safer. `setup.sh` refuses one that does not
 # carry its marker file, but a concurrent run of this script left that marker,
@@ -61,7 +66,11 @@ case "$YAZI_VERSION" in
 *) echo "e2e: note: Yazi is $YAZI_VERSION, the plugin annotates $PINNED" ;;
 esac
 
-stop() { tmux kill-session -t "$SESSION" 2>/dev/null || true; }
+STARTED=""
+stop() {
+	[ -n "$STARTED" ] || return 0
+	tmux kill-session -t "$SESSION" 2>/dev/null || true
+}
 
 # Leave nothing behind when a check fails, or when the run is interrupted
 # part-way -- the scratch directory now carries the PID, so one left lying
@@ -85,6 +94,7 @@ echo "$YAZI_VERSION" >"$DIR/yazi-version.txt"
 # --- run -------------------------------------------------------------------
 tmux new-session -d -s "$SESSION" -x 170 -y 40 \
 	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state' YAZI_LOG=debug yazi '$DIR/fixture/data'"
+STARTED=1
 sleep 4
 
 shot() {
