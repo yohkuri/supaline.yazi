@@ -18,6 +18,61 @@
 --- `text, style` skips building an intermediate Line, which is what the
 --- built-in columns do; a style handed back with a Line is applied to it.
 
+--- What a `render` is handed, in terms a type checker can act on.
+---
+--- `types.yazi` describes `fs__File`, but not three of the fields this plugin
+--- reads off one, and it describes `cha.perm` wrongly. Without the classes
+--- below every column is checked against `table`, which is to say not at all:
+--- `file.cha.is_dirr` costs nothing until it draws.
+---
+--- Measured on 26.9.1 (Homebrew 2026-09-01), with a probe linemode logging the
+--- file it was handed:
+---
+---     file.idx         number, 1
+---     file.in_current  boolean, true
+---     cha.perm         function; `cha:perm()` returned "drwxr-xr-x"
+---     url.spec         userdata; `spec.is_virtual` false for a local file
+---
+--- A newer Yazi is a reason to run that probe again and correct these, not to
+--- work around them from the call site.
+
+--- `perm` is a method here and a `string?` upstream. `test/stub.lua` has
+--- modelled it as a method since it was written, from a measurement of its
+--- own, and the plugin has always called it as one; the annotation is the
+--- thing that is out of step.
+---@class supaline.Cha : Cha
+---@field perm fun(self: self): string?
+
+--- The exposed complement of Yazi's internal `AuthKind::is_local()`. Upstream
+--- declares `Url.is_regular` -- the spelling CI refuses -- and not this one, so
+--- narrowing `file` without it would leave the type checker blessing the wrong
+--- field and rejecting the right one.
+---@class supaline.Spec
+---@field is_virtual boolean
+
+---@class supaline.Url : Url
+---@field spec supaline.Spec
+
+---@class supaline.File : fs__File
+---@field idx integer the row's 1-based position in its own folder
+---@field in_current boolean whether the row's folder is the tab's current one
+---@field cha supaline.Cha
+---@field url supaline.Url
+
+--- One per column, reused across rows: what `render` reads a folder's measured
+--- state out of. `bind` also keeps the ramp's endpoints on this table, under
+--- names starting `_`; they are deliberately not declared, because a column
+--- that reaches for them is reaching past `ratio`.
+---@class supaline.Ctx
+---@field base unknown the column's resolved colour, as a ui.Style
+---@field opts table the options the column was specified with
+---@field stats any whatever this column's `stats` returned for the folder
+---@field width integer? the effective width, `max_width` already applied
+---@field ratio fun(value: number?): number? where a value sits, 0 to 1
+---@field style fun(ratio: number?): unknown a ui.Style for that position
+
+---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
+
 local M = { _registry = {} }
 
 --- Register a reusable column under `name`, so a linemode can refer to it as
@@ -398,7 +453,7 @@ end
 
 --- Render one column for one file, fitted to its effective width.
 ---@param col table
----@param file table `fs::File`
+---@param file supaline.File
 ---@return unknown an `AsLine`
 function M.cell(col, file)
 	local out, style = col.render(file, col.ctx)
@@ -453,7 +508,7 @@ end
 --- The effective width of a column for one folder, for the two shapes that
 --- derive it from the listing rather than stating it outright.
 ---@param col table
----@param files table
+---@param files supaline.File[]
 ---@param stats any
 ---@return integer?
 function M.resolve_width(col, files, stats)
