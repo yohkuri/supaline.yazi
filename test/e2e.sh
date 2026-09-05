@@ -13,10 +13,10 @@
 #
 # Needs tmux. Yazi queries the terminal at startup and aborts if nothing
 # answers, so a `script`-style pseudo-terminal will not do; tmux is a real
-# terminal emulator. A detached tmux has no client to answer the probe either,
-# which is why `app:theme` is sent by hand before anything is captured --
-# without it the user's theme is never applied and every `th.*` read returns
-# preset values.
+# terminal emulator. A detached tmux never answers that probe, so
+# `rt.term.light()` stays nil for the whole run -- 26.9.1 applies the user's
+# theme anyway, a couple of milliseconds after `init.lua` and without being
+# asked, which the first half of the theme check below confirms every run.
 
 set -eu
 
@@ -87,12 +87,6 @@ tmux new-session -d -s "$SESSION" -x 170 -y 40 \
 	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state' YAZI_LOG=debug yazi '$DIR/fixture/data'"
 sleep 4
 
-# Everything up to here is drawn with preset colours, so this capture is what
-# proves the theme was not applied before `app:theme` ran.
-tmux capture-pane -t "$SESSION" -p -e >"$DIR/before-theme.txt"
-tmux send-keys -t "$SESSION" T
-sleep 2
-
 shot() {
 	tmux capture-pane -t "$SESSION" -p >"$DIR/screen-$1.txt"
 	tmux capture-pane -t "$SESSION" -p -e >"$DIR/color-$1.txt"
@@ -124,6 +118,19 @@ sleep 2
 shot "m3-nested"
 tmux send-keys -t "$SESSION" h
 sleep 1
+
+# Last of everything, because it rewrites the theme that every capture above
+# was taken under. Back to m1 first, so a `size` column is on screen to be
+# recoloured.
+tmux send-keys -t "$SESSION" m 1
+sleep 1
+tmux capture-pane -t "$SESSION" -p -e >"$DIR/theme-before.txt"
+# Not `sed -i`: the two seds spell that flag differently and this is /bin/sh.
+sed 's/#ff8800/#00ccff/' "$DIR/config/theme.toml" >"$DIR/theme-next.toml"
+mv "$DIR/theme-next.toml" "$DIR/config/theme.toml"
+tmux send-keys -t "$SESSION" T
+sleep 2
+tmux capture-pane -t "$SESSION" -p -e >"$DIR/theme-after.txt"
 
 tmux send-keys -t "$SESSION" q
 sleep 1
@@ -270,13 +277,27 @@ same "m8: preview pane drawn, both rows (drew $drew)" "$drew" "2"
 same "m6: both edges left alone" "$(drawn_in_preview m6)" "0"
 
 echo "== theme =="
-# `[supaline] size` is #ff8800, which tmux writes out as 255;136;0.
-before=$(grep -c '255;136;0' "$DIR/before-theme.txt" || true)
-after=$(grep -c '255;136;0' "$DIR/color-m1.txt" || true)
-if [ "$before" -eq 0 ] && [ "$after" -gt 0 ]; then
-	echo "  base colour arrives with app:theme (before=$before after=$after)"
+# `[supaline] size` starts at #ff8800 and the reload above made it #00ccff.
+# tmux writes those out as 255;136;0 and 0;204;255.
+#
+# Both halves are needed, and only the second discriminates. Until 26.9.1 the
+# user's theme was merged inside the `app:theme` actor alone, so a capture
+# taken before it proved a colour resolved at `setup` was the preset's; 26.9.1
+# has `th.supaline` populated before `setup` runs, and that capture now proves
+# nothing. A reload still does: it is `ps.sub("theme", build)` that repaints
+# what is already on screen, and a plugin without it holds the old colour.
+before=$(grep -c '255;136;0' "$DIR/theme-before.txt" || true)
+stale=$(grep -c '255;136;0' "$DIR/theme-after.txt" || true)
+after=$(grep -c '0;204;255' "$DIR/theme-after.txt" || true)
+if [ "$before" -gt 0 ]; then
+	echo "  the themed base colour is drawn ($before cells)"
 else
-	fail "theme colour did not arrive with app:theme (before=$before after=$after)"
+	fail "the themed base colour never reached the screen"
+fi
+if [ "$after" -gt 0 ] && [ "$stale" -eq 0 ]; then
+	echo "  a theme reload rebuilds the columns ($after cells recoloured)"
+else
+	fail "a theme reload did not rebuild the columns (old=$stale new=$after)"
 fi
 
 echo

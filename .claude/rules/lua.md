@@ -6,7 +6,7 @@ paths:
 This is plugin Lua. If the change resolves a colour or reads the theme, writes
 a fetcher, or touches the parent- or preview-pane child, read
 `.agents/skills/yazi-platform-traps/SKILL.md` first: those are the three
-constraints of Yazi 26.8.15 that no check here catches, and each one fails
+constraints of Yazi 26.9.1 that no check here catches, and each one fails
 silently. Otherwise carry on — the other five are refused by a test or a CI job
 that says what to write instead, so a rename or a format string needs nothing
 from the skill.

@@ -67,9 +67,11 @@ test/manual.sh --clean      # discard the manual fixture
 ## A headless run is not a terminal
 
 - A detached tmux never answers the terminal probe, so `rt.term.light()` stays
-  `nil` and `app:theme` never runs on its own. **Send `app:theme` before
-  capturing**, or the user's theme is not applied at all and every `th.*` read
-  returns preset values.
+  `nil` and a flavor that varies by terminal background cannot resolve. The
+  user's `theme.toml` is applied regardless: 26.9.1 fires `theme` by itself a
+  couple of milliseconds after `init.lua`, probe or no probe. `e2e.sh` used to
+  send `app:theme` by hand before capturing and no longer needs to; the first
+  half of its theme check would catch the day that changes back.
 - Yazi queries the terminal on startup and aborts if nothing answers, so
   `script`-style pseudo-terminals do not work. Use tmux, which is a real
   terminal emulator.

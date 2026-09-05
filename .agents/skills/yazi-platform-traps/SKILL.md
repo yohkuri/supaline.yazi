@@ -1,86 +1,103 @@
 ---
 name: yazi-platform-traps
 description: >-
-  Three behaviours of Yazi 26.8.15 that break this plugin silently and that no
-  check catches: the theme is not loaded when setup runs, a fetcher returns a
-  function rather than a boolean, and linemode children also render in the
-  parent pane. Plus the budget a linemode render runs under. Read when a change
-  resolves a colour or reads the theme, writes a fetcher, touches the parent-
-  or preview-pane child, or adds a column's render or stats -- not for every
-  edit to plugin Lua, and not for a rename or a format string. Five further
-  traps --
-  ya.sync binding by call position, in_preview versus in_current, the bulk to
-  bulk-rename rename, modules that must return a table, and is_regular versus
-  the six AuthKind variants -- are refused by a test or a CI job instead, and
-  are in references/checked-traps.md for when one of them fires.
+  Three behaviours of Yazi 26.9.1 that break this plugin silently and that CI
+  does not catch: a theme reload replaces colours already resolved, a fetcher
+  returns a function rather than a boolean, and linemode children also render
+  in the parent pane. Plus the budget a linemode render runs under. Read when
+  a change resolves a colour or reads the theme, writes a fetcher, touches the
+  parent- or preview-pane child, or adds a column's render or stats -- not for
+  every edit to plugin Lua, and not for a rename or a format string. Five
+  further traps -- ya.sync binding by call position, in_preview versus
+  in_current, the bulk to bulk-rename rename, modules that must return a table,
+  and is_regular versus the six AuthKind variants -- are refused by a test or a
+  CI job instead, and are in references/checked-traps.md for when one of them
+  fires.
 ---
 
 # Yazi platform traps
 
-Each of these was found by instrumenting a running Yazi or by reading its
-source. None are in the official documentation. Writing code without accounting
-for them breaks things silently: no error, just an empty column.
+None of these are in Yazi's documentation, and none of them error: the symptom
+is an empty column, a stale colour, or a task that never finishes.
 
-All of them were established against **Yazi 26.8.15**. Yazi is on CalVer and
-breaks the plugin API freely between releases, so a different version is reason
-to re-verify rather than to assume. `test/e2e.sh` prints the version it ran
-against and says so when it is not the one `main.lua` annotates.
+Every claim here and in `references/checked-traps.md` was measured on Yazi
+26.9.1 (Homebrew 2026-09-01) in a detached tmux, with a probe plugin and
+`ya.dbg`; where a measurement stops short, it says so. A different Yazi is a
+reason to re-run the experiment rather than trust the sentence — and when you
+do, write down what you ran.
 
-What is below is what no check catches. Five of the eight constraints are
-refused by a test or a CI job that prints what to write instead, so reading
-about those in advance buys nothing — they are in
-`references/checked-traps.md`, worth opening when one of them fires. The rest
-are here because a green suite says nothing about them: two are pinned only
-against the existing code, so new code can repeat them and stay green, and one
-has no pin at all.
+Five of the eight traps are refused by a test or a CI job that prints the fix,
+and live in `references/checked-traps.md`, worth opening when one fires. The
+three below are what no check catches. When you find a way to move one into the
+checked list, take it.
 
-When you find a way to move one of these into the checked list, take it. That
-is the direction knowledge travels here.
+## A theme reload replaces colours already resolved
 
-## The theme is not loaded when `setup` runs
+On 26.9.1 the user's `theme.toml` and flavor are merged **before any plugin
+code runs**. `th.supaline` and a `[mgr]` override alike are readable from the
+first line of `init.lua`, so resolving a base colour inside `setup` gets the
+user's value, not a preset's.
 
-At startup `THEME` is initialised from the **preset theme only**
-(`THEME.init(Preset::theme(false))`). The user's `theme.toml` and flavor are
-merged exclusively inside the `app:theme` actor, which then fires the `theme`
-DDS event. This applies to built-in sections as much as to custom ones — a
-`[mgr] cwd` override written in `theme.toml` is not in effect when `setup` runs.
+Measured with `ya.dbg` and a probe column painted from `init.lua`:
 
-So: never cache anything read from `th.*` at setup time. Resolve base colours
-and build styles inside `ps.sub("theme", ...)`, and run that same builder once
-at setup so the plugin has something to draw with in the meantime.
+- `th.supaline.mtime` reads the user's `green` at the top of `init.lua`, before
+  `setup` is called and before any `theme` event.
+- A `[mgr] cwd` override captured into an upvalue at load time paints the
+  user's colour, so built-in sections are merged that early too. It keeps that
+  colour across a reload while the same field re-read inside the handler
+  follows the new one — a `Style` out of `th` is a **value frozen when it was
+  read**, not a handle, which is what makes the capture evidence rather than an
+  artefact.
+- A `theme` event fires by itself a couple of milliseconds after `init.lua`,
+  without the terminal probe ever being answered.
+
+**What still bites is the reload.** `app:theme` re-reads `theme.toml` from disk
+mid-run, and a plugin that resolved its colours once at `setup` goes on drawing
+the old ones — no error, just a stale colour. So: resolve base colours and
+build styles inside `ps.sub("theme", ...)`, and run that same builder once at
+setup so the plugin has something to draw with before the first event.
 
 Custom theme sections are read as `th.<section>`. Section names are normalised
 from kebab-case to snake_case (`[my-plugin]` becomes `th.my_plugin`), field
 values may only be a style table or a string, and **built-in section names are
 reserved** — a custom field added to `[mgr]` is unreachable.
 
-Pinned by `test/main_spec.lua` "base colours are resolved on the event, not at
-setup". The stub serves preset values until a `theme` event fires, so a test
-can put the user's section in place *before* `setup` and still assert the
-plugin cannot see it — which is the trap. A test that made the section appear
-afterwards would pass for a plugin that read `th` too early.
+**Pinned twice, and both pins discriminate**: comment out
+`ps.sub("theme", build)` and each goes red on its own. `test/main_spec.lua`
+sets the section, runs `setup`, changes the section, and fires `theme` —
+changing it *after* setup is what makes the test say anything, since a section
+that never changed would also pass for a plugin that never subscribed.
+`test/e2e.sh` does the same against a real Yazi, rewriting `theme.toml` on disk,
+where the unit stub's model cannot be the thing that is wrong.
 
 ## Fetchers return a function, not a boolean
 
-Since 26.8.15 Yazi calls whatever `fetch` returns, repeatedly, and expects
-`file, { retry = …, error = … }` each time; `nil` ends the loop. Returning the
-old boolean fails with "error converting Lua boolean to function", and the
-failure is invisible — the side effects already ran, so the column still fills
-in, and the error is written only to the task log. Look for a stuck "N left" in
-the status bar.
+Yazi calls whatever `fetch` returns, repeatedly, and expects
+`file, { retry = …, error = … }` each time; `nil` ends the loop.
 
-Every file in `job.files` must be reported exactly once. Omitting one gets it
-retried and logs the fetcher as having quit early; reporting one twice is a hard
-error. `retry = true` clears the loaded bit and runs again on the next visit.
+Measured with a throwaway fetcher over a two-file folder:
 
-**Not pinned.** This is the one constraint here that is still only prose, and
+- Returning the old boolean fails with `error converting Lua boolean to
+  function`, and the failure is nearly invisible: the body had already run, so
+  the side effects landed and a column would still fill in. **Nothing reaches
+  `yazi.log`, not even at `YAZI_LOG=debug`** — the message is in the task
+  manager alone (`w`, then Enter on the failed row), and the only sign on
+  screen is a stuck `1 left` in the status bar. Returning a loop instead
+  clears the count, which is what makes this a measurement and not an anecdote.
+- Reporting one file twice fails the task the same way, with the same stuck
+  count: `fetcher reported an unknown or duplicate file`.
+- Reporting only one of the two did **not** fail the task — it completed and
+  the count cleared. Do not go looking for a complaint Yazi never makes.
+
+`retry = true` clears the loaded bit and runs again on the next visit. Fetchers
+can register themselves with `rt.plugin.fetchers:insert()`, sparing the user a
+`[[plugin.prepend_fetchers]]` block; Yazi caps the list at 16 and runs only the
+first matching rule per `group`.
+
+**Measured, not pinned** — the only constraint here with no test behind it, and
 only because the plugin has no fetcher yet. Pin it with the first one: have the
 stub call what `fetch` returns and refuse a boolean, the way it refuses an
 unknown `AuthKind`.
-
-Fetchers can register themselves with `rt.plugin.fetchers:insert()`, sparing the
-user a `[[plugin.prepend_fetchers]]` block. Yazi caps the list at 16 and runs
-only the first matching rule per `group`.
 
 ## Linemode children also render in the parent pane
 

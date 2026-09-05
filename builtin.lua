@@ -1,4 +1,4 @@
---- @since 26.8.15
+--- @since 26.9.1
 --- The columns that ship with supaline.
 ---
 --- Every one of these goes through `column.register()`, the same entry point a
@@ -152,7 +152,7 @@ column.register("owner", {
 		-- scheme added in a later Yazi is never given a name it has not
 		-- earned. `file.url` and `.spec` are both cached fields, so this is
 		-- two field reads: measured at roughly twice a `cha.uid` read on a
-		-- real 26.8.15, which is far below anything worth hoisting.
+		-- real Yazi, which is far below anything worth hoisting.
 		if file.url.spec.is_virtual then
 			return string.format("%s:%s", cha.uid, cha.gid), ctx.base
 		end

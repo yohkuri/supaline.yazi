@@ -9,20 +9,41 @@ Read this when one of them fires and the message is not enough.
 
 ## `ya.sync` state is scoped to the file the call is written in
 
-Yazi binds a `ya.sync` block to the name of the plugin being loaded and matches
-the async and sync sides **by the position of the call**. A closure written in
-one module therefore writes to a different state table than one written in
-another, and reordering the calls silently rebinds them.
+Yazi matches the async and sync sides **by the position of the call**, and
+scopes the state table to the file the call was written in.
+
+Measured with a probe plugin, using `cx` — which exists in the sync VM and not
+the async one — to make the two loads disagree about how many blocks there are:
+
+```lua
+local first
+if cx then                                    -- sync VM only
+    first = ya.sync(function() return "body-of-FIRST" end)
+end
+local second = ya.sync(function() return "body-of-SECOND" end)
+```
+
+Called from the async entry, `second()` returned **`body-of-FIRST`** — the
+wrong body, with no error: `pcall` reported success. One block skipped on one
+side shifts every block after it, and the result is a plausible value from the
+wrong closure.
+
+A second probe settles the state table. A block in `main.lua` set `st.mark`;
+a block in a sibling module of the same plugin read `st.mark` back as `nil`.
+Same plugin, same run, different table.
 
 So: every `ya.sync` call lives at the top level of `main.lua`, unconditionally
 and in a fixed order. Never inside an `if`, never inside a `pairs` loop, never
 inside `setup`. Providers export plain reducers that `main.lua` wraps.
 
-This is also why a third-party column cannot own asynchronous state: a `ya.sync`
-call made from the user's `init.lua` is never replayed in the async VM.
+This is also why a third-party column cannot own asynchronous state: the async
+VM never runs `init.lua` at all. The same probe logged one line from `init.lua`
+per session, and `cx` was already `nil` there — so a `ya.sync` written in the
+user's config has no async-side counterpart to be matched against.
 
 Pinned by the `ya.sync placement` job in CI, which fails on a call outside
-`main.lua` or one that any condition, loop or function encloses.
+`main.lua` or one that any condition, loop or function encloses. The job checks
+where the call sits; the probes above are what say why that is the rule.
 
 ## `in_preview` is not the counterpart of `in_current`
 
@@ -43,8 +64,16 @@ of this file. The existing `pane_of` is also pinned by `test/stub.lua` and by
 
 ## DDS event names are not all in the changelog
 
-26.8.15 renamed `bulk` to `bulk-rename` without saying so. Yazi's `ps.sub`
-accepts any string, so a stale name is a subscription that simply never fires.
+The event is `bulk-rename`. An earlier Yazi called it `bulk` and renamed it
+without saying so, and `ps.sub` accepts any string, so a stale name is a
+subscription that simply never fires.
+
+Measured: a probe subscribed to `bulk`, `bulk-rename`, `rename` and `cd` in one
+session, then renamed two files through the bulk editor. `cd` fired at startup,
+`bulk-rename` fired on the rename, and `bulk` and `rename` never fired at all —
+so the old name is dead rather than merely deprecated, and a single rename event
+is not published alongside the bulk one.
+
 The kinds actually published live in `pub_after!` in
 `yazi-dds/src/pubsub.rs` — plus one that does not: `bulk-rename` comes from a
 hand-written `pub_after_bulk_rename` beside the macro, which is exactly why
@@ -65,8 +94,8 @@ adding it to a list.
 
 ## Prefer `Url.spec.*`
 
-`Url.is_regular`, `Url.is_search` and `Url.domain` are deprecated in 26.8.15 in
-favour of `Url.spec.is_regular`, `Url.spec.is_search` and `Url.spec.domain`.
+`Url.is_regular`, `Url.is_search`, `Url.domain` and `Url.scheme` are deprecated
+in favour of the same names under `Url.spec`.
 
 `is_regular` does not mean "a real file on disk". It holds for exactly one of
 Yazi's six `AuthKind` variants, and a search result is a local file with
@@ -113,21 +142,50 @@ first.
 
 # `AuthKind`, and why `is_regular` is the wrong question
 
-`Url.is_regular`, `Url.is_search` and `Url.domain` are deprecated in 26.8.15 in
-favour of `Url.spec.is_regular`, `Url.spec.is_search` and `Url.spec.domain`.
+`Url.is_regular`, `Url.is_search`, `Url.domain` and `Url.scheme` are deprecated
+in favour of the same names under `Url.spec`; the binary carries a deprecation
+warning for each of the four.
 
 `is_regular` does not mean "a real file on disk". Yazi's `AuthKind` has six
-variants and `is_regular` holds for exactly one of them; a search result is a
-local file with `kind = "search"`, `is_regular = false` and
-`is_virtual = false`. A check written as `not is_regular` therefore demotes
-every search hit along with the remote ones.
+variants and `is_regular` holds for exactly one of them. Measured, by asking a
+running Yazi:
+
+```
+Url("/tmp/plain.txt").spec
+    kind=regular  domain=    reg=true   srch=false  virt=false
+Url("search://kw//tmp/plain.txt").spec
+    kind=search   domain=kw  reg=false  srch=true   virt=false
+```
+
+So a search result is a **local** file with `is_regular = false`, and a check
+written as `not is_regular` demotes every search hit along with the remote
+ones. That is the whole trap, and it is reproducible in four lines of
+`init.lua`.
+
+The six variants come from Yazi's own parser rather than from counting. Two are
+not configurable — `regular` and `search`, the two above — and the other four
+are what `vfs.toml` accepts as a service `kind`:
+
+```
+$ printf '[services.box]\nkind = "definitely-not-a-kind"\n' > vfs.toml
+unknown variant `definitely-not-a-kind`, expected one of `sftp`, `mount`, `hub`, `scope`
+```
 
 The partition worth asking for is the one Yazi uses itself,
 `AuthKind::is_local()`: `regular` and `search` are local, `mount`, `hub`,
 `scope` and `sftp` are not. That method is not bound to Lua, but it is the
 exact complement of `spec.is_virtual`, which is; `spec.kind` gives the variant
-name as a lowercase string. `Url.spec` is a cached field, so reading it once
-per row costs nothing.
+name as a lowercase string, and `spec.scheme` returns the same string.
+`Url.spec` is a cached field, so reading it once per row costs nothing.
+
+**Where this stops.** Only the local half was measured: both authorities a
+machine can produce on its own report `is_virtual = false`. Declaring a service
+in `vfs.toml` is not enough to make `sftp://…` or `scope://…` parse — the
+authority is registered when the service actually connects, so
+`Url("scope://box/x")` still raises `unknown VFS authority` — and a live remote
+was out of scope. `is_virtual = true` is therefore inferred from the
+complement, not seen. Anyone with an SFTP host to hand can close that gap in
+one run.
 
 It matters wherever a value only means something on the machine Yazi is running
 on. `ya.user_name` and `ya.group_name` read that machine's passwd and group
