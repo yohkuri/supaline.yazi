@@ -121,11 +121,12 @@ check existed. The fetcher has no pin at all, because there is no fetcher yet.
 ## Commands
 
 ```sh
-lua test/run.lua            # unit tests
-lua test/run.lua column     # ... just the specs matching "column"
-test/e2e.sh                 # render in a real Yazi, headless
-test/manual.sh              # ... interactively, for a human to look at
-stylua --check .            # formatting
+lua test/run.lua                  # unit tests
+lua test/run.lua column           # ... just the specs matching "column"
+test/e2e.sh                       # render in a real Yazi, headless
+test/manual.sh                    # ... interactively, for a human to look at
+stylua --check .                  # Lua formatting
+npx --yes markdownlint-cli2@0.19  # Markdown
 ```
 
 The unit suite runs on **Lua 5.5**, the version Yazi embeds, and `test/run.lua`
@@ -151,5 +152,15 @@ suite can and cannot prove, and how a headless run differs from a terminal.
 width when measuring against `column_width`, not two spaces. Markdown code
 blocks are the exception — keep documentation snippets on spaces, because a tab
 inside a fenced block renders at the viewer's tab width, 8 by default on
-GitHub, which makes a nested example look absurd. Nothing checks that one;
-stylua and CI cover the Lua.
+GitHub, which makes a nested example look absurd. `MD010` covers that one, tabs
+inside fences included.
+
+Markdown is `markdownlint-cli2`, configured in `.markdownlint-cli2.yaml`, which
+says why each rule it turns off is off. It holds prose to the 80-column wrap
+these documents already keep, and exempts what cannot be wrapped: a table cell,
+and a fenced block quoting Yazi's source or its output verbatim. Table
+alignment is not checked at all, because `test/MANUAL.md` pads its tables to
+the width the screen draws Japanese at and the rule measures characters.
+
+Both linters see only what Git tracks. Personal files are ignored, translations
+under `.ai-local/` included.

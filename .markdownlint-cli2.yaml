@@ -1,0 +1,42 @@
+# markdownlint-cli2, over the Markdown this repository tracks.
+#
+# Pinned to a minor, which is what a major is for a package still on 0.x:
+# markdownlint adds rules between them, and a check that changes on its own is
+# one that fails on a branch nobody touched. CI runs this same command.
+#
+#     npx --yes markdownlint-cli2@0.19
+#
+# Anything Git ignores is out of scope, which is what keeps the personal
+# directories out. `.ai-local/` holds Japanese translations of these documents,
+# and MD013 counts characters rather than columns, so it has nothing to say
+# about a line whose characters are two cells wide.
+gitignore: true
+
+globs:
+  - "**/*.md"
+  # `.claude/skills/*` are tracked symlinks into `.agents/skills`, so linting
+  # both spellings reports every finding twice, the second time under a path
+  # the file does not live at.
+  - "!.claude/skills"
+
+config:
+  MD013:
+    # The wrap every document here already keeps.
+    line_length: 80
+    # A table cell cannot be wrapped, and the fenced blocks that overflow are
+    # quoted verbatim -- Yazi's own source, and its own error output. Wrapping
+    # either would be falsifying it.
+    tables: false
+    code_blocks: false
+
+  # `.claude/rules/*.md` open with frontmatter and then prose, and `CLAUDE.md`
+  # is a single import line. None of them is a document with a title.
+  MD041: false
+
+  # Unsatisfiable here, not merely unwanted. The tables in `test/MANUAL.md`
+  # carry Japanese filenames and are padded to the width the screen draws them
+  # at; MD060 measures alignment in characters, so a table aligned for a reader
+  # is misaligned for the rule, and the other way about. Elsewhere this
+  # repository counts display columns too -- the commit header limit does --
+  # so it is the rule that gives way.
+  MD060: false
