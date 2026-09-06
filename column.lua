@@ -93,6 +93,59 @@
 
 ---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
 
+--- Plugin-wide options, once `setup` has filled every one in from `DEFAULTS`.
+--- Separate from `supaline.Opts` in main.lua, which is what the user actually
+--- wrote: everything here is present, so nothing that reads one has a nil to
+--- think about.
+---@class supaline.Cfg
+---@field separator string
+---@field order integer
+---@field scale "linear"|"log"
+
+--- Every option a column accepts. One set rather than two, because
+--- `normalize` reads the spec and the definition behind it through a single
+--- `pick` and neither side has a key the other cannot take.
+---
+--- This is a column's user-facing surface, and writing it down is what makes a
+--- misspelling in the plugin's own handling of it cost something. It does not
+--- reach the user's `init.lua` -- no check here ever sees that file -- so what
+--- a user writes wrong is still `setup`'s to refuse at runtime, not a class's.
+---@class supaline.ColumnOpts
+---@field name string?
+---@field render supaline.Render?
+---@field stats fun(files: supaline.File[]): table?|nil
+---@field refresh function? run whenever a linemode is installed, and on `cd`
+---@field base unknown? a colour string, or a ui.Style
+---@field align "left"|"right"|nil
+---@field overflow "ellipsis"|"clip"|"grow"|nil
+---@field max_width integer?
+---@field sep string|false|nil a separator of this column's own, `false` for none
+---@field width integer|"auto"|(fun(stats: any): number?)|nil
+---@field scale "linear"|"log"|nil
+
+--- A registered column, as `register` stores it: the options above, with the
+--- one field a column cannot do without.
+---
+--- `fetch` is declared so that the refusal in `register` reads a field that
+--- exists. It is not an option -- a column that defines one is turned away,
+--- because a `ya.sync` block written outside this file binds to a different
+--- state table and then fails silently.
+---@class supaline.ColumnDef : supaline.ColumnOpts
+---@field render supaline.Render
+---@field fetch unknown?
+
+--- A spec entry written as a table: the second of the four shapes, the fourth,
+--- and the third when it carries options beside the function. `[1]` is the
+--- registered name or the inline `render`; everything else is that column's
+--- options.
+---@class supaline.ColumnEntry : supaline.ColumnOpts
+---@field [1] string|supaline.Render|nil
+
+--- One entry of a linemode spec, in whichever of the four shapes it was
+--- written. `normalize` is where they collapse, and it decides between them by
+--- `type`, which is what lets this union narrow at each branch.
+---@alias supaline.ColumnSpec string|supaline.Render|supaline.ColumnEntry
+
 --- A normalised column: what the four spec shapes above all collapse to, and
 --- the only shape the renderer ever sees.
 ---@class supaline.Column
@@ -123,7 +176,7 @@ local M = { _registry = {} }
 --- Register a reusable column under `name`, so a linemode can refer to it as
 --- `"name"` or `{ "name", ... }`.
 ---@param name string
----@param def table
+---@param def supaline.ColumnDef
 function M.register(name, def)
 	if type(name) ~= "string" or name == "" then
 		error("supaline: a column needs a non-empty name")
@@ -147,7 +200,7 @@ function M.register(name, def)
 end
 
 ---@param name string
----@return table?
+---@return supaline.ColumnDef?
 function M.get(name) return M._registry[name] end
 
 --- Resolve a column's base colour: the spec first, then the `[supaline]` theme
@@ -158,8 +211,8 @@ function M.get(name) return M._registry[name] end
 --- has the user's theme merged before any plugin code runs, but `app:theme`
 --- re-reads it mid-run, and a colour resolved once is the old one from then on.
 ---@param name string?
----@param opts table
----@param def table
+---@param opts supaline.ColumnOpts
+---@param def supaline.ColumnOpts
 ---@return unknown? a colour string, or a ui.Style
 local function base_of(name, opts, def)
 	if opts.base then
@@ -201,8 +254,8 @@ local function cap(width, max)
 end
 
 --- Turn one entry of a linemode spec into a runtime column.
----@param spec string|table|function
----@param cfg table plugin-wide options
+---@param spec supaline.ColumnSpec
+---@param cfg supaline.Cfg
 ---@return supaline.Column
 function M.normalize(spec, cfg)
 	local name, opts, def
@@ -215,12 +268,23 @@ function M.normalize(spec, cfg)
 	elseif type(spec) ~= "table" then
 		error("supaline: a column must be a name, a function, or a table with `render`")
 	elseif type(spec[1]) == "string" then
-		name, opts = spec[1], spec
+		-- Cast because reading `spec[1]` does not narrow `spec[1]`: the branch
+		-- has just established the string, and `[1]` is declared as the union
+		-- of both things a spec entry can put there.
+		--
+		-- One assignment per line, and not `name, opts = spec[1] --[[@as
+		-- string]], spec`: stylua reflows that onto three lines and leaves the
+		-- cast sitting after the comma, where it applies to nothing and the
+		-- warning comes back. It fails loudly, so this is a note rather than a
+		-- trap -- but the fix is to keep the lines apart, not to disable it.
+		name = spec[1] --[[@as string]]
+		opts = spec
 		def = M._registry[name] or error(string.format("supaline: unknown column `%s`", name))
 	elseif type(spec[1]) == "function" then
-		name, opts, def = nil, spec, { render = spec[1] }
+		local fn = spec[1] --[[@as supaline.Render]]
+		name, opts, def = nil, spec, { render = fn }
 	elseif type(spec.render) == "function" then
-		name, opts, def = spec.name, spec, spec
+		name, opts, def = spec.name, spec, spec --[[@as supaline.ColumnDef]]
 	else
 		error("supaline: a column must be a name, a function, or a table with `render`")
 	end
