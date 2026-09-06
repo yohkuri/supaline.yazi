@@ -150,9 +150,27 @@ declared classes, so a misspelled field or a wrong arity on one is refused, and
 `render` is handed, so the columns are read too — `file.cha.is_dirr` and
 `ctx.basee` are both refused, in a built-in column and in a spec alike. The
 records the plugin passes around carry classes as well: a linemode, a column, a
-folder and a bound entry. What is left untyped is the configuration a user
-writes — a linemode spec and the options beside it — which is four shapes wide
-and validated by `setup` raising, not by a class.
+folder and a bound entry. So does the configuration `setup` is given — the
+plugin-wide options, a linemode spec, and the four shapes a column may be
+written in — so `cfg.orderr`, `opts.linemodess` and `spec.paness` are refused
+where they used to cost nothing.
+
+That last one reaches only so far, and the limit is worth knowing before
+trusting it. A wrong **value** in a spec is refused: `separator = 42` on a
+linemode, `width = "wide"` on a column inside one. A misspelled **key** in the
+same table is not — a table constructor passed as an argument is not checked
+for keys its class does not declare, and marking those classes `(exact)` was
+measured to change that at no site here. What a user writes wrong is still
+`setup`'s to refuse at runtime, which is what all those errors are for.
+
+`require(".main")` does not resolve to this repository's `main.lua`.
+`types.yazi` ships a `main.lua` of its own, on `workspace.library` — 3,235 lines
+of annotations with no `return` — so the name resolves there, and every call a
+spec made into the plugin was silently checked against a module that exports
+nothing: `main.setup(42, ...)` and `main.columnn(...)` both passed. `main.lua`
+declares `supaline.Main` and `main_spec.lua` claims it at the `require`, which
+is the repair `supaline.Stub` already is for the stub. Only `main` collides;
+`.column` and `.builtin` resolve to this tree.
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
 neither `file.idx`, `file.in_current` nor `Url.spec`, and gives `Cha.perm` as a

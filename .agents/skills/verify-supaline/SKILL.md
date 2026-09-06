@@ -55,6 +55,24 @@ what it buys: the class is not `(exact)`, so the stub's own table is accepted
 however little of it is filled in. The annotation is a claim about Yazi, not a
 check on this file — fidelity is still read against a running Yazi.
 
+A module reached by `require` may not be the one you think. `require(".main")`
+resolves to `types.yazi`'s own `main.lua`, which is on `workspace.library` and
+exports nothing, so every call `main_spec.lua` made into the plugin went
+unchecked — `main.setup(42, ...)` and `main.columnn(...)` were both accepted.
+`main.lua` declares `supaline.Main` and the spec claims it at the `require`,
+the same repair `supaline.Stub` is for the stub. If a spec's assertions about a
+module look suspiciously cheap, plant a misspelled field on it before believing
+them.
+
+Deliberately wrong values are a spec's stock in trade, and they now cost
+something: a class on the configuration means `column.normalize(42, ...)` and
+`{ linemodes = { detail = "size" } }` are refused by the checker as well as by
+the code under test. Suppress those on the line, with
+`---@diagnostic disable-next-line`, and never at the top of the file — a
+blanket disable there grows to cover code nobody meant to exempt. The two that
+were already there were measured before being replaced: one covered a single
+site, the other covered nothing at all.
+
 ## What the unit suite can prove
 
 Pure logic — normalisation, layout, the ratio contract, the built-in
