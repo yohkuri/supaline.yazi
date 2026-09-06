@@ -42,11 +42,12 @@ local DEFAULTS = {
 ---
 --- Declaring the shape here and claiming it at the `require` is what puts those
 --- calls back under the check, the same way `supaline.Stub` does for the stub.
---- `column` is written as the dot form alone, which is the only one a spec
---- uses; the colon form is on the function's own `@overload`.
+--- Both entry points take a dot call and a colon call, and a `@field` carries
+--- no `@overload`, so each is written as the union of its two shapes -- leave
+--- one out and the spec that writes it that way is refused for no reason.
 ---@class supaline.Main
----@field setup fun(st: table, opts: supaline.Opts?)
----@field column fun(name: string, def: supaline.ColumnDef)
+---@field setup fun(st: table, opts: supaline.Opts?)|fun(opts: supaline.Opts)
+---@field column fun(name: string, def: supaline.ColumnDef)|fun(self: table, name: string, def: supaline.ColumnDef)
 
 local M = {}
 
@@ -446,19 +447,20 @@ end
 --- linemode spec. Accepts both `.column(name, def)` and `:column(name, def)`.
 ---
 --- The colon call shifts every argument along by one, which one signature
---- cannot say; the `@overload` says it for callers, and the `type` tests below
---- sort the two forms out at runtime. Inside, each argument is cast to what
---- its branch has just established, because narrowing `b` tells a checker
---- nothing about `a` or `c`.
+--- cannot say; the `@overload` says it for callers. The dot form is tested
+--- first so that the branch the parameters above describe is the branch that
+--- reads them, and the casts sit in the colon branch, where the checker is
+--- working from the overload rather than from the signature.
 ---@param a string the column's name
 ---@param b supaline.ColumnDef its definition
----@param c supaline.ColumnDef? unused by this form
 ---@overload fun(self: table, name: string, def: supaline.ColumnDef)
 function M.column(a, b, c)
-	if type(a) == "table" and type(b) == "string" then
-		return column.register(b, c --[[@as supaline.ColumnDef]])
+	if type(a) == "string" then
+		return column.register(a, b)
 	end
-	return column.register(a, b)
+	-- The colon call. Anything else lands here too and `register` refuses it
+	-- by name, which is what it did before when `a` was neither.
+	return column.register(b --[[@as string]], c --[[@as supaline.ColumnDef]])
 end
 
 --- `_st` is Yazi's per-plugin state table. Nothing in this phase keeps state
@@ -466,6 +468,7 @@ end
 --- declared at the top level of this file.
 ---@param _st table plugin state, supplied by Yazi
 ---@param opts supaline.Opts?
+---@overload fun(opts: supaline.Opts)
 function M.setup(_st, opts)
 	-- `.setup{...}` as well as `:setup{...}`, matching `M.column`. The dot form
 	-- lands the options in the state parameter, which is Yazi's own table and
