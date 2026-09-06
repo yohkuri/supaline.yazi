@@ -163,14 +163,12 @@ for keys its class does not declare, and marking those classes `(exact)` was
 measured to change that at no site here. What a user writes wrong is still
 `setup`'s to refuse at runtime, which is what all those errors are for.
 
-`require(".main")` does not resolve to this repository's `main.lua`.
-`types.yazi` ships a `main.lua` of its own, on `workspace.library` — 3,235 lines
-of annotations with no `return` — so the name resolves there, and every call a
-spec made into the plugin was silently checked against a module that exports
-nothing: `main.setup(42, ...)` and `main.columnn(...)` both passed. `main.lua`
-declares `supaline.Main` and `main_spec.lua` claims it at the `require`, which
-is the repair `supaline.Stub` already is for the stub. Only `main` collides;
-`.column` and `.builtin` resolve to this tree.
+The specs are inside that reach only because `main.lua` declares
+`supaline.Main` for them to claim. `require(".main")` resolves to `types.yazi`
+rather than to this tree, and until that class existed every call a spec made
+into the plugin was checked against a module exporting nothing, with the job
+green throughout. `verify-supaline` carries the mechanism, what was measured
+and what was not, and how to re-take it.
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
 neither `file.idx`, `file.in_current` nor `Url.spec`, and gives `Cha.perm` as a
