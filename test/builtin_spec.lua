@@ -1,4 +1,4 @@
----@diagnostic disable: inject-field, need-check-nil
+---@diagnostic disable: inject-field
 
 --- `builtin.lua`: the formatters, and the fallbacks each column takes when the
 --- value it wants is not there.
@@ -135,18 +135,25 @@ end)
 -- --- statistics ------------------------------------------------------------
 
 test("stats: extremes skip the values that are not there", function()
-	local def = column.get("size")
-	local st = def.stats {
-		stub.file { size = 100 },
-		stub.file { size = nil }, -- an unevaluated directory
-		stub.file { size = 0 }, -- an empty file must not drag the floor down
-		stub.file { size = 5000 },
-	}
+	-- Asserted rather than indexed straight. `get` returns nil for a column
+	-- that was never registered and `stats` returns nil for a listing with
+	-- nothing to measure, so each assert names which one went missing instead
+	-- of failing as "attempt to index a nil value" two lines later.
+	local def = assert(column.get("size"), "the `size` column is not registered")
+	local st = assert(
+		def.stats {
+			stub.file { size = 100 },
+			stub.file { size = nil }, -- an unevaluated directory
+			stub.file { size = 0 }, -- an empty file must not drag the floor down
+			stub.file { size = 5000 },
+		},
+		"a listing with two sizes in it has extremes"
+	)
 	eq(st.min, 100)
 	eq(st.max, 5000)
 end)
 
-test(
-	"stats: a folder with nothing to measure has no extremes",
-	function() eq(column.get("size").stats { stub.file { size = nil } }, nil) end
-)
+test("stats: a folder with nothing to measure has no extremes", function()
+	local def = assert(column.get("size"), "the `size` column is not registered")
+	eq(def.stats { stub.file { size = nil } }, nil)
+end)
