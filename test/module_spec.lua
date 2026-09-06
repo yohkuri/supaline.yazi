@@ -7,6 +7,9 @@
 --- Nothing else here would say so. `require` hands the boolean straight back,
 --- and the failure lands wherever the result is first indexed -- in another
 --- module, under a message naming the wrong file.
+---
+--- The second test here is about a module's shape rather than its type, and is
+--- in this file for that reason.
 
 --- Every tracked plugin file, asked for rather than listed. A module added
 --- later is the one this test exists for, and a hand-written list would not
@@ -36,4 +39,30 @@ test("modules: every one returns a table, not a boolean", function()
 	for _, name in ipairs(plugin_files()) do
 		eq(type(require(name)), "table", name .. " returns a table")
 	end
+end)
+
+--- What `main.lua` exports, in the order `table.sort` puts them.
+---
+--- `supaline.Main` is written by hand, because `require(".main")` resolves to
+--- `types.yazi` rather than to this tree and the specs are checked against
+--- that class instead of against the module. Nothing otherwise keeps the two
+--- in step, and the drift is silent in the direction that matters.
+---
+--- This catches one direction: an export the class does not name, which is the
+--- one a spec would then be refused for. A changed *signature* is past
+--- anything Lua can see at runtime, and is still read by eye.
+local MAIN_EXPORTS = { "column", "setup" }
+
+test("modules: `supaline.Main` names what main.lua exports", function()
+	local names = {}
+	for name in pairs(require(".main")) do
+		names[#names + 1] = name
+	end
+	table.sort(names)
+
+	eq(
+		table.concat(names, ", "),
+		table.concat(MAIN_EXPORTS, ", "),
+		"main.lua's exports moved; update `supaline.Main` beside them and this list"
+	)
 end)
