@@ -5,8 +5,9 @@ description: >-
   changing it. Read when writing or changing anything under `test/` -- a spec,
   a stub, or one of the shell harnesses -- and not for running the tests, which
   AGENTS.md lists and which need nothing from here. Covers stub fidelity and
-  why the stubs deliberately fail loudly where Yazi fails silently, what the
-  unit suite can and cannot prove, the fixture the e2e and manual runs share,
+  why the stubs deliberately fail loudly where Yazi fails silently, which
+  module a `require` in a spec actually reaches, what the unit suite can and
+  cannot prove, the fixture the e2e and manual runs share,
   and the two ways a headless tmux behaves unlike a real terminal.
 ---
 
@@ -68,10 +69,22 @@ Lua can see at runtime and is still read by eye.
 Measured with `lua-language-server` 3.19.1 against `yazi-rs/plugins@0be29a9`,
 the two revisions CI pins, by planting a misspelled field and a wrong argument
 and re-running `--check`. `.column` resolves to this tree — its signatures are
-checked, which is how that was established. `.builtin` was settled neither way:
-it returns a bare `{}`, so no probe here distinguishes a resolved module from
-an unresolved one. If a spec's assertions about a module look suspiciously
-cheap, plant a misspelled field on it before believing them.
+checked, which is how that was established.
+
+`.main` is the only name that can collide, which listing the library settles
+where planting an error could not. `.luarc.json` puts one directory on
+`workspace.library`, and at `0be29a9` that directory holds a single Lua
+file: `main.lua`. Nothing in it can shadow `.builtin` or `.column`. No
+probe reached that conclusion, because `.builtin` returns a bare `{}` and an
+empty table looks the same whichever module it came from; the listing is a
+different instrument rather than a sharper probe. A `types.yazi` that grows a
+second file moves this line, so read the directory rather than this sentence.
+
+If a spec's assertions about a module look suspiciously cheap, plant a
+misspelled field on it before believing them — where the value is already in
+scope. A probe written above the line that binds the variable reads an
+undefined global instead, and an undefined global refuses nothing, which on
+the terminal is indistinguishable from a class that was never applied.
 
 Deliberately wrong values are a spec's stock in trade, and they now cost
 something: a class on the configuration means `column.normalize(42, ...)` and
