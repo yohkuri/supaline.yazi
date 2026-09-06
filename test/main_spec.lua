@@ -1,4 +1,4 @@
----@diagnostic disable: inject-field, param-type-mismatch
+---@diagnostic disable: inject-field
 
 --- `main.lua` through its real entry point: what `setup` registers, what it
 --- refuses, how the columns are joined, and which panes a linemode reaches.
@@ -6,6 +6,7 @@
 --- The rendering itself is stubbed, so this says nothing about how any of it
 --- looks. `test/e2e.sh` is what answers that.
 
+---@type supaline.Main
 local main = require(".main")
 
 local CURRENT = stub.folder("/current", {
@@ -24,8 +25,8 @@ local PREVIEW = stub.folder("/current/nested", {
 })
 
 --- Configure the plugin and point the stubbed context at the folders above.
----@param linemodes table
----@param opts table?
+---@param linemodes table<string, supaline.LinemodeSpec>
+---@param opts supaline.Opts?
 local function setup(linemodes, opts)
 	opts = opts or {}
 	opts.linemodes = linemodes
@@ -157,6 +158,9 @@ test("setup: a name Yazi cannot hold is refused", function()
 end)
 
 test("setup: a linemode has to be a list of columns", function()
+	-- A string where a list of columns goes -- the wrong value is the test,
+	-- and the checker refuses it now that a spec has a class.
+	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() main.setup({}, { linemodes = { detail = "size" } }) end, "must be a list of columns")
 end)
 
