@@ -56,13 +56,22 @@ however little of it is filled in. The annotation is a claim about Yazi, not a
 check on this file — fidelity is still read against a running Yazi.
 
 A module reached by `require` may not be the one you think. `require(".main")`
-resolves to `types.yazi`'s own `main.lua`, which is on `workspace.library` and
-exports nothing, so every call `main_spec.lua` made into the plugin went
-unchecked — `main.setup(42, ...)` and `main.columnn(...)` were both accepted.
-`main.lua` declares `supaline.Main` and the spec claims it at the `require`,
-the same repair `supaline.Stub` is for the stub. If a spec's assertions about a
-module look suspiciously cheap, plant a misspelled field on it before believing
-them.
+resolves to `types.yazi`'s own `main.lua` — 3,235 lines of annotations with no
+`return`, sitting on `workspace.library` — so every call `main_spec.lua` made
+into the plugin went unchecked: `main.setup(42, ...)` and `main.columnn(...)`
+were both accepted. `main.lua` declares `supaline.Main` and the spec claims it
+at the `require`, the same repair `supaline.Stub` is for the stub. Because that
+class is written by hand, `module_spec.lua` pins it against what `main.lua`
+actually exports — one direction of the drift; a changed signature is past what
+Lua can see at runtime and is still read by eye.
+
+Measured with `lua-language-server` 3.19.1 against `yazi-rs/plugins@0be29a9`,
+the two revisions CI pins, by planting a misspelled field and a wrong argument
+and re-running `--check`. `.column` resolves to this tree — its signatures are
+checked, which is how that was established. `.builtin` was settled neither way:
+it returns a bare `{}`, so no probe here distinguishes a resolved module from
+an unresolved one. If a spec's assertions about a module look suspiciously
+cheap, plant a misspelled field on it before believing them.
 
 Deliberately wrong values are a spec's stock in trade, and they now cost
 something: a class on the configuration means `column.normalize(42, ...)` and
