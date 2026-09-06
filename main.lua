@@ -20,6 +20,7 @@ local column = require(".column")
 -- `children_add` is called for all of them and has to decide for itself.
 local PANES = { "current", "parent", "preview" }
 
+---@type supaline.Cfg
 local DEFAULTS = {
 	separator = " ",
 	-- Order of the parent/preview child among Linemode's children. Anything
@@ -30,10 +31,44 @@ local DEFAULTS = {
 	scale = "linear",
 }
 
+--- The module table, as a spec sees it.
+---
+--- `require(".main")` does not resolve to this file. `types.yazi` ships a
+--- `main.lua` of its own -- 3,235 lines of annotations, and no `return` -- and
+--- it sits on `workspace.library`, so the name resolves there and every call a
+--- spec makes into the plugin is checked against a module that exports
+--- nothing. Nothing says so: `main.setup(42, ...)` and `main.columnn(...)` were
+--- both accepted before this class existed.
+---
+--- Declaring the shape here and claiming it at the `require` is what puts those
+--- calls back under the check, the same way `supaline.Stub` does for the stub.
+--- `column` is written as the dot form alone, which is the only one a spec
+--- uses; the colon form is on the function's own `@overload`.
+---@class supaline.Main
+---@field setup fun(st: table, opts: supaline.Opts?)
+---@field column fun(name: string, def: supaline.ColumnDef)
+
 local M = {}
 
+--- What the user writes for one linemode: the columns in order, and the two
+--- options that belong to the linemode rather than to any column in it.
+---@class supaline.LinemodeSpec
+---@field [integer] supaline.ColumnSpec
+---@field panes string[]? the panes it draws in; `{ "current" }` by default
+---@field separator string? overrides the plugin-wide one
+
+--- The table `setup` is handed. `linemodes` is the only field it cannot do
+--- without and it is still optional here, because `setup` takes the dot call
+--- as well as the colon call and has to look at what arrived before it can
+--- say which one it was.
+---@class supaline.Opts
+---@field linemodes table<string, supaline.LinemodeSpec>?
+---@field separator string?
+---@field order integer?
+---@field scale "linear"|"log"|nil
+
 local cfg = DEFAULTS
-local specs = {} ---@type table<string, table> the user's linemode definitions
+local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemode definitions
 
 -- One record per linemode -- the class below -- rather than three tables keyed
 -- by the same name. `render` and `child` then take one hash lookup per row
@@ -126,7 +161,7 @@ local PANES_HELP = 'supaline: `panes` takes a list of "current", "parent" and/or
 
 --- Which panes a linemode draws in. Always a list, so there is one way to say
 --- any given combination; listing all three is how you ask for all three.
----@param spec table
+---@param spec supaline.LinemodeSpec
 ---@return table<string, boolean>
 local function panes_of(spec)
 	local want = spec.panes or DEFAULT_PANES
@@ -333,8 +368,8 @@ end
 --- Turn a set of specs into runtime linemodes. Pure, and the only place that
 --- validates a spec: `column.normalize` and `panes_of` both raise, so a
 --- configuration that does not compile never reaches module state.
----@param from table<string, table>
----@param with table plugin-wide options
+---@param from table<string, supaline.LinemodeSpec>
+---@param with supaline.Cfg
 ---@return table<string, supaline.Mode> modes, function[] hooks, boolean outer whether any mode leaves the current pane
 local function compile(from, with)
 	local modes, hooks, outer = {}, {}, false
@@ -409,9 +444,19 @@ end
 
 --- Register a reusable column, before `setup`, then refer to it by name from a
 --- linemode spec. Accepts both `.column(name, def)` and `:column(name, def)`.
+---
+--- The colon call shifts every argument along by one, which one signature
+--- cannot say; the `@overload` says it for callers, and the `type` tests below
+--- sort the two forms out at runtime. Inside, each argument is cast to what
+--- its branch has just established, because narrowing `b` tells a checker
+--- nothing about `a` or `c`.
+---@param a string the column's name
+---@param b supaline.ColumnDef its definition
+---@param c supaline.ColumnDef? unused by this form
+---@overload fun(self: table, name: string, def: supaline.ColumnDef)
 function M.column(a, b, c)
 	if type(a) == "table" and type(b) == "string" then
-		return column.register(b, c)
+		return column.register(b, c --[[@as supaline.ColumnDef]])
 	end
 	return column.register(a, b)
 end
@@ -420,14 +465,14 @@ end
 --- across calls; the providers added later do, through `ya.sync` blocks
 --- declared at the top level of this file.
 ---@param _st table plugin state, supplied by Yazi
----@param opts table?
+---@param opts supaline.Opts?
 function M.setup(_st, opts)
 	-- `.setup{...}` as well as `:setup{...}`, matching `M.column`. The dot form
 	-- lands the options in the state parameter, which is Yazi's own table and
 	-- never carries `linemodes`; without this the error names the one thing the
 	-- user got right.
 	if opts == nil and type(_st) == "table" and _st.linemodes ~= nil then
-		opts = _st
+		opts = _st --[[@as supaline.Opts]]
 	end
 	opts = opts or {}
 
@@ -435,6 +480,7 @@ function M.setup(_st, opts)
 	-- refused must leave the configuration already running untouched: the
 	-- `theme` handler reads `specs`, so a rejected spec left there would make
 	-- every later theme event throw instead of rebuilding.
+	---@type supaline.Cfg
 	local next_cfg = {
 		separator = opts.separator or DEFAULTS.separator,
 		order = opts.order or DEFAULTS.order,

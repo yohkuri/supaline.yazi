@@ -1,5 +1,3 @@
----@diagnostic disable: param-type-mismatch
-
 --- `column.lua`: spec normalisation, cell layout, the ratio contract, and the
 --- two width shapes that are derived from the listing.
 
@@ -50,17 +48,24 @@ test("normalize: an unknown name is refused", function()
 end)
 
 test("normalize: a value that is not a spec is refused", function()
+	-- The wrong value is the test. A spec carries a class now, so the checker
+	-- refuses it as well, and the suppression sits on the line rather than at
+	-- the top of the file: the blanket `param-type-mismatch` disable that used
+	-- to be there was measured to cover this one site and nothing else.
+	---@diagnostic disable-next-line: param-type-mismatch
 	throws(function() column.normalize(42, CFG) end, "must be a name, a function, or a table")
 	throws(function() column.normalize({}, CFG) end, "must be a name, a function, or a table")
 end)
 
 test("normalize: an unusable width is refused", function()
 	throws(function()
+		---@diagnostic disable-next-line: assign-type-mismatch
 		column.normalize({ render = function() return "" end, width = "wide" }, CFG)
 	end, 'must be a number, "auto", or a function')
 end)
 
 test("register: a column needs a render function", function()
+	---@diagnostic disable-next-line: missing-fields
 	throws(function() column.register("bad", {}) end, "needs a `render` function")
 	throws(function()
 		column.register("", { render = function() end })
