@@ -120,7 +120,7 @@
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
 ---@field sep string|false|nil a separator of this column's own, `false` for none
----@field width integer|"auto"|(fun(stats: any): number?)|nil
+---@field width number|"auto"|(fun(stats: any): number?)|nil a number is floored
 ---@field scale "linear"|"log"|nil
 
 --- A registered column, as `register` stores it: the options above, with the
@@ -138,6 +138,10 @@
 --- and the third when it carries options beside the function. `[1]` is the
 --- registered name or the inline `render`; everything else is that column's
 --- options.
+---
+--- `[1]` constrains the value and not the index: `{ 42, width = 3 }` in a spec
+--- is refused, `spec[2]` is not. Reading an index a class does not declare
+--- costs nothing, here as anywhere.
 ---@class supaline.ColumnEntry : supaline.ColumnOpts
 ---@field [1] string|supaline.Render|nil
 
