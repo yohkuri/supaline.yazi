@@ -15,7 +15,7 @@ local column = require(".column")
 --- takes them. Values that do not exist stay out of the range: a directory
 --- whose size Yazi has not evaluated must not drag the minimum to zero.
 ---@param get fun(file: supaline.File): number?
----@return fun(files: table): table?
+---@return fun(files: supaline.File[]): table?
 local function extremes(get)
 	return function(files)
 		local min, max
