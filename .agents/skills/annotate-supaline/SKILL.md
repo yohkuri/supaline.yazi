@@ -10,7 +10,9 @@ description: >-
   and what does not, why a wrong value in a configuration table is refused
   where a misspelled key is not, the four places `types.yazi` disagrees with
   Yazi 26.9.1, and why a difference is declared by inheriting from Yazi's
-  class rather than re-opening it.
+  class rather than re-opening it. The collision that makes `supaline.Main`
+  necessary is summarised here and measured in
+  references/main-collision.md.
 ---
 
 # Writing the type annotations
@@ -41,11 +43,15 @@ measured to change that at no site here. What a user writes wrong is still
 `setup`'s to refuse at runtime, which is what all those errors are for.
 
 The specs are inside that reach only because `main.lua` declares
-`supaline.Main` for them to claim. `require(".main")` resolves to `types.yazi`
-rather than to this tree, and until that class existed every call a spec made
-into the plugin was checked against a module exporting nothing, with the job
-green throughout. `verify-supaline` carries the mechanism, what was measured
-and what was not, and how to re-take it.
+`supaline.Main` for them to claim. Here and on the CI runner `require(".main")`
+resolves to `types.yazi` rather than to this tree, and until that class existed
+every call a spec made into the plugin was checked against a module exporting
+nothing, with the job green throughout. That "here" is not a redundancy: which
+of the two `main.lua` files wins is a property of the absolute path the tree
+sits at, not of either name. `references/main-collision.md` has the mechanism,
+what was measured and what was not, the four places the collision is stated,
+and how to re-take it — worth opening when a checkout moves, when the pinned
+annotations revision moves, or when the shadow step in CI fires.
 
 A module table carries no class of its own for free. `require(".column")`
 resolves to this tree and that module's signatures were read all along, yet
