@@ -152,6 +152,40 @@ jobs:
       # `gitignore: true` in that file needs the checkout to be a repository,
       # which it is.
       - run: npx --yes markdownlint-cli2@0.19
+      - name: Skills stay inside the progressive-disclosure budget
+        # The mechanical half of Anthropic's skill-authoring guidance: a
+        # SKILL.md body under 500 lines, and a table of contents on any
+        # reference file over 100, because a file that long gets previewed
+        # with `head` rather than read, and an agent that previews it never
+        # learns what the rest of it holds.
+        #
+        # The half that decides whether a paragraph belongs in a skill at all
+        # is judgement and is in `document-supaline`. Neither number below is
+        # the interesting one -- every skill here is well inside both, and a
+        # skill can be far too long for its subject without tripping either.
+        run: |
+          rc=0
+          for f in .agents/skills/*/SKILL.md; do
+            body=$(awk '/^---$/{n++; next} n>=2' "$f" | wc -l | tr -d '[:space:]')
+            if [ "$body" -gt 500 ]; then
+              echo "$f: body is $body lines, over the 500-line budget."
+              echo "  Move what a reader does not need every time into"
+              echo "  references/, and link it from SKILL.md."
+              rc=1
+            fi
+          done
+          for f in .agents/skills/*/references/*.md; do
+            [ -e "$f" ] || continue
+            lines=$(wc -l < "$f" | tr -d '[:space:]')
+            [ "$lines" -gt 100 ] || continue
+            if ! grep -q '^## Contents$' "$f"; then
+              echo "$f: $lines lines and no '## Contents' heading."
+              echo "  List the sections at the top, so a partial read still"
+              echo "  shows what the file covers."
+              rc=1
+            fi
+          done
+          exit $rc
 
   since:
     # Yazi enforces the annotation: a plugin file without it does not load, and
