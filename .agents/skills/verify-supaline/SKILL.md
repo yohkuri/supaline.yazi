@@ -5,10 +5,11 @@ description: >-
   changing it. Read when writing or changing anything under `test/` -- a spec,
   a stub, or one of the shell harnesses -- and not for running the tests, which
   AGENTS.md lists and which need nothing from here. Covers stub fidelity and
-  why the stubs deliberately fail loudly where Yazi fails silently, which
-  module a `require` in a spec actually reaches, what the unit suite can and
-  cannot prove, the fixture the e2e and manual runs share, and the two ways a
-  headless tmux behaves unlike a real terminal.
+  why the stubs deliberately fail loudly where Yazi fails silently, what a
+  spec's calls into the plugin are actually checked against, how to plant a
+  value that is wrong on purpose without the probe being what gets refused,
+  what the unit suite can and cannot prove, the fixture the e2e and manual
+  runs share, and the two ways a headless tmux behaves unlike a real terminal.
 ---
 
 # Working on the test harness
@@ -39,14 +40,12 @@ stub reproduces it exactly, name and all. `in_preview` is computed the way
 so a regression fails on the second preview row — which is how it fails on
 screen.
 
-The name is not the whole of it; the parameter list counts too. `types.yazi`
-describes no `Tab:history`, which leaves `stub.lua` as the only declaration of
-it anywhere in the workspace, and a nullary `function()` there made
-`lua-language-server` report the plugin's own `cx.active:history(url)` as
-over-supplied. The warning named `builtin.lua`; the stub was the file that had
-drifted. Write the parameters the real call takes, `self` included, whether or
-not the stub reads them, and set the fields Yazi always sets — `preview.skip`
-is one nothing here reads.
+The name is not the whole of it; the parameter list counts too. Write the
+parameters the real call takes, `self` included, whether or not the stub reads
+them, and set the fields Yazi always sets — `preview.skip` is one nothing here
+reads. Where `types.yazi` declares nothing, `stub.lua` is the workspace's only
+declaration, so a wrong arity there is reported against the *plugin* file that
+makes the call: a nullary `Tab:history` had the warning naming `builtin.lua`.
 
 `stub.file` and `stub.folder` claim `supaline.File` and `supaline.Folder`
 rather than `table`, and `run.lua` types the global the specs reach them
@@ -56,42 +55,35 @@ what it buys: the class is not `(exact)`, so the stub's own table is accepted
 however little of it is filled in. The annotation is a claim about Yazi, not a
 check on this file — fidelity is still read against a running Yazi.
 
-A module reached by `require` may not be the one you think. `require(".main")`
-resolves to `types.yazi`'s own `main.lua` — 3,235 lines of annotations with no
-`return`, sitting on `workspace.library` — so every call `main_spec.lua` made
-into the plugin went unchecked: `main.setup(42, ...)` and `main.columnn(...)`
-were both accepted. `main.lua` declares `supaline.Main` and the spec claims it
-at the `require`, the same repair `supaline.Stub` is for the stub. Because that
-class is written by hand, `module_spec.lua` pins it against what `main.lua`
-actually exports — one direction of the drift; a changed signature is past what
-Lua can see at runtime and is still read by eye.
+## What a spec's calls are checked against
 
-Measured with `lua-language-server` 3.19.1 against `yazi-rs/plugins@0be29a9`,
-the two revisions CI pins, by planting a misspelled field and a wrong argument
-and re-running `--check`. `.column` resolves to this tree — its signatures are
-checked, which is how that was established.
+A spec's calls into the plugin are not checked against `main.lua`. Under
+`lua-language-server`, `require(".main")` reaches `types.yazi`'s own `main.lua`
+instead — annotations with no `return`, sitting on `workspace.library` — so
+`main.setup(42, ...)` and `main.columnn(...)` were both accepted until
+`main.lua` declared `supaline.Main` and each spec claimed it at the `require`.
+That is the same repair `supaline.Stub` is for the stub. `.column` is not
+affected: it resolves to this tree, and `column.lua`'s signatures are read
+normally.
 
-`.main` is the only name that can collide. `.luarc.json` puts one directory on
-`workspace.library`, and at `0be29a9` that directory holds a single Lua file,
-`main.lua`, so nothing there shadows `.builtin` or `.column`. No probe reached
-that: `.builtin` returns a bare `{}`, and an empty table looks the same
-whichever module it came from. The `lua-language-server` job now reads the
-directory rather than this sentence: beside the clone, it names any tracked
-plugin file the annotations ship a file of that name -- at any depth, and
-`main.lua` excepted. Growing a `builtin.lua` fails that step instead of quietly
-retiring this paragraph.
+Two things follow for anyone writing a spec:
 
-Depth is the part of that which is not guessable. `runtime.pathStrict` defaults
-to false, so `?.lua` is tried against every subdirectory of a library root, and
-`nested/column.lua` shadows `.column` exactly as a `column.lua` beside
-`main.lua` does; `a/b/c/column.lua` too. Measured on `lua-language-server`
-3.19.1 against `0be29a9` by planting an annotation file with no `return` -- the
-shape `types.yazi`'s own `main.lua` has -- and watching `--check` go from
-refusing a misspelled `column.normalizze` to reporting no problems at all. Two
-things the same probe found: a planted file that *does* return a table is loud
-rather than silent, and `column/init.lua` did not shadow. Turning
-`runtime.pathStrict` on would narrow this to the root and is not on the table,
-because `.luarc.json` is upstream's verbatim.
+- The cast at a spec's `require` is load-bearing, not decoration. Drop it and
+  every call in that file goes unchecked again, silently, with the suite still
+  green.
+- `supaline.Main` is written by hand, so a new export in `main.lua` has to be
+  added to that class and to `MAIN_EXPORTS` in `module_spec.lua`, which fails
+  until you do. A changed *signature* is past what Lua can see at runtime and
+  is still read by eye.
+
+Which of the two `main.lua` files wins is a property of the absolute path this
+tree sits at, and it comes out the same way here and on CI. Nothing about
+writing a spec turns on it;
+`annotate-supaline/references/main-collision.md` has the mechanism, what was
+measured, and what to re-run when a checkout, a pin, or the upstream issue
+moves.
+
+## Planting a value that is wrong on purpose
 
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
 argument rather than a misspelled field before believing them: a misspelled
@@ -113,9 +105,7 @@ something: a class on the configuration means `column.normalize(42, ...)` and
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
-blanket disable there grows to cover code nobody meant to exempt. The two that
-were already there were measured before being replaced: one covered a single
-site, the other covered nothing at all.
+blanket disable there grows to cover code nobody meant to exempt.
 
 ## What the unit suite can prove
 
