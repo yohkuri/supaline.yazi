@@ -26,21 +26,38 @@ where to put a comma.
 
 ## Try to make it a check first
 
-Six of the nine platform traps are refused by a CI step, a spec, or a stub that
-fails loudly, and `AGENTS.md` tells the reader not to bother reading about
-those. That is the shape to aim for: prose is what is left over once you have
-failed to make it a check.
+Prose is what is left over once you have failed to make it a check. Before
+writing a paragraph, spend the same effort trying to make the mistake refuse
+itself.
 
-The refusal is the documentation. `Forbidden spellings` prints the spelling to
-use and the reason, because the right one is not guessable from the wrong one;
-a check that only says no sends the reader straight back to a paragraph, and
-you have written both.
+**Whether it can be one is decidable, so decide it rather than guessing.** Can
+you write down what a violation looks like — the wrong spelling and the right
+one, or an input and the output it has to produce — without reading the
+author's intent? If you can, it is checkable, and a paragraph is the wrong form
+for it. If telling a violation from a deliberate exception takes judgement
+about why the code is the way it is, it is not, and prose is the right form.
 
-Know what a check cannot do before you trust one. A spec pins the code it was
-written against, so **new** code can repeat a trap and keep the suite green —
-a fresh column written with `not is_regular` passed all 103 tests before the
-spelling check existed. Catching what is not written yet takes a check over the
-source, not a test over the behaviour.
+When it is checkable, three places take it. Try them in this order; the first
+that fits is the cheapest one that works.
+
+1. **A `grep` over the tracked files**, as a step in
+   `.github/workflows/check.yml` — for a rule about what the source *says*: a
+   forbidden name, a required annotation, where a call has to sit.
+2. **A spec under `test/`** — for a rule about what this repository's own code
+   *does* with a given input.
+3. **A stub that raises** — for a rule about what Yazi accepts, including the
+   ones Yazi itself accepts silently.
+
+A check that only says no is half-written. Print the spelling to use and the
+reason, because the right one is not guessable from the wrong one; otherwise
+the reader goes straight back to a paragraph and you have written both.
+
+Know what a check cannot do before you trust one. A test runs over the code
+that exists, so it pins that code and nothing else — code written tomorrow can
+repeat the same mistake and keep the suite green. A fresh column written with
+`not is_regular` passed all 103 tests before the spelling check existed. A rule
+that has to hold for code nobody has written yet needs a check over the source,
+which is why some of them are greps rather than tests.
 
 ## Where a rule belongs
 
