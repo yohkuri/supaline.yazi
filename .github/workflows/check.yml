@@ -152,39 +152,96 @@ jobs:
       # `gitignore: true` in that file needs the checkout to be a repository,
       # which it is.
       - run: npx --yes markdownlint-cli2@0.19
-      - name: Skills stay inside the progressive-disclosure budget
-        # The mechanical half of Anthropic's skill-authoring guidance: a
-        # SKILL.md body under 500 lines, and a table of contents on any
-        # reference file over 100, because a file that long gets previewed
-        # with `head` rather than read, and an agent that previews it never
-        # learns what the rest of it holds.
+      - name: Skills match the Agent Skills specification
+        # The hard constraints from the specification at
+        # https://agentskills.io/specification, read 2026-09-08, and the
+        # numbers Anthropic's authoring guide repeats: `name` at most 64
+        # characters of lowercase alphanumerics and single hyphens and equal
+        # to its directory, `description` non-empty and at most 1024, a body
+        # under 500 lines, and a table of contents on a reference over 100.
         #
-        # The half that decides whether a paragraph belongs in a skill at all
-        # is judgement and is in `document-supaline`. Neither number below is
-        # the interesting one -- every skill here is well inside both, and a
-        # skill can be far too long for its subject without tripping either.
+        # 1024 is the one that bites. Past it a strict client rejects the
+        # skill at load time and a lenient one truncates, which takes the
+        # "when not to read it" half of the description with it -- the same
+        # damage a literal `---` does, and that one is measured in
+        # `document-supaline`. `yazi-platform-traps` sat 5 characters short
+        # of it before this step existed.
+        #
+        # The Contents test is a correspondence, not a presence: a heading
+        # the list does not name fails, so adding a section without listing
+        # it cannot pass. What is deliberately *not* here is the spec's
+        # "keep references one level deep" -- that is about a reference
+        # linking on to another reference, which needs judgement, so it is
+        # prose in `document-supaline` instead.
+        #
+        # The upstream `skills-ref validate` covers the frontmatter rules
+        # too. It is not used here because it would add a toolchain for four
+        # skills, and every other tool in this file is pinned.
         run: |
           rc=0
-          for f in .agents/skills/*/SKILL.md; do
+          found=0
+          for d in .agents/skills/*/; do
+            d=${d%/}
+            f="$d/SKILL.md"
+            if [ ! -e "$f" ]; then
+              echo "$d: no SKILL.md."
+              rc=1
+              continue
+            fi
+            found=$((found + 1))
+            name=$(sed -n 's/^name:[[:space:]]*//p' "$f" | head -1)
+            desc=$(awk '/^description: >-/{d=1;next} d&&(/^---$/||/^[a-z-]+:/){exit} d' "$f" |
+              sed 's/^  *//' | tr '\n' ' ' | sed 's/ *$//')
             body=$(awk '/^---$/{n++; next} n>=2' "$f" | wc -l | tr -d '[:space:]')
-            if [ "$body" -gt 500 ]; then
-              echo "$f: body is $body lines, over the 500-line budget."
-              echo "  Move what a reader does not need every time into"
-              echo "  references/, and link it from SKILL.md."
+
+            [ "$name" = "${d##*/}" ] || { echo "$f: name is \`$name\`, directory is \`${d##*/}\`."; rc=1; }
+            case $name in
+              *[!a-z0-9-]*|-*|*-|*--*) echo "$f: name \`$name\` is not lowercase-alphanumeric-hyphen."; rc=1 ;;
+            esac
+            [ ${#name} -le 64 ] || { echo "$f: name is ${#name} characters, over the spec's 64."; rc=1; }
+
+            if [ -z "$desc" ]; then
+              echo "$f: description is empty."
+              rc=1
+            elif [ ${#desc} -gt 1024 ]; then
+              echo "$f: description is ${#desc} characters, over the spec's 1024."
+              echo "  Past it a strict client rejects the skill outright, and a lenient"
+              echo "  one truncates -- taking the 'when not to read it' half with it."
               rc=1
             fi
+            case $desc in
+              *---*) echo "$f: the description contains a literal ---, which cuts the listing there."; rc=1 ;;
+            esac
+
+            [ "$body" -le 500 ] || {
+              echo "$f: body is $body lines, over the 500-line budget."
+              echo "  Move what a reader does not need every time into references/."
+              rc=1
+            }
           done
+          [ "$found" -gt 0 ] || { echo ".agents/skills/: no skill found. Has the tree moved?"; rc=1; }
+
           for f in .agents/skills/*/references/*.md; do
             [ -e "$f" ] || continue
             lines=$(wc -l < "$f" | tr -d '[:space:]')
             [ "$lines" -gt 100 ] || continue
             if ! grep -q '^## Contents$' "$f"; then
               echo "$f: $lines lines and no '## Contents' heading."
-              echo "  List the sections at the top, so a partial read still"
-              echo "  shows what the file covers."
               rc=1
+              continue
             fi
+            block=$(awk '/^## Contents$/{c=1;next} c&&/^## /{exit} c' "$f")
+            listed=$(printf '%s\n' "$block" | grep -c '^- ')
+            actual=$(grep '^## ' "$f" | grep -vc '^## Contents$')
+            [ "$listed" -eq "$actual" ] || {
+              echo "$f: Contents lists $listed of $actual sections."
+              rc=1
+            }
+            grep '^## ' "$f" | grep -v '^## Contents$' | sed 's/^## //' | while IFS= read -r h; do
+              printf '%s\n' "$block" | grep -qF -- "$h" || echo "$f: not in Contents: $h"
+            done
           done
+
           exit $rc
 
   since:

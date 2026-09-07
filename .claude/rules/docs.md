@@ -8,7 +8,9 @@ paths:
 This is one of the instruction documents. Before changing what it says, read
 `.agents/skills/document-supaline/SKILL.md`: where a rule has to live to reach
 the agent it is for, what a description owes a reader who has not opened the
-skill, and the places one change has to land in step.
+skill and the limits the Agent Skills specification puts on it, the three
+questions that decide whether a paragraph belongs in a skill or in a reference
+beside it, and the places one change has to land in step.
 
 Not style — `.markdownlint-cli2.yaml` holds the wrap, the bullet and the fence
 language, and CI runs it, so a clean lint is the whole of the form. And not

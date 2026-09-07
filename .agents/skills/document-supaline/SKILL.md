@@ -7,9 +7,10 @@ description: >-
   `README.md` or `test/MANUAL.md`, which are written for people, and not for
   comments inside Lua. Covers why a check is worth more than a paragraph, who
   reads which file, what a description owes a reader who has not opened the
-  skill, the three questions that decide whether a paragraph belongs in a
-  skill or in a reference file beside it, the standard a claim about the
-  platform has to meet, and the places one change has to land in step.
+  skill and the specification's limits on it, the three questions that decide
+  whether a paragraph belongs in a skill or in a reference file beside it, the
+  standard a claim about the platform has to meet, and the places one change
+  has to land in step.
   Markdown style is markdownlint's business and is not in here.
 ---
 
@@ -105,10 +106,18 @@ claim belongs in the skill; the probe behind it usually does not.
 None of this is visible while you are writing, so here is the tripwire: when a
 section runs longer than the thing it tells you to do, it is carrying evidence.
 
-`Skills stay inside the progressive-disclosure budget` checks the half that can
-be counted — a body under 500 lines, a `## Contents` on any reference over 100.
-Passing it means nothing about the three questions above; every skill here is
-well inside both numbers, and always was.
+A reference is opened from `SKILL.md`, and nothing opens from a reference. One
+that points on to another gets previewed rather than read — `head` on the
+second file, and the rest of it is never seen — so what the second one holds
+belongs either in the first or in a file `SKILL.md` links itself.
+
+`Skills match the Agent Skills specification` refuses the half that can be
+counted: the frontmatter limits below, a body over 500 lines, and a reference
+over 100 whose `## Contents` does not name every section it has. Passing it
+means nothing about the three questions above. Every body here is far under
+500; the two `## Contents` headings were added the commit before that step
+existed, and `yazi-platform-traps`'s description was five characters inside
+the cap — which is the whole of what the step has ever had to say.
 
 ## What a description owes a reader who has not opened it
 
@@ -121,6 +130,20 @@ and the second is the one that gets left out:
    every Lua edit and stops meaning anything.
 3. What is inside, in enough detail that a reader can decide against opening
    it. Deciding against is the point, not a failure.
+
+Write it in the third person, in the words an agent would already be using for
+the task. It is injected into the system prompt and matched against a request,
+not read as prose: "Read when a change resolves a colour" does that work, and
+"I can help with themes" does none of it.
+
+The limits are the specification's, not a preference
+(<https://agentskills.io/specification>, read 2026-09-08): `name` at most 64
+characters of lowercase alphanumerics and single hyphens, equal to its own
+directory; `description` non-empty and at most **1024 characters**. Past 1024 a
+strict client refuses the skill outright and a lenient one truncates, which
+costs job 2 first because it is written second. `yazi-platform-traps` sat five
+characters inside that cap until its description was cut back. The step named
+above refuses all of it.
 
 Keep a literal `---` out of the description, annotation names included.
 `annotate-supaline` first said it was read before changing a `---@class` or a
