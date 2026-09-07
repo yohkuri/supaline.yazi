@@ -43,10 +43,17 @@ end)
 
 --- What `main.lua` exports, in the order `table.sort` puts them.
 ---
---- `supaline.Main` is written by hand, because `require(".main")` resolves to
---- `types.yazi` rather than to this tree and the specs are checked against
---- that class instead of against the module. Nothing otherwise keeps the two
---- in step, and the drift is silent in the direction that matters.
+--- `supaline.Main` is written by hand, because in this checkout and on the CI
+--- runner `require(".main")` resolves to `types.yazi` rather than to this tree
+--- and the specs are checked against that class instead of against the module.
+--- Nothing otherwise keeps the two in step, and the drift is silent in the
+--- direction that matters.
+---
+--- That is the type checker's resolution, and which of the two wins is a
+--- property of the absolute path the tree sits at, measured in
+--- `annotate-supaline/references/main-collision.md`. The `require` below is
+--- Lua's own and reaches this tree wherever it sits, which is what lets this
+--- test read the exports at all.
 ---
 --- This catches one direction: an export the class does not name, which is the
 --- one a spec would then be refused for. A changed *signature* is past

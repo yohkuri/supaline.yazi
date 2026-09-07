@@ -33,18 +33,26 @@ local DEFAULTS = {
 
 --- The module table, as a spec sees it.
 ---
---- `require(".main")` does not resolve to this file. `types.yazi` ships a
---- `main.lua` of its own -- 3,235 lines of annotations, and no `return` -- and
---- it sits on `workspace.library`, so the name resolves there and every call a
---- spec makes into the plugin is checked against a module that exports
---- nothing. Nothing says so: `main.setup(42, ...)` and `main.columnn(...)` were
---- both accepted before this class existed.
+--- In this checkout and on the CI runner, `require(".main")` does not resolve
+--- to this file. `types.yazi` ships a `main.lua` of its own -- 3,235 lines of
+--- annotations, and no `return` -- and it sits on `workspace.library`, so the
+--- name resolves there and every call a spec makes into the plugin is checked
+--- against a module that exports nothing. Nothing says so:
+--- `main.setup(42, ...)` and `main.columnn(...)` were both accepted before
+--- this class existed.
 ---
 --- Declaring the shape here and claiming it at the `require` is what puts those
 --- calls back under the check, the same way `supaline.Stub` does for the stub.
 --- Both entry points take a dot call and a colon call, and a `@field` carries
 --- no `@overload`, so each is written as the union of its two shapes -- leave
 --- one out and the spec that writes it that way is refused for no reason.
+---
+--- Which of the two files wins follows from the absolute path this tree sits
+--- at, not from either name: a checkout sorting before
+--- `~/.config/yazi/plugins/types.yazi/` reads `.main` from here instead. The
+--- class is claimed at the `require` either way and stays right;
+--- `annotate-supaline/references/main-collision.md` has the measurement and
+--- the paths that flip it.
 ---@class supaline.Main
 ---@field setup fun(st: table, opts: supaline.Opts?)|fun(opts: supaline.Opts)
 ---@field column fun(name: string, def: supaline.ColumnDef)|fun(self: table, name: string, def: supaline.ColumnDef)
