@@ -175,6 +175,19 @@
 ---@field stats any?
 ---@field width integer?
 
+--- The module table. `require(".column")` resolves to this file, so a call into
+--- it is read against the signatures below and `column.normalize(42, {})` is
+--- refused. A name is not a signature, though: until this class existed
+--- `column.normalizze({}, {})` cost nothing on the line above that refusal,
+--- because a misspelled field bites only on a value carrying a declared class.
+---
+--- Declared on the table rather than written out the way `supaline.Main` is.
+--- That one lists `main.lua`'s exports by hand, because `require(".main")`
+--- reaches `types.yazi` instead of this tree, and `module_spec.lua` has to pin
+--- it against the module it describes. Here the fields are whatever is
+--- assigned below, so no spec has to claim it and there is nothing to keep in
+--- step.
+---@class supaline.ColumnModule
 local M = { _registry = {} }
 
 --- Register a reusable column under `name`, so a linemode can refer to it as

@@ -15,5 +15,5 @@ feeds the code values it accepts. The commands are in `AGENTS.md`, and
 `test/run.lua` refuses the wrong Lua version by itself. One habit from the
 skill is worth carrying regardless: if a spec's assertions about a module look
 cheap, plant a wrong argument before believing them. A misspelled field bites
-only on a value carrying a declared class, so on a module it can pass in
-silence.
+only on a value carrying a declared class, and not everything a spec touches
+has one.

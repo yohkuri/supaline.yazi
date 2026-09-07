@@ -47,6 +47,14 @@ into the plugin was checked against a module exporting nothing, with the job
 green throughout. `verify-supaline` carries the mechanism, what was measured
 and what was not, and how to re-take it.
 
+A module table carries no class of its own for free. `require(".column")`
+resolves to this tree and that module's signatures were read all along, yet
+`column.normalizze` cost nothing until `supaline.ColumnModule` was declared on
+the table `column.lua` returns — the shape `supaline.Stub` already used.
+Declared on the table rather than written out, its fields are whatever the file
+assigns, so nothing has to pin them. `supaline.Main` is by hand only because
+there is no table here for the checker to read it off.
+
 ## Where types.yazi and Yazi disagree
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes

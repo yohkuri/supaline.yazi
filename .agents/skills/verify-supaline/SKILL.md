@@ -81,13 +81,14 @@ plugin file the annotations ship a twin of, `main.lua` excepted. Growing a
 `builtin.lua` fails that step instead of quietly retiring this paragraph.
 
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
-argument rather than a misspelled field before believing them.
-`column.normalize(42, {})` is refused where `column.normalizze({}, {})` on the
-next line passes: a misspelled field bites only on a value carrying a declared
-class — `cx`, and `main`, which `main_spec.lua` gives one by writing
-`---@type supaline.Main` over its `require`. `column.lua` declares no class for
-the table it returns and `column_spec.lua` claims none, so that module's own
-names go unchecked, as `th`'s do.
+argument rather than a misspelled field before believing them: a misspelled
+field bites only on a value carrying a declared class, and a module table has
+none until someone gives it one. `column.normalizze({}, {})` passed on the line
+above a refused `column.normalize(42, {})` for as long as `column.lua` declared
+no class for the table it returns. It declares `supaline.ColumnModule` now, on
+the table rather than by hand, so the fields are whatever the file assigns and
+no spec has to claim it. What is left is `th`: no class at all, so it takes
+whatever name a spec spells.
 
 Plant it below the line that binds the value. Above it the checker reports
 `undefined-global` at the planted line — still a refusal, but of the probe and
