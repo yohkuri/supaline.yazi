@@ -11,6 +11,12 @@ silently. Otherwise carry on — the other six are refused by a test or a CI job
 that says what to write instead, so a rename or a format string needs nothing
 from the skill.
 
+If the change declares or edits a class or a field annotation instead, or casts
+a value taken off `cx`, read `.agents/skills/annotate-supaline/SKILL.md`: how
+far the type check reaches, where it stops, and why a difference from
+`types.yazi` is declared by inheriting from Yazi's class rather than re-opening
+it.
+
 Root-level `.lua` only — the plugin itself. The test harness under `test/`
 models these traps rather than falling into them.
 
