@@ -7,8 +7,8 @@ description: >-
   AGENTS.md lists and which need nothing from here. Covers stub fidelity and
   why the stubs deliberately fail loudly where Yazi fails silently, which
   module a `require` in a spec actually reaches, what the unit suite can and
-  cannot prove, the fixture the e2e and manual runs share,
-  and the two ways a headless tmux behaves unlike a real terminal.
+  cannot prove, the fixture the e2e and manual runs share, and the two ways a
+  headless tmux behaves unlike a real terminal.
 ---
 
 # Working on the test harness
@@ -71,20 +71,26 @@ the two revisions CI pins, by planting a misspelled field and a wrong argument
 and re-running `--check`. `.column` resolves to this tree — its signatures are
 checked, which is how that was established.
 
-`.main` is the only name that can collide, which listing the library settles
-where planting an error could not. `.luarc.json` puts one directory on
-`workspace.library`, and at `0be29a9` that directory holds a single Lua
-file: `main.lua`. Nothing in it can shadow `.builtin` or `.column`. No
-probe reached that conclusion, because `.builtin` returns a bare `{}` and an
-empty table looks the same whichever module it came from; the listing is a
-different instrument rather than a sharper probe. A `types.yazi` that grows a
-second file moves this line, so read the directory rather than this sentence.
+`.main` is the only name that can collide. `.luarc.json` puts one directory on
+`workspace.library`, and at `0be29a9` that directory holds a single Lua file,
+`main.lua`, so nothing there shadows `.builtin` or `.column`. No probe reached
+that: `.builtin` returns a bare `{}`, and an empty table looks the same
+whichever module it came from. A `types.yazi` that grows a `builtin.lua` or a
+`column.lua` moves this line, so read the directory rather than this sentence.
 
-If a spec's assertions about a module look suspiciously cheap, plant a
-misspelled field on it before believing them — where the value is already in
-scope. A probe written above the line that binds the variable reads an
-undefined global instead, and an undefined global refuses nothing, which on
-the terminal is indistinguishable from a class that was never applied.
+If a spec's assertions about a module look suspiciously cheap, plant a wrong
+argument rather than a misspelled field before believing them.
+`column.normalize(42, {})` is refused where `column.normalizze({}, {})` on the
+next line passes: a misspelled field bites only on a value carrying a declared
+class — `cx`, and `main`, which `main_spec.lua` gives one by writing
+`---@type supaline.Main` over its `require`. `column.lua` declares no class for
+the table it returns and `column_spec.lua` claims none, so that module's own
+names go unchecked, as `th`'s do.
+
+Plant it below the line that binds the value. Above it the checker reports
+`undefined-global` at the planted line — still a refusal, but of the probe and
+not of the misspelling, which a harness grepping for the field name scores as a
+module that refuses nothing.
 
 Deliberately wrong values are a spec's stock in trade, and they now cost
 something: a class on the configuration means `column.normalize(42, ...)` and
