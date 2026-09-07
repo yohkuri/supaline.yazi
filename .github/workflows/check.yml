@@ -63,6 +63,43 @@ jobs:
           git -C /tmp/plugins checkout -q 0be29a9
           mkdir -p ~/.config/yazi/plugins
           cp -R /tmp/plugins/types.yazi ~/.config/yazi/plugins/
+      - name: None of them shadow this plugin's own modules
+        # A `require` is resolved by path, and `workspace.library` is searched
+        # along with the workspace. At 0be29a9 these annotations hold one Lua
+        # file, `main.lua`, which is why `require(".main")` in a spec reaches
+        # 3,235 lines of annotations rather than this plugin -- `supaline.Main`
+        # and `module_spec.lua` are the repair for that one. A second such file
+        # would do the same to another module in silence: the check below still
+        # passes, having compared the plugin against something nobody here
+        # wrote.
+        #
+        # Read off the tree rather than from a list of names, so a plugin file
+        # added tomorrow is covered without anyone remembering to come back
+        # here. Beside the clone rather than in a job of its own, and no
+        # network either way: a library that shadows a module weakens the
+        # check exactly as a missing one does.
+        #
+        # The harness is left out because nothing in it is reachable this way
+        # -- `run.lua` loads the stub and the specs by absolute path, with
+        # `dofile` and `loadfile`, and only the plugin's own modules are ever
+        # required by name.
+        run: |
+          rc=0
+          while IFS= read -r -d '' f; do
+            # The collision that already happened. It is worked around and
+            # pinned rather than fixed, so failing on it would fail every run.
+            [ "$f" != main.lua ] || continue
+
+            [ -e "$HOME/.config/yazi/plugins/types.yazi/$f" ] || continue
+            echo "$f: types.yazi ships a file of the same name, shadowing it."
+            echo "  A require of that name reaches the annotations rather than"
+            echo "  this tree, so the check below says nothing about this"
+            echo "  module. verify-supaline says \`.main\` is the only name"
+            echo "  that can collide -- it is not any more. Re-measure which"
+            echo "  module each require reaches, and move that sentence."
+            rc=1
+          done < <(git ls-files -z '*.lua' ':!:test/*')
+          exit $rc
       - name: The server itself
         # There is no npm package, so a release tarball. The archive puts the
         # launcher at `bin/`, which is why nothing here globs for it.
