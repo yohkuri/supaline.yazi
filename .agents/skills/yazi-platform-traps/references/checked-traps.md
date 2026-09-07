@@ -7,6 +7,17 @@ nothing the check does not already give you.
 
 Read this when one of them fires and the message is not enough.
 
+## Contents
+
+- `ya.sync` state is scoped to the file the call is written in
+- `in_preview` is not the counterpart of `in_current`
+- DDS event names are not all in the changelog
+- Truncation counts characters; the screen counts clusters
+- Every module must return a table
+- Prefer `Url.spec.*`
+- `in_preview`, in Yazi's own source
+- `AuthKind`, and why `is_regular` is the wrong question
+
 ## `ya.sync` state is scoped to the file the call is written in
 
 Yazi matches the async and sync sides **by the position of the call**, and
