@@ -75,6 +75,14 @@ and the second is the one that gets left out:
 3. What is inside, in enough detail that a reader can decide against opening
    it. Deciding against is the point, not a failure.
 
+Keep a literal `---` out of the description, annotation names included.
+`annotate-supaline` first said it was read before changing a `---@class` or a
+`---@field`; the listing an agent sees cut the text at the backtick before the
+first of them, so job 1 survived truncated and jobs 2 and 3 were gone
+altogether. Measured by loading the skill both ways and reading the listing
+back. Say "a class or a field annotation" instead — a reader deciding whether
+to open the file does not need the spelling.
+
 ## A claim about the platform names its evidence
 
 Yazi is on CalVer and breaks the plugin API between releases, so a sentence
