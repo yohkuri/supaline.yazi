@@ -41,9 +41,11 @@ about why the code is the way it is, it is not, and prose is the right form.
 When it is checkable, three places take it. Try them in this order; the first
 that fits is the cheapest one that works.
 
-1. **A `grep` over the tracked files**, as a step in
-   `.github/workflows/check.yml` — for a rule about what the source *says*: a
-   forbidden name, a required annotation, where a call has to sit.
+1. **A step in `.github/workflows/check.yml`** over the tracked files — for a
+   rule about what the source *says*: a forbidden name, a required
+   annotation, where a call has to sit, a frontmatter field that has to stay
+   inside a limit. A `grep` covers most of them; reach past one when the rule
+   needs more, as the shadow step and the specification step do.
 2. **A spec under `test/`** — for a rule about what this repository's own code
    *does* with a given input.
 3. **A stub that raises** — for a rule about what Yazi accepts, including the
@@ -189,6 +191,6 @@ the whole life of the ninth trap, because the commit that made it nine updated
 the only thing that finds it.
 
 A new skill has one more step that is easy to miss: `.claude/skills/<name>`
-must be a symlink to `../../.agents/skills/<name>`, tracked like the two
+must be a symlink to `../../.agents/skills/<name>`, tracked like the ones
 already there. Claude Code looks under `.claude/skills`; the skill itself lives
 under `.agents/`, where every agent can reach it.
