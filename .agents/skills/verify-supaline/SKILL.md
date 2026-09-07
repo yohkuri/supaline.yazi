@@ -77,8 +77,21 @@ checked, which is how that was established.
 that: `.builtin` returns a bare `{}`, and an empty table looks the same
 whichever module it came from. The `lua-language-server` job now reads the
 directory rather than this sentence: beside the clone, it names any tracked
-plugin file the annotations ship a twin of, `main.lua` excepted. Growing a
-`builtin.lua` fails that step instead of quietly retiring this paragraph.
+plugin file the annotations ship a file of that name -- at any depth, and
+`main.lua` excepted. Growing a `builtin.lua` fails that step instead of quietly
+retiring this paragraph.
+
+Depth is the part of that which is not guessable. `runtime.pathStrict` defaults
+to false, so `?.lua` is tried against every subdirectory of a library root, and
+`nested/column.lua` shadows `.column` exactly as a `column.lua` beside
+`main.lua` does; `a/b/c/column.lua` too. Measured on `lua-language-server`
+3.19.1 against `0be29a9` by planting an annotation file with no `return` -- the
+shape `types.yazi`'s own `main.lua` has -- and watching `--check` go from
+refusing a misspelled `column.normalizze` to reporting no problems at all. Two
+things the same probe found: a planted file that *does* return a table is loud
+rather than silent, and `column/init.lua` did not shadow. Turning
+`runtime.pathStrict` on would narrow this to the root and is not on the table,
+because `.luarc.json` is upstream's verbatim.
 
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
 argument rather than a misspelled field before believing them: a misspelled
