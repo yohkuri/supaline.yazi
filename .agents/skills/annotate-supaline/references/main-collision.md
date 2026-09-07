@@ -21,7 +21,7 @@ Everything here was measured on `lua-language-server` 3.19.1 against
 - Which candidate wins — the sort order that decides it
 - Measured on this plugin's own files — the two-directory probe
 - Re-taking it — the scratch-directory trap and how to count
-- Where the collision is stated — the four places, and the count
+- Where the collision is stated — the six places, and how to count them
 - Filed upstream — `---@meta _`, and what it would retire
 - `.main` is the only name that can collide — depth, and `init.lua`
 
@@ -68,18 +68,22 @@ problems`, which is a progress checkpoint and is printed more than once.
 
 ## Where the collision is stated
 
-Four places state it, each scoped to the two arrangements above and none of
+Six places state it, each scoped to the two arrangements above and none of
 them repeating the mechanism:
 
 - the comment above `supaline.Main` in `main.lua`
 - the comment above `supaline.ColumnModule` in `column.lua`
 - the comment above `MAIN_EXPORTS` in `test/module_spec.lua`
 - the shadow step in `.github/workflows/check.yml`
+- `annotate-supaline/SKILL.md`, where the specs come inside the type check
+- `verify-supaline/SKILL.md`, under what a spec's calls are checked against
 
-All four point back here, so a re-measurement lands in this file and the count
-of places that have to move with it is four. The shadow step is the one that
-does not depend on the answer at all: it reports a name the library ships twice
-without working out which copy would win, which is why it keeps holding
+All six name this file, so `git grep -l main-collision.md` lists them along
+with this one, and a re-measurement lands here with everything that moves with
+it already enumerated. Count from that command rather than from this paragraph,
+which said four until the two skills were noticed. The shadow step is the one
+that does not depend on the answer at all: it reports a name the library ships
+twice without working out which copy would win, which is why it keeps holding
 wherever a runner puts the checkout.
 
 ## Filed upstream

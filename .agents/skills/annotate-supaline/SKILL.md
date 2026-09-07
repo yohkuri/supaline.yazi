@@ -49,7 +49,7 @@ every call a spec made into the plugin was checked against a module exporting
 nothing, with the job green throughout. That "here" is not a redundancy: which
 of the two `main.lua` files wins is a property of the absolute path the tree
 sits at, not of either name. `references/main-collision.md` has the mechanism,
-what was measured and what was not, the four places the collision is stated,
+what was measured and what was not, the places the collision is stated,
 and how to re-take it — worth opening when a checkout moves, when the pinned
 annotations revision moves, or when the shadow step in CI fires.
 
