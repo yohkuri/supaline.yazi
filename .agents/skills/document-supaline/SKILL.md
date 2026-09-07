@@ -7,9 +7,10 @@ description: >-
   `README.md` or `test/MANUAL.md`, which are written for people, and not for
   comments inside Lua. Covers why a check is worth more than a paragraph, who
   reads which file, what a description owes a reader who has not opened the
-  skill, the standard a claim about the platform has to meet, and the places
-  one change has to land in step. Markdown style is markdownlint's business
-  and is not in here.
+  skill, the three questions that decide whether a paragraph belongs in a
+  skill or in a reference file beside it, the standard a claim about the
+  platform has to meet, and the places one change has to land in step.
+  Markdown style is markdownlint's business and is not in here.
 ---
 
 # Writing the instruction documents
@@ -62,6 +63,35 @@ you are editing:
   change belongs in a skill with a line in the index pointing at it; one that
   applies to every session belongs in `AGENTS.md` however long it runs. What it
   must never be is in both, in two wordings that can drift.
+
+## What a skill carries, and what sits beside it
+
+Three questions, in this order, for every paragraph of a skill. The order is
+the whole of it: question one is about which skill, and asking it second is how
+the mechanism behind a type collision ends up filling half the skill for the
+test harness.
+
+1. **Is this the subject the skill is read for?** If the change that needs it
+   is a different kind of change, it belongs in that other skill, however few
+   lines it runs to. `references/` is not where out-of-scope material goes.
+2. **Does it change what the reader does?** Cut it and see whether any action
+   changes. If none does, the rule stays and the evidence moves: the
+   mechanism, the measurement, the version it was taken on, and whatever was
+   tried and rejected all belong in `references/`.
+3. **Does a check already refuse it?** Then the section above applies, and the
+   prose is the leftover rather than the documentation.
+
+The standard below — that a claim about the platform names its evidence — is a
+rule against discarding a measurement, not a rule about where to keep it. The
+claim belongs in the skill; the probe behind it usually does not.
+
+None of this is visible while you are writing, so here is the tripwire: when a
+section runs longer than the thing it tells you to do, it is carrying evidence.
+
+`Skills stay inside the progressive-disclosure budget` checks the half that can
+be counted — a body under 500 lines, a `## Contents` on any reference over 100.
+Passing it means nothing about the three questions above; every skill here is
+well inside both numbers, and always was.
 
 ## What a description owes a reader who has not opened it
 
