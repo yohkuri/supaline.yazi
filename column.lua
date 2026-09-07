@@ -182,11 +182,13 @@
 --- because a misspelled field bites only on a value carrying a declared class.
 ---
 --- Declared on the table rather than written out the way `supaline.Main` is.
---- That one lists `main.lua`'s exports by hand, because `require(".main")`
---- reaches `types.yazi` instead of this tree, and `module_spec.lua` has to pin
---- it against the module it describes. Here the fields are whatever is
---- assigned below, so no spec has to claim it and there is nothing to keep in
---- step.
+--- That one lists `main.lua`'s exports by hand, because in this checkout and
+--- on the CI runner `require(".main")` reaches `types.yazi` instead of this
+--- tree, and `module_spec.lua` has to pin it against the module it describes.
+--- Which of the two wins is a property of the absolute path the tree sits at,
+--- measured in `annotate-supaline/references/main-collision.md`. Here the
+--- fields are whatever is assigned below, so no spec has to claim it and there
+--- is nothing to keep in step.
 ---@class supaline.ColumnModule
 local M = { _registry = {} }
 
