@@ -13,7 +13,8 @@ description: >-
   is_regular versus the six AuthKind variants, and truncation counting
   characters where the screen counts clusters -- are refused by a test or a CI
   job instead, and are in references/checked-traps.md for when one of them
-  fires.
+  fires. What was run to establish the three, and what came back, is in
+  references/probes.md and is needed only to doubt them.
 ---
 
 # Yazi platform traps
@@ -25,7 +26,8 @@ Every claim here and in `references/checked-traps.md` was measured on Yazi
 26.9.1 (Homebrew 2026-09-01) in a detached tmux, with a probe plugin and
 `ya.dbg`; where a measurement stops short, it says so. A different Yazi is a
 reason to re-run the experiment rather than trust the sentence — and when you
-do, write down what you ran.
+do, write down what you ran. `references/probes.md` holds what was run for the
+three below, which is what you would be re-running.
 
 Six of the nine traps are refused by a test or a CI job that prints the fix,
 and live in `references/checked-traps.md`, worth opening when one fires. The
@@ -39,56 +41,33 @@ code runs**. `th.supaline` and a `[mgr]` override alike are readable from the
 first line of `init.lua`, so resolving a base colour inside `setup` gets the
 user's value, not a preset's.
 
-Measured with `ya.dbg` and a probe column painted from `init.lua`:
-
-- `th.supaline.mtime` reads the user's `green` at the top of `init.lua`, before
-  `setup` is called and before any `theme` event.
-- A `[mgr] cwd` override captured into an upvalue at load time paints the
-  user's colour, so built-in sections are merged that early too. It keeps that
-  colour across a reload while the same field re-read inside the handler
-  follows the new one — a `Style` out of `th` is a **value frozen when it was
-  read**, not a handle, which is what makes the capture evidence rather than an
-  artefact.
-- A `theme` event fires by itself a couple of milliseconds after `init.lua`,
-  without the terminal probe ever being answered.
-
 **What still bites is the reload.** `app:theme` re-reads `theme.toml` from disk
 mid-run, and a plugin that resolved its colours once at `setup` goes on drawing
-the old ones — no error, just a stale colour. So: resolve base colours and
-build styles inside `ps.sub("theme", ...)`, and run that same builder once at
-setup so the plugin has something to draw with before the first event.
+the old ones — no error, just a stale colour, because a `Style` out of `th` is
+a value frozen when it was read rather than a handle. So: resolve base colours
+and build styles inside `ps.sub("theme", ...)`, and run that same builder once
+at setup so the plugin has something to draw with before the first event.
 
 Custom theme sections are read as `th.<section>`. Section names are normalised
 from kebab-case to snake_case (`[my-plugin]` becomes `th.my_plugin`), field
 values may only be a style table or a string, and **built-in section names are
 reserved** — a custom field added to `[mgr]` is unreachable.
 
-**Pinned twice, and both pins discriminate**: comment out
-`ps.sub("theme", build)` and each goes red on its own. `test/main_spec.lua`
-sets the section, runs `setup`, changes the section, and fires `theme` —
-changing it *after* setup is what makes the test say anything, since a section
-that never changed would also pass for a plugin that never subscribed.
-`test/e2e.sh` does the same against a real Yazi, rewriting `theme.toml` on disk,
-where the unit stub's model cannot be the thing that is wrong.
+Pinned twice, by `test/main_spec.lua` and by `test/e2e.sh` against a real Yazi,
+and both pins discriminate.
 
 ## Fetchers return a function, not a boolean
 
 Yazi calls whatever `fetch` returns, repeatedly, and expects
-`file, { retry = …, error = … }` each time; `nil` ends the loop.
+`file, { retry = …, error = … }` each time; `nil` ends the loop. Report each
+file exactly once: reporting one twice fails the task, and leaving one
+unreported does not.
 
-Measured with a throwaway fetcher over a two-file folder:
-
-- Returning the old boolean fails with `error converting Lua boolean to
-  function`, and the failure is nearly invisible: the body had already run, so
-  the side effects landed and a column would still fill in. **Nothing reaches
-  `yazi.log`, not even at `YAZI_LOG=debug`** — the message is in the task
-  manager alone (`w`, then Enter on the failed row), and the only sign on
-  screen is a stuck `1 left` in the status bar. Returning a loop instead
-  clears the count, which is what makes this a measurement and not an anecdote.
-- Reporting one file twice fails the task the same way, with the same stuck
-  count: `fetcher reported an unknown or duplicate file`.
-- Reporting only one of the two did **not** fail the task — it completed and
-  the count cleared. Do not go looking for a complaint Yazi never makes.
+A failed fetcher is nearly invisible. The body has already run, so the side
+effects landed and a column still fills in. **Nothing reaches `yazi.log`, not
+even at `YAZI_LOG=debug`** — the message is in the task manager alone (`w`,
+then Enter on the failed row), and the only sign on screen is a stuck `1 left`
+in the status bar. Look there before believing a fetcher worked.
 
 `retry = true` clears the loaded bit and runs again on the next visit. Fetchers
 can register themselves with `rt.plugin.fetchers:insert()`, sparing the user a
@@ -110,8 +89,7 @@ remember that folder-wide statistics for such a row must come from the parent
 folder, not `cx.active.current`.
 
 Pinned by `test/main_spec.lua` "a list opts into the panes it names", which
-calls the child directly for a row with `in_current = false` — the case
-`solo()` would have refused and the child does not.
+covers the code that exists and not a column written tomorrow.
 
 ## The rendering budget
 

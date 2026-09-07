@@ -155,9 +155,9 @@ Adding, removing or moving a platform trap touches, at minimum:
 
 - the Traps list in `AGENTS.md`, and the counts around it — spelled as words,
   so `grep -rn 'nine\|six of' --include='*.md'` is how you find them
-- the traps skill: its description, its body, and
-  `references/checked-traps.md`, which is where a trap goes once a check
-  catches it
+- the traps skill: its description, its body, and both files under
+  `references/` — `checked-traps.md`, where a trap goes once a check catches
+  it, and `probes.md`, which holds the evidence for the ones no check catches
 - the check itself, and the sentence naming which check prints what
 
 Nothing counts these for you. `.claude/rules/lua.md` said "the other five" for
