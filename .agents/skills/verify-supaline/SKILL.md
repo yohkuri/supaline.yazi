@@ -75,8 +75,10 @@ checked, which is how that was established.
 `workspace.library`, and at `0be29a9` that directory holds a single Lua file,
 `main.lua`, so nothing there shadows `.builtin` or `.column`. No probe reached
 that: `.builtin` returns a bare `{}`, and an empty table looks the same
-whichever module it came from. A `types.yazi` that grows a `builtin.lua` or a
-`column.lua` moves this line, so read the directory rather than this sentence.
+whichever module it came from. The `lua-language-server` job now reads the
+directory rather than this sentence: beside the clone, it names any tracked
+plugin file the annotations ship a twin of, `main.lua` excepted. Growing a
+`builtin.lua` fails that step instead of quietly retiring this paragraph.
 
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
 argument rather than a misspelled field before believing them.
