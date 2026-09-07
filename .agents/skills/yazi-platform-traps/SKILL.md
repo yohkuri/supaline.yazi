@@ -8,13 +8,10 @@ description: >-
   a change resolves a colour or reads the theme, writes a fetcher, touches the
   parent- or preview-pane child, or adds a column's render or stats -- not for
   every edit to plugin Lua, and not for a rename or a format string. Six
-  further traps -- ya.sync binding by call position, in_preview versus
-  in_current, the bulk to bulk-rename rename, modules that must return a table,
-  is_regular versus the six AuthKind variants, and truncation counting
-  characters where the screen counts clusters -- are refused by a test or a CI
-  job instead, and are in references/checked-traps.md for when one of them
-  fires. What was run to establish the three, and what came back, is in
-  references/probes.md and is needed only to doubt them.
+  further traps are refused by a test or a CI job that prints the fix, so they
+  need no reading in advance; references/checked-traps.md has them for when one
+  fires, and references/probes.md has what was run to establish the three
+  above.
 ---
 
 # Yazi platform traps
