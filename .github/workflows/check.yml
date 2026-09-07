@@ -67,11 +67,18 @@ jobs:
         # A `require` is resolved by file name, and `workspace.library` is
         # searched along with the workspace. At 0be29a9 these annotations hold
         # one Lua file, `main.lua`, which is why `require(".main")` in a spec
-        # reaches 3,235 lines of annotations rather than this plugin --
-        # `supaline.Main` and `module_spec.lua` are the repair for that one. A
-        # second such file would do the same to another module in silence: the
-        # check below still passes, having compared the plugin against
-        # something nobody here wrote.
+        # reaches 3,235 lines of annotations rather than this plugin on this
+        # runner -- `supaline.Main` and `module_spec.lua` are the repair for
+        # that one. A second such file would do the same to another module in
+        # silence: the check below still passes, having compared the plugin
+        # against something nobody here wrote.
+        #
+        # Which of two files of one name wins is a property of the absolute
+        # path each sits at, so this step does not work the winner out. A name
+        # the library ships twice is reported wherever the runner puts the
+        # checkout, which is the conservative direction and the only one that
+        # survives someone moving it.
+        # `annotate-supaline/references/main-collision.md` has the measurement.
         #
         # Matched by name anywhere under the library, not just beside
         # `main.lua`. `runtime.pathStrict` defaults to false, so `?.lua` is
@@ -103,15 +110,17 @@ jobs:
 
             hits=$(find "$lib" -type f -name "${f##*/}" | sort)
             [ -n "$hits" ] || continue
-            echo "$f: types.yazi ships a file of the same name, shadowing it:"
+            echo "$f: types.yazi ships a file of the same name:"
             while IFS= read -r hit; do
               echo "    ${hit#"$lib"/}"
             done <<< "$hits"
-            echo "  A require of that name reaches the annotations rather than"
-            echo "  this tree, so the check below says nothing about this"
-            echo "  module. verify-supaline says \`.main\` is the only name"
-            echo "  that can collide -- it is not any more. Re-measure which"
-            echo "  module each require reaches, and move that sentence."
+            echo "  A require of that name can reach the annotations rather"
+            echo "  than this tree, so the check below may say nothing about"
+            echo "  this module. The reference file"
+            echo "  annotate-supaline/references/main-collision.md says"
+            echo "  \`.main\` is the only name that can collide -- it is not"
+            echo "  any more. Re-measure which module each require reaches,"
+            echo "  and move that section."
             rc=1
           done < <(git ls-files -z '*.lua' ':!:test/*')
           exit $rc
