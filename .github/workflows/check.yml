@@ -64,14 +64,24 @@ jobs:
           mkdir -p ~/.config/yazi/plugins
           cp -R /tmp/plugins/types.yazi ~/.config/yazi/plugins/
       - name: None of them shadow this plugin's own modules
-        # A `require` is resolved by path, and `workspace.library` is searched
-        # along with the workspace. At 0be29a9 these annotations hold one Lua
-        # file, `main.lua`, which is why `require(".main")` in a spec reaches
-        # 3,235 lines of annotations rather than this plugin -- `supaline.Main`
-        # and `module_spec.lua` are the repair for that one. A second such file
-        # would do the same to another module in silence: the check below still
-        # passes, having compared the plugin against something nobody here
-        # wrote.
+        # A `require` is resolved by file name, and `workspace.library` is
+        # searched along with the workspace. At 0be29a9 these annotations hold
+        # one Lua file, `main.lua`, which is why `require(".main")` in a spec
+        # reaches 3,235 lines of annotations rather than this plugin --
+        # `supaline.Main` and `module_spec.lua` are the repair for that one. A
+        # second such file would do the same to another module in silence: the
+        # check below still passes, having compared the plugin against
+        # something nobody here wrote.
+        #
+        # Matched by name anywhere under the library, not just beside
+        # `main.lua`. `runtime.pathStrict` defaults to false, so `?.lua` is
+        # tried against every subdirectory of a library root: measured on
+        # 3.19.1 by planting an annotation file with no `return` at
+        # `nested/column.lua` and at `a/b/c/column.lua`, each of which took
+        # `--check` from refusing a misspelled `column.normalizze` to
+        # reporting no problems at all. Turning `runtime.pathStrict` on would
+        # narrow it to the root; `.luarc.json` is copied verbatim from
+        # yazi-rs/plugins and stays that way.
         #
         # Read off the tree rather than from a list of names, so a plugin file
         # added tomorrow is covered without anyone remembering to come back
@@ -85,13 +95,18 @@ jobs:
         # required by name.
         run: |
           rc=0
+          lib="$HOME/.config/yazi/plugins/types.yazi"
           while IFS= read -r -d '' f; do
             # The collision that already happened. It is worked around and
             # pinned rather than fixed, so failing on it would fail every run.
             [ "$f" != main.lua ] || continue
 
-            [ -e "$HOME/.config/yazi/plugins/types.yazi/$f" ] || continue
-            echo "$f: types.yazi ships a file of the same name, shadowing it."
+            hits=$(find "$lib" -type f -name "${f##*/}" | sort)
+            [ -n "$hits" ] || continue
+            echo "$f: types.yazi ships a file of the same name, shadowing it:"
+            while IFS= read -r hit; do
+              echo "    ${hit#"$lib"/}"
+            done <<< "$hits"
             echo "  A require of that name reaches the annotations rather than"
             echo "  this tree, so the check below says nothing about this"
             echo "  module. verify-supaline says \`.main\` is the only name"
