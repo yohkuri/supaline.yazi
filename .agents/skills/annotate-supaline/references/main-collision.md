@@ -10,8 +10,8 @@ None of that is needed to write a spec or an annotation. `annotate-supaline`
 and `verify-supaline` each say what to do about it in a paragraph — declare
 `supaline.Main`, claim it at the `require`, keep `MAIN_EXPORTS` in step — and
 that is the whole of the working knowledge. Read this file for the other case:
-a checkout somewhere new, an annotations revision that moves, the shadow step
-in CI firing, or the upstream issue landing.
+a checkout somewhere new, an annotations revision that moves, CI reporting a
+shadowed module, or the upstream issue landing.
 
 Everything here was measured on `lua-language-server` 3.19.1 against
 `yazi-rs/plugins@0be29a9`, the two revisions CI pins.
@@ -74,16 +74,17 @@ them repeating the mechanism:
 - the comment above `supaline.Main` in `main.lua`
 - the comment above `supaline.ColumnModule` in `column.lua`
 - the comment above `MAIN_EXPORTS` in `test/module_spec.lua`
-- the shadow step in `.github/workflows/check.yml`
+- the step `None of them shadow this plugin's own modules`, in
+  `.github/workflows/check.yml`
 - `annotate-supaline/SKILL.md`, where the specs come inside the type check
 - `verify-supaline/SKILL.md`, under what a spec's calls are checked against
 
 All six name this file, so `git grep -l main-collision.md` lists them along
 with this one, and a re-measurement lands here with everything that moves with
 it already enumerated. Count from that command rather than from this paragraph,
-which said four until the two skills were noticed. The shadow step is the one
-that does not depend on the answer at all: it reports a name the library ships
-twice without working out which copy would win, which is why it keeps holding
+which has no way of noticing a seventh place. That step is the one that does
+not depend on the answer at all: it reports a name the library ships twice
+without working out which copy would win, which is why it keeps holding
 wherever a runner puts the checkout.
 
 ## Filed upstream
@@ -98,8 +99,8 @@ tree: the diagnostic the collision swallows comes back, and `ya.dbg` and
 job.
 
 If it lands, `supaline.Main`, the `MAIN_EXPORTS` list pinning it, the cast at
-each spec's `require` and the `main.lua` exception in the shadow step all stop
-being needed — but only from the annotations revision that carries the line,
+each spec's `require` and the `main.lua` exception in the step listed above
+all stop being needed — but only from the revision that carries the line,
 and CI pins that revision by hash.
 
 ## `.main` is the only name that can collide
