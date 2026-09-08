@@ -325,28 +325,90 @@ function M.first_style(x)
 	return nil
 end
 
-function Line:width() return str_width(text_of(self)) end
+--- Measured part by part and added up, the way Yazi's own does, rather than
+--- over the parts joined into one string. The two disagree wherever a cluster
+--- straddles a part boundary: measured on 26.9.1,
+--- `ui.Line { ui.Span("\u{2764}"), ui.Span("\u{FE0F}") }` is **one** cell --
+--- a heart, plus a variation selector that measures nothing on its own --
+--- where the joined string is two. A column handing back several spans would
+--- otherwise have its width and its padding checked against a number the
+--- screen never shows.
+local function part_width(part)
+	if getmetatable(part) ~= Line then
+		return str_width(text_of(part))
+	end
+	local w = 0
+	for _, sub in ipairs(part._parts) do
+		w = w + part_width(sub)
+	end
+	return w
+end
+
+function Line:width() return part_width(self) end
 function Line:visible() return self:width() > 0 end
 function Line:style(s)
 	self._style = s
 	return self
 end
 
+--- Keep the first `bytes` bytes of a part list, part boundaries intact. Only
+--- the part the cut lands inside is rebuilt; the ones before it are kept by
+--- reference, and a Span keeps its style.
+---@param parts table
+---@param bytes integer
+---@return table
+local function keep_bytes(parts, bytes)
+	local out = {}
+	for _, part in ipairs(parts) do
+		if bytes <= 0 then
+			break
+		end
+		local text = text_of(part)
+		if #text <= bytes then
+			out[#out + 1] = part
+			bytes = bytes - #text
+		elseif getmetatable(part) == Line then
+			out[#out + 1] = setmetatable({ _parts = keep_bytes(part._parts, bytes), _style = part._style }, Line)
+			bytes = 0
+		elseif getmetatable(part) == Span then
+			out[#out + 1] = setmetatable({ _text = text:sub(1, bytes), _style = part._style }, Span)
+			bytes = 0
+		else
+			out[#out + 1] = text:sub(1, bytes)
+			bytes = 0
+		end
+	end
+	return out
+end
+
 --- A port of `Line::truncate` from `yazi-binding/src/elements/line.rs`, its
---- two surprises included, because `column.cell` exists to correct them:
+--- three surprises included, because `column.cell` exists to correct the first
+--- two:
 ---
 ---   * it holds back the ellipsis's width and then drops the character that
 ---     lands exactly on `max` as well, so an empty ellipsis still costs an
 ---     ASCII line one cell;
----   * it counts characters while `Line:width` measures the string, so a line
----     it thinks fits can come back wider than `max`.
+---   * it counts characters while the width is counted in cells, so a line it
+---     thinks fits can come back wider than `max`;
+---   * it **modifies the line it was given** and hands that same line back,
+---     rather than building a new one. `cut` in `column.lua` says so and
+---     relies on it; a column holding on to a renderable across rows would
+---     find it cut down by the first row that overflowed.
 ---
 --- Reproduced rather than repaired: a stub that quietly did the right thing
 --- would let the correction be deleted with every test still green.
+---
+--- The cut keeps the part boundaries, which is what makes the width above come
+--- out right afterwards: measured on 26.9.1,
+--- `ui.Line { ui.Span("\u{2764}"), ui.Span("\u{FE0F}"), ui.Span("abcdef") }`
+--- cut to four is three cells, and the same characters in one span are four.
+--- Which parts a real cut hands back is past what `width` can see, so only
+--- that total is pinned.
 function Line:truncate(opts)
 	local max = opts.max
 	if max < 1 then
-		return M.Line("")
+		self._parts = {}
+		return self
 	end
 
 	local ellipsis = opts.ellipsis == nil and "…" or opts.ellipsis
@@ -368,14 +430,20 @@ function Line:truncate(opts)
 	end
 
 	if at == nil then
-		return M.Line(ellipsis)
+		self._parts = { ellipsis }
+		return self
 	elseif adv <= max then
-		return self -- it fits, by its own reckoning
+		return self -- it fits, by its own reckoning, and is left alone
 	end
 
 	-- The character the cut lands on is kept, unless it ends exactly on `max`.
 	local len = fits == max and 0 or #char_at(text, at)
-	return M.Line(text:sub(1, at + len) .. ellipsis)
+	local kept = keep_bytes(self._parts, at + len)
+	if ellipsis ~= "" then
+		kept[#kept + 1] = ellipsis
+	end
+	self._parts = kept
+	return self
 end
 
 function M.Line(x)
