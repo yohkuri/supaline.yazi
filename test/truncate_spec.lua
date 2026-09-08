@@ -141,3 +141,57 @@ test("Line:truncate: a character it can measure is never overrun", function()
 	eq(lt("你好，世界", 4), "你…")
 	eq(lt("你好，世界", 4, ""), "你")
 end)
+
+test("Line:width: the parts are measured one by one, not joined up", function()
+	-- Measured on Yazi 26.9.1. A heart is one cell and the variation selector
+	-- after it is none, so the two as separate parts come to one; the same two
+	-- characters inside a single part are the cluster `\u{2764}\u{FE0F}`, which
+	-- is two. The stub used to join the parts and measure the string, so a
+	-- column handing back several spans had its width and its padding checked
+	-- against a number the screen never shows.
+	local heart, vs = "\u{2764}", "\u{FE0F}"
+	eq(stub.Line({ stub.Span(heart), stub.Span(vs) }):width(), 1)
+	eq(stub.Line({ stub.Span(heart .. vs) }):width(), 2)
+	eq(stub.Line({ heart, vs }):width(), 1, "a plain string is a part like any other")
+	eq(stub.Line({ stub.Line { stub.Span("ab") }, stub.Span("cd") }):width(), 4, "and so is a nested Line")
+end)
+
+test("Line:truncate: it modifies the line it was given and hands that back", function()
+	-- Measured on Yazi 26.9.1, where the receiver came back four cells wide
+	-- from eight and `rawequal` held. `cut` in `column.lua` says so and relies
+	-- on it -- each pass cuts the previous result further -- and a column that
+	-- kept a renderable across rows would find it cut down by the first row
+	-- that overflowed. The stub used to build a new Line and leave the original
+	-- untouched, so neither could ever show up in a test.
+	local line = stub.Line { stub.Span("abcdefgh") }
+	eq(line:width(), 8)
+	local out = line:truncate { max = 4 }
+	eq(rawequal(out, line), true, "the same line comes back")
+	eq(line:width(), 4, "and it has been cut where it stands")
+
+	-- One that fits is handed back untouched, and is still the same line.
+	local fits = stub.Line { stub.Span("ab") }
+	eq(rawequal(fits:truncate { max = 4 }, fits), true)
+	eq(fits:width(), 2)
+
+	-- A `max` below one empties it rather than leaving it alone.
+	local none = stub.Line { stub.Span("abcd") }
+	none:truncate { max = 0, ellipsis = "" }
+	eq(none:width(), 0)
+end)
+
+test("Line:truncate: the cut keeps the part boundaries", function()
+	-- Measured on Yazi 26.9.1, and the reason the cut rebuilds only the part it
+	-- lands inside rather than flattening the line into one string: the same
+	-- characters cut at the same `max` come out a cell apart depending on how
+	-- they were split up. Which parts a real cut hands back is past what
+	-- `width` can see, so only the total is pinned.
+	local heart, vs = "\u{2764}", "\u{FE0F}"
+	local many = stub.Line { stub.Span(heart), stub.Span(vs), stub.Span("abcdef") }
+	many:truncate { max = 4, ellipsis = "" }
+	eq(many:width(), 3)
+
+	local one = stub.Line { stub.Span(heart .. vs .. "abcdef") }
+	one:truncate { max = 4, ellipsis = "" }
+	eq(one:width(), 4)
+end)
