@@ -71,6 +71,19 @@
 ---@class supaline.Folder : tab__Folder
 ---@field files supaline.File[]
 
+--- A Line, with the method `cut` below calls on one. `types.yazi` declares
+--- `ui.truncate` and nothing for `Line:truncate`, which 26.9.1 has and
+--- `test/truncate_spec.lua` pins the behaviour of, so the checker refuses the
+--- call on a value it has typed. Taking the line as `unknown` gets past that
+--- and costs the rest: nothing else called on the same value is checked
+--- either.
+---
+--- The cast is at the call to `cut` rather than on the `ui.Line` it is handed:
+--- `Line:style` is declared returning `self`, which resolves to `ui.Line`, so
+--- a line cast where it is made loses the class again at the first `:style`.
+---@class supaline.Line : ui.Line
+---@field truncate fun(self: self, opts: { max: integer, ellipsis: string? }): supaline.Line
+
 --- One per column, reused across rows: what `render` reads a folder's measured
 --- state out of. `bind` also keeps the ramp's endpoints on this table, under
 --- names starting `_`; they are declared on `supaline.Ramp` below rather than
@@ -563,10 +576,10 @@ end
 --- Yazi's truncate mutates the line it is given and hands it back, so each
 --- pass cuts the previous result further. `max = 0` empties a line whatever it
 --- held, so the loop always ends.
----@param line unknown a ui.Line
+---@param line supaline.Line
 ---@param width integer
 ---@param ellipsis string? `""` to cut without a mark, nil for Yazi's own
----@return unknown a ui.Line
+---@return supaline.Line
 local function cut(line, width, ellipsis)
 	local max = ellipsis == "" and width + 1 or width
 	while max >= 0 do
@@ -619,7 +632,7 @@ function M.cell(col, file)
 		end
 		-- An empty ellipsis is how `Line:truncate` is asked to cut cleanly; left
 		-- to itself it inserts "…" like `ui.truncate` does.
-		line = cut(line, width, col.overflow == "clip" and "" or nil)
+		line = cut(line --[[@as supaline.Line]], width, col.overflow == "clip" and "" or nil)
 		-- `cut` returns *at most* `width`: a wide character straddling the edge
 		-- comes back one cell short, and an unpadded cell drags every column
 		-- after it out of line.

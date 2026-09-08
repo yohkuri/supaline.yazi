@@ -8,7 +8,7 @@ description: >-
   needs nothing from here, not for a spec or a stub, which `verify-supaline`
   covers, and not for a rename or a format string. Covers what carries a type
   and what does not, why a wrong value in a configuration table is refused
-  where a misspelled key is not, the four places `types.yazi` disagrees with
+  where a misspelled key is not, the five places `types.yazi` disagrees with
   Yazi 26.9.1, and why a difference is declared by inheriting from Yazi's
   class rather than re-opening it. The collision that makes `supaline.Main`
   necessary is summarised here and measured in
@@ -42,6 +42,15 @@ for keys its class does not declare, and marking those classes `(exact)` was
 measured to change that at no site here. What a user writes wrong is still
 `setup`'s to refuse at runtime, which is what all those errors are for.
 
+A value reassigned from its own method inside a loop is a second limit, and
+this one is the tool's rather than an annotation's: measured with
+lua-language-server 3.19.1, the version CI pins, a local written as
+`line = line:truncate {...}` inside a `while` keeps its class for that call and
+loses it for every call after — `line:widthh()` on the next line is not refused,
+where the same typo outside a loop is. `cut` in `column.lua` is that shape, so
+what covers its `line:width()` is `column_spec.lua` at runtime and nothing at
+check time.
+
 The specs are inside that reach only because `main.lua` declares
 `supaline.Main` for them to claim. Here and on the CI runner `require(".main")`
 resolves to `types.yazi` rather than to this tree, so without that class every
@@ -66,11 +75,19 @@ to read it off.
 ## Where types.yazi and Yazi disagree
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
-neither `file.idx`, `file.in_current` nor `Url.spec`, and gives `Cha.perm` as a
-string where 26.9.1 has a method — so `column.lua` declares the difference
-itself, with the probe that established it written beside the classes. A newer
-Yazi is a reason to run that probe again and correct them there, never to work
-around them at the call site.
+neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
+string where 26.9.1 has a method, and declares `ui.truncate` but nothing for
+`Line:truncate`, which 26.9.1 has — so `column.lua` declares the difference
+itself, with the evidence written beside the classes: a probe for the four read
+off `cx`, and `test/truncate_spec.lua` for the method, which pins what it does.
+A newer Yazi is a reason to run those again and correct them there, never to
+work around them at the call site.
+
+Declaring the fifth is what keeps the call checked, and the difference is
+worth planting once: with `cut` taking its line as `unknown`, `line:truncatee`
+inside it passes the check, and with `supaline.Line` the same typo comes back
+as an `undefined-field` warning. Getting one call past the checker is all
+`unknown` buys, and it pays with every other call on the same value.
 
 Those differences are declared by inheriting from Yazi's class, never by
 re-opening it, which means a folder taken off `cx` is cast where it arrives.
