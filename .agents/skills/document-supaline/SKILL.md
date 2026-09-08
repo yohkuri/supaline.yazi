@@ -116,10 +116,12 @@ belongs either in the first or in a file `SKILL.md` links itself.
 `Skills match the Agent Skills specification` refuses the half that can be
 counted: the frontmatter limits below, a body over 500 lines, and a reference
 over 100 whose `## Contents` does not name every section it has. Passing it
-means nothing about the three questions above. Every body here is far under
-500; the two `## Contents` headings were added the commit before that step
-existed, and `yazi-platform-traps`'s description was five characters inside
-the cap — which is the whole of what the step has ever had to say.
+means nothing about the three questions above. It has never reported anything,
+which is not the same as never having had anything to catch: the two
+`## Contents` headings went in one commit before the step required them, and
+`yazi-platform-traps`'s description was cut from five characters inside the cap
+in the commit that added the cap. Each was fixed on the way in rather than
+caught afterwards.
 
 ## What a description owes a reader who has not opened it
 
@@ -178,17 +180,22 @@ about its behaviour is a measurement with a date on it, not a fact.
 
 Adding, removing or moving a platform trap touches, at minimum:
 
-- the Traps list in `AGENTS.md`, and the counts around it — spelled as words,
-  so `grep -rn 'nine\|six of' --include='*.md'` is how you find them
+- the Traps list in `AGENTS.md`, and the counts around it
+- `.claude/rules/lua.md`, which carries the same arithmetic in its own words
 - the traps skill: its description, its body, and both files under
   `references/` — `checked-traps.md`, where a trap goes once a check catches
   it, and `probes.md`, which holds the evidence for the ones no check catches
 - the check itself, and the sentence naming which check prints what
 
-Nothing counts these for you. `.claude/rules/lua.md` said "the other five" for
-the whole life of the ninth trap, because the commit that made it nine updated
-`AGENTS.md` and the skill and not the rule; it was found by reading, which is
-the only thing that finds it.
+The counts are spelled as words, so a grep is the only way to sweep them:
+`grep -rn 'nine\|six of\|other six\|other three' --include='*.md'` reaches
+every Markdown file that carries one today. Widen it rather than trusting it.
+The earlier form matched `nine` and `six of` alone, which is how
+`.claude/rules/lua.md` stayed off this list while saying "the other five" for
+the whole life of the ninth trap — the commit that made it nine updated
+`AGENTS.md` and the skill and not the rule, and the grep offered here as the
+way to find that could not have found it. The check itself is not Markdown and
+no grep here reaches it. Nothing counts these for you.
 
 A new skill needs one more thing, invisible from inside it:
 `.claude/skills/<name>`, a tracked symlink to `../../.agents/skills/<name>`.
