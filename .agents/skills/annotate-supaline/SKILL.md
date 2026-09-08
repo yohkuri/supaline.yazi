@@ -46,10 +46,10 @@ A value reassigned from its own method inside a loop is a second limit, and
 this one is the tool's rather than an annotation's: measured with
 lua-language-server 3.19.1, the version CI pins, a local written as
 `line = line:truncate {...}` inside a `while` keeps its class for that call and
-loses it for every call after — `line:widthh()` on the next line is not refused,
-where the same typo outside a loop is. `cut` in `column.lua` is that shape, so
-what covers its `line:width()` is `column_spec.lua` at runtime and nothing at
-check time.
+loses it for the rest of the loop body — `line:widthh()` on the next line is
+not refused, where the same typo after the loop ends, or outside one, is. `cut`
+in `column.lua` is that shape, so what covers the `line:width()` inside its
+loop is `column_spec.lua` at runtime and nothing at check time.
 
 The specs are inside that reach only because `main.lua` declares
 `supaline.Main` for them to claim. Here and on the CI runner `require(".main")`
@@ -88,6 +88,11 @@ worth planting once: with `cut` taking its line as `unknown`, `line:truncatee`
 inside it passes the check, and with `supaline.Line` the same typo comes back
 as an `undefined-field` warning. Getting one call past the checker is all
 `unknown` buys, and it pays with every other call on the same value.
+
+What it buys is the name, not the argument. `max = "wide"` passes either way —
+the limit on a table constructor above holds here too, and naming a class for
+the options was measured not to change it — so the call being checked means
+the method exists and takes an options table, and no more.
 
 Those differences are declared by inheriting from Yazi's class, never by
 re-opening it, which means a folder taken off `cx` is cast where it arrives.
