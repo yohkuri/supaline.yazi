@@ -217,7 +217,7 @@ test("Line:truncate: every span keeps its own style through the cut", function()
 	-- `stub.Line` rather than `ui.Line`, as everywhere else in this file:
 	-- `types.yazi` declares `ui.truncate` but nothing for `Line:truncate`, so
 	-- the checker refuses the call on a value it has typed. `column.lua`
-	-- declares `supaline.Line` for that and casts where the line arrives; the
+	-- declares `supaline.Line` for that and casts at the call to `cut`; the
 	-- stub's Line is its own and needs neither.
 	local line = stub.Line {
 		stub.Span("aaa"):style(red),

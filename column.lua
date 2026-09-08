@@ -81,6 +81,11 @@
 --- The cast is at the call to `cut` rather than on the `ui.Line` it is handed:
 --- `Line:style` is declared returning `self`, which resolves to `ui.Line`, so
 --- a line cast where it is made loses the class again at the first `:style`.
+---
+--- The two options are the ones this plugin passes and `truncate_spec.lua`
+--- pins, not a claim about everything 26.9.1 accepts -- `ui.truncate` also
+--- takes `rtl`, and whether the method does was never measured. Nothing rests
+--- on it either way: a constructor's keys are not checked against this shape.
 ---@class supaline.Line : ui.Line
 ---@field truncate fun(self: self, opts: { max: integer, ellipsis: string? }): supaline.Line
 
