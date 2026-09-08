@@ -48,6 +48,28 @@ author's intent? If you can, it is checkable, and a paragraph is the wrong form
 for it. If telling a violation from a deliberate exception takes judgement
 about why the code is the way it is, it is not, and prose is the right form.
 
+One rule here came out the other way, and knowing which saves deciding it
+twice. The paragraph this skill opens with — that the reader starts cold, so a
+sentence may lean on a check, a file or a command but not on an incident — is
+not checkable, and two attempts at making it one have been dropped.
+
+Sweeping for it by hand works, and is worth doing before an audit: diff every
+backticked identifier in `AGENTS.md` and `.claude/rules/` against what
+`README.md` and `AGENTS.md` name, then match every "the X step / job / check"
+phrase against the names in `check.yml`. Expect most hits of the first to be
+legitimate — general shell, a path the reader can open, a term its own
+sentence defines.
+
+Turning the second into a check is what looks promising and is not. Nearly
+every backticked capitalised phrase in tracked Markdown is already exactly a
+name in `check.yml`, and the few that are not are quoted tool or API output,
+so a convention telling those apart costs almost nothing. It buys almost
+nothing either, because a marked name is not the mistake anyone makes. The one
+that gets made is `the spelling check` for a job named `Forbidden spellings` —
+and telling that from "a CI job that prints the fix", which correctly names
+none, means knowing whether the phrase meant to name one. That is intent, and
+intent is where the paragraph above says to stop.
+
 When it is checkable, three places take it. Try them in this order; the first
 that fits is the cheapest one that works.
 
