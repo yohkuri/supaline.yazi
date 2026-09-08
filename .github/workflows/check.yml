@@ -156,9 +156,11 @@ jobs:
         # The hard constraints from the specification at
         # https://agentskills.io/specification, read 2026-09-08, and the
         # numbers Anthropic's authoring guide repeats: `name` at most 64
-        # characters of lowercase alphanumerics and single hyphens and equal
-        # to its directory, `description` non-empty and at most 1024, a body
-        # under 500 lines, and a table of contents on a reference over 100.
+        # characters of lowercase alphanumerics and single hyphens, equal to
+        # its own directory and clear of the words the spec reserves;
+        # `description` non-empty and at most 1024; `compatibility` at most
+        # 500; a body under 500 lines; and a table of contents on a reference
+        # over 100.
         #
         # 1024 is the one that bites. Past it a strict client rejects the
         # skill at load time and a lenient one truncates, which takes the
@@ -167,41 +169,102 @@ jobs:
         # `document-supaline`. `yazi-platform-traps` sat 5 characters short
         # of it before this step existed.
         #
-        # The Contents test is a correspondence, not a presence: a heading
-        # the list does not name fails, so adding a section without listing
-        # it cannot pass. What is deliberately *not* here is the spec's
-        # "keep references one level deep" -- that is about a reference
-        # linking on to another reference, which needs judgement, so it is
-        # prose in `document-supaline` instead.
+        # Read out of the frontmatter proper, between the opening `---` and
+        # the closing one, and a file missing either fence fails rather than
+        # measuring as empty: counting the body from the second `---` is what
+        # let a 900-line one through as zero. `description` is taken whichever
+        # scalar style writes it -- a block (`>-`, `>`, `|`, `|-`) or a single
+        # line, quoted or not -- because the spec constrains the value and not
+        # how YAML spells it. Folding is approximated by joining on single
+        # spaces, which agrees with a real parse to the character on all four
+        # descriptions here and can drift by one per blank line in a block.
         #
-        # The upstream `skills-ref validate` covers the frontmatter rules
-        # too. It is not used here because it would add a toolchain for four
+        # The Contents test is a correspondence, not a presence: a heading the
+        # list does not name fails, so neither adding a section without
+        # listing it nor renaming one can pass. Headings inside fenced blocks
+        # are not headings -- these files quote shell, where `##` is a
+        # comment. What is deliberately *not* here is the spec's "keep
+        # references one level deep": that is about a reference linking on to
+        # another reference, which needs judgement, so it is prose in
+        # `document-supaline` instead.
+        #
+        # `run:` is `bash -e`, so every `grep -c` here is guarded -- a count
+        # of zero is an exit status, and an unguarded one would abort the step
+        # in the middle rather than report anything.
+        #
+        # The upstream `skills-ref validate` covers the frontmatter rules too.
+        # It is not used here because it would add a toolchain for four
         # skills, and every other tool in this file is pinned.
         run: |
           rc=0
           found=0
+
+          # One frontmatter scalar, whichever style writes it: $1 file,
+          # $2 last frontmatter line, $3 key.
+          scalar() {
+            sed -n "2,$2p" "$1" | awk -v k="$3" '
+              !cap && index($0, k ":") == 1 {
+                v = substr($0, length(k) + 2)
+                sub(/^[[:space:]]*/, "", v)
+                if (v ~ /^[|>][+-]?$/ || v == "") { cap = 1; next }
+                if (v ~ /^".*"$/ || v ~ /^\047.*\047$/) v = substr(v, 2, length(v) - 2)
+                print v
+                exit
+              }
+              cap {
+                if ($0 == "") { print ""; next }
+                if ($0 ~ /^[[:space:]]/) { sub(/^[[:space:]]+/, ""); print; next }
+                exit
+              }
+            ' | tr '\n' ' ' | sed 's/  *$//'
+          }
+
           for d in .agents/skills/*/; do
             d=${d%/}
             f="$d/SKILL.md"
-            if [ ! -e "$f" ]; then
+            if [ ! -f "$f" ]; then
               echo "$d: no SKILL.md."
               rc=1
               continue
             fi
             found=$((found + 1))
-            name=$(sed -n 's/^name:[[:space:]]*//p' "$f" | head -1)
-            desc=$(awk '/^description: >-/{d=1;next} d&&(/^---$/||/^[a-z-]+:/){exit} d' "$f" |
-              sed 's/^  *//' | tr '\n' ' ' | sed 's/ *$//')
-            body=$(awk '/^---$/{n++; next} n>=2' "$f" | wc -l | tr -d '[:space:]')
+
+            if [ "$(head -1 "$f")" != "---" ]; then
+              echo "$f: does not open with a --- frontmatter fence."
+              echo "  A client reads no skill here, and nothing below can be measured."
+              rc=1
+              continue
+            fi
+            fm_end=$(awk 'NR>1 && $0=="---" {print NR; exit}' "$f")
+            if [ -z "$fm_end" ]; then
+              echo "$f: the frontmatter never closes."
+              echo "  Add the closing ---. Without it a client reads no skill here, and"
+              echo "  the body below measures as zero lines however long it is."
+              rc=1
+              continue
+            fi
+
+            name=$(scalar "$f" "$((fm_end - 1))" name)
+            desc=$(scalar "$f" "$((fm_end - 1))" description)
+            compat=$(scalar "$f" "$((fm_end - 1))" compatibility)
+            body=$(( $(wc -l < "$f" | tr -d '[:space:]') - fm_end ))
 
             [ "$name" = "${d##*/}" ] || { echo "$f: name is \`$name\`, directory is \`${d##*/}\`."; rc=1; }
             case $name in
+              "") echo "$f: no name in the frontmatter."; rc=1 ;;
               *[!a-z0-9-]*|-*|*-|*--*) echo "$f: name \`$name\` is not lowercase-alphanumeric-hyphen."; rc=1 ;;
+            esac
+            case $name in
+              *anthropic*|*claude*)
+                echo "$f: name \`$name\` uses a word the spec reserves."
+                echo "  \`anthropic\` and \`claude\` are refused however they are spelled into it."
+                rc=1 ;;
             esac
             [ ${#name} -le 64 ] || { echo "$f: name is ${#name} characters, over the spec's 64."; rc=1; }
 
             if [ -z "$desc" ]; then
               echo "$f: description is empty."
+              echo "  Any scalar style is read -- a block, or one line, quoted or not."
               rc=1
             elif [ ${#desc} -gt 1024 ]; then
               echo "$f: description is ${#desc} characters, over the spec's 1024."
@@ -213,6 +276,11 @@ jobs:
               *---*) echo "$f: the description contains a literal ---, which cuts the listing there."; rc=1 ;;
             esac
 
+            [ ${#compat} -le 500 ] || {
+              echo "$f: compatibility is ${#compat} characters, over the spec's 500."
+              rc=1
+            }
+
             [ "$body" -le 500 ] || {
               echo "$f: body is $body lines, over the 500-line budget."
               echo "  Move what a reader does not need every time into references/."
@@ -222,26 +290,77 @@ jobs:
           [ "$found" -gt 0 ] || { echo ".agents/skills/: no skill found. Has the tree moved?"; rc=1; }
 
           for f in .agents/skills/*/references/*.md; do
-            [ -e "$f" ] || continue
+            [ -f "$f" ] || continue
             lines=$(wc -l < "$f" | tr -d '[:space:]')
             [ "$lines" -gt 100 ] || continue
-            if ! grep -q '^## Contents$' "$f"; then
+
+            heads=$(awk '/^```/ { fence = !fence; next } !fence && /^## / { sub(/^## /, ""); print }' "$f")
+            printf '%s\n' "$heads" | grep -qx 'Contents' || {
               echo "$f: $lines lines and no '## Contents' heading."
+              echo "  List the sections at the top, so a partial read still shows what the"
+              echo "  file covers."
               rc=1
               continue
-            fi
-            block=$(awk '/^## Contents$/{c=1;next} c&&/^## /{exit} c' "$f")
-            listed=$(printf '%s\n' "$block" | grep -c '^- ')
-            actual=$(grep '^## ' "$f" | grep -vc '^## Contents$')
+            }
+
+            block=$(awk '
+              /^```/ { fence = !fence; if (c) print; next }
+              !fence && /^## Contents$/ { c = 1; next }
+              !fence && /^## / { if (c) exit }
+              c { print }
+            ' "$f")
+            listed=$(printf '%s\n' "$block" | grep -c '^- ' || true)
+            actual=$(printf '%s\n' "$heads" | grep -v '^Contents$' | grep -c '.' || true)
             [ "$listed" -eq "$actual" ] || {
               echo "$f: Contents lists $listed of $actual sections."
               rc=1
             }
-            grep '^## ' "$f" | grep -v '^## Contents$' | sed 's/^## //' | while IFS= read -r h; do
-              printf '%s\n' "$block" | grep -qF -- "$h" || echo "$f: not in Contents: $h"
-            done
+
+            missing=$(printf '%s\n' "$heads" | grep -v '^Contents$' | while IFS= read -r h; do
+              [ -n "$h" ] || continue
+              printf '%s\n' "$block" | grep -qF -- "$h" || printf '%s\n' "$h"
+            done)
+            [ -z "$missing" ] || {
+              printf '%s\n' "$missing" | sed "s|^|$f: not in Contents: |"
+              echo "  A renamed section keeps the count and loses its entry, so the count"
+              echo "  above says nothing about it."
+              rc=1
+            }
           done
 
+          exit $rc
+      - name: Every skill is reachable from .claude/skills
+        # Claude Code reads `.claude/skills`; the skills live under
+        # `.agents/skills` where every agent can reach them, and a tracked
+        # symlink joins the two. A missing one is invisible from inside the
+        # skill and silent at the other end -- the skill is simply never
+        # offered. `document-supaline` carried this as a paragraph until it
+        # became a check, which is the order that section asks for.
+        run: |
+          rc=0
+          for d in .agents/skills/*/; do
+            n=$(basename "${d%/}")
+            l=".claude/skills/$n"
+            if ! git ls-files --error-unmatch "$l" >/dev/null 2>&1; then
+              echo "$l: not tracked. Claude Code will not see \`$n\`."
+              echo "  ln -s ../../.agents/skills/$n $l && git add $l"
+              rc=1
+              continue
+            fi
+            t=$(readlink "$l" || true)
+            [ "$t" = "../../.agents/skills/$n" ] || {
+              echo "$l: points at \`$t\`, not \`../../.agents/skills/$n\`."
+              rc=1
+            }
+          done
+          for l in .claude/skills/*; do
+            [ -L "$l" ] || [ -e "$l" ] || continue
+            n=$(basename "$l")
+            [ -d ".agents/skills/$n" ] || {
+              echo "$l: nothing at .agents/skills/$n for it to point at."
+              rc=1
+            }
+          done
           exit $rc
 
   since:
