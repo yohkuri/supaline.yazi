@@ -19,7 +19,16 @@ description: >-
 
 The reader is an agent starting cold: no memory of the last session, no idea
 which of the things it is about to try has already been tried and rejected.
-Everything below follows from that.
+It has `README.md` and `AGENTS.md`, and nothing else — not this repository's
+history, not the sessions that produced it, not another skill unless it was
+sent there.
+
+Everything below follows from that, and so does one rule about what a
+sentence here may lean on. Name a check, a file, a command or something
+`AGENTS.md` already carries, and the reader can go and look. Name an incident
+— a commit, a pull request, a session that left no file behind — and it
+cannot, so the sentence lands as an assertion it can neither check nor apply.
+Write the shape of the mistake rather than the day it happened.
 
 Style is not in here. `.markdownlint-cli2.yaml` holds the wrap, the bullet, the
 heading level and the fence language, and CI runs it — so a document that lints
@@ -46,7 +55,7 @@ that fits is the cheapest one that works.
    rule about what the source *says*: a forbidden name, a required
    annotation, where a call has to sit, a frontmatter field that has to stay
    inside a limit. A `grep` covers most of them; reach past one when the rule
-   needs more, as the shadow step and the specification step do.
+   needs more, as two of the steps there already do.
 2. **A spec under `test/`** — for a rule about what this repository's own code
    *does* with a given input.
 3. **A stub that raises** — for a rule about what Yazi accepts, including the
@@ -75,10 +84,12 @@ does:
 
 Know what a check cannot do before you trust one. A test runs over the code
 that exists, so it pins that code and nothing else — code written tomorrow can
-repeat the same mistake and keep the suite green. A fresh column written with
-`not is_regular` passed all 103 tests before the spelling check existed. A rule
-that has to hold for code nobody has written yet needs a check over the source,
-which is why some of them are greps rather than tests.
+repeat the same mistake and keep the suite green. That has happened here: one
+of the traps `AGENTS.md` lists was repeated in a column written after the
+suite, and the whole suite passed, which is why a check over the source
+refuses that spelling now. A rule that has to hold for code nobody has written
+yet needs one of those rather than a test, which is why some of them are
+greps.
 
 ## Where a rule belongs
 
@@ -105,9 +116,9 @@ you are editing:
 ## What a skill carries, and what sits beside it
 
 Three questions, in this order, for every paragraph of a skill. The order is
-the whole of it: question one is about which skill, and asking it second is how
-the mechanism behind a type collision ends up filling half the skill for the
-test harness.
+the whole of it: question one asks which skill a paragraph belongs to, and
+asking it second is how a long mechanism ends up filling half of whichever
+skill happened to run into it.
 
 1. **Is this the subject the skill is read for?** If the change that needs it
    is a different kind of change, it belongs in that other skill, however few
@@ -135,11 +146,8 @@ belongs either in the first or in a file `SKILL.md` links itself.
 counted: the frontmatter limits below, a body over 500 lines, and a reference
 over 100 whose `## Contents` does not name every section it has. Passing it
 means nothing about the three questions above. It has never reported anything,
-which is not the same as never having had anything to catch: the two
-`## Contents` headings went in one commit before the step required them, and
-`yazi-platform-traps`'s description was cut from five characters inside the cap
-in the commit that added the cap. Each was fixed on the way in rather than
-caught afterwards.
+which is a reason to go and plant something for it rather than a reason to
+trust it.
 
 ## What a description owes a reader who has not opened it
 
@@ -163,9 +171,9 @@ The limits are the specification's, not a preference
 characters of lowercase alphanumerics and single hyphens, equal to its own
 directory; `description` non-empty and at most **1024 characters**. Past 1024 a
 strict client refuses the skill outright and a lenient one truncates, which
-costs job 2 first because it is written second. `yazi-platform-traps` sat five
-characters inside that cap until its description was cut back. The step named
-above refuses all of it.
+costs job 2 first because it is written second. The cap is reachable: one
+description here came within five characters of it before it was cut back. The
+step named above refuses all of it.
 
 Keep a literal `---` out of the description, annotation names included.
 `annotate-supaline` first said it was read before changing a `---@class` or a
@@ -180,11 +188,11 @@ to open the file does not need the spelling.
 Yazi is on CalVer and breaks the plugin API between releases, so a sentence
 about its behaviour is a measurement with a date on it, not a fact.
 
-- Name the version and the method: measured on 26.9.1, in a detached tmux,
-  with a probe plugin and `ya.dbg`.
-- Say where the measurement stops instead of rounding it off. `is_virtual =
-  true` was never observed, and the skill says so rather than implying a run
-  that did not happen.
+- Name the version and the method: measured on 26.9.1, in a detached tmux, by
+  a throwaway plugin that printed the values into Yazi's debug log.
+- Say where the measurement stops instead of rounding it off. A variant you
+  never managed to produce is written down as never observed, rather than left
+  out as though the run had covered it.
 - A different Yazi is a reason to re-run the experiment, not to trust the
   sentence — and when you re-run it, write down what you ran.
 - What is undecided is written as undecided. Status columns of supaline's own
@@ -207,13 +215,11 @@ Adding, removing or moving a platform trap touches, at minimum:
 
 The counts are spelled as words, so a grep is the only way to sweep them:
 `grep -rn 'nine\|six of\|other six\|other three' --include='*.md'` reaches
-every Markdown file that carries one today. Widen it rather than trusting it.
-The earlier form matched `nine` and `six of` alone, which is how
-`.claude/rules/lua.md` stayed off this list while saying "the other five" for
-the whole life of the ninth trap — the commit that made it nine updated
-`AGENTS.md` and the skill and not the rule, and the grep offered here as the
-way to find that could not have found it. The check itself is not Markdown and
-no grep here reaches it. Nothing counts these for you.
+every Markdown file that carries one today. Widen it before you trust it: a
+narrower form of this same grep missed a file that had been carrying a stale
+count since the day it went stale, and missed it for as long as the count was
+wrong. The check itself is not Markdown and no grep here reaches it. Nothing
+counts these for you.
 
 A new skill needs one more thing, invisible from inside it:
 `.claude/skills/<name>`, a tracked symlink to `../../.agents/skills/<name>`.
