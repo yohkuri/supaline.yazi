@@ -44,22 +44,24 @@ measured to change that at no site here. What a user writes wrong is still
 
 The specs are inside that reach only because `main.lua` declares
 `supaline.Main` for them to claim. Here and on the CI runner `require(".main")`
-resolves to `types.yazi` rather than to this tree, and until that class existed
-every call a spec made into the plugin was checked against a module exporting
+resolves to `types.yazi` rather than to this tree, so without that class every
+call a spec makes into the plugin is checked against a module exporting
 nothing, with the job green throughout. That "here" is not a redundancy: which
 of the two `main.lua` files wins is a property of the absolute path the tree
 sits at, not of either name. `references/main-collision.md` has the mechanism,
 what was measured and what was not, the places the collision is stated,
 and how to re-take it — worth opening when a checkout moves, when the pinned
-annotations revision moves, or when the shadow step in CI fires.
+annotations revision moves, or when the CI step `None of them shadow this
+plugin's own modules` fires.
 
 A module table carries no class of its own for free. `require(".column")`
-resolves to this tree and that module's signatures were read all along, yet
-`column.normalizze` cost nothing until `supaline.ColumnModule` was declared on
-the table `column.lua` returns — the shape `supaline.Stub` already used.
-Declared on the table rather than written out, its fields are whatever the file
-assigns, so nothing has to pin them. `supaline.Main` is by hand only because
-there is no table here for the checker to read it off.
+resolves to this tree and that module's signatures are read normally, yet a
+misspelled `column.normalizze` costs nothing unless the table `column.lua`
+returns carries a class of its own. It carries `supaline.ColumnModule` — the
+shape `supaline.Stub` uses too. Declared on the table rather than written out,
+its fields are whatever the file assigns, so nothing has to pin them.
+`supaline.Main` is by hand only because there is no table here for the checker
+to read it off.
 
 ## Where types.yazi and Yazi disagree
 
