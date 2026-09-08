@@ -402,8 +402,10 @@ end
 --- out right afterwards: measured on 26.9.1,
 --- `ui.Line { ui.Span("\u{2764}"), ui.Span("\u{FE0F}"), ui.Span("abcdef") }`
 --- cut to four is three cells, and the same characters in one span are four.
---- Which parts a real cut hands back is past what `width` can see, so only
---- that total is pinned.
+--- Each part keeps its own style through the cut, the one the cut lands inside
+--- included -- measured by drawing a two-colour line and reading the colours
+--- back off the screen, since two lines of equal width cannot be told apart
+--- any other way.
 function Line:truncate(opts)
 	local max = opts.max
 	if max < 1 then
