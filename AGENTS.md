@@ -148,16 +148,18 @@ need; the mechanism behind each, and the experiment that established it, is in
   cell shorter than the same string
 
 **Six of the nine are refused by a check**, which prints what to write
-instead: `ya.sync` placement and the two forbidden spellings in CI, an
-unpublished DDS kind by the stub, a module returning a boolean by
-`test/module_spec.lua`, a cut that counts characters by `truncate_spec.lua`
-and `column_spec.lua`. Nobody has to read about those.
+instead: `ya.sync` placement in CI, the names `in_preview` and `is_regular`
+by the `Forbidden spellings` job, an unpublished DDS kind by the stub, a
+module returning a boolean by `test/module_spec.lua`, a cut that counts
+characters by `truncate_spec.lua` and `column_spec.lua`. Nobody has to read
+about those.
 
 The other three are why the skill exists, because a green suite says nothing
 about them. The parent-pane child is pinned against the code already here, so
 **new** code can repeat it and stay green — measured, not assumed: a fresh
-column written with `not is_regular` passed all 103 tests before the spelling
-check existed. The fetcher has no pin at all, because there is no fetcher yet.
+column written with `not is_regular` passed the whole suite before
+`Forbidden spellings` existed. The fetcher has no pin at all, because there is
+no fetcher yet.
 
 ## Commands
 
