@@ -100,9 +100,24 @@ jobs:
         # -- `run.lua` loads the stub and the specs by absolute path, with
         # `dofile` and `loadfile`, and only the plugin's own modules are ever
         # required by name.
+        #
+        # A library that is not there is a silent pass rather than an error,
+        # so the guard below is not the clone step's failure said twice:
+        # `find` does fail per file, but `sort` exits 0 over the empty output
+        # and `bash -e` sees a pipeline that succeeded, so the loop reports no
+        # collisions and the step exits 0. Unreachable while the clone runs
+        # first in this job; the guard is what makes reordering the two safe.
         run: |
           rc=0
           lib="$HOME/.config/yazi/plugins/types.yazi"
+          if [ ! -d "$lib" ]; then
+            echo "$lib is not there."
+            echo "  The step that clones Yazi's annotations has to run before"
+            echo "  this one. Without them there is nothing to compare this"
+            echo "  plugin's module names against, and the walk below would"
+            echo "  report no collisions rather than say it checked nothing."
+            exit 1
+          fi
           while IFS= read -r -d '' f; do
             # The collision that already happened. It is worked around and
             # pinned rather than fixed, so failing on it would fail every run.
