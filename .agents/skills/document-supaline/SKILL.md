@@ -190,7 +190,9 @@ the whole life of the ninth trap, because the commit that made it nine updated
 `AGENTS.md` and the skill and not the rule; it was found by reading, which is
 the only thing that finds it.
 
-A new skill has one more step that is easy to miss: `.claude/skills/<name>`
-must be a symlink to `../../.agents/skills/<name>`, tracked like the ones
-already there. Claude Code looks under `.claude/skills`; the skill itself lives
-under `.agents/`, where every agent can reach it.
+A new skill needs one more thing, invisible from inside it:
+`.claude/skills/<name>`, a tracked symlink to `../../.agents/skills/<name>`.
+Claude Code reads `.claude/skills`; the skill itself lives under `.agents/`,
+where every agent can reach it. `Every skill is reachable from .claude/skills`
+refuses a missing one and prints the `ln -s` to run. It was this paragraph
+until it was a check, which is the order the first section asks for.
