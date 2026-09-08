@@ -7,7 +7,12 @@ on:
 
 concurrency:
   group: check-${{ github.ref }}
-  cancel-in-progress: true
+  # A pull request's superseded run is worth cancelling: every job in it reads
+  # the tree, and the next run reads the same tree again. A push's run is not.
+  # `landed` below reads a *range*, `before..sha`, and a range a cancelled run
+  # was carrying is examined by nothing, ever -- it has already happened once
+  # here, when two pull requests merged twelve seconds apart.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -155,6 +160,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # `.githooks` holds hooks and nothing else -- a README there would
+      # fail this step on SC2148 rather than be skipped, which is the right
+      # way round for a directory git executes every file in.
       - run: shellcheck test/*.sh .githooks/*
 
   docs:
@@ -549,19 +557,26 @@ jobs:
   landed:
     # The counterpart of `commits` above, and the reason that job can stay on
     # pull requests alone: what it reads is only ever read there, so a commit
-    # that reached main without a pull request is a commit whose message
-    # nothing checked. `.githooks/pre-commit` refuses one before it exists;
-    # this is what a clone that never installed the hook runs into, after the
-    # fact rather than before it.
+    # that reached main another way is one whose message nothing checked.
+    # `.githooks/pre-push` refuses the push that would do it; this is what a
+    # clone that never installed the hooks runs into, after the fact.
     #
-    # The association is what GitHub itself reports for a commit, so it holds
-    # however the pull request was merged -- this history is rebase-merged,
-    # and every commit on main carries the number it came in on. It can lag a
-    # merge by a moment, which is what the retries are for: a check that fails
-    # open would be worse, and one that flakes red on a fresh merge would be
-    # ignored inside a week.
+    # Three things are asked of every commit that lands, because "a pull
+    # request exists" is weaker than it sounds: the pull request it came from
+    # has to be *merged* (an open one also reports the association, so a
+    # branch pushed straight to main while its own pull request sat open would
+    # otherwise pass), it has to have targeted main, and `Commit messages` has
+    # to have concluded `success` on its head. Nothing here reads a merge
+    # commit's own message -- `commits` skips those deliberately -- but a
+    # merge commit still has to belong to a merged pull request, which is what
+    # a `git pull` merge pushed to main would not.
     #
-    # `run:` is `bash -e`, so both command substitutions are guarded -- an
+    # An API that does not answer is reported as itself rather than as a
+    # violation. The distinction matters: this job runs on main, where a red
+    # cross saying "install the hook" for a commit that came through a pull
+    # request perfectly is the kind of noise a check gets ignored for.
+    #
+    # `run:` is `bash -e`, so every command substitution is guarded -- an
     # unguarded one would abort the step in the middle and report nothing.
     name: Commits on main came from a pull request
     if: github.event_name == 'push'
@@ -569,6 +584,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      checks: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -581,31 +597,75 @@ jobs:
         run: |
           rc=0
 
-          # A branch's first push reports an all-zero `before`, and there is
-          # no range to walk from it.
+          # A branch's first push reports an all-zero `before` and there is no
+          # range to walk from it; main is created once, and its tip is what
+          # there is to look at. A `before` that is no longer reachable -- a
+          # force push -- is not a range either, and saying so beats printing
+          # git's own complaint and stopping.
           case "$BEFORE" in
-            *[!0]*) revs=$(git rev-list --no-merges "$BEFORE..$AFTER") || rc=1 ;;
+            *[!0]*)
+              revs=$(git rev-list "$BEFORE..$AFTER" 2>/dev/null) || {
+                echo "$BEFORE..$AFTER is not walkable here, so nothing was"
+                echo "checked. A force push to main is the usual reason, and"
+                echo "the range it discarded has to be read by hand."
+                exit 1
+              }
+              ;;
             *) revs=$AFTER ;;
           esac
-          [ "$rc" = 0 ] || exit 1
 
           for rev in $revs; do
-            n=0
-            for _ in 1 2 3; do
-              n=$(gh api "repos/$GITHUB_REPOSITORY/commits/$rev/pulls" \
-                --jq 'length') || n=0
-              [ "$n" = 0 ] || break
-              sleep 10
+            # The association can lag a merge by a moment, which is what the
+            # attempts are for; the sleep is between them, not after the last.
+            pr=
+            failed=
+            for attempt in 1 2 3; do
+              failed=
+              pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$rev/pulls" --jq \
+                '[.[] | select(.merged_at != null and .base.ref == "main")][0].number // empty') \
+                || failed=1
+              [ -z "$failed" ] && [ -n "$pr" ] && break
+              [ "$attempt" = 3 ] || sleep 10
             done
 
-            [ "$n" = 0 ] || continue
-            echo "${rev:0:8} reached main without a pull request:"
-            git log -1 --format='  %s' "$rev"
-            echo '  `Commit messages` never read it -- that job runs on a'
-            echo '  pull request alone. Install the hook that refuses this'
-            echo '  before it happens:'
-            echo '      ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit'
-            rc=1
+            if [ -n "$failed" ]; then
+              echo "${rev:0:8} the pull request API did not answer."
+              echo '  This is the check failing to run, not the commit failing'
+              echo '  it. Re-run the job; if it keeps happening, look at the'
+              echo '  token and the rate limit rather than at the commit.'
+              rc=1
+              continue
+            fi
+
+            if [ -z "$pr" ]; then
+              echo "${rev:0:8} reached main without a merged pull request:"
+              git log -1 --format='  %s' "$rev"
+              echo '  `Commit messages` never read it -- that job runs on a'
+              echo '  pull request alone. AGENTS.md has the two lines that'
+              echo '  install the hooks which refuse this before it happens.'
+              rc=1
+              continue
+            fi
+
+            head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq .head.sha) || head=
+            verdict=
+            [ -z "$head" ] || verdict=$(gh api \
+              "repos/$GITHUB_REPOSITORY/commits/$head/check-runs" --jq \
+              '[.check_runs[] | select(.name == "Commit messages")][0].conclusion // empty') \
+              || verdict=
+
+            if [ -z "$head" ] || [ -z "$verdict" ]; then
+              echo "${rev:0:8} came from #$pr, whose \`Commit messages\` could"
+              echo '  not be read. As above: the check failed to run.'
+              rc=1
+            elif [ "$verdict" != success ]; then
+              echo "${rev:0:8} came from #$pr, where \`Commit messages\`"
+              echo "  concluded \`$verdict\`. The message on main is one the"
+              echo '  job had already refused; branch protection is what stops'
+              echo '  a merge over a red check, and AGENTS.md says where that'
+              echo '  stands.'
+              rc=1
+            fi
           done
           exit $rc
 
