@@ -1,0 +1,50 @@
+#!/bin/sh
+# Refuse a commit on `main`. Work reaches main through a pull request, and
+# `Commit messages` in `.github/workflows/check.yml` is the job that reads a
+# message: commitlint, the ASCII header, and the Gitmoji test. That job runs
+# on a pull request and nowhere else, deliberately -- a pull request is the
+# last point at which a message can still be rewritten. A commit made here is
+# one nothing ever reads.
+#
+# `.git/hooks` is not tracked, so this file has to be installed per clone:
+#
+#     ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
+#
+# A clone that never ran that is what the `landed` job in the same workflow is
+# for -- it refuses a commit that reached main without a pull request, after
+# the fact rather than before it.
+#
+# `core.hooksPath` is not used here on purpose: it replaces a global hooks
+# directory rather than adding to it, and on a machine that has one, that
+# directory is what runs this file.
+
+branch=$(git symbolic-ref --quiet --short HEAD) || exit 0
+[ "$branch" = "main" ] || exit 0
+[ -z "$SUPALINE_COMMIT_ON_MAIN" ] || exit 0
+
+cat >&2 <<'MSG'
+supaline: refusing a commit on `main`.
+
+  Work lands on main through a pull request. `Commit messages` in
+  .github/workflows/check.yml runs only on one, so a commit made straight on
+  main is a commit whose message nothing checks.
+
+  What is staged goes on a branch instead:
+
+      git switch -c <type>/<subject>
+      git commit
+      git push -u origin HEAD
+      gh pr create
+
+  A commit already made on main moves the same way, as long as it is not
+  pushed:
+
+      git branch <type>/<subject>
+      git reset --hard origin/main
+      git switch <type>/<subject>
+
+  A deliberate exception is spelled out rather than bypassed wholesale:
+
+      SUPALINE_COMMIT_ON_MAIN=1 git commit ...
+MSG
+exit 1
