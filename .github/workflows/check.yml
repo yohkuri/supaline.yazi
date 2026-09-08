@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: shellcheck test/*.sh
+      - run: shellcheck test/*.sh .githooks/*
 
   docs:
     name: markdownlint
@@ -543,6 +543,69 @@ jobs:
               echo "${rev:0:8} carries a Gitmoji shortcode: $header"
               rc=1
             fi
+          done
+          exit $rc
+
+  landed:
+    # The counterpart of `commits` above, and the reason that job can stay on
+    # pull requests alone: what it reads is only ever read there, so a commit
+    # that reached main without a pull request is a commit whose message
+    # nothing checked. `.githooks/pre-commit` refuses one before it exists;
+    # this is what a clone that never installed the hook runs into, after the
+    # fact rather than before it.
+    #
+    # The association is what GitHub itself reports for a commit, so it holds
+    # however the pull request was merged -- this history is rebase-merged,
+    # and every commit on main carries the number it came in on. It can lag a
+    # merge by a moment, which is what the retries are for: a check that fails
+    # open would be worse, and one that flakes red on a fresh merge would be
+    # ignored inside a week.
+    #
+    # `run:` is `bash -e`, so both command substitutions are guarded -- an
+    # unguarded one would abort the step in the middle and report nothing.
+    name: Commits on main came from a pull request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The default shallow clone has neither end of the range.
+          fetch-depth: 0
+      - env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rc=0
+
+          # A branch's first push reports an all-zero `before`, and there is
+          # no range to walk from it.
+          case "$BEFORE" in
+            *[!0]*) revs=$(git rev-list --no-merges "$BEFORE..$AFTER") || rc=1 ;;
+            *) revs=$AFTER ;;
+          esac
+          [ "$rc" = 0 ] || exit 1
+
+          for rev in $revs; do
+            n=0
+            for _ in 1 2 3; do
+              n=$(gh api "repos/$GITHUB_REPOSITORY/commits/$rev/pulls" \
+                --jq 'length') || n=0
+              [ "$n" = 0 ] || break
+              sleep 10
+            done
+
+            [ "$n" = 0 ] || continue
+            echo "${rev:0:8} reached main without a pull request:"
+            git log -1 --format='  %s' "$rev"
+            echo '  `Commit messages` never read it -- that job runs on a'
+            echo '  pull request alone. Install the hook that refuses this'
+            echo '  before it happens:'
+            echo '      ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit'
+            rc=1
           done
           exit $rc
 

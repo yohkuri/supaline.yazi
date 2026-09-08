@@ -66,6 +66,30 @@ npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
   commitlint --from origin/main --to HEAD
 ```
 
+## Landing a change
+
+Work reaches `main` through a pull request. `Commit messages` in
+`.github/workflows/check.yml` — commitlint, the ASCII header, the Gitmoji
+test — runs on a pull request and nowhere else, deliberately: a pull request
+is the last point at which a message can still be rewritten. A commit made
+straight on main is one nothing read.
+
+Two checks hold that up, so it is not this paragraph that enforces it.
+`.githooks/pre-commit` refuses a commit on main and prints the branch to move
+it onto. `.git/hooks` is not tracked, so install it per clone:
+
+```sh
+ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
+```
+
+A clone that never ran that meets `Commits on main came from a pull request`
+instead — a push carrying a commit GitHub reports no pull request for fails,
+after the fact rather than before it. Branch protection would refuse the push
+itself and is not available while this repository is private: the API answers
+`Upgrade to GitHub Pro or make this repository public` (measured 2026-09-08).
+Turn it on when the repository opens, and this pair becomes the belt beside
+it.
+
 ## Target platform
 
 Yazi **26.9.1 or newer**. Start every Lua file with `--- @since 26.9.1` —
