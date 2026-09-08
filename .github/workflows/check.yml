@@ -576,6 +576,11 @@ jobs:
     # cross saying "install the hook" for a commit that came through a pull
     # request perfectly is the kind of noise a check gets ignored for.
     #
+    # It says what it walked and how many commits it read even when it passes.
+    # A green job that printed nothing is a job that read two commits and a
+    # job that read none, and the log cannot tell them apart -- which is the
+    # shape of every check here that turned out to be checking nothing.
+    #
     # `run:` is `bash -e`, so every command substitution is guarded -- an
     # unguarded one would abort the step in the middle and report nothing.
     name: Commits on main came from a pull request
@@ -596,6 +601,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           rc=0
+          seen=0
 
           # A branch's first push reports an all-zero `before` and there is no
           # range to walk from it; main is created once, and its tip is what
@@ -610,11 +616,18 @@ jobs:
                 echo "the range it discarded has to be read by hand."
                 exit 1
               }
+              echo "walking $BEFORE..$AFTER"
               ;;
-            *) revs=$AFTER ;;
+            *)
+              revs=$AFTER
+              echo "main was created by this push; its tip is what there is"
+              echo "to examine."
+              ;;
           esac
 
           for rev in $revs; do
+            seen=$((seen + 1))
+
             # The association can lag a merge by a moment, which is what the
             # attempts are for; the sleep is between them, not after the last.
             pr=
@@ -667,6 +680,13 @@ jobs:
               rc=1
             fi
           done
+
+          if [ "$seen" = 0 ]; then
+            echo 'That range held no commits, so nothing was examined.'
+          elif [ "$rc" = 0 ]; then
+            echo "$seen commit(s) examined, each from a pull request merged"
+            echo 'into main with `Commit messages` concluded `success`.'
+          fi
           exit $rc
 
 # `test/e2e.sh` and `test/manual.sh` are deliberately not here. They need a real
