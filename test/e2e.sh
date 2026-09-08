@@ -168,9 +168,21 @@ fail() {
 # that looks wide enough. The preview's rows are `nested/`, two files.
 parent_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/\xe2\x94\x82.*//'; }
 preview_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/.*\xe2\x94\x82//'; }
+# The current pane is the field between the two dividers, which neither `sed`
+# above can take: each anchors on one divider and the middle needs both. `awk`
+# splitting on the divider does, and reading it out of a variable keeps this
+# file ASCII like the escapes above.
+BAR=$(printf '\xe2\x94\x82')
+current_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | awk -F"$BAR" '{ print $2 }'; }
 # A row that drew ends in the trio's one column: `mark`, a single "d" or "f"
 # after the name. A bare row ends in the name itself.
 drawn_in_preview() { preview_of "$1" | grep -cE " [df]$" || true; }
+# The same, in the current pane, where the marker is not the last thing on the
+# row: the hovered row carries a powerline glyph after it, and the others a
+# space before the divider. Anything but a letter or a digit may follow, which
+# still refuses a row ending in a file name.
+drawn_in_current() { current_of "$1" | grep -cE " [df][^A-Za-z0-9]*$" || true; }
+rows_in_current() { current_of "$1" | grep -c '[^ ]' || true; }
 
 echo "== log =="
 if [ -f "$LOG" ] && grep -qiE "ERROR|WARN|attempt to|error converting" "$LOG"; then
@@ -180,15 +192,21 @@ else
 	echo "  clean"
 fi
 
-echo "== every linemode drew something =="
+# What this proves is that Yazi is alive and every linemode name resolved: an
+# unregistered one is drawn as literal text and a linemode that threw takes the
+# rows with it. It does *not* prove any of them drew a column, because the file
+# names satisfy it on their own -- m6 to m8 rendering nothing in the current
+# pane passed this and every pane check below. The columns are what the two
+# sections after it are for, and each mode has one.
+echo "== every linemode left the rows on screen =="
 for n in 0 1 2 3 4 5 6 7 8 9; do
 	if sed -n '3,8p' "$DIR/screen-m$n.txt" | grep -qE "[A-Za-z0-9]"; then
 		:
 	else
-		fail "m$n drew an empty linemode"
+		fail "m$n: the rows came back blank"
 	fi
 done
-[ "$fails" -eq 0 ] && echo "  m0 to m9 all drew"
+[ "$fails" -eq 0 ] && echo "  m0 to m9 all have rows"
 
 echo "== columns =="
 # `A && B || C` would run C when B fails, and shellcheck is right to say so.
@@ -278,6 +296,16 @@ differs() { # <label> <actual> <unwanted>
 
 bare_parent=$(parent_of m6)
 bare_preview=$(preview_of m6)
+
+# All three ask for the current pane, and until this check nothing looked at
+# it: the loop above matches the file names, and everything below compares the
+# other two panes against m6. A `pane_cur`, `pane_par` and `pane_prev` drawing
+# nothing where they were asked to passed the whole suite.
+for n in 6 7 8; do
+	drew=$(drawn_in_current "m$n")
+	rows=$(rows_in_current "m$n")
+	same "m$n: every current-pane row carries the marker ($drew of $rows)" "$drew" "$rows"
+done
 
 differs "m7: parent pane drawn" "$(parent_of m7)" "$bare_parent"
 same "m8: parent pane left alone" "$(parent_of m8)" "$bare_parent"
