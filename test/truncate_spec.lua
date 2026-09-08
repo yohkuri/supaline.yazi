@@ -184,8 +184,7 @@ test("Line:truncate: the cut keeps the part boundaries", function()
 	-- Measured on Yazi 26.9.1, and the reason the cut rebuilds only the part it
 	-- lands inside rather than flattening the line into one string: the same
 	-- characters cut at the same `max` come out a cell apart depending on how
-	-- they were split up. Which parts a real cut hands back is past what
-	-- `width` can see, so only the total is pinned.
+	-- they were split up.
 	local heart, vs = "\u{2764}", "\u{FE0F}"
 	local many = stub.Line { stub.Span(heart), stub.Span(vs), stub.Span("abcdef") }
 	many:truncate { max = 4, ellipsis = "" }
@@ -194,4 +193,39 @@ test("Line:truncate: the cut keeps the part boundaries", function()
 	local one = stub.Line { stub.Span(heart .. vs .. "abcdef") }
 	one:truncate { max = 4, ellipsis = "" }
 	eq(one:width(), 4)
+end)
+
+--- The style on each part of a renderable, in order. `first_style` stops at
+--- the first one, and what a cut has to be checked for is the second.
+local function styles(x)
+	local out = {}
+	for i, part in ipairs(x._parts) do
+		out[i] = stub.style_of(part)
+	end
+	return out
+end
+
+test("Line:truncate: every span keeps its own style through the cut", function()
+	-- Measured on Yazi 26.9.1 by putting a two-colour line through a linemode
+	-- and reading the colours back off the screen with `tmux capture-pane -e`,
+	-- which is the only place this shows: a cut line and a whole one are the
+	-- same width either way, so nothing above could tell them apart. A red
+	-- "aaa" and a green "bbbbb" cut to six drew "aaabb" with **both** colours
+	-- still on screen -- the span the cut landed inside included. Flattening
+	-- the line into one string would have taken the second colour with it.
+	local red, green = ui.Style():fg("#ff0000"), ui.Style():fg("#00ff00")
+	-- `stub.Line` rather than `ui.Line`, as everywhere else in this file:
+	-- `types.yazi` declares `ui.truncate` but nothing for `Line:truncate`, so
+	-- the checker refuses the call on a value it has typed. The plugin sits
+	-- the same gap out by taking its line as `unknown`.
+	local line = stub.Line {
+		stub.Span("aaa"):style(red),
+		stub.Span("bbbbb"):style(green),
+	}
+	line:truncate { max = 6, ellipsis = "" }
+	eq(stub.text_of(line), "aaabb", "the same five cells Yazi drew")
+
+	local got = styles(line)
+	eq(got[1], red, "the span that survived whole keeps its style")
+	eq(got[2], green, "and so does the one the cut landed inside")
 end)
