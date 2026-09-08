@@ -153,17 +153,12 @@ in favour of the same names under `Url.spec`.
 Yazi's six `AuthKind` variants, and a search result is a local file with
 `is_regular = false` — so a check written as `not is_regular` demotes every
 search hit along with the remote ones. The partition worth asking for is
-`spec.is_virtual`, the exposed complement of Yazi's own `AuthKind::is_local()`.
-
-It matters wherever a value only means something on the machine Yazi is running
-on: `ya.user_name` and `ya.group_name` read that machine's databases, and an
-SFTP file's UID was minted on the server. Yazi's own `Linemode:owner` resolves
-them regardless, so the `owner` column deliberately differs from it and prints
-the numbers instead.
+`spec.is_virtual`.
 
 **Checked.** The `Forbidden spellings` CI job refuses `is_regular` anywhere in
-plugin Lua and prints this. The six variants and Yazi's own predicates are at
-the end of this file; `test/auth_spec.lua` pins the partition in the stub.
+plugin Lua and prints this. The six variants, what a machine-local value costs
+over a remote file, and Yazi's own predicates are at the end of this file;
+`test/auth_spec.lua` pins the partition in the stub.
 
 ## `in_preview`, in Yazi's own source
 
