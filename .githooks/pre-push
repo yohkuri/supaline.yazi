@@ -1,0 +1,45 @@
+#!/bin/sh
+# Refuse a push that would move `main` on a remote. Why main is off limits is
+# in AGENTS.md, under "Landing a change", along with the two lines that
+# install this.
+#
+# Whatever produced the commits -- `git commit`, a merge, a cherry-pick, a
+# revert, a rebase, a reset -- this is the one place every one of them has to
+# pass to reach the branch other people read, which is what makes it the half
+# of the pair that cannot be walked around by reaching for a different verb.
+
+case "$SUPALINE_PUSH_TO_MAIN" in
+"" | 0 | false | no) ;;
+*) exit 0 ;;
+esac
+
+refused=
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	case "$remote_ref" in
+	refs/heads/main) refused=1 ;;
+	esac
+done
+[ -n "$refused" ] || exit 0
+
+cat >&2 <<'MSG'
+supaline: refusing a push to `main`.
+
+  main moves when a pull request is merged, and not otherwise. `Commit
+  messages` in .github/workflows/check.yml -- commitlint, the ASCII header,
+  the Gitmoji test -- runs on a pull request alone, so a commit that reaches
+  main another way is one nothing read.
+
+  Push the branch and open one:
+
+      git push -u origin HEAD
+      gh pr create
+
+  Then bring main across:
+
+      git switch main && git pull --ff-only
+
+  A deliberate exception is spelled out rather than bypassed wholesale:
+
+      SUPALINE_PUSH_TO_MAIN=1 git push ...
+MSG
+exit 1

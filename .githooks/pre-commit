@@ -1,26 +1,20 @@
 #!/bin/sh
-# Refuse a commit on `main`. Work reaches main through a pull request, and
-# `Commit messages` in `.github/workflows/check.yml` is the job that reads a
-# message: commitlint, the ASCII header, and the Gitmoji test. That job runs
-# on a pull request and nowhere else, deliberately -- a pull request is the
-# last point at which a message can still be rewritten. A commit made here is
-# one nothing ever reads.
+# Refuse a commit on `main`. Why main is off limits is in AGENTS.md, under
+# "Landing a change"; it is not restated here, so that the two cannot drift.
 #
-# `.git/hooks` is not tracked, so this file has to be installed per clone:
-#
-#     ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
-#
-# A clone that never ran that is what the `landed` job in the same workflow is
-# for -- it refuses a commit that reached main without a pull request, after
-# the fact rather than before it.
-#
-# `core.hooksPath` is not used here on purpose: it replaces a global hooks
-# directory rather than adding to it, and on a machine that has one, that
-# directory is what runs this file.
+# This is the early half of the pair, and the friendlier one: `git commit` is
+# how the mistake is actually made, and this catches it before the commit
+# exists. It is also the narrower one -- a merge, a cherry-pick, a revert and
+# a rebase reach main without running `pre-commit` at all -- which is what
+# `pre-push` beside it is for.
+
+case "$SUPALINE_COMMIT_ON_MAIN" in
+"" | 0 | false | no) ;;
+*) exit 0 ;;
+esac
 
 branch=$(git symbolic-ref --quiet --short HEAD) || exit 0
 [ "$branch" = "main" ] || exit 0
-[ -z "$SUPALINE_COMMIT_ON_MAIN" ] || exit 0
 
 cat >&2 <<'MSG'
 supaline: refusing a commit on `main`.

@@ -71,24 +71,37 @@ npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
 Work reaches `main` through a pull request. `Commit messages` in
 `.github/workflows/check.yml` — commitlint, the ASCII header, the Gitmoji
 test — runs on a pull request and nowhere else, deliberately: a pull request
-is the last point at which a message can still be rewritten. A commit made
-straight on main is one nothing read.
+is the last point at which a message can still be rewritten. A commit that
+reaches main any other way is one nothing read.
 
-Two checks hold that up, so it is not this paragraph that enforces it.
-`.githooks/pre-commit` refuses a commit on main and prints the branch to move
-it onto. `.git/hooks` is not tracked, so install it per clone:
+Three checks hold that up, so it is not this paragraph that enforces it.
+`.githooks/pre-commit` refuses a commit made on main, which is how the mistake
+is usually made; `.githooks/pre-push` refuses a push that would move main at
+all, which is the one thing a merge, a cherry-pick, a revert and a rebase have
+to pass as well. `.git/hooks` is not tracked, so install both per clone —
+these two lines work from a linked worktree as well as from the clone itself,
+where `ln -sf ../../.githooks/...` does not:
 
 ```sh
-ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+ln -sf "${common%/.git}/.githooks"/* "$common/hooks/"
 ```
 
-A clone that never ran that meets `Commits on main came from a pull request`
-instead — a push carrying a commit GitHub reports no pull request for fails,
-after the fact rather than before it. Branch protection would refuse the push
-itself and is not available while this repository is private: the API answers
-`Upgrade to GitHub Pro or make this repository public` (measured 2026-09-08).
-Turn it on when the repository opens, and this pair becomes the belt beside
-it.
+A clone that installed neither meets `Commits on main came from a pull
+request` instead, after the fact rather than before it. It reads every commit
+a push carries, merge commits included, and asks GitHub three things: that the
+pull request the commit came from was **merged** — an open one reports the
+association too, so a branch pushed straight to main while its own pull
+request sat open would otherwise pass — that it targeted main, and that
+`Commit messages` concluded `success` on its head. An API that does not answer
+is reported as itself rather than as a violation.
+
+What none of the three can do is refuse the push at the server. Branch
+protection would, and neither it nor the ruleset that replaced it is available
+while this repository is private: the API answers `Upgrade to GitHub Pro or
+make this repository public` to both (measured 2026-09-08). Turn one on when
+the repository opens, and keep these three as the half that runs before a push
+rather than after it.
 
 ## Target platform
 
