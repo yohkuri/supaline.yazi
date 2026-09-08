@@ -25,6 +25,16 @@ if [ "${1:-}" = "--clean" ]; then
 	shift
 fi
 DIR=${1:?usage: setup.sh [--clean] <dir>}
+# Resolved before anything below changes directory. The fixture is built by
+# `cd`-ing into it and then `cd`-ing again, so a relative <dir> was read against
+# whichever directory the previous `cd` had left us in: `setup.sh
+# relative-fixture` built half a fixture and then stopped on `cd: No such file
+# or directory`. Not `cd "$DIR" && pwd`, which needs it to exist already, and
+# this runs before it is created.
+case $DIR in
+/*) ;;
+*) DIR="$PWD/$DIR" ;;
+esac
 
 if [ -e "$DIR" ] && [ ! -f "$DIR/$MARKER" ]; then
 	echo "setup: $DIR exists and is not ours; move it aside" >&2
@@ -33,6 +43,13 @@ fi
 
 rm -rf "$DIR"
 [ -z "$CLEAN" ] || exit 0
+
+# Stated, so the fixture carries the same modes whoever builds it. `e2e.sh`
+# greps the permissions column for `drwxr-xr-x`, and under `umask 077` the
+# directories come out `drwx------` -- the column right, the check failing.
+# The files move too, `-rw-r--r--` to `-rw-------`.
+umask 022
+
 mkdir -p "$DIR/config/plugins" "$DIR/state"
 mkdir -p "$DIR/fixture/data/nested" "$DIR/fixture/data/never-opened"
 mkdir -p "$DIR/fixture/sibling-one" "$DIR/fixture/sibling-two"
