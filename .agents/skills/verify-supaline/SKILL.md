@@ -105,7 +105,9 @@ something: a class on the configuration means `column.normalize(42, ...)` and
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
-blanket disable there grows to cover code nobody meant to exempt.
+blanket disable there grows to cover code nobody meant to exempt. The two that
+were here were measured before being replaced: one covered a single site and
+the other covered nothing at all, so neither bought what its position implied.
 
 ## What the unit suite can prove
 
