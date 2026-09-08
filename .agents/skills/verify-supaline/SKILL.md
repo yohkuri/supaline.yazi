@@ -45,23 +45,23 @@ parameters the real call takes, `self` included, whether or not the stub reads
 them, and set the fields Yazi always sets — `preview.skip` is one nothing here
 reads. Where `types.yazi` declares nothing, `stub.lua` is the workspace's only
 declaration, so a wrong arity there is reported against the *plugin* file that
-makes the call: a nullary `Tab:history` had the warning naming `builtin.lua`.
+makes the call rather than against the stub.
 
 `stub.file` and `stub.folder` claim `supaline.File` and `supaline.Folder`
 rather than `table`, and `run.lua` types the global the specs reach them
 through, so a spec reading a field Yazi does not have is refused along with the
-plugin that would have read it. That is the whole of
-what it buys: the class is not `(exact)`, so the stub's own table is accepted
-however little of it is filled in. The annotation is a claim about Yazi, not a
-check on this file — fidelity is still read against a running Yazi.
+plugin that would have read it. That is the whole of what it buys: the class is
+not `(exact)`, so the stub's own table is accepted however little of it is
+filled in. The annotation is a claim about Yazi, not a check on this file —
+fidelity is still read against a running Yazi.
 
 ## What a spec's calls are checked against
 
 A spec's calls into the plugin are not checked against `main.lua`. Under
 `lua-language-server`, `require(".main")` reaches `types.yazi`'s own `main.lua`
 instead — annotations with no `return`, sitting on `workspace.library` — so
-`main.setup(42, ...)` and `main.columnn(...)` were both accepted until
-`main.lua` declared `supaline.Main` and each spec claimed it at the `require`.
+`main.setup(42, ...)` and `main.columnn(...)` are both accepted unless
+`main.lua` declares `supaline.Main` and each spec claims it at the `require`.
 That is the same repair `supaline.Stub` is for the stub. `.column` is not
 affected: it resolves to this tree, and `column.lua`'s signatures are read
 normally.
@@ -88,12 +88,10 @@ moves.
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
 argument rather than a misspelled field before believing them: a misspelled
 field bites only on a value carrying a declared class, and a module table has
-none until someone gives it one. `column.normalizze({}, {})` passed on the line
-above a refused `column.normalize(42, {})` for as long as `column.lua` declared
-no class for the table it returns. It declares `supaline.ColumnModule` now, on
-the table rather than by hand, so the fields are whatever the file assigns and
-no spec has to claim it. What is left is `th`: no class at all, so it takes
-whatever name a spec spells.
+none until someone gives it one. `column.normalizze({}, {})` passes on the line
+above a refused `column.normalize(42, {})` for any module whose table carries no
+class. `column.lua`'s carries `supaline.ColumnModule`; `th` carries nothing at
+all, so it takes whatever name a spec spells.
 
 Plant it below the line that binds the value. Above it the checker reports
 `undefined-global` at the planted line — still a refusal, but of the probe and
@@ -105,9 +103,7 @@ something: a class on the configuration means `column.normalize(42, ...)` and
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
-blanket disable there grows to cover code nobody meant to exempt. The two that
-were here were measured before being replaced: one covered a single site and
-the other covered nothing at all, so neither bought what its position implied.
+blanket disable there grows to cover code nobody meant to exempt.
 
 ## What the unit suite can prove
 
@@ -148,9 +144,9 @@ test/manual.sh --clean      # discard the manual fixture
 - A detached tmux never answers the terminal probe, so `rt.term.light()` stays
   `nil` and a flavor that varies by terminal background cannot resolve. The
   user's `theme.toml` is applied regardless: 26.9.1 fires `theme` by itself a
-  couple of milliseconds after `init.lua`, probe or no probe. `e2e.sh` used to
-  send `app:theme` by hand before capturing and no longer needs to; the first
-  half of its theme check would catch the day that changes back.
+  couple of milliseconds after `init.lua`, probe or no probe, so `e2e.sh` does
+  not have to send `app:theme` before capturing. The first half of its theme
+  check would catch the day that changes back.
 - Yazi queries the terminal on startup and aborts if nothing answers, so
   `script`-style pseudo-terminals do not work. Use tmux, which is a real
   terminal emulator.
