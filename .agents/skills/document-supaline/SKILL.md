@@ -5,12 +5,13 @@ description: >-
   has to live to reach the agent it is for. Read before changing `AGENTS.md`,
   a skill under `.agents/skills/`, or a rule under `.claude/rules/` -- not for
   `README.md` or `test/MANUAL.md`, which are written for people, and not for
-  comments inside Lua. Covers why a check is worth more than a paragraph, who
-  reads which file, what a description owes a reader who has not opened the
-  skill and the specification's limits on it, the three questions that decide
-  whether a paragraph belongs in a skill or in a reference file beside it, the
-  standard a claim about the platform has to meet, and the places one change
-  has to land in step.
+  comments inside Lua. Covers why a check is worth more than a paragraph and
+  why one has to be seen failing before it is believed, who reads which file,
+  what a description owes a reader who has not opened the skill and the
+  specification's limits on it, the three questions that decide whether a
+  paragraph belongs in a skill or in a reference file beside it, the standard
+  a claim about the platform has to meet, and the places one change has to
+  land in step.
   Markdown style is markdownlint's business and is not in here.
 ---
 
@@ -54,6 +55,23 @@ that fits is the cheapest one that works.
 A check that only says no is half-written. Print the spelling to use and the
 reason, because the right one is not guessable from the wrong one; otherwise
 the reader goes straight back to a paragraph and you have written both.
+
+**Then watch it fail.** A check is finished when you have seen it refuse
+something: plant the violation it is for, run it, read what it prints, and
+take the plant back out. Until you have, what you have written is something
+that exits 0, and that is what a working check and a broken one have in
+common. Reading it back is not the same test — it was written to look
+correct, and it does.
+
+A step in `check.yml` needs this more than the other two places do, because
+`run:` is `bash -e` and a step's exit status says less than it looks like it
+does:
+
+- A pipeline's status is its last command's, so a `find` or a `grep` that
+  fails before a `sort` still leaves the step exiting 0 over an empty result.
+- `grep -c` exits 1 when it matches nothing, which aborts the step *mid-way*:
+  the checks written after it never run, and nothing in the log says it
+  stopped early rather than finished. Write `|| true`.
 
 Know what a check cannot do before you trust one. A test runs over the code
 that exists, so it pins that code and nothing else — code written tomorrow can
