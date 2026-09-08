@@ -655,16 +655,27 @@ function M.install(root)
 	-- wrong.
 	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
 
+	-- Whatever the module returned, handed back exactly as it came. This used
+	-- to read `chunk() or {}`, which turned the one value Yazi refuses --
+	-- Yazi wraps every module in a state table, so `false` fails the load with
+	-- "error converting Lua boolean to table" -- into the one it wants.
+	-- `module_spec.lua` is written to catch that and could not: a `builtin.lua`
+	-- ending `return false` passed all 110 tests while a real Yazi would not
+	-- load the plugin at all.
+	--
+	-- Whether a module has been loaded is kept apart from what it returned, so
+	-- that a module returning `false` or nothing is loaded once rather than on
+	-- every require -- registering its columns again each time.
 	local loaded = {}
 	_G.require = function(name)
 		if name:sub(1, 1) ~= "." then
 			return REAL_REQUIRE(name)
 		end
-		if loaded[name] == nil then
+		if not loaded[name] then
 			local chunk = assert(loadfile(root .. "/" .. name:sub(2) .. ".lua"))
-			loaded[name] = chunk() or {}
+			loaded[name] = { chunk() }
 		end
-		return loaded[name]
+		return loaded[name][1]
 	end
 end
 
