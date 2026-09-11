@@ -58,7 +58,7 @@ end)
 --- This catches one direction: an export the class does not name, which is the
 --- one a spec would then be refused for. A changed *signature* is past
 --- anything Lua can see at runtime, and is still read by eye.
-local MAIN_EXPORTS = { "column", "setup" }
+local MAIN_EXPORTS = { "column", "extremes", "setup" }
 
 test("modules: `supaline.Main` names what main.lua exports", function()
 	local names = {}
