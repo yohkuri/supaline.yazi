@@ -27,8 +27,8 @@ end
 
 -- `ya.readable_size` keeps the mantissa in (1, 1024] and strips a trailing
 -- ".0", so the widest result it can produce is "1023.9K".
--- `scale = "log"` on the definition rather than left to the plugin-wide
--- default, which is linear and is right for a timestamp.
+-- `scale = "log"` on the definition, where the fallback is linear and is right
+-- for a timestamp.
 --
 -- A listing's sizes span orders of magnitude and its extremes are almost always
 -- one huge file and one tiny one, so a linear ratio puts everything but the
@@ -36,6 +36,10 @@ end
 -- 300K file lands at 0.003 linear and 0.68 log. eza colours sizes on a linear
 -- ratio and this is exactly how it looks -- every file below the biggest draws
 -- the same colour.
+--
+-- A default, not a decision taken out of the user's hands: a `scale` written
+-- in `setup` outranks this, and one written in the spec outranks that.
+-- `column.lua` resolves the three.
 column.register("size", {
 	width = 7,
 	align = "right",

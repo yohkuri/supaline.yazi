@@ -26,12 +26,16 @@ local DEFAULTS = {
 	-- Order of the parent/preview child among Linemode's children. Anything
 	-- below `padding` (2000) keeps it inside the linemode block.
 	order = 1400,
-	-- The default for the columns that do not state one, which today is every
-	-- timestamp column: a folder's mtimes sit within a few years of each other,
-	-- and a linear ratio is what spreads them out. `size` states `log` on its
-	-- own definition, because its values span orders of magnitude -- so
-	-- changing this does not change `size`.
-	scale = "linear",
+	-- No `scale` here, on purpose, and it is the only option that is missing
+	-- one. The other two have nowhere else to come from; a scale can also be
+	-- stated on a column's own definition -- `size` states `log`, because its
+	-- values span orders of magnitude where a timestamp's do not -- so a
+	-- default written here would have to outrank that definition or lose to it,
+	-- and either way one of the two is unreachable.
+	--
+	-- Left nil instead, so `cfg.scale` means "the user wrote a scale in
+	-- `setup`" and nothing else. `column.lua` resolves the three sources in
+	-- order and holds the fallback for a column that gets none of them.
 }
 
 --- The module table, as a spec sees it.
@@ -511,7 +515,9 @@ function M.setup(_st, opts)
 	local next_cfg = {
 		separator = opts.separator or DEFAULTS.separator,
 		order = opts.order or DEFAULTS.order,
-		scale = opts.scale or DEFAULTS.scale,
+		-- Not `or` a default: see `DEFAULTS`. Nil here is what lets a column
+		-- definition's own scale through.
+		scale = opts.scale,
 	}
 
 	local next_specs = opts.linemodes or {}
