@@ -377,6 +377,17 @@ overflow_row "ellipsis, clip, a clipped renderable and grow, on one row" \
 overflow_row "a wide name is cut between characters, and the cell still fills" \
 	"日本語" "日本語のフ…  日本語のファ 日本語のファ 日本語のファイル名.txt"
 
+# And the same again where the wide character is four bytes rather than three.
+# Not one case twice: `🎨` and `日` are both one character of two cells, so a
+# cut that measured bytes can be right about one name and wrong about the other.
+# The emoji is in the fixture because `unicode-width` gives emoji presentation
+# two cells, which `truncate_spec.lua` pins the stub against -- this is the same
+# name read off a screen. "絵文字🎨のなまえ.txt" is 20 cells: four characters
+# come to 10 and the ellipsis to 11, then the pad, and the clips take five for
+# 12 exactly.
+overflow_row "a four-byte character is cut and measured like any other" \
+	"絵文字" "絵文字🎨の…  絵文字🎨のな 絵文字🎨のな 絵文字🎨のなまえ.txt"
+
 # m3: `size` stated at 10 beside `size` measured. In `data/` the widest size is
 # "1023.4K", so the measured column is 7 and the two are three spaces apart.
 check "m3: a stated width and a measured one differ" "1024B   1024B" "$DIR/screen-m3.txt"
