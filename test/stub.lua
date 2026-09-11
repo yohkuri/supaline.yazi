@@ -253,12 +253,72 @@ local function new_style(t)
 	return s
 end
 
+-- What a real `ui.Style():fg` took on 26.9.1, measured by handing it every
+-- combination below and reading back which raised `Failed to parse Colors`.
+--
+-- Ten names, each also spelled `light`, `light-`, `bright` and `bright-`; a
+-- `dark` prefix for the greys **only**, so `darkgray` resolves and `darkred`
+-- does not; `reset`, but neither `default` nor `none`; no `purple` in any
+-- form; and the whole lookup case-insensitive, so `RED` is a colour. Beside
+-- the names: `#rrggbb`, and a decimal index from "0" to "255" -- while `#rgb`,
+-- `#rrggbbaa`, `""`, `"256"`, `rgb(1,2,3)` and `indexed(5)` are all refused.
+--
+-- Refused here rather than waved through, because the plugin now decides what
+-- a colour is before Yazi sees it: a stub that took anything would let a spec
+-- assert an error message the plugin never had to produce.
+local NAMED = { reset = true }
+for _, name in ipairs { "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray", "grey" } do
+	for _, form in ipairs { "%s", "light%s", "light-%s", "bright%s", "bright-%s" } do
+		NAMED[form:format(name)] = true
+	end
+end
+NAMED.darkgray, NAMED["dark-gray"], NAMED.darkgrey, NAMED["dark-grey"] = true, true, true, true
+
+--- What Yazi's own parser takes. A colour it refuses raises there, so it raises
+--- here.
+---@param value any
+---@return boolean
+local function is_colour(value)
+	if type(value) ~= "string" then
+		return false
+	elseif value:find("^#%x%x%x%x%x%x$") then
+		return true
+	elseif NAMED[value:lower()] then
+		return true
+	end
+	local n = value:match("^%d+$") and tonumber(value)
+	return n ~= nil and n <= 255
+end
+
 for _, key in ipairs { "fg", "bg" } do
 	Style[key] = function(self, value)
+		-- Yazi returns nil for `fg(nil)` and `fg(true)` rather than raising --
+		-- measured -- and the caller then indexes nil somewhere else entirely.
+		-- One of the silences the stub is here to break.
+		if not is_colour(value) then
+			error(string.format("stub: `%s` is not a colour Yazi would accept: %s", key, tostring(value)))
+		end
 		local s = new_style(self)
 		s[key] = value
 		return s
 	end
+end
+
+--- Merge `other` over a copy of this style. Measured on 26.9.1 by drawing all
+--- four combinations through a linemode and reading the SGR back out of
+--- `tmux capture-pane -e`: what `other` sets wins, what it leaves alone is kept
+--- -- `fg red + bold` patched with `bg green + italic` draws bold, italic, red
+--- on green -- an empty patch changes nothing, and the receiver is not
+--- modified.
+function Style:patch(other)
+	if other ~= nil and getmetatable(other) ~= Style then
+		error("stub: `patch` takes a Style or nil, as Yazi's does")
+	end
+	local s = new_style(self)
+	for k, v in pairs(other or {}) do
+		s[k] = v
+	end
+	return s
 end
 for _, key in ipairs { "bold", "italic", "underline", "dim", "reverse" } do
 	Style[key] = function(self, value)
