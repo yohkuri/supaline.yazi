@@ -26,8 +26,11 @@ local DEFAULTS = {
 	-- Order of the parent/preview child among Linemode's children. Anything
 	-- below `padding` (2000) keeps it inside the linemode block.
 	order = 1400,
-	-- "linear" is what eza does. "log" spreads a listing whose values span
-	-- orders of magnitude, which is usually what `size` wants.
+	-- The default for the columns that do not state one, which today is every
+	-- timestamp column: a folder's mtimes sit within a few years of each other,
+	-- and a linear ratio is what spreads them out. `size` states `log` on its
+	-- own definition, because its values span orders of magnitude -- so
+	-- changing this does not change `size`.
 	scale = "linear",
 }
 
