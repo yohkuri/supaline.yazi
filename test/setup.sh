@@ -501,11 +501,19 @@ supaline.column("name", {
 -- read the ratio of the one beside it, and this exists to say what the `mtime`
 -- column next to it is doing. The two agree because the value and the scale
 -- are the same, not because anything passes between them.
--- `builtin.lua` floors an mtime on the way into its own `extremes` and again
--- before `ctx.ratio`, so this column has to floor it too. `e2e.sh` asks that a
--- row's two cells land on the same step; the two agree today only because
--- `touch -t` leaves no fractional part, and a fixture built any other way would
--- report its own rounding as a plugin that cannot place a row.
+--
+-- `supaline.extremes` rather than a loop written here, which is what this was
+-- and which is the whole reason it is exported: `builtin.lua` is not a module
+-- a user column can require, so before this the only way to get the min/max
+-- over a listing was to write it again -- and this copy had already drifted
+-- from the original over the flooring below.
+--
+-- The flooring stays the caller's, because both ends of it are: `builtin.lua`
+-- floors an mtime on the way into `extremes` and again before `ctx.ratio`, so
+-- this column has to do both too. `e2e.sh` asks that a row's two cells land on
+-- the same step; the two agree today only because `touch -t` leaves no
+-- fractional part, and a fixture built any other way would report its own
+-- rounding as a plugin that cannot place a row.
 local function mtime_of(file)
 	local t = file.cha.mtime
 	return t and t > 0 and math.floor(t) or nil
@@ -514,21 +522,7 @@ end
 supaline.column("ratio", {
 	width = 4,
 	align = "right",
-	stats = function(files)
-		local min, max
-		for i = 1, #files do
-			local t = mtime_of(files[i])
-			if t then
-				if not min or t < min then
-					min = t
-				end
-				if not max or t > max then
-					max = t
-				end
-			end
-		end
-		return min and { min = min, max = max } or nil
-	end,
+	stats = supaline.extremes(mtime_of),
 	render = function(file, ctx)
 		local r = ctx.ratio(mtime_of(file))
 		return r and string.format("%.2f", r) or "-", ctx.style(r)

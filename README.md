@@ -243,6 +243,32 @@ supaline:setup {
 allocate as little as possible. Anything that has to look at the whole folder
 belongs in `stats`, which runs once per folder and is cached.
 
+A column that wants a `ramp` needs a `stats` returning `{ min, max }`, which is
+almost always the extremes of one value across the listing.
+`supaline.extremes(get)` is that loop — the same one the built-in columns
+use — so you write the accessor and nothing else. Values that are `nil` or at
+or below zero stay out of the range, so an unevaluated directory cannot drag
+the minimum down:
+
+```lua
+local function name_length(file) return #file.name end
+
+supaline.column("namelen", {
+  width = 4,
+  ramp  = "#0b3d91 -> #7fd4ff",
+  stats = supaline.extremes(name_length),
+  render = function(file, ctx)
+    local n = name_length(file)
+    return tostring(n), ctx.style(ctx.ratio(n))
+  end,
+})
+```
+
+Rounding is yours, not `extremes`'s: whatever `get` hands back is what the
+range is measured in, so if `render` rounds a value before `ctx.ratio` sees it,
+`get` has to round it the same way or the two disagree about which step a row
+is on.
+
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
 your `init.lua` is never replayed on the async side, so a third-party column

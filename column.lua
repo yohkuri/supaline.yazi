@@ -247,6 +247,40 @@ end
 ---@return supaline.ColumnDef?
 function M.get(name) return M._registry[name] end
 
+--- A `stats` function over the extremes of the current listing, which is what
+--- a `ramp` is stretched between and what `ctx.ratio` normalises against.
+---
+--- Here rather than in `builtin.lua` because it is not the built-ins' alone:
+--- every ranged column wants exactly this loop, and a user-written one had no
+--- way to reach it -- `builtin.lua` is not a module anything can require, so
+--- the only option was to write it again. It was written again, in the test
+--- fixture's own `init.lua`, and the copy drifted.
+---
+--- Values that do not exist stay out of the range, and so do values at or below
+--- zero: a directory whose size Yazi has not evaluated must not drag the
+--- minimum down, and neither must a file with no timestamp. Rounding is the
+--- caller's -- `get` is where a timestamp is floored, because `render` has to
+--- floor it the same way for the two to agree on a step.
+---@param get fun(file: supaline.File): number?
+---@return fun(files: supaline.File[]): table?
+function M.extremes(get)
+	return function(files)
+		local min, max
+		for i = 1, #files do
+			local v = get(files[i])
+			if v and v > 0 then
+				if not min or v < min then
+					min = v
+				end
+				if not max or v > max then
+					max = v
+				end
+			end
+		end
+		return min and { min = min, max = max } or nil
+	end
+end
+
 --- Resolve a column's colour: the spec first, then the `[supaline]` theme
 --- section, then the definition's own default.
 ---
