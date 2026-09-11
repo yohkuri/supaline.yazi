@@ -136,14 +136,16 @@ The same name, four ways, against a column of twelve.
   `exactly-1k.` until the cell asked for that cell back.
 - The **fourth** runs past twelve and pushes the file name over.
 - Every truncating column must land on a character boundary; half a character,
-  or a column one cell short, is a bug. `e2e.sh` asserts that on
-  `日本語のファイル名.txt`, the padding after the ellipsis cell included, which
-  is the cell a boundary miss takes a space from.
-- What is left is `絵文字🎨のなまえ.txt`, on the row below it. The emoji is one
-  character and two cells, like the rest of that name, so it goes down the same
-  path — but a cluster is not a character, and nothing in the harness measures
-  one. Read it against the row above: the two names are the same shape, so the
-  four cells should cut in the same places.
+  or a column one cell short, is a bug. `e2e.sh` asserts that on both wide
+  names — `日本語のファイル名.txt` and `絵文字🎨のなまえ.txt` — the padding
+  after each ellipsis cell included, which is the space a boundary miss takes
+  away. They are not one case twice: `🎨` is four bytes where `日` is three and
+  both are two cells, so a cut measuring bytes can be right about one name and
+  wrong about the other.
+- What no name here carries is a grapheme cluster. `❤️` is two characters and
+  two cells, which is the trap `AGENTS.md` lists and the reason `column.lua`
+  cuts on cluster boundaries at all — but that is pinned in `column_spec.lua`
+  and `truncate_spec.lua`, and nothing on this screen draws one.
 
 ### `m 5` — separators
 
