@@ -115,18 +115,45 @@ for n in 0 1 2 3 4 5 6 7 8 9; do
 	shot "m$n"
 done
 
+# The colour linemodes, for the reason the loop above exists: an unregistered
+# name is drawn as literal text and one that threw takes the rows with it, and
+# neither of those surfaces anywhere until a person runs `manual.sh`. Each is
+# pressed in the folder it is meant to be read in, because the spread of values
+# in the folder being drawn is what decides what a ramp puts on screen.
+#
+# What this does *not* do is judge any of them. That is the whole point of
+# their existing -- `MANUAL.md` says which questions a reader is the only
+# instrument for, and `c_hue` is there precisely because the ramp check further
+# down would go red on it while it was perfectly correct.
+colour_shot() { # <g-key> <c-key> <label>
+	tmux send-keys -t "$SESSION" g "$1"
+	sleep 1
+	tmux send-keys -t "$SESSION" c "$2"
+	sleep 1
+	shot "$3"
+}
+colour_shot 3 r c_ramp
+colour_shot 3 h c_hue
+colour_shot 3 g c_bg
+colour_shot 4 s c_scale
+colour_shot 5 e c_edge
+colour_shot 1 t c_theme
+
 # m3 states one size column at 10 and measures the other, so the widths have to
-# disagree -- and the measured one has to change when the folder does. Nothing
-# else in this run crosses a folder boundary, and `bind`'s per-folder cache key
-# is the piece most likely to get it wrong.
+# disagree -- and the measured one has to change when the folder does. `bind`'s
+# per-folder cache key is the piece most likely to get that wrong.
+#
+# `g 2` rather than going to the top of the listing and pressing `l`, which is
+# how this reached `nested/` until it did not have to. That spelling quietly
+# made a check about per-folder width measurement depend on which entry sorted
+# first in `data/`, so anything added to the fixture -- for a reason with
+# nothing to do with widths -- could break it. The key `cd`s by absolute path.
 tmux send-keys -t "$SESSION" m 3
 sleep 1
-tmux send-keys -t "$SESSION" g g
-sleep 1
-tmux send-keys -t "$SESSION" l
+tmux send-keys -t "$SESSION" g 2
 sleep 2
 shot "m3-nested"
-tmux send-keys -t "$SESSION" h
+tmux send-keys -t "$SESSION" g 1
 sleep 1
 
 # Last of everything, because it rewrites the theme that every capture above
@@ -149,6 +176,19 @@ mv "$DIR/theme-next.toml" "$DIR/config/theme.toml"
 tmux send-keys -t "$SESSION" T
 sleep 2
 tmux capture-pane -t "$SESSION" -p -e >"$DIR/theme-after.txt"
+
+# Last of all, because it replaces `theme.toml` wholesale and every check above
+# reads a capture taken against the file this run had been editing in place.
+#
+# The `c 1` to `c 3` keys are the only part of either harness that leaves Yazi
+# to do its work -- a `shell` template running a script that copies a theme into
+# place -- and a person pressing one sees a colour that did not change, with no
+# way to tell a plugin that ignored the reload from a `cp` that never ran. So
+# the file is compared rather than the screen: this says the key reached the
+# disk, and the check above already says a reload repaints.
+tmux send-keys -t "$SESSION" c 2
+sleep 2
+tmux capture-pane -t "$SESSION" -p -e >"$DIR/theme-swapped.txt"
 
 tmux send-keys -t "$SESSION" q
 sleep 1
@@ -215,6 +255,21 @@ for n in 0 1 2 3 4 5 6 7 8 9; do
 	fi
 done
 [ "$fails" -eq 0 ] && echo "  m0 to m9 all have rows"
+
+# The same for the colour modes, which are reached by two keys rather than one
+# and are read in folders of their own -- so a blank one here is as likely to be
+# the key, or the `cd` behind it, as the linemode. Which of the three it was is
+# not worth telling apart: nothing else in this run visits those folders, so
+# without this the first person to find out would be a human at `manual.sh`.
+was=$fails
+for n in c_ramp c_hue c_bg c_scale c_edge c_theme; do
+	if sed -n '3,8p' "$DIR/screen-$n.txt" | grep -qE "[A-Za-z0-9]"; then
+		:
+	else
+		fail "$n: the rows came back blank"
+	fi
+done
+[ "$fails" -eq "$was" ] && echo "  the six colour modes all have rows"
 
 echo "== columns =="
 # `A && B || C` would run C when B fails, and shellcheck is right to say so.
@@ -327,70 +382,169 @@ same "m8: preview pane drawn, both rows (drew $drew)" "$drew" "2"
 same "m6: both edges left alone" "$(drawn_in_preview m6)" "0"
 
 echo "== the ramp =="
-# `[supaline] mtime` is `#0b3d91 -> #7fd4ff`, and the fixture's mtimes run from
-# 2020 to today, so the oldest row draws the ramp's low end and a file the
-# fixture just created draws its high one. tmux writes those out as truecolor.
+# The ends and the steps between them are read in different folders, because no
+# one folder shows both well.
 #
-# Both ends together are the first check: a column that resolved the ramp string
-# as a flat colour, or failed to resolve it at all, can only put one colour on
-# screen.
+# The ends are read off `m 1` in `data/`, where the ramp is the *themed* one:
+# `[supaline] mtime` is `#0b3d91 -> #7fd4ff`, and the fixture's mtimes run from
+# 2020 to today, so the oldest row draws the low end and a file the fixture just
+# created draws the high one. tmux writes both out as truecolor. A column that
+# resolved the ramp string as a flat colour, or failed to resolve it at all, can
+# only put one colour on screen, and this is where that is caught.
+#
+# `colour/ramp` cannot do it: 64 rows, a window that shows the first 37 of them,
+# and the high end at the bottom.
 check "a themed ramp draws its low end" "38;2;11;61;145" "$DIR/color-m1.txt"
 check "... and its high end" "38;2;127;212;255" "$DIR/color-m1.txt"
 
-# The rows *between* the ends are the half those two say nothing about: both of
-# them land on screen whether or not anything in between does. Their colours
-# cannot be pinned by value -- the top of the range is whenever the fixture was
-# built, so every ratio but the lowest moves as the fixture ages -- but their
-# order can be, and the order is what a reader sees as a gradient.
+# The steps between are read off `colour/ramp`, which exists for this. They used
+# to be read off `data/` too, and that was as much as `data/` could give: its
+# five distinct mtimes land on steps 1, 38, 42, 57 and 64 -- five colours out of
+# 64, nothing at all in the bottom half, and no two of them adjacent. Ordering
+# five scattered steps was the whole of what it proved, and it needed each row's
+# date built into a sort key to do even that.
 #
-# Each mtime cell opens with a truecolor escape followed straight away by the
-# date, which nothing else on the row does, so one pass picks up every row the
-# column drew. The date becomes a sort key: `MM/DD  YYYY` for a file from
-# another year and `MM/DD HH:MM` for one from this one, which is the choice
-# `mtime` makes per file.
-ramp_rows=$(awk -v year="$(date +%Y)" '
-	{
-		rest = $0
-		while (match(rest, /38;2;[0-9]+;[0-9]+;[0-9]+m[0-9][0-9]\/[0-9][0-9] [ 0-9][0-9][0-9:][0-9][0-9]/)) {
-			cell = substr(rest, RSTART, RLENGTH)
-			rest = substr(rest, RSTART + RLENGTH)
-			m = index(cell, "m")
-			rgb = substr(cell, 6, m - 6)
-			when = substr(cell, m + 1)
-			tail = substr(when, 7)
-			if (index(tail, ":") > 0) {
-				print year substr(when, 1, 2) substr(when, 4, 2) substr(tail, 1, 2) substr(tail, 4, 2), rgb
-			} else {
-				sub(/ /, "", tail)
-				print tail substr(when, 1, 2) substr(when, 4, 2) "0000", rgb
+# In `colour/ramp` the rows *are* the ramp. One file per step with the mtimes a
+# minute apart, named in the same order, so screen order is the sort key and
+# every step from the first to wherever the window cuts off comes back.
+#
+# Each row carries the same ratio twice: once as the number, placed by a `stats`
+# closure written in the fixture's own `init.lua`, and once as the date, placed
+# by the built-in `mtime` column's. Two `stats` functions, two `ctx` tables, one
+# step -- so the two cells agreeing is a check rather than a restatement.
+ramp_rows() { # <label>
+	awk -F"$BAR" '{ print $2 }' "$DIR/color-$1.txt" | awk '
+		{
+			ratio = ""
+			when = ""
+			# The ratio cell: an escape followed straight away by a number
+			# between 0.00 and 1.00. A file name cannot match it -- digit, dot,
+			# two digits -- and neither can the date beside it.
+			if (match($0, /38;2;[0-9]+;[0-9]+;[0-9]+m *[01]\.[0-9][0-9]/)) {
+				cell = substr($0, RSTART, RLENGTH)
+				p = index(cell, "m")
+				ratio = substr(cell, 6, p - 6)
+				text = substr(cell, p + 1)
+				gsub(/ /, "", text)
+			}
+			# The mtime cell, the same way `m 1` is read: an escape and then a
+			# date, which nothing else on the row is.
+			if (match($0, /38;2;[0-9]+;[0-9]+;[0-9]+m[0-9][0-9]\/[0-9][0-9]/)) {
+				cell = substr($0, RSTART, RLENGTH)
+				p = index(cell, "m")
+				when = substr(cell, 6, p - 6)
+			}
+			if (ratio != "" && when != "") {
+				print ratio, when, text
 			}
 		}
-	}
-' "$DIR/color-m1.txt" | sort -u)
+	'
+}
 
-# Per channel, which is a property of *this* ramp rather than of ramps in
-# general: `#0b3d91 -> #7fd4ff` climbs in all three channels at once, and its 64
-# steps were measured to hold that the whole way. Point the fixture at a ramp
-# that turns in hue -- navy to yellow drops the blue channel -- and this check
-# starts failing on a gradient that is perfectly correct. It fails loudly rather
-# than quietly, so the fixture's ramp is free to move; this comment is the note
-# saying what moves with it.
-backwards=$(printf '%s\n' "$ramp_rows" | awk -F'[ ;]' '
-	NR > 1 && ($2 < r || $3 < g || $4 < b) { print $1 }
-	{ r = $2; g = $3; b = $4 }
-')
-steps=$(printf '%s\n' "$ramp_rows" | cut -d' ' -f2 | sort -u | wc -l | tr -d ' ')
-if [ -z "$ramp_rows" ]; then
-	fail "no row carried a ramp colour beside its date"
-elif [ -n "$backwards" ]; then
-	fail "the ramp goes backwards at $(printf '%s\n' "$backwards" | tr '\n' ' ')"
-elif [ "$steps" -lt 3 ]; then
-	# One colour means the ratio never reached the ramp; two means it reached
-	# only the ends. Three is the least that says a middle step was drawn, and
-	# the fixture's five distinct mtimes currently give five.
-	fail "the ramp drew no step between its ends ($steps colour(s))"
+# `monotone` is asked of one ramp and not the other, and which is which is a
+# property of the ramp rather than of the plugin. `#0b3d91 -> #7fd4ff` climbs in
+# all three channels at once and was measured to hold that across all 64 steps;
+# `#0b3d91 -> #ffd400` turns in hue and reverses a channel on 49 of its 63
+# transitions, so asking it here would go red on a gradient that is correct.
+#
+# What both are asked is that no step repeats the one above it. That holds for
+# any ramp whose quantisation is doing anything at all -- measured, zero
+# identical adjacent pairs on both of these -- and it is what fails when a ratio
+# never reaches the ramp, or reaches only its ends.
+ramp_faults() { # <rows> <monotone>
+	printf '%s\n' "$1" | awk -v monotone="$2" '
+		{
+			n++
+			split($1, c, ";")
+			if ($1 != $2) {
+				print "row " n " drew its two cells in different colours (" $1 " and " $2 ")"
+			}
+			if (n > 1) {
+				if ($1 == prev) {
+					print "row " n " is the same colour as the row above it (" $1 ")"
+				}
+				if (monotone == 1 && (c[1] + 0 < p1 || c[2] + 0 < p2 || c[3] + 0 < p3)) {
+					print "row " n " goes backwards (" prev " then " $1 ")"
+				}
+				if ($3 + 0 < pt + 0) {
+					print "row " n " has a smaller ratio than the row above it (" pt " then " $3 ")"
+				}
+			}
+			prev = $1
+			p1 = c[1] + 0
+			p2 = c[2] + 0
+			p3 = c[3] + 0
+			pt = $3
+		}
+	'
+}
+
+# The window is 40 rows and the header and the folder take some, so about 37 of
+# the 64 reach a capture. The floor is well under that: what would drop it is a
+# ramp that stopped drawing, and no terminal this runs in shows fewer.
+RAMP_FLOOR=24
+
+check_ramp() { # <label> <capture> <monotone>
+	rows=$(ramp_rows "$2")
+	count=$(printf '%s\n' "$rows" | grep -c '[^ ]' || true)
+	faults=$(ramp_faults "$rows" "$3")
+	if [ "$count" -lt "$RAMP_FLOOR" ]; then
+		fail "$1: only $count row(s) carried a ramp colour, wanted $RAMP_FLOOR"
+	elif [ -n "$faults" ]; then
+		fail "$1: $(printf '%s' "$faults" | head -3 | tr '\n' ';')"
+	else
+		echo "  $1 ($count consecutive steps)"
+	fi
+}
+
+# One file per step, so consecutive rows are consecutive steps and this is the
+# only place the quantisation itself is read. What it still cannot ask is
+# whether a reader can see one step from the next; `MANUAL.md` keeps that.
+check_ramp "every step climbs, and none repeats the one above" c_ramp 1
+# The same rows on a ramp that turns in hue. Only half the question can be put
+# to it, and that half is put here so the shape is not left with nothing.
+check_ramp "a ramp that turns still draws a step per row" c_hue 0
+
+# `c_bg` draws the same ramp twice: over a ground carrying `bg = #8b0045`, and
+# over nothing. Three things have to hold, and a reader can check none of them
+# against their own terminal's ground -- that ground is the very thing the band
+# has to be told apart from, and until this fixture was measured the background
+# it used was 0.02 away from a common one in Oklab.
+#
+#   - the `bg` survived `patch` under all sixty-four foregrounds
+#   - it covers the cells the stated width pads with, rather than stopping at
+#     the text, which is what `fit` padding before the style is applied is for
+#   - the ungrounded column beside it did not pick one up
+#
+# A band that is missing and a band that is short are different bugs, so the
+# width is measured rather than the rows counted. A band runs to the next escape
+# of any kind: there is none inside one today, and one put there later would
+# read here as a band that came back short.
+ESC=$(printf '\033')
+BAND_CELLS=14
+bands=$(awk -v esc="$ESC" '
+	{
+		open = esc "[48;2;139;0;69m"
+		rest = $0
+		while ((p = index(rest, open)) > 0) {
+			rest = substr(rest, p + length(open))
+			q = index(rest, esc)
+			band = q > 0 ? substr(rest, 1, q - 1) : rest
+			print length(band)
+		}
+	}
+' "$DIR/color-c_bg.txt")
+banded=$(printf '%s\n' "$bands" | grep -c '^[0-9]' || true)
+narrow=$(printf '%s\n' "$bands" | grep -cv "^$BAND_CELLS$" || true)
+lines=$(grep -c '48;2;139;0;69m' "$DIR/color-c_bg.txt" || true)
+if [ "$banded" -lt "$RAMP_FLOOR" ]; then
+	fail "c_bg: only $banded row(s) carried a background, wanted $RAMP_FLOOR"
+elif [ "$narrow" -gt 0 ]; then
+	fail "c_bg: $narrow band(s) were not $BAND_CELLS cells wide -- the padding is where to look"
+elif [ "$banded" -ne "$lines" ]; then
+	fail "c_bg: $banded band(s) across $lines row(s), so a row carries more than one"
 else
-	echo "  the steps between climb with the date ($steps distinct colours)"
+	echo "  a background survives the ramp, padding included ($banded rows)"
 fi
 
 echo "== theme =="
@@ -431,6 +585,33 @@ if [ "$new_lo" -gt 0 ] && [ "$new_hi" -gt 0 ] && [ "$old_lo" -eq 0 ] && [ "$old_
 	echo "  ... and rebuilds a ramp, not only a flat colour"
 else
 	fail "a theme reload did not rebuild the ramp (old=$old_lo/$old_hi new=$new_lo/$new_hi)"
+fi
+
+# `c 2` should have put `themes/alt.toml` where Yazi reads its theme from. This
+# is the fixture's own plumbing rather than the plugin's, and it is checked here
+# because nothing else can: the key leaves Yazi to run a script through a
+# `shell` template, so it is the one path in either harness that can be broken
+# by a quoting mistake, and what a person sees when it breaks is a colour that
+# did not change -- indistinguishable from the plugin ignoring the reload.
+# `themes/alt.toml` puts the ramp at `#5d0b91 -> #ffb37f`, where the reload
+# above had left `#1a5e00 -> #9bff66`. Both halves are asked, because they fail
+# separately: the file says the key reached the disk, and the screen says the
+# reload that followed it was not lost on the way.
+#
+# The second half is not hypothetical. Spelled as a keymap `run` of
+# [ "shell ... --confirm", "app:theme" ] the two race and the reload wins --
+# measured on 26.9.1, `theme.toml` ends up correct on disk with the old colours
+# still on screen, and `--block` does not change it. The emit comes from inside
+# the script for that reason, and this is the check that would notice it going
+# back.
+swapped=$(grep -c '38;2;93;11;145m' "$DIR/theme-swapped.txt" || true)
+stale=$(grep -c '38;2;26;94;0m' "$DIR/theme-swapped.txt" || true)
+if ! cmp -s "$DIR/config/theme.toml" "$DIR/themes/alt.toml"; then
+	fail "c 2 did not put themes/alt.toml in place"
+elif [ "$swapped" -eq 0 ] || [ "$stale" -gt 0 ]; then
+	fail "c 2 swapped the file but the screen kept the old ramp (new=$swapped old=$stale)"
+else
+	echo "  a theme key swaps the file and the screen follows"
 fi
 
 echo
