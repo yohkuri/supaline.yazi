@@ -305,32 +305,77 @@ check "m0: size" "87.9M" "$DIR/screen-m0.txt"
 check "m1: size + mtime" "87.9M 05/06  2024" "$DIR/screen-m1.txt"
 check "m2: permissions" "drwxr-xr-x" "$DIR/screen-m2.txt"
 
+# The owner column holds this machine's own `user:group`, so what its cell
+# should say cannot be written down here -- it depends on how long that is.
+# Read the cell off the screen and hold it against `id` instead: the text is
+# whatever fits, and an ellipsis is there exactly when something was dropped.
+# Two of them in a row was a real bug, and it can only appear on a machine whose
+# name has to be cut, which is why this counts them rather than looking for one.
+#
+# The permissions field the search anchors on is a pattern rather than a
+# literal, because a different umask draws a different one. What follows it is
+# the owner text: a `user:group` carries no space, so the column's own padding
+# delimits it, and no width arithmetic is needed to find where the text ends.
+who="$(id -un):$(id -gn)"
+seen=$(current_of m2 | sed -n 's/^.*[-dl][rwxsStT-]\{9\} \([^ ][^ ]*\) .*$/\1/p' | sort -u)
+dots=$(printf '%s' "$seen" | grep -o '…' | wc -l | tr -d ' ')
+if [ -z "$seen" ]; then
+	fail "m2: no owner cell behind a permissions field on screen"
+elif [ "$(printf '%s\n' "$seen" | wc -l | tr -d ' ')" -ne 1 ]; then
+	fail "m2: the rows disagree on the owner cell: $(printf '%s' "$seen" | tr '\n' ' ')"
+elif [ "$seen" = "$who" ]; then
+	echo "  m2: the owner column holds \`$who\` whole, with no ellipsis"
+elif [ "$dots" -ne 1 ]; then
+	fail "m2: the owner cell carries $dots ellipses, wanted one -- \`$seen\`"
+else
+	case $who in
+	"${seen%…}"*) echo "  m2: the owner column cuts \`$who\` with one ellipsis" ;;
+	*) fail "m2: the owner cell \`$seen\` is not a cut of \`$who\`" ;;
+	esac
+fi
+
 # m4 puts one over-long name through ellipsis, clip and grow, so the same row
-# must carry all three renderings of it. Grepping the screen as a whole is not
+# must carry all four renderings of it. Grepping the screen as a whole is not
 # enough: Yazi truncates long names in the parent pane by itself, and that
 # ellipsis would satisfy a looser check.
-# `exactly-1k.bin` is 14 characters against a column of 12, and short enough
-# that all three cells stay on screen: "exactly-1k.…", "exactly-1k.b", and the
-# name whole.
-m4row=$(grep -n "exactly-1k" "$DIR/screen-m4.txt" | head -1 | cut -d: -f1)
-if [ -z "$m4row" ]; then
-	fail "m4: the fixture name to overflow is not on screen"
-else
-	row=$(sed -n "${m4row}p" "$DIR/screen-m4.txt")
-	ok=1
-	echo "$row" | grep -q "exactly-1k.…" || ok=""
-	# The clipped string, the clipped Line, and the name whole. The two clips
-	# have to agree: a column that hands back a renderable is not a narrower
-	# column, and `Line:truncate` drops the character that lands exactly on the
-	# width, so the second of them read "exactly-1k." until `cell` asked for
-	# that cell back. Nothing else in the fixture takes the renderable path.
-	echo "$row" | grep -q "exactly-1k.b exactly-1k.b exactly-1k.bin" || ok=""
-	if [ -n "$ok" ]; then
-		echo "  m4: ellipsis, clip, a clipped renderable and grow, on one row"
+#
+# The cells are given as one pattern, the separators and the padding between
+# them included, so this reads the columns' widths as well as where each cut
+# landed -- a cell that came back one short moves every space after it and the
+# pattern stops matching.
+overflow_row() { # <label> <name> <cells>
+	n=$(grep -n "$2" "$DIR/screen-m4.txt" | head -1 | cut -d: -f1)
+	if [ -z "$n" ]; then
+		fail "m4: $1 -- no row on screen carries \`$2\`"
+	elif sed -n "${n}p" "$DIR/screen-m4.txt" | grep -q "$3"; then
+		echo "  m4: $1"
 	else
-		fail "m4: the overflow modes did not render as they should"
+		fail "m4: $1"
 	fi
-fi
+}
+
+# `exactly-1k.bin` is 14 characters against a column of 12, and short enough
+# that all four cells stay on screen. The two clips have to agree: a column that
+# hands back a renderable is not a narrower column, and `Line:truncate` drops
+# the character that lands exactly on the width, so the second of them read
+# "exactly-1k." until `cell` asked for that cell back. Nothing else in the
+# fixture takes the renderable path.
+overflow_row "ellipsis, clip, a clipped renderable and grow, on one row" \
+	"exactly-1k" "exactly-1k.… exactly-1k.b exactly-1k.b exactly-1k.bin"
+
+# The same four against a name of wide characters, where a cut can land between
+# a character's two cells and leave the column a cell short. Both of Yazi's
+# truncations count characters where the screen counts cells, which is the trap
+# `truncate_spec.lua` pins in the arithmetic; this is the one place it is read
+# off a screen.
+#
+# "日本語のファイル名.txt" is 13 characters and 22 cells against a column of 12.
+# Five of them and an ellipsis come to 11, so the ellipsis cell pads to 12 --
+# that pad is the second space in the pattern, and it is what a cut landing mid
+# character would take away. The two clips take six characters for 12 exactly
+# and pad with none.
+overflow_row "a wide name is cut between characters, and the cell still fills" \
+	"日本語" "日本語のフ…  日本語のファ 日本語のファ 日本語のファイル名.txt"
 
 # m3: `size` stated at 10 beside `size` measured. In `data/` the widest size is
 # "1023.4K", so the measured column is 7 and the two are three spaces apart.
