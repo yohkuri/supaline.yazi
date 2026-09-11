@@ -310,18 +310,31 @@ end)
 
 -- --- the theme -------------------------------------------------------------
 
+--- Run `fn` with the user's `[supaline]` section set to `section`, and put the
+--- stub's own back afterwards: `test` pcalls the body, so a section left set by
+--- a failing assertion reaches every test after this one and the failure points
+--- at the wrong one. A body that reassigns the section mid-test -- the reload
+--- cases below -- is restored just the same.
+---@param section table?
+---@param fn function
+local function with_theme(section, fn)
+	local before = stub.th.supaline
+	stub.th.supaline = section
+	local ok, err = pcall(fn)
+	stub.th.supaline = before
+	if not ok then
+		error(err, 0)
+	end
+end
+
 test("theme: a base colour comes from the user's `[supaline]` section", function()
 	-- Readable from the start on 26.9.1: the user's `theme.toml` is merged
 	-- before any plugin code runs, so `setup` resolves the user's colour rather
 	-- than the column's default.
-	stub.th.supaline = { size = "#ff8800" }
-
-	setup { detail = { { "size", width = 3 } } }
-	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
-
-	-- Put it back: a colour left set here would reach every test after this one,
-	-- and the failure would point at the wrong one.
-	stub.th.supaline = nil
+	with_theme({ size = "#ff8800" }, function()
+		setup { detail = { { "size", width = 3 } } }
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+	end)
 end)
 
 test("theme: a reload replaces a colour already resolved", function()
@@ -332,32 +345,82 @@ test("theme: a reload replaces a colour already resolved", function()
 	--
 	-- Changing the section *after* `setup` is what makes this test say that. A
 	-- section that never changed would pass for a plugin that never subscribed.
-	stub.th.supaline = { size = "#ff8800" }
-	setup { detail = { { "size", width = 3 } } }
-	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+	with_theme({ size = "#ff8800" }, function()
+		setup { detail = { { "size", width = 3 } } }
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
 
-	stub.th.supaline = { size = "#00ccff" }
-	stub.fire("theme")
-	eq(
-		stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
-		"#00ccff",
-		"the reloaded colour, not the one resolved at setup"
-	)
-
-	stub.th.supaline = nil
+		stub.th.supaline = { size = "#00ccff" }
+		stub.fire("theme")
+		eq(
+			stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
+			"#00ccff",
+			"the reloaded colour, not the one resolved at setup"
+		)
+	end)
 end)
 
 test("theme: a style table works as well as a colour string", function()
-	stub.th.supaline = { size = ui.Style():fg("#00ff00"):bold() }
-	setup { detail = { { "size", width = 3 } } }
-	stub.fire("theme")
+	with_theme({ size = ui.Style():fg("#00ff00"):bold() }, function()
+		setup { detail = { { "size", width = 3 } } }
+		stub.fire("theme")
 
-	-- Asserted rather than indexed straight: an unstyled cell here is a real
-	-- failure, and "attempt to index a nil value" names the harness for it.
-	local style = assert(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }), "the cell came back unstyled")
-	eq(style.fg, "#00ff00")
-	eq(style.bold, true)
-	stub.th.supaline = nil
+		-- Asserted rather than indexed straight: an unstyled cell here is a real
+		-- failure, and "attempt to index a nil value" names the harness for it.
+		local style = assert(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }), "the cell came back unstyled")
+		eq(style.fg, "#00ff00")
+		eq(style.bold, true)
+	end)
+end)
+
+test("theme: a ramp in the `[supaline]` section colours the whole range", function()
+	-- A theme cannot hold a list -- Yazi refuses the file outright -- so a ramp
+	-- reaches a plugin as a string, and this is the path that says so end to
+	-- end: the section is read, the endpoints are parsed, the folder pass finds
+	-- the extremes, and the two files land on the two ends of the ramp.
+	with_theme({ size = "#0b3d91 -> #7fd4ff" }, function()
+		setup { detail = { { "size", width = 4 } } }
+
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#0b3d91", "the smallest file")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#7fd4ff", "the largest")
+	end)
+end)
+
+test("theme: a reload rebuilds a ramp, not only a flat colour", function()
+	-- The flat case is pinned above. A ramp is built once and indexed per row,
+	-- so it is exactly the kind of derived value that would keep the old
+	-- colours through an `app:theme` with nothing to say so.
+	with_theme({ size = "#0b3d91 -> #7fd4ff" }, function()
+		setup { detail = { { "size", width = 4 } } }
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#7fd4ff")
+
+		stub.th.supaline = { size = "#111111 -> #00ccff" }
+		stub.fire("theme")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#00ccff", "the reloaded ramp")
+	end)
+end)
+
+test("theme: a colour in the spec replaces a themed ramp outright", function()
+	-- One source decides the whole colour. Half of it from the spec and half
+	-- from the theme would be a rule nobody could hold in their head, and it is
+	-- the same rule as before: what the spec says wins.
+	with_theme({ size = "#0b3d91 -> #7fd4ff" }, function()
+		setup { detail = { { "size", width = 4, base = "#ff8800" } } }
+
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#ff8800", "every row, flat")
+	end)
+end)
+
+test("theme: a ramp on a column with no extremes says which file to fix", function()
+	-- `theme.toml` has no `stats` to give and no `base` field to move the colour
+	-- to, so the spec-side advice would be advice nobody could take. The error
+	-- has to name the theme, and offer the one move that file allows.
+	with_theme({ owner = "#0b3d91 -> #7fd4ff" }, function()
+		local err = select(2, pcall(setup, { detail = { "owner" } }))
+		local text = tostring(err)
+		assert(text:find("`[supaline] owner` colour in your theme", 1, true), text)
+		assert(text:find("Write a flat colour there instead", 1, true), text)
+	end)
 end)
 
 -- --- the per-folder pass ---------------------------------------------------
