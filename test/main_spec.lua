@@ -423,6 +423,43 @@ test("theme: a ramp on a column with no extremes says which file to fix", functi
 	end)
 end)
 
+test("theme: a reload the theme breaks keeps the old colours and says so", function()
+	-- The messages above are written for the person editing `theme.toml`, and
+	-- that person is not editing it during `setup` -- they edit it and press a
+	-- key bound to `app:theme`. On that path `compile` runs from a `ps.sub`
+	-- handler, where raising reaches nobody: without this the reload would
+	-- change nothing and say nothing, which is what a plugin that ignored the
+	-- event looks like.
+	with_theme({ size = "#ff8800" }, function()
+		setup { detail = { { "size", width = 3 } } }
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+
+		local was = #stub.notified
+		stub.th.supaline = { size = "nosuchcolour" }
+		stub.fire("theme")
+
+		eq(
+			stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
+			"#ff8800",
+			"the last theme that compiled keeps drawing"
+		)
+		eq(#stub.notified - was, 1, "and the refusal reaches the screen, not only the log")
+
+		-- Cut back to the sentence the message was written as. `pcall` hands
+		-- back what Lua and Yazi wrapped around it -- a source position here, a
+		-- `runtime error:` and two tracebacks under a real Yazi -- and
+		-- `ya.notify` draws every line of whatever it is given.
+		local said = stub.notified[#stub.notified].content
+		eq(
+			said,
+			"supaline: the `[supaline] size` colour in your theme: `nosuchcolour` is not a colour Yazi "
+				.. "accepts. Write `#rrggbb`, a name such as `cyan`, a 256-colour index as a string such "
+				.. "as `129`, or `reset`",
+			"the message, and nothing Lua or Yazi wrapped around it"
+		)
+	end)
+end)
+
 -- --- the per-folder pass ---------------------------------------------------
 
 test("stats: the pass runs once per folder, not once per row", function()
