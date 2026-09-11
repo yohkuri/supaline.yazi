@@ -380,13 +380,22 @@ about them:
 { "size", base = ui.Style():bold(), ramp = "#0b3d91 -> #7fd4ff" }
 ```
 
-`false` is how a spec says "neither" — the same spelling `sep` uses. It still
-counts as the spec saying something, so it drops whatever the theme or the
-column's default would have supplied:
+`false` is how a spec says "neither" — the same spelling `sep` uses. It counts
+as the spec saying something, so it takes the whole source with it: not the
+ramp alone, but the theme's colour and the column's default along with it. Both
+of these leave the column with no colour at all, and the cell is drawn in
+whatever style the row already carries:
 
 ```lua
-{ "size", ramp = false }   -- flat, whatever the theme says
-{ "size", base = false, ramp = false }   -- no colour at all
+{ "size", ramp = false }
+{ "size", base = false, ramp = false }   -- the same thing, said twice
+```
+
+There is no spelling for "the theme's colour, drawn flat". A ramp in the theme
+is a ramp, and a spec that wants a flat colour instead has to name one:
+
+```lua
+{ "size", base = "cyan" }
 ```
 
 ## Caveats
