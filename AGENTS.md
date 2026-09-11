@@ -19,9 +19,17 @@ calls for them:
 ## What this is
 
 supaline is a [Yazi](https://github.com/sxyazi/yazi) plugin that replaces the
-linemode with a configurable set of columns: sizes and timestamps coloured on an
-eza-style gradient. Built-in columns and user-written ones go through the same
-interface; neither has a privileged path.
+linemode with a configurable set of columns: sizes and timestamps coloured flat
+or on a gradient between endpoints the user chooses. Built-in columns and
+user-written ones go through the same interface; neither has a privileged path.
+
+Do not call that gradient eza's. eza was read at v0.23.5 and it does something
+else: it replaces the Oklab **lightness** of a colour it takes from the file's
+magnitude class, on a ratio that is linear in bytes, and has no endpoints to
+interpolate between at all. Its `--color-scale-mode=fixed` is not the
+absolute-scale mode the name suggests either -- it draws every size in one
+colour. What supaline does take from it is the shape of the idea and the
+extremes of the listing, which is what `builtin.lua` says and all it says.
 
 Whether supaline ships status columns of its own — version control, dotfile
 management — is **undecided**. Do not describe them as planned or forthcoming,
