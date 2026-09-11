@@ -140,7 +140,6 @@ fi
 i=0
 while [ "$i" -lt "$STEPS" ]; do
 	f=$(printf 'step-%02d.txt' "$i")
-	: >"colour/ramp/$f"
 	touch -t "20200101$(printf '%02d%02d' $((i / 60)) $((i % 60)))" "colour/ramp/$f"
 	i=$((i + 1))
 done
@@ -152,11 +151,7 @@ done
 i=0
 while [ "$i" -le 20 ]; do
 	f=$(printf 'pow-%02d.bin' "$i")
-	if [ "$i" -lt 10 ]; then
-		dd if=/dev/zero of="colour/scale/$f" bs=1 count=$((1 << i)) 2>/dev/null
-	else
-		dd if=/dev/zero of="colour/scale/$f" bs=1024 count=$((1 << (i - 10))) 2>/dev/null
-	fi
+	dd if=/dev/zero of="colour/scale/$f" bs=$((1 << i)) count=1 2>/dev/null
 	i=$((i + 1))
 done
 
@@ -200,8 +195,10 @@ cat >"$DIR/config/yazi.toml" <<'EOF'
 [mgr]
 linemode    = "default"
 show_hidden = true
-# Stated rather than left to the default, because `e2e.sh` goes to the top of
-# `data/` and presses `l` expecting to land in `nested/`.
+# Stated rather than left to the default, so that what a reader sees in the
+# manual run is what the captures were read against. No check depends on it:
+# `e2e.sh` reaches every folder it visits by a `g` key bound to an absolute
+# path, which is what that spelling is for.
 sort_dir_first = true
 EOF
 
@@ -448,6 +445,11 @@ local supaline = require("supaline")
 -- it for; `c_hue` is the one that deliberately does not.
 local COOL = "#0b3d91 -> #7fd4ff"
 
+-- The one that does not, for `c_hue`. Named rather than written twice: the two
+-- columns there have to carry the *same* ramp for `e2e.sh` to read a row's two
+-- cells against each other, and two literals can drift where one cannot.
+local HUE = "#0b3d91 -> #ffd400"
+
 -- The background `c_bg` puts under that ramp. Picked by measurement rather
 -- than taste, because it has to answer to two things at once: the terminal
 -- ground it is *seen* against, which is the reader's and unknown here, and the
@@ -499,14 +501,24 @@ supaline.column("name", {
 -- read the ratio of the one beside it, and this exists to say what the `mtime`
 -- column next to it is doing. The two agree because the value and the scale
 -- are the same, not because anything passes between them.
+-- `builtin.lua` floors an mtime on the way into its own `extremes` and again
+-- before `ctx.ratio`, so this column has to floor it too. `e2e.sh` asks that a
+-- row's two cells land on the same step; the two agree today only because
+-- `touch -t` leaves no fractional part, and a fixture built any other way would
+-- report its own rounding as a plugin that cannot place a row.
+local function mtime_of(file)
+	local t = file.cha.mtime
+	return t and t > 0 and math.floor(t) or nil
+end
+
 supaline.column("ratio", {
 	width = 4,
 	align = "right",
 	stats = function(files)
 		local min, max
 		for i = 1, #files do
-			local t = files[i].cha.mtime
-			if t and t > 0 then
+			local t = mtime_of(files[i])
+			if t then
 				if not min or t < min then
 					min = t
 				end
@@ -518,7 +530,7 @@ supaline.column("ratio", {
 		return min and { min = min, max = max } or nil
 	end,
 	render = function(file, ctx)
-		local r = ctx.ratio(file.cha.mtime)
+		local r = ctx.ratio(mtime_of(file))
 		return r and string.format("%.2f", r) or "-", ctx.style(r)
 	end,
 })
@@ -613,8 +625,8 @@ supaline:setup({
 		-- pointed at without going red on a correct gradient, and a reader is
 		-- the only instrument left.
 		c_hue = {
-			{ "ratio", ramp = "#0b3d91 -> #ffd400" },
-			{ "mtime", ramp = "#0b3d91 -> #ffd400" },
+			{ "ratio", ramp = HUE },
+			{ "mtime", ramp = HUE },
 		},
 
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,

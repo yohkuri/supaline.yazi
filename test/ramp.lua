@@ -53,9 +53,12 @@ local ESC = string.char(27)
 local function strip(ramp, cell)
 	local out = {}
 	for i, hex in ipairs(ramp) do
-		local r, g, b = hex:match("^#(%x%x)(%x%x)(%x%x)$")
-		out[#out + 1] =
-			string.format("%s[38;2;%d;%d;%dm%s", ESC, tonumber(r, 16), tonumber(g, 16), tonumber(b, 16), cell(i))
+		-- `colour.colour` rather than a pattern of our own: the hex spelling is
+		-- the plugin's to define, and a second copy here would answer nil the
+		-- day it widens. `pcall` in `show` would then report that as a ramp the
+		-- reader wrote wrong.
+		local rgb = colour.colour(hex, "test/ramp.lua") --[[@as integer[] ]]
+		out[#out + 1] = string.format("%s[38;2;%d;%d;%dm%s", ESC, rgb[1], rgb[2], rgb[3], cell(i))
 	end
 	return table.concat(out) .. ESC .. "[0m"
 end

@@ -216,11 +216,23 @@ fail() {
 # that looks wide enough. The preview's rows are `nested/`, two files.
 parent_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/\xe2\x94\x82.*//'; }
 preview_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | sed 's/.*\xe2\x94\x82//'; }
+# A truecolor escape as tmux writes it, built from the colour as `setup.sh`
+# writes it. Every colour asserted on below is a hex string that appears in
+# `setup.sh` verbatim, so the two files can be grepped against each other;
+# converting one by hand is how an assertion goes stale, and a stale one here
+# reports a fixture edit as a plugin that stopped drawing.
+sgr() { # <38|48> <#rrggbb>
+	_h=${2#\#}
+	_g=${_h#??}
+	printf '%s;2;%d;%d;%dm' "$1" "$((0x${_h%????}))" "$((0x${_g%??}))" "$((0x${_h#????}))"
+}
+
 # The current pane is the field between the two dividers, which neither `sed`
 # above can take: each anchors on one divider and the middle needs both. `awk`
 # splitting on the divider does, and reading it out of a variable keeps this
 # file ASCII like the escapes above.
 BAR=$(printf '\xe2\x94\x82')
+
 current_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | awk -F"$BAR" '{ print $2 }'; }
 # A row that drew ends in the trio's one column: `mark`, a single "d" or "f"
 # after the name. A bare row ends in the name itself.
@@ -247,29 +259,28 @@ fi
 # pane passed this and every pane check below. The columns are what the two
 # sections after it are for, and each mode has one.
 echo "== every linemode left the rows on screen =="
-for n in 0 1 2 3 4 5 6 7 8 9; do
-	if sed -n '3,8p' "$DIR/screen-m$n.txt" | grep -qE "[A-Za-z0-9]"; then
-		:
-	else
-		fail "m$n: the rows came back blank"
-	fi
-done
-[ "$fails" -eq 0 ] && echo "  m0 to m9 all have rows"
+# Where the rows are, and what counts as one, in the single place that knows:
+# row 3 clears the header, and 8 is inside the shortest listing any capture
+# here holds.
+have_rows() { # <summary> <capture>...
+	summary=$1
+	shift
+	was=$fails
+	for n in "$@"; do
+		if ! sed -n '3,8p' "$DIR/screen-$n.txt" | grep -qE "[A-Za-z0-9]"; then
+			fail "$n: the rows came back blank"
+		fi
+	done
+	[ "$fails" -eq "$was" ] && echo "  $summary"
+}
+have_rows "m0 to m9 all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9
 
 # The same for the colour modes, which are reached by two keys rather than one
 # and are read in folders of their own -- so a blank one here is as likely to be
 # the key, or the `cd` behind it, as the linemode. Which of the three it was is
 # not worth telling apart: nothing else in this run visits those folders, so
 # without this the first person to find out would be a human at `manual.sh`.
-was=$fails
-for n in c_ramp c_hue c_bg c_scale c_edge c_theme; do
-	if sed -n '3,8p' "$DIR/screen-$n.txt" | grep -qE "[A-Za-z0-9]"; then
-		:
-	else
-		fail "$n: the rows came back blank"
-	fi
-done
-[ "$fails" -eq "$was" ] && echo "  the six colour modes all have rows"
+have_rows "the six colour modes all have rows" c_ramp c_hue c_bg c_scale c_edge c_theme
 
 echo "== columns =="
 # `A && B || C` would run C when B fails, and shellcheck is right to say so.
@@ -394,8 +405,8 @@ echo "== the ramp =="
 #
 # `colour/ramp` cannot do it: 64 rows, a window that shows the first 37 of them,
 # and the high end at the bottom.
-check "a themed ramp draws its low end" "38;2;11;61;145" "$DIR/color-m1.txt"
-check "... and its high end" "38;2;127;212;255" "$DIR/color-m1.txt"
+check "a themed ramp draws its low end" "$(sgr 38 '#0b3d91')" "$DIR/color-m1.txt"
+check "... and its high end" "$(sgr 38 '#7fd4ff')" "$DIR/color-m1.txt"
 
 # The steps between are read off `colour/ramp`, which exists for this. They used
 # to be read off `data/` too, and that was as much as `data/` could give: its
@@ -413,15 +424,20 @@ check "... and its high end" "38;2;127;212;255" "$DIR/color-m1.txt"
 # by the built-in `mtime` column's. Two `stats` functions, two `ctx` tables, one
 # step -- so the two cells agreeing is a check rather than a restatement.
 ramp_rows() { # <label>
-	awk -F"$BAR" '{ print $2 }' "$DIR/color-$1.txt" | awk '
+	# One pass, splitting on the divider itself: `$2` is the current pane, the
+	# same field `current_of` takes. `E` is the truecolor escape both cells open
+	# with, held in one place because what tells them apart is what follows it.
+	awk -F"$BAR" '
+		BEGIN { E = "38;2;[0-9]+;[0-9]+;[0-9]+m" }
 		{
 			ratio = ""
 			when = ""
+			text = ""
 			# The ratio cell: an escape followed straight away by a number
 			# between 0.00 and 1.00. A file name cannot match it -- digit, dot,
 			# two digits -- and neither can the date beside it.
-			if (match($0, /38;2;[0-9]+;[0-9]+;[0-9]+m *[01]\.[0-9][0-9]/)) {
-				cell = substr($0, RSTART, RLENGTH)
+			if (match($2, E " *[01]\\.[0-9][0-9]")) {
+				cell = substr($2, RSTART, RLENGTH)
 				p = index(cell, "m")
 				ratio = substr(cell, 6, p - 6)
 				text = substr(cell, p + 1)
@@ -429,8 +445,8 @@ ramp_rows() { # <label>
 			}
 			# The mtime cell, the same way `m 1` is read: an escape and then a
 			# date, which nothing else on the row is.
-			if (match($0, /38;2;[0-9]+;[0-9]+;[0-9]+m[0-9][0-9]\/[0-9][0-9]/)) {
-				cell = substr($0, RSTART, RLENGTH)
+			if (match($2, E "[0-9][0-9]/[0-9][0-9]")) {
+				cell = substr($2, RSTART, RLENGTH)
 				p = index(cell, "m")
 				when = substr(cell, 6, p - 6)
 			}
@@ -438,7 +454,7 @@ ramp_rows() { # <label>
 				print ratio, when, text
 			}
 		}
-	'
+	' "$DIR/color-$1.txt"
 }
 
 # `monotone` is asked of one ramp and not the other, and which is which is a
@@ -455,7 +471,6 @@ ramp_faults() { # <rows> <monotone>
 	printf '%s\n' "$1" | awk -v monotone="$2" '
 		{
 			n++
-			split($1, c, ";")
 			if ($1 != $2) {
 				print "row " n " drew its two cells in different colours (" $1 " and " $2 ")"
 			}
@@ -463,17 +478,18 @@ ramp_faults() { # <rows> <monotone>
 				if ($1 == prev) {
 					print "row " n " is the same colour as the row above it (" $1 ")"
 				}
-				if (monotone == 1 && (c[1] + 0 < p1 || c[2] + 0 < p2 || c[3] + 0 < p3)) {
-					print "row " n " goes backwards (" prev " then " $1 ")"
+				if (monotone == 1) {
+					split($1, c, ";")
+					split(prev, q, ";")
+					if (c[1] + 0 < q[1] + 0 || c[2] + 0 < q[2] + 0 || c[3] + 0 < q[3] + 0) {
+						print "row " n " goes backwards (" prev " then " $1 ")"
+					}
 				}
 				if ($3 + 0 < pt + 0) {
 					print "row " n " has a smaller ratio than the row above it (" pt " then " $3 ")"
 				}
 			}
 			prev = $1
-			p1 = c[1] + 0
-			p2 = c[2] + 0
-			p3 = c[3] + 0
 			pt = $3
 		}
 	'
@@ -522,21 +538,33 @@ check_ramp "a ramp that turns still draws a step per row" c_hue 0
 # read here as a band that came back short.
 ESC=$(printf '\033')
 BAND_CELLS=14
-bands=$(awk -v esc="$ESC" '
+# Splitting on the opening escape leaves one piece per band; a band runs to the
+# next escape of any kind, which `sub` takes off the end of the piece. All three
+# numbers come out of the one pass, so none of them is a count of lines that a
+# `printf` invented.
+counts=$(awk -v esc="$ESC" -v bg="$(sgr 48 '#8b0045')" -v want="$BAND_CELLS" '
+	BEGIN {
+		open = esc "\\[" bg
+		tail = esc ".*"
+	}
 	{
-		open = esc "[48;2;139;0;69m"
-		rest = $0
-		while ((p = index(rest, open)) > 0) {
-			rest = substr(rest, p + length(open))
-			q = index(rest, esc)
-			band = q > 0 ? substr(rest, 1, q - 1) : rest
-			print length(band)
+		n = split($0, seg, open)
+		if (n > 1) {
+			rows++
+		}
+		for (i = 2; i <= n; i++) {
+			sub(tail, "", seg[i])
+			bands++
+			if (length(seg[i]) != want) {
+				narrow++
+			}
 		}
 	}
+	END { print bands + 0, rows + 0, narrow + 0 }
 ' "$DIR/color-c_bg.txt")
-banded=$(printf '%s\n' "$bands" | grep -c '^[0-9]' || true)
-narrow=$(printf '%s\n' "$bands" | grep -cv "^$BAND_CELLS$" || true)
-lines=$(grep -c '48;2;139;0;69m' "$DIR/color-c_bg.txt" || true)
+IFS=' ' read -r banded lines narrow <<EOF
+$counts
+EOF
 if [ "$banded" -lt "$RAMP_FLOOR" ]; then
 	fail "c_bg: only $banded row(s) carried a background, wanted $RAMP_FLOOR"
 elif [ "$narrow" -gt 0 ]; then
@@ -549,7 +577,6 @@ fi
 
 echo "== theme =="
 # `[supaline] size` starts at #ff8800 and the reload above made it #00ccff.
-# tmux writes those out as 255;136;0 and 0;204;255.
 #
 # Both halves are needed, and only the second discriminates. Until 26.9.1 the
 # user's theme was merged inside the `app:theme` actor alone, so a capture
@@ -557,9 +584,9 @@ echo "== theme =="
 # has `th.supaline` populated before `setup` runs, and that capture now proves
 # nothing. A reload still does: it is `ps.sub("theme", build)` that repaints
 # what is already on screen, and a plugin without it holds the old colour.
-before=$(grep -c '255;136;0' "$DIR/theme-before.txt" || true)
-stale=$(grep -c '255;136;0' "$DIR/theme-after.txt" || true)
-after=$(grep -c '0;204;255' "$DIR/theme-after.txt" || true)
+before=$(grep -c "$(sgr 38 '#ff8800')" "$DIR/theme-before.txt" || true)
+stale=$(grep -c "$(sgr 38 '#ff8800')" "$DIR/theme-after.txt" || true)
+after=$(grep -c "$(sgr 38 '#00ccff')" "$DIR/theme-after.txt" || true)
 if [ "$before" -gt 0 ]; then
 	echo "  the themed base colour is drawn ($before cells)"
 else
@@ -577,10 +604,10 @@ fi
 # from endpoints parsed out of the string. Both new ends have to be on screen
 # and neither old one left anywhere -- a ramp cached past the reload would keep
 # its old endpoints with the flat colour beside it already correct.
-old_lo=$(grep -c '38;2;11;61;145m' "$DIR/theme-after.txt" || true)
-old_hi=$(grep -c '38;2;127;212;255m' "$DIR/theme-after.txt" || true)
-new_lo=$(grep -c '38;2;26;94;0m' "$DIR/theme-after.txt" || true)
-new_hi=$(grep -c '38;2;155;255;102m' "$DIR/theme-after.txt" || true)
+old_lo=$(grep -c "$(sgr 38 '#0b3d91')" "$DIR/theme-after.txt" || true)
+old_hi=$(grep -c "$(sgr 38 '#7fd4ff')" "$DIR/theme-after.txt" || true)
+new_lo=$(grep -c "$(sgr 38 '#1a5e00')" "$DIR/theme-after.txt" || true)
+new_hi=$(grep -c "$(sgr 38 '#9bff66')" "$DIR/theme-after.txt" || true)
 if [ "$new_lo" -gt 0 ] && [ "$new_hi" -gt 0 ] && [ "$old_lo" -eq 0 ] && [ "$old_hi" -eq 0 ]; then
 	echo "  ... and rebuilds a ramp, not only a flat colour"
 else
@@ -604,8 +631,8 @@ fi
 # still on screen, and `--block` does not change it. The emit comes from inside
 # the script for that reason, and this is the check that would notice it going
 # back.
-swapped=$(grep -c '38;2;93;11;145m' "$DIR/theme-swapped.txt" || true)
-stale=$(grep -c '38;2;26;94;0m' "$DIR/theme-swapped.txt" || true)
+swapped=$(grep -c "$(sgr 38 '#5d0b91')" "$DIR/theme-swapped.txt" || true)
+stale=$(grep -c "$(sgr 38 '#1a5e00')" "$DIR/theme-swapped.txt" || true)
 if ! cmp -s "$DIR/config/theme.toml" "$DIR/themes/alt.toml"; then
 	fail "c 2 did not put themes/alt.toml in place"
 elif [ "$swapped" -eq 0 ] || [ "$stale" -gt 0 ]; then
