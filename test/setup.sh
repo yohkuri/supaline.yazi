@@ -648,9 +648,15 @@ supaline:setup({
 		-- `sep` is drawn before its own column, so one on the first is a
 		-- separator with nothing on its left and is dropped -- which is what
 		-- this linemode did until the screen was read rather than assumed.
+		--
+		-- `┊` rather than the `│` that `m 5` uses, because `e2e.sh` splits a
+		-- capture line on U+2502 to find the current pane. Nothing reads this
+		-- capture that way today; one drawn in a column would take the pane
+		-- split with it, and the check would measure half a row without saying
+		-- so.
 		c_scale = {
 			{ "size", scale = "log", ramp = COOL },
-			{ "size", scale = "linear", ramp = COOL, sep = "│" },
+			{ "size", scale = "linear", ramp = COOL, sep = "┊" },
 		},
 
 		-- c e, in `colour/edge`: a ramp with nothing to spread over. Every value

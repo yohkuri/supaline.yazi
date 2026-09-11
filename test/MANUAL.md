@@ -347,13 +347,15 @@ third is a reader's, and is why this is a manual case at all.
 ### `c s` — log beside linear
 
 In `g 4`. The same size twice, `scale = "log"` then `scale = "linear"`, on one
-ramp and with a `│` between them because they hold the same number.
+ramp and with a `┊` between them because they hold the same number. A
+different character from `m 5`'s `│`, which is the one `e2e.sh` splits a
+capture on to find the current pane.
 
 ```text
- pow-00.bin      1B│     1B
- pow-01.bin      2B│     2B
- pow-02.bin      4B│     4B
- pow-03.bin      8B│     8B
+ pow-00.bin      1B┊     1B
+ pow-01.bin      2B┊     2B
+ pow-02.bin      4B┊     4B
+ pow-03.bin      8B┊     8B
 ```
 
 The sizes double, so log spaces them evenly all the way down and linear cannot:
