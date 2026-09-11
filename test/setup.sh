@@ -675,3 +675,19 @@ supaline:setup({
 	},
 })
 EOF
+
+# Every ramp the fixture can draw, one per line, for `manual.sh` to print whole
+# before it hands the screen to Yazi.
+#
+# Read out of what was just *written* rather than out of this script, so the
+# list cannot be narrower than the fixture: a ramp with three stops is one
+# string here and would come back as its first two under a two-stop pattern,
+# which is a gradient the fixture does not draw offered as one it does. Both
+# places a ramp can live are covered -- a spec in `init.lua`, and a
+# `[supaline]` field in any of the themes.
+#
+# What this does not reach is a ramp written as a Lua list, `{ "#111", "#222" }`.
+# `colour.stops` takes one; a theme cannot hold one, and nothing here writes
+# one. Write one and it goes unprinted rather than printed wrong.
+grep -hoE '"#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+"' \
+	"$DIR/config/init.lua" "$DIR/themes"/*.toml | tr -d '"' | sort -u >"$DIR/ramps.txt"
