@@ -189,10 +189,11 @@ magenta, and mtime **a ramp** — `#0b3d91 -> #7fd4ff`, dark blue to pale.
 Those colours should already be on screen when Yazi opens, without pressing
 anything: Yazi applies the user's theme before the plugin runs.
 
-The ramp is the one to look at with your own eyes. `e2e.sh` can only check that
-its two ends reached the screen; whether the steps between them look like a
-gradient is what you are here for. These are the rows to compare on `m 1`,
-listed oldest first rather than in the order they appear:
+`e2e.sh` pins the ramp's two ends, and that the steps between them climb with
+the date: it reads the colour out of each row's mtime cell and refuses a
+sequence that runs backwards or that never leaves the ends. What it cannot ask
+is whether the climb is one a reader can see. These are the rows to compare on
+`m 1`, listed oldest first rather than in the order they appear:
 
 ```text
  large.bin                  8.8M 01/02  2020    <- the ramp's low end
@@ -202,18 +203,22 @@ listed oldest first rather than in the order they appear:
  empty.txt                    0B 09/09 12:34    <- its high end
 ```
 
-- The colour has to climb with the date. Two rows a year apart looking
-  identical means the ratio is not reaching the ramp; a row that jumps past its
-  neighbours means the buckets are wrong.
+- Adjacent rows have to be tellable apart at a glance. A ramp is quantised
+  into 64 steps, and one step is a difference the check above can measure and
+  an eye cannot; what you are judging is whether the rows a year apart read as
+  different colours rather than as the same one.
+- Every step has to stay legible against the background. A ramp whose low end
+  is as dark as the terminal is a correct gradient and an unreadable column, and
+  nothing here measures the terminal.
 - There is no colour for "no value" on screen here, because every file has an
   mtime. A column whose value is missing draws the ramp's **low** end — that is
   what `size` does for a directory it has not evaluated.
 
-What is worth doing here is the reload. Edit `[supaline]` in
+The reload is worth doing by hand as well. Edit `[supaline]` in
 `$TMPDIR/supaline-manual/config/theme.toml` and press `T`. Every column built
-from that section should take the new colour at once. A colour that stays put is
-the failure this is looking for, and `e2e.sh` pins the same thing by rewriting
-the file and sending `app:theme` itself.
+from that section should take the new colour at once, a ramp along with a flat
+one. A colour that stays put is the failure this is looking for, and `e2e.sh`
+pins both shapes by rewriting the file and sending `app:theme` itself.
 
 ## The fixture
 

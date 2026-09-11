@@ -130,13 +130,21 @@ tmux send-keys -t "$SESSION" h
 sleep 1
 
 # Last of everything, because it rewrites the theme that every capture above
-# was taken under. Back to m1 first, so a `size` column is on screen to be
-# recoloured.
+# was taken under. Back to m1 first, so a `size` column and an `mtime` one are
+# both on screen to be recoloured.
 tmux send-keys -t "$SESSION" m 1
 sleep 1
 tmux capture-pane -t "$SESSION" -p -e >"$DIR/theme-before.txt"
+# Both shapes a `[supaline]` value can take, because they are rebuilt by
+# different code: a flat colour is one `ui.Style` and a ramp is `STEPS` of them,
+# built from endpoints parsed out of the string. A ramp resolved once and cached
+# past the reload would hold its old endpoints with the flat colour beside it
+# already correct, and the flat half alone would not notice.
+#
 # Not `sed -i`: the two seds spell that flag differently and this is /bin/sh.
-sed 's/#ff8800/#00ccff/' "$DIR/config/theme.toml" >"$DIR/theme-next.toml"
+sed -e 's/#ff8800/#00ccff/' \
+	-e 's/#0b3d91 -> #7fd4ff/#1a5e00 -> #9bff66/' \
+	"$DIR/config/theme.toml" >"$DIR/theme-next.toml"
 mv "$DIR/theme-next.toml" "$DIR/config/theme.toml"
 tmux send-keys -t "$SESSION" T
 sleep 2
@@ -323,12 +331,67 @@ echo "== the ramp =="
 # 2020 to today, so the oldest row draws the ramp's low end and a file the
 # fixture just created draws its high one. tmux writes those out as truecolor.
 #
-# Both ends together are the check: a column that resolved the ramp string as a
-# flat colour, or failed to resolve it at all, can only put one colour on
-# screen. What the rows in between draw cannot be pinned here, because the top
-# of the range is whenever the fixture was built.
+# Both ends together are the first check: a column that resolved the ramp string
+# as a flat colour, or failed to resolve it at all, can only put one colour on
+# screen.
 check "a themed ramp draws its low end" "38;2;11;61;145" "$DIR/color-m1.txt"
 check "... and its high end" "38;2;127;212;255" "$DIR/color-m1.txt"
+
+# The rows *between* the ends are the half those two say nothing about: both of
+# them land on screen whether or not anything in between does. Their colours
+# cannot be pinned by value -- the top of the range is whenever the fixture was
+# built, so every ratio but the lowest moves as the fixture ages -- but their
+# order can be, and the order is what a reader sees as a gradient.
+#
+# Each mtime cell opens with a truecolor escape followed straight away by the
+# date, which nothing else on the row does, so one pass picks up every row the
+# column drew. The date becomes a sort key: `MM/DD  YYYY` for a file from
+# another year and `MM/DD HH:MM` for one from this one, which is the choice
+# `mtime` makes per file.
+ramp_rows=$(awk -v year="$(date +%Y)" '
+	{
+		rest = $0
+		while (match(rest, /38;2;[0-9]+;[0-9]+;[0-9]+m[0-9][0-9]\/[0-9][0-9] [ 0-9][0-9][0-9:][0-9][0-9]/)) {
+			cell = substr(rest, RSTART, RLENGTH)
+			rest = substr(rest, RSTART + RLENGTH)
+			m = index(cell, "m")
+			rgb = substr(cell, 6, m - 6)
+			when = substr(cell, m + 1)
+			tail = substr(when, 7)
+			if (index(tail, ":") > 0) {
+				print year substr(when, 1, 2) substr(when, 4, 2) substr(tail, 1, 2) substr(tail, 4, 2), rgb
+			} else {
+				sub(/ /, "", tail)
+				print tail substr(when, 1, 2) substr(when, 4, 2) "0000", rgb
+			}
+		}
+	}
+' "$DIR/color-m1.txt" | sort -u)
+
+# Per channel, which is a property of *this* ramp rather than of ramps in
+# general: `#0b3d91 -> #7fd4ff` climbs in all three channels at once, and its 64
+# steps were measured to hold that the whole way. Point the fixture at a ramp
+# that turns in hue -- navy to yellow drops the blue channel -- and this check
+# starts failing on a gradient that is perfectly correct. It fails loudly rather
+# than quietly, so the fixture's ramp is free to move; this comment is the note
+# saying what moves with it.
+backwards=$(printf '%s\n' "$ramp_rows" | awk -F'[ ;]' '
+	NR > 1 && ($2 < r || $3 < g || $4 < b) { print $1 }
+	{ r = $2; g = $3; b = $4 }
+')
+steps=$(printf '%s\n' "$ramp_rows" | cut -d' ' -f2 | sort -u | wc -l | tr -d ' ')
+if [ -z "$ramp_rows" ]; then
+	fail "no row carried a ramp colour beside its date"
+elif [ -n "$backwards" ]; then
+	fail "the ramp goes backwards at $(printf '%s\n' "$backwards" | tr '\n' ' ')"
+elif [ "$steps" -lt 3 ]; then
+	# One colour means the ratio never reached the ramp; two means it reached
+	# only the ends. Three is the least that says a middle step was drawn, and
+	# the fixture's five distinct mtimes currently give five.
+	fail "the ramp drew no step between its ends ($steps colour(s))"
+else
+	echo "  the steps between climb with the date ($steps distinct colours)"
+fi
 
 echo "== theme =="
 # `[supaline] size` starts at #ff8800 and the reload above made it #00ccff.
@@ -352,6 +415,22 @@ if [ "$after" -gt 0 ] && [ "$stale" -eq 0 ]; then
 	echo "  a theme reload rebuilds the columns ($after cells recoloured)"
 else
 	fail "a theme reload did not rebuild the columns (old=$stale new=$after)"
+fi
+
+# The ramp beside it went from `#0b3d91 -> #7fd4ff` to `#1a5e00 -> #9bff66`.
+# That is a different piece of code reloading: a flat colour is one `ui.Style`
+# resolved from the value, a ramp is `STEPS` of them built by `colour.styles`
+# from endpoints parsed out of the string. Both new ends have to be on screen
+# and neither old one left anywhere -- a ramp cached past the reload would keep
+# its old endpoints with the flat colour beside it already correct.
+old_lo=$(grep -c '38;2;11;61;145m' "$DIR/theme-after.txt" || true)
+old_hi=$(grep -c '38;2;127;212;255m' "$DIR/theme-after.txt" || true)
+new_lo=$(grep -c '38;2;26;94;0m' "$DIR/theme-after.txt" || true)
+new_hi=$(grep -c '38;2;155;255;102m' "$DIR/theme-after.txt" || true)
+if [ "$new_lo" -gt 0 ] && [ "$new_hi" -gt 0 ] && [ "$old_lo" -eq 0 ] && [ "$old_hi" -eq 0 ]; then
+	echo "  ... and rebuilds a ramp, not only a flat colour"
+else
+	fail "a theme reload did not rebuild the ramp (old=$old_lo/$old_hi new=$new_lo/$new_hi)"
 fi
 
 echo
