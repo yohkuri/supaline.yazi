@@ -11,28 +11,10 @@
 
 local column = require(".column")
 
---- Extremes of the current listing, the way `eza --color-scale-mode=gradient`
---- takes them. Values that do not exist stay out of the range: a directory
---- whose size Yazi has not evaluated must not drag the minimum to zero.
----@param get fun(file: supaline.File): number?
----@return fun(files: supaline.File[]): table?
-local function extremes(get)
-	return function(files)
-		local min, max
-		for i = 1, #files do
-			local v = get(files[i])
-			if v and v > 0 then
-				if not min or v < min then
-					min = v
-				end
-				if not max or v > max then
-					max = v
-				end
-			end
-		end
-		return min and { min = min, max = max } or nil
-	end
-end
+-- Extremes of the current listing, the way `eza --color-scale-mode=gradient`
+-- takes them. In `column.lua` rather than here, because a user-written ranged
+-- column wants the same loop and cannot require this file.
+local extremes = column.extremes
 
 --- The entry count of an already-visited directory. Yazi keeps folders it has
 --- listed in the tab's history; one it has never opened has no count to show.

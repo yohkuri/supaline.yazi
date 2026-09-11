@@ -59,6 +59,7 @@ local DEFAULTS = {
 ---@class supaline.Main
 ---@field setup fun(st: table, opts: supaline.Opts?)|fun(opts: supaline.Opts)
 ---@field column fun(name: string, def: supaline.ColumnDef)|fun(self: table, name: string, def: supaline.ColumnDef)
+---@field extremes fun(get: fun(file: supaline.File): number?): fun(files: supaline.File[]): table?
 
 local M = {}
 
@@ -473,6 +474,18 @@ function M.column(a, b, c)
 	-- by name, which is what it did before when `a` was neither.
 	return column.register(b --[[@as string]], c --[[@as supaline.ColumnDef]])
 end
+
+--- The `stats` function the built-in ranged columns use, handed out so a
+--- user-written one does not have to write the loop again. `get` reads the
+--- value off a file, and is also where a timestamp is floored -- `render` has
+--- to floor it the same way, or the two disagree about which step a row is on.
+---
+--- No colon form, because there is nothing here for `self` to shift: this takes
+--- one argument and gives one back, so `supaline.extremes(...)` is the only
+--- spelling and a `:` would swallow it.
+---@param get fun(file: supaline.File): number?
+---@return fun(files: supaline.File[]): table?
+function M.extremes(get) return column.extremes(get) end
 
 --- `_st` is Yazi's per-plugin state table. Nothing in this phase keeps state
 --- across calls; the providers added later do, through `ya.sync` blocks
