@@ -701,5 +701,33 @@ EOF
 # What this does not reach is a ramp written as a Lua list, `{ "#111", "#222" }`.
 # `colour.stops` takes one; a theme cannot hold one, and nothing here writes
 # one. Write one and it goes unprinted rather than printed wrong.
-grep -hoE '"#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+"' \
-	"$DIR/config/init.lua" "$DIR/themes"/*.toml | tr -d '"' | sort -u >"$DIR/ramps.txt"
+# Named once so the two searches below cannot read different files. Left
+# unquoted at each use on purpose: the glob is expanded there, so a theme added
+# later is picked up by both.
+RAMP_SOURCES="$DIR/config/init.lua $DIR/themes/*.toml"
+# shellcheck disable=SC2086 # the split and the glob above are the point
+grep -hoE '"#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+"' $RAMP_SOURCES |
+	tr -d '"' | sort -u >"$DIR/ramps.txt"
+
+# And a second, looser search saying the first one caught everything. Nothing
+# reads `ramps.txt` but `manual.sh`, which prints it and is not in CI, so a
+# pattern that started missing a ramp would show up as a quieter list and
+# nothing else -- the exact drift this file replaced source-scraping to avoid.
+# A pipeline's status is its last command's, so the `grep` above cannot report
+# a miss by failing either.
+#
+# The arrow is what a flat colour can never contain, which makes "a line with an
+# arrow in it" a test that does not share the pattern above's assumptions: a
+# single-quoted TOML string, an unusual spacing, a third stop. `-F` matches a
+# manifest entry anywhere in the line, so a line whose ramp was caught is
+# excluded whatever surrounds it, and an empty manifest leaves every one of
+# them behind. A Lua list stays out of reach of this one too -- it has no arrow
+# either -- which is the exemption above, not a gap in this.
+# shellcheck disable=SC2086 # as above
+missed=$(grep -h -- '->' $RAMP_SOURCES | grep -vFf "$DIR/ramps.txt" || true)
+if [ -n "$missed" ]; then
+	echo "setup: a ramp reached the fixture without reaching ramps.txt:" >&2
+	printf '%s\n' "$missed" | sed 's/^/  /' >&2
+	echo "setup: widen the pattern in setup.sh, or manual.sh prints a list short of what is drawn" >&2
+	exit 2
+fi
