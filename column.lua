@@ -18,6 +18,8 @@
 --- `text, style` skips building an intermediate Line, which is what the
 --- built-in columns do; a style handed back with a Line is applied to it.
 
+local colour = require(".colour")
+
 --- What a `render` is handed, in terms a type checker can act on.
 ---
 --- `types.yazi` describes `fs__File`, but not three of the fields this plugin
@@ -90,21 +92,25 @@
 ---@field truncate fun(self: self, opts: { max: integer, ellipsis: string? }): supaline.Line
 
 --- One per column, reused across rows: what `render` reads a folder's measured
---- state out of. `bind` also keeps the ramp's endpoints on this table, under
---- names starting `_`; they are declared on `supaline.Ramp` below rather than
---- here, because a column that reaches for them is reaching past `ratio`.
+--- state out of. `bind` also keeps the folder's extremes on this table, under
+--- names starting `_`; they are declared on `supaline.Scaled` below rather
+--- than here, because a column that reaches for them is reaching past `ratio`.
 ---@class supaline.Ctx
----@field base unknown the column's resolved colour, as a ui.Style
+---@field base unknown what to draw a row with no value in: the ramp's low end, or the flat colour
 ---@field opts table the options the column was specified with
 ---@field stats any whatever this column's `stats` returned for the folder
 ---@field width integer? the effective width, `max_width` already applied
 ---@field ratio fun(value: number?): number? where a value sits, 0 to 1
 ---@field style fun(ratio: number?): unknown a ui.Style for that position
 
---- The same table, as `bind` and `ratio` see it: the endpoints `ratio`
+--- The same table, as `bind` and `ratio` see it: the extremes `ratio`
 --- normalises against, and whether the scale is logarithmic. `bind` is the
 --- only writer and `ratio` the only reader.
----@class supaline.Ramp : supaline.Ctx
+---
+--- Not `supaline.Ramp`, which is what this was called before a column could
+--- carry a `ramp` of its own: these are the ends of the *range*, and nothing
+--- here knows a colour.
+---@class supaline.Scaled : supaline.Ctx
 ---@field _lo number?
 ---@field _hi number?
 ---@field _log boolean
@@ -134,6 +140,7 @@
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
 ---@field base unknown? a colour string, or a ui.Style
+---@field ramp string|string[]|false|nil `#rrggbb` endpoints, `"#a -> #b"`, or `false` for none
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
@@ -240,41 +247,67 @@ end
 ---@return supaline.ColumnDef?
 function M.get(name) return M._registry[name] end
 
---- Resolve a column's base colour: the spec first, then the `[supaline]` theme
+--- Resolve a column's colour: the spec first, then the `[supaline]` theme
 --- section, then the definition's own default.
 ---
---- The theme section may hold either a style table or a plain string, so both
---- are accepted. This runs inside `build()` rather than once at setup: 26.9.1
---- has the user's theme merged before any plugin code runs, but `app:theme`
---- re-reads it mid-run, and a colour resolved once is the old one from then on.
+--- One source decides both halves. A spec that says anything about colour --
+--- `base`, `ramp`, or both -- replaces the theme outright rather than half of
+--- it, which is what "a `base` written in the spec wins over the theme" has
+--- always meant and is the only rule that stays sayable in one sentence now
+--- that there are two fields.
+---
+--- Within one source the two combine: `base` is the ground the ramp is patched
+--- onto, so a theme's `bold` survives a gradient it knows nothing about.
+---
+--- `false` is how a spec says "neither" -- the spelling `sep` already uses, and
+--- the only way to drop a colour the definition or the theme would otherwise
+--- supply. It still counts as the spec saying something, so it takes the
+--- source with it.
+---
+--- The theme section holds a string or a style table and nothing else -- an
+--- array is refused by Yazi, taking the whole file with it -- so a themed ramp
+--- arrives as a string, and `is_ramp` is what tells the two apart.
+---
+--- This runs inside `build()` rather than once at setup: 26.9.1 has the user's
+--- theme merged before any plugin code runs, but `app:theme` re-reads it
+--- mid-run, and a colour resolved once is the old one from then on.
 ---@param name string?
 ---@param opts supaline.ColumnOpts
 ---@param def supaline.ColumnOpts
----@return unknown? a colour string, or a ui.Style
-local function base_of(name, opts, def)
-	if opts.base then
-		return opts.base
+---@return unknown? base, unknown? ramp, "spec"|"theme"|"definition" source
+local function colours_of(name, opts, def)
+	if opts.base ~= nil or opts.ramp ~= nil then
+		return opts.base or nil, opts.ramp or nil, "spec"
 	end
 
 	local section = name and th.supaline
 	local themed = section and section[name]
 	if themed ~= nil and themed ~= "" then
-		return themed
+		if colour.is_ramp(themed) then
+			return nil, themed, "theme"
+		end
+		return themed, nil, "theme"
 	end
-	return def.base
+	return def.base or nil, def.ramp or nil, "definition"
 end
 
----@param base unknown? a colour string, or a ui.Style
----@return unknown a ui.Style
-local function style_of(base)
-	if base == nil then
-		return ui.Style()
-	elseif type(base) == "string" then
-		return ui.Style():fg(base)
-	end
-	-- A style table straight out of the theme section.
-	return base
-end
+--- What to call a column's colour in an error, in terms of the file it was
+--- written in. A theme has no `base` field and no `ramp` field to name, so a
+--- message that spoke of either would be describing a spec the reader never
+--- wrote -- and "the colour of column `size`" says nothing about which of the
+--- two files to open.
+local WHERE = {
+	spec = "the colour of column `%s`",
+	theme = "the `[supaline] %s` colour in your theme",
+	definition = "the default colour of column `%s`",
+}
+
+--- What to do about a ramp on a column with no extremes, likewise. `stats` is
+--- a spec's to give and `base` a spec's to write, so a spec and a definition
+--- get the same advice; a `theme.toml` has neither, and the only move left
+--- there is a flat colour.
+local NO_STATS = "Give the column a `stats` function, or write that colour as `base`"
+local NO_STATS_THEMED = "Write a flat colour there instead"
 
 --- Apply a column's `max_width`, if it has one. Every width a column can end
 --- up with passes through here exactly once -- the stated one when the spec is
@@ -372,9 +405,37 @@ function M.normalize(spec, cfg)
 	-- nothing to read, and says nothing about it.
 	col.needs_pass = col.stats ~= nil or col.auto or col.width_of ~= nil
 
+	local base, wanted, source = colours_of(name, opts, def)
+	local where = string.format(WHERE[source], name or "?")
+	local ground = colour.style(base, where)
+
+	-- A ramp needs extremes to place a value between, and only a column that
+	-- declares `stats` ever gets any: without one `ctx.ratio` is nil for every
+	-- row and the ramp can only ever draw its low end. Refused here rather than
+	-- drawn flat, because a gradient that silently is not one is exactly the
+	-- kind of failure this plugin has no other way to report.
+	if wanted ~= nil and col.stats == nil then
+		error(
+			string.format(
+				"supaline: %s is a gradient, but that column has no `stats`, so there are no "
+					.. "extremes to place a value between and the ramp could only ever draw its "
+					.. "low end. %s",
+				where,
+				source == "theme" and NO_STATS_THEMED or NO_STATS
+			)
+		)
+	end
+	local ramp = wanted ~= nil and colour.styles(wanted, ground, where) or nil
+
 	-- One context table per column, reused across rows. main.lua rebinds
 	-- `stats` and `width` whenever the folder being drawn changes, not per row.
-	local ctx = { base = style_of(base_of(name, opts, def)), opts = opts, stats = nil, width = col.fixed }
+	--
+	-- A row with no value to place draws the ramp's low end rather than the
+	-- ground beneath it. The ground is where a themed `bold` or `bg` lives and
+	-- may carry no colour of its own at all, so falling back to it would leave
+	-- a directory in `size` uncoloured beside files that are not -- or worse,
+	-- in the column definition's own default, which the user has just replaced.
+	local ctx = { base = ramp and ramp[1] or ground, opts = opts, stats = nil, width = col.fixed }
 	col.ctx = ctx
 
 	--- Where `value` sits between the extremes of the current listing, 0 to 1.
@@ -393,9 +454,40 @@ function M.normalize(spec, cfg)
 		return r < 0 and 0 or r > 1 and 1 or r
 	end
 
-	--- Phase 2 replaces this with a lookup into a quantised Oklab ramp. Until
-	--- then every column draws flat, in its base colour.
-	function ctx.style(_) return ctx.base end
+	--- The style for a position on the column's ramp, or the flat base when
+	--- there is no ramp and when there is nothing to place.
+	---
+	--- Two closures rather than one branch inside one, because this runs for
+	--- every visible row on every frame and most columns have no ramp at all.
+	--- The ramp itself is already a list of finished styles, so a row that does
+	--- have one costs an arithmetic and an array index.
+	if ramp then
+		local n = #ramp
+		local last = n - 1
+		function ctx.style(r)
+			if r == nil then
+				return ctx.base
+			end
+			-- `ratio` clamps, but `style` is public and a column may hand it
+			-- anything; an index off the end would return nil and draw the cell
+			-- with no colour at all, which looks like a theme that did not load.
+			--
+			-- `not (i >= 1)` rather than `i < 1`, because NaN answers false to
+			-- both comparisons and would fall through as the index -- and a NaN
+			-- is not hypothetical: `ratio` hands one back for any `scale = "log"`
+			-- column whose extremes include a value at or below -1, where
+			-- `math.log` of a non-positive number puts a NaN in `_lo`.
+			local i = 1 + math.floor(r * last + 0.5)
+			if not (i >= 1) then
+				i = 1
+			elseif i > n then
+				i = n
+			end
+			return ramp[i]
+		end
+	else
+		function ctx.style(_) return ctx.base end
+	end
 
 	return col
 end
@@ -405,7 +497,7 @@ end
 ---@param col supaline.Column
 ---@param entry supaline.Entry
 function M.bind(col, entry)
-	local ctx = col.ctx --[[@as supaline.Ramp]]
+	local ctx = col.ctx --[[@as supaline.Scaled]]
 	ctx.stats = entry.stats
 	ctx.width = entry.width or col.fixed
 
