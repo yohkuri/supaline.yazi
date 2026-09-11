@@ -36,6 +36,7 @@ local SPECS = {
 	"auth_spec",
 	"dds_spec",
 	"module_spec",
+	"colour_spec",
 	"column_spec",
 	"builtin_spec",
 	"main_spec",
