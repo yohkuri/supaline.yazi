@@ -181,7 +181,7 @@ about the folder is what changed.
 | `ctx.base`     | What to draw a row with no value in: the ramp's low end, or the flat colour. |
 | `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
 | `ctx.opts`     | The options written in the spec, verbatim.                   |
-| `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`.       |
+| `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
 | `ctx.style(r)` | The style for that position on the column's ramp; `ctx.base` when there is no ramp, and for `nil`. |
 
 `render` may return one renderable, or a value and a style. Returning
@@ -311,6 +311,11 @@ arithmetic at all.
 
 A row with no value to place draws the ramp's **low** end — a directory in
 `size`, a file with no mtime.
+
+A folder whose values are all the same has no range to divide by, and every
+row in it draws the ramp's **high** end. One file on its own is that folder
+too. Both ends of a ramp turn up in a listing that has no spread at all, then:
+the files at the top of it, and any row with nothing to place at the bottom.
 
 A column that declares no `stats` has no extremes to place a value between, so
 a `ramp` on one could only ever draw that low end. It is refused rather than
