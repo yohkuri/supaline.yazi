@@ -89,29 +89,29 @@ EOF
 # sit side by side, and it is in the same terminal, on the same background, as
 # the columns are about to be.
 #
-# The list is read back out of `setup.sh` rather than written again here. A
-# second copy would go stale in one of two directions, both quiet: showing a
-# ramp the fixture no longer draws, or leaving out one it does.
-ramps=$(grep -oE '#[0-9a-fA-F]{6} -> #[0-9a-fA-F]{6}' "$ROOT/test/setup.sh" | sort -u)
+# `setup.sh` lists what it wrote, so nothing here has to know how a ramp is
+# spelled. A list built by reading this repository's source instead would go
+# stale in one of two directions, both quiet: showing a ramp the fixture no
+# longer draws, or leaving out one it does.
+ramps=$(cat "$DIR/ramps.txt")
 if [ -z "$ramps" ]; then
-	echo "  note: no ramp found in setup.sh, so there is none to print"
+	echo "  note: the fixture wrote no ramp, so there is none to print"
 elif ! command -v lua >/dev/null 2>&1; then
 	echo "  note: lua is not on PATH, so the ramps are not printed here"
 	echo "        run test/ramp.lua yourself to see them"
-else
-	# Split on newlines alone, since a ramp has spaces in it, and with globbing
-	# off so nothing in a colour string can be taken for a pattern.
-	OLD_IFS=$IFS
+elif ! (
+	# A subshell, so the word splitting this needs is scoped to the one call:
+	# newlines alone, since a ramp has spaces in it, and globbing off so nothing
+	# in a colour string is taken for a pattern. `set --` would do it too, and
+	# would overwrite the arguments this script reads at the top -- the
+	# caller's, when it is sourced.
+	set -f
 	IFS='
 '
-	set -f
 	# shellcheck disable=SC2086 # splitting on the IFS above is the point
-	set -- $ramps
-	set +f
-	IFS=$OLD_IFS
-	if ! lua "$ROOT/test/ramp.lua" "$@"; then
-		echo "  note: a ramp above could not be resolved -- the message says which"
-	fi
+	exec lua "$ROOT/test/ramp.lua" $ramps
+); then
+	echo "  note: a ramp above could not be resolved -- the message says which"
 fi
 
 printf 'Press Enter to open Yazi... '
