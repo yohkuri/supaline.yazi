@@ -72,7 +72,7 @@ desc = "Linemode: size and mtime"
 | ----------- | ----------- | ---------------------------------------------------- |
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
 | `separator` | `" "`       | Drawn between columns, unless a column opts out.     |
-| `scale`     | `"linear"`  | Default normalisation for columns that take a range. `size` states its own. |
+| `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
 A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
@@ -158,7 +158,7 @@ Any option below can be set on the definition or overridden per use.
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `base`      | `nil`        | One colour, or a `ui.Style`. See [Colours](#colours).    |
 | `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
-| `scale`     | from `setup` | `"linear"` or `"log"`.                                    |
+| `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string replaces it. |
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
@@ -193,7 +193,7 @@ column that styles its own spans can still set the ground under them.
 
 | Column        | Width | Align | Notes                                            |
 | ------------- | ----- | ----- | ------------------------------------------------ |
-| `size`        | 7     | right | `scale = "log"`. Falls back to the entry count for a directory Yazi has already listed. |
+| `size`        | 7     | right | `scale = "log"` by default. Falls back to the entry count for a directory Yazi has already listed. |
 | `mtime`       | 11    | right | `ctx.opts.format` takes an `os.date` format; the default is Yazi's own. |
 | `btime`       | 11    | right | Birth time.                                       |
 | `atime`       | 11    | right | Access time.                                      |
@@ -320,6 +320,25 @@ drawn flat.
 your terminal's palette makes them, and supaline has no way to ask; a ramp
 interpolated from a guess would not meet either end. They stay perfectly good
 flat colours.
+
+### `scale`
+
+How a value is turned into that position: `"linear"` spaces the values
+themselves evenly, `"log"` spaces their magnitudes evenly.
+
+Three places can say, and the first that does wins:
+
+1. the column's spec — `{ "size", scale = "linear" }`;
+2. `scale` in `setup`, which covers every column that did not;
+3. the column's own definition — `size` is the only built-in that states one,
+   and states `"log"`.
+
+Failing all three it is `"linear"`. That order is what makes the `setup` option
+worth having: a listing's sizes span orders of magnitude, so `size` defaults to
+`"log"` and a linear ratio would put everything below the largest file on the
+floor — but `scale = "linear"` in `setup` still reaches it, which is how you
+get eza's own behaviour if you want it. A timestamp needs none of this: a
+folder's mtimes sit within a few years of each other.
 
 ### From the theme
 

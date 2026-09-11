@@ -7,6 +7,11 @@ local column = require(".column")
 require(".builtin")
 
 local CFG = { scale = "linear" }
+-- A `setup` that said nothing about scale, which is the only way a column
+-- definition's own is what decides. A local rather than a `{}` written at the
+-- call: a table constructor passed straight as an argument is checked for the
+-- fields its class requires, and this one is deliberately without them.
+local NO_SCALE = {}
 
 --- Run `fn` with `cx.active:history` answering `folder`, and put the stub's own
 --- back afterwards: left reassigned, it reaches every test after this one and
@@ -158,14 +163,17 @@ test("stats: a folder with nothing to measure has no extremes", function()
 	eq(def.stats { stub.file { size = nil } }, nil)
 end)
 
-test("size: the scale is logarithmic, whatever the plugin-wide default says", function()
-	-- Stated on the definition rather than left to `cfg.scale`, which is linear
-	-- and is right for a timestamp. A listing's sizes span orders of magnitude,
-	-- so a linear ratio puts everything below the largest file on the floor --
-	-- which is what eza's own size gradient does and how it looks.
+test("size: the scale is logarithmic unless something says otherwise", function()
+	-- Stated on the definition, because a listing's sizes span orders of
+	-- magnitude and a linear ratio puts everything below the largest file on
+	-- the floor -- which is what eza's own size gradient does and how it looks.
+	-- Nothing else here states one, so a timestamp still gets linear.
 	--
-	-- `CFG` here is linear, so a `size` that took the default would fail this.
-	-- What "log" then does to a ratio is `column_spec.lua`'s to pin, and it does.
-	eq(column.normalize("size", CFG).scale, "log")
-	eq(column.normalize({ "size", scale = "linear" }, CFG).scale, "linear", "the spec still wins")
+	-- Three sources in order, and all three are asked: the definition's own is
+	-- only what a column falls back to. `{}` is a `setup` that said nothing
+	-- about scale, which is the only way to see the definition's.
+	eq(column.normalize("size", NO_SCALE).scale, "log", "nobody said, so the definition's")
+	eq(column.normalize("size", CFG).scale, "linear", "a scale written in `setup` outranks it")
+	eq(column.normalize({ "size", scale = "log" }, CFG).scale, "log", "and the spec outranks that")
+	eq(column.normalize("mtime", NO_SCALE).scale, "linear", "a column that states none falls back to linear")
 end)
