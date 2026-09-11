@@ -85,7 +85,10 @@ Every row ends with a size, right-aligned in seven cells.
   `read-only.txt` is `-r--------`.
 - The owner column is twelve cells and holds your own `user:group`, so what to
   look for depends on its length: over twelve it ends in **exactly one** `…`,
-  and under twelve it pads with none. Two ellipses in a row was a real bug.
+  and under twelve it pads with none. Two ellipses in a row was a real bug, and
+  `e2e.sh` counts them off the capture now — it reads the cell, holds it
+  against `id`, and refuses a second ellipsis or a cut that is not a prefix of
+  the name. So this one is covered rather than yours.
 - `count` is blank for files and a number for directories.
 - The file name loses characters to make room. That is Yazi sizing the name
   against the linemode, not supaline overflowing.
@@ -132,8 +135,15 @@ The same name, four ways, against a column of twelve.
   cuts a Line one character shorter than it cuts a string, so this column read
   `exactly-1k.` until the cell asked for that cell back.
 - The **fourth** runs past twelve and pushes the file name over.
-- Look at `日本語のファイル名.txt`. Every truncating column must land on a
-  character boundary; half a character, or a column one cell short, is a bug.
+- Every truncating column must land on a character boundary; half a character,
+  or a column one cell short, is a bug. `e2e.sh` asserts that on
+  `日本語のファイル名.txt`, the padding after the ellipsis cell included, which
+  is the cell a boundary miss takes a space from.
+- What is left is `絵文字🎨のなまえ.txt`, on the row below it. The emoji is one
+  character and two cells, like the rest of that name, so it goes down the same
+  path — but a cluster is not a character, and nothing in the harness measures
+  one. Read it against the row above: the two names are the same shape, so the
+  four cells should cut in the same places.
 
 ### `m 5` — separators
 
