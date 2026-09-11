@@ -297,6 +297,13 @@ flat colours.
 
 ### From the theme
 
+Yazi's own linemode has no colour of its own, which is why there is a section
+to write one in. It is drawn *over* the file list rather than inside it, and
+takes whatever style the row already carries — a `[filetype]` rule, the hover
+indicator — so a built-in linemode is always the same colour as the filename
+beside it, and no field of `theme.toml` names it. A colour per column has
+nowhere else to go.
+
 Fields of a `[supaline]` section are named after the columns:
 
 ```toml
