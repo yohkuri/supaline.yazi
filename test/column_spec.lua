@@ -260,6 +260,133 @@ test("bind: rebinding swaps the extremes and the width", function()
 	eq(col.ctx.ratio(5), 0.05)
 end)
 
+-- --- the colour ------------------------------------------------------------
+
+local BLUES = "#0b3d91 -> #7fd4ff"
+
+--- A column carrying a colour, ready to be asked for styles.
+---
+--- `stats` is there because a ramp needs a column that can produce extremes:
+--- `normalize` refuses one on a column that declares none. Returning nil from
+--- it is a folder with nothing to measure, which is a state of its own.
+---@param opts table
+---@return supaline.Ctx
+local function coloured(opts)
+	opts.render = function() return "" end
+	opts.stats = opts.stats or function() return nil end
+	return column.normalize(opts, CFG).ctx
+end
+
+test("ramp: the endpoints sit at the ends of the range", function()
+	local ctx = coloured { ramp = BLUES }
+	eq(ctx.style(0).fg, "#0b3d91")
+	eq(ctx.style(1).fg, "#7fd4ff")
+	-- The bucket arithmetic, not just the ends: 64 steps put the halfway
+	-- ratio on the 33rd, and `colour_spec.lua` pins what that colour is.
+	eq(ctx.style(0.5).fg, "#4288c9")
+end)
+
+test(
+	"ramp: a list and a string say the same thing",
+	function() eq(coloured({ ramp = { "#0b3d91", "#7fd4ff" } }).style(0.5).fg, coloured({ ramp = BLUES }).style(0.5).fg) end
+)
+
+test("ramp: a row with no value draws the ramp's low end", function()
+	-- Not the ground beneath it: that is where a theme's `bold` lives and it
+	-- may carry no colour at all, which would leave an unevaluated directory
+	-- in `size` the one uncoloured cell in the column.
+	local ctx = coloured { ramp = BLUES }
+	eq(ctx.style(nil).fg, "#0b3d91")
+	eq(ctx.base.fg, "#0b3d91")
+end)
+
+test("ramp: a ratio off the end is clamped, not left unstyled", function()
+	-- `ratio` clamps, but `style` is public and a column may hand it anything.
+	-- An index past the end would return nil, and a nil style draws a cell with
+	-- no colour -- which reads as a theme that failed to load.
+	local ctx = coloured { ramp = BLUES }
+	eq(ctx.style(-1).fg, "#0b3d91")
+	eq(ctx.style(2).fg, "#7fd4ff")
+end)
+
+test("ramp: a NaN ratio is clamped too, where a comparison would let it past", function()
+	-- NaN answers false to `< 1` and to `> n` alike, so a clamp written as two
+	-- comparisons hands `ramp[nan]` back, which is nil -- and `cell` drops a nil
+	-- style without a word. Not hypothetical: `ratio` produces one for any
+	-- `scale = "log"` column whose extremes reach -1 or below, where `math.log`
+	-- of a non-positive number is a NaN in `_lo`.
+	local ctx = coloured { ramp = BLUES }
+	eq(ctx.style(0 / 0).fg, "#0b3d91")
+
+	local col = column.normalize({
+		render = function() return "" end,
+		stats = function() return { min = -10, max = 100 } end,
+		scale = "log",
+		ramp = BLUES,
+	}, CFG)
+	column.bind(col, { stats = { min = -10, max = 100 } })
+	local r = col.ctx.ratio(5)
+	assert(r ~= r, "a log scale over a negative minimum is where the NaN comes from")
+	eq(col.ctx.style(r).fg, "#0b3d91", "and the cell is still coloured")
+end)
+
+test("ramp: `false` turns a colour off rather than being read as one", function()
+	-- The spelling `sep` already uses, and the only way to drop a colour the
+	-- definition or the theme would otherwise supply. Read as a value it would
+	-- reach `stops` and come back as "must be a list of colours", which says
+	-- nothing about what was actually asked for.
+	column.register("hue3", {
+		render = function() return "" end,
+		stats = function() return nil end,
+		base = "red",
+		ramp = BLUES,
+	})
+	eq(column.normalize("hue3", CFG).ctx.base.fg, "#0b3d91", "the definition's ramp, without it")
+
+	local ctx = column.normalize({ "hue3", base = false, ramp = false }, CFG).ctx
+	eq(ctx.style(1), ctx.base, "no ramp left to index")
+	-- `rawget`, because reading `.fg` off a style that has none hands back the
+	-- setter rather than nil -- on a real Yazi as here, which is why nothing in
+	-- this plugin ever reads a colour back out of a style.
+	eq(rawget(ctx.base, "fg"), nil, "and no colour left either")
+end)
+
+test("ramp: the base is the ground it is patched onto", function()
+	local ctx = coloured { base = ui.Style():fg("red"):bold(), ramp = BLUES }
+	local style = ctx.style(1)
+	eq(style.fg, "#7fd4ff", "the ramp decides the colour")
+	eq(style.bold, true, "and everything else is kept")
+end)
+
+test("ramp: a column with no extremes to place a value between is refused", function()
+	-- Without `stats` the ratio is nil for every row, so the ramp could only
+	-- ever draw its low end. A gradient that silently is not one has nothing
+	-- else to report it, so `normalize` does.
+	throws(function()
+		column.normalize({ render = function() return "" end, ramp = BLUES }, CFG)
+	end, "has no `stats`")
+end)
+
+test("base: a plain style table is refused rather than drawn", function()
+	-- It survives `setup` and then empties the screen: `Span:style` takes a
+	-- Style or nil, and a table reaches Yazi as neither. Nor is a table the only
+	-- way in -- the refusal is an allow-list, so a number is turned away too.
+	throws(function() coloured { base = { fg = "#ff8800" } } end, "plain table")
+	throws(function() coloured { base = 42 } end, "is a number")
+end)
+
+test("colour: a value Yazi would refuse says which column it was", function()
+	column.register("hue", { render = function() return "" end, base = "nosuchcolour" })
+	throws(function() column.normalize("hue", CFG) end, "column `hue`")
+
+	column.register("hue2", {
+		render = function() return "" end,
+		stats = function() return nil end,
+		ramp = "cyan -> #7fd4ff",
+	})
+	throws(function() column.normalize("hue2", CFG) end, "column `hue2`")
+end)
+
 -- --- derived widths --------------------------------------------------------
 
 local FILES = {
