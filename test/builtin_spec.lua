@@ -157,3 +157,15 @@ test("stats: a folder with nothing to measure has no extremes", function()
 	local def = assert(column.get("size"), "the `size` column is not registered")
 	eq(def.stats { stub.file { size = nil } }, nil)
 end)
+
+test("size: the scale is logarithmic, whatever the plugin-wide default says", function()
+	-- Stated on the definition rather than left to `cfg.scale`, which is linear
+	-- and is right for a timestamp. A listing's sizes span orders of magnitude,
+	-- so a linear ratio puts everything below the largest file on the floor --
+	-- which is what eza's own size gradient does and how it looks.
+	--
+	-- `CFG` here is linear, so a `size` that took the default would fail this.
+	-- What "log" then does to a ratio is `column_spec.lua`'s to pin, and it does.
+	eq(column.normalize("size", CFG).scale, "log")
+	eq(column.normalize({ "size", scale = "linear" }, CFG).scale, "linear", "the spec still wins")
+end)
