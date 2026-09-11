@@ -117,14 +117,16 @@ local colour = require(".colour")
 
 ---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
 
---- Plugin-wide options, once `setup` has filled every one in from `DEFAULTS`.
+--- Plugin-wide options, once `setup` has filled them in from `DEFAULTS`.
 --- Separate from `supaline.Opts` in main.lua, which is what the user actually
---- wrote: everything here is present, so nothing that reads one has a nil to
---- think about.
+--- wrote. `separator` and `order` are always present, so nothing that reads
+--- one has a nil to think about; `scale` is the exception and has to be,
+--- because a column definition can state one too and nil is what tells "the
+--- user asked for this scale" from "nobody said".
 ---@class supaline.Cfg
 ---@field separator string
 ---@field order integer
----@field scale "linear"|"log"
+---@field scale? "linear"|"log" what the user wrote in `setup`, if anything
 
 --- Every option a column accepts. One set rather than two, because
 --- `normalize` reads the spec and the definition behind it through a single
@@ -419,7 +421,17 @@ function M.normalize(spec, cfg)
 		stats = pick("stats"),
 		refresh = pick("refresh"),
 		render = opts.render or def.render,
-		scale = pick("scale") or cfg.scale,
+		-- Not `pick`, which is the one place that would be wrong. `pick` reads
+		-- the spec and then the definition, and a definition's scale has to
+		-- lose to a `scale` written in `setup` -- otherwise the plugin-wide
+		-- option cannot reach `size`, the one built-in that states one and the
+		-- one whose values span orders of magnitude. So: the spec, then what
+		-- the user asked for plugin-wide, then the column's own, then linear.
+		--
+		-- Linear is the fallback because the columns with nothing to say about
+		-- it are the timestamps, whose values sit within a few years of each
+		-- other; a log scale over those spreads nothing.
+		scale = opts.scale or cfg.scale or def.scale or "linear",
 	}
 
 	local width = pick("width")
