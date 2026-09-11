@@ -271,7 +271,16 @@ have_rows() { # <summary> <capture>...
 			fail "$n: the rows came back blank"
 		fi
 	done
-	[ "$fails" -eq "$was" ] && echo "  $summary"
+	# An `if` rather than `[ ... ] && echo`, which every other check in this
+	# file can spell that way and this one cannot. A failing `&&` list is exempt
+	# from `set -e` where it stands on its own, but as the last command of a
+	# function its status becomes the function's, and `have_rows` is then a
+	# simple command that returned 1 -- so a single blank capture would take the
+	# whole run down here, before the columns, the panes, the ramp or the theme
+	# were looked at, and before the count at the bottom was printed.
+	if [ "$fails" -eq "$was" ]; then
+		echo "  $summary"
+	fi
 }
 have_rows "m0 to m9 all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9
 
