@@ -722,7 +722,24 @@ function M.install(root)
 		group_name = function(gid) return "group" .. tostring(gid) end,
 		dbg = function() end,
 		err = function() end,
+		-- Recorded rather than dropped, because this is the plugin's only way
+		-- to put anything in front of a user from a `ps.sub` handler -- there
+		-- is nobody to raise to there -- and a spec has to be able to say the
+		-- message was delivered. `title` and `content` are asserted on;
+		-- `timeout` and `level` are Yazi's to draw.
+		--
+		-- Refused when it is not shaped the way 26.9.1 wants it. Yazi takes one
+		-- table and reads four fields off it, and a call written as
+		-- `ya.notify(title, body)` would go through a stub that only stored its
+		-- first argument.
+		notify = function(opts)
+			if type(opts) ~= "table" or type(opts.title) ~= "string" or type(opts.content) ~= "string" then
+				error("stub: `ya.notify` takes one table with `title` and `content`, as Yazi's does")
+			end
+			table.insert(M.notified, opts)
+		end,
 	}
+	M.notified = {}
 
 	M.subs = {}
 	_G.ps = {

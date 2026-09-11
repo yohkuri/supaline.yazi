@@ -442,9 +442,52 @@ end
 --- resolved once at setup is the old one from then on, and nothing says so.
 --- Which panes a linemode wants cannot change under a theme reload, so the
 --- third value is not wanted here.
+---
+--- The specs were compiled once already, inside `setup`, and nothing here has
+--- touched them since -- but `compile` resolves colours, and on this path the
+--- colours are the *theme's*. A `[supaline]` field that supaline refuses --
+--- a colour Yazi will not parse, a gradient endpoint that is not `#rrggbb`, a
+--- ramp on a column with no `stats` -- reaches this function and nowhere else,
+--- because the user wrote it after `setup` had run.
+---
+--- So the message has to be delivered from here. There is nobody to raise to:
+--- this runs from a `ps.sub` handler, and Yazi does not put an error out of one
+--- in front of anyone. Editing `theme.toml` and pressing a key bound to
+--- `app:theme` is the loop those messages were written for, and the failure
+--- without this is a reload that changed nothing and said nothing -- exactly
+--- what a plugin that ignored the event looks like.
+---
+--- Measured on 26.9.1: `ya.notify` from inside a sync `ps.sub` handler draws
+--- the notification; it is not one of the calls that need an async context.
+--- `ya.err` beside it, because a notification times out and `yazi.log` is
+--- where a report of this comes from.
+---
+--- What is already installed is left alone. `install` is never reached, so the
+--- last configuration that did compile keeps drawing -- the same rule `setup`
+--- follows when it refuses a spec.
 local function build()
-	local modes, hooks = compile(specs, cfg)
-	install(modes, hooks)
+	local ok, modes, hooks = pcall(compile, specs, cfg)
+	if ok then
+		return install(modes, hooks)
+	end
+
+	-- What `pcall` hands back is not the string `error` was given. Measured on
+	-- 26.9.1: Yazi wraps it as `runtime error: <chunk>:<line>: <message>` and
+	-- appends two stack tracebacks, and `ya.notify` draws every line of it --
+	-- the notification came out eleven rows tall with the one sentence that
+	-- says what to change second. Cut back to that sentence for the screen;
+	-- `ya.err` is handed the error itself rather than the trimmed string, and
+	-- Yazi renders that as a nested `CallbackError` carrying all three
+	-- tracebacks -- which is what a log is for and what a notification is not.
+	--
+	-- The last pattern is lazy so it takes the shortest source prefix, which is
+	-- the one Lua put there; the messages themselves open `supaline: ` and
+	-- carry no `:<digits>: ` for it to stop at early. It reaches both
+	-- spellings, `[string "supaline.colour"]:85: ` under Yazi and
+	-- `./colour.lua:85: ` under the unit suite.
+	local why = tostring(modes):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", ""):gsub("^.-:%d+: ", "")
+	ya.err(modes)
+	ya.notify { title = "supaline", content = why, level = "error", timeout = 10 }
 end
 
 -- Subscribed at load rather than in `setup`, so calling `setup` twice cannot
