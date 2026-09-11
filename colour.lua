@@ -37,6 +37,11 @@ local M = {}
 -- coarsely is the wrong way to grant it: what a reader wants there is a colour
 -- per *magnitude*, whose boundaries fall on 1K and 1M rather than on 1/64ths
 -- of whatever the folder happened to hold.
+--
+-- `test/setup.sh` reads the number off this line with a `sed`, to build one
+-- file per step, so the *shape* of the line is load-bearing from outside this
+-- file: a trailing comment or a `<const>` breaks the read. It stops both
+-- harnesses loudly and says so, but it says it about the fixture.
 local STEPS = 64
 
 -- What separates one endpoint from the next in the string form. The string
