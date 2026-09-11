@@ -16,9 +16,9 @@ same interface — neither has a privileged path.
 
 ## Status
 
-The column framework and the built-in columns are in place. **Gradients** are
-not: columns draw flat, in their base colour. The eza-style Oklab ramp lands
-next, and the `base` and `scale` options are already wired for it.
+The column framework, the built-in columns and the colours are in place. A
+column draws in one colour or on a gradient across the folder, and either can
+be written in the spec or come from your theme.
 
 Whether supaline ships status columns of its own — version control, dotfile
 management — is undecided. Nothing here depends on the answer: such a column
@@ -72,7 +72,7 @@ desc = "Linemode: size and mtime"
 | ----------- | ----------- | ---------------------------------------------------- |
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
 | `separator` | `" "`       | Drawn between columns, unless a column opts out.     |
-| `scale`     | `"linear"`  | Default normalisation for columns that take a range. |
+| `scale`     | `"linear"`  | Default normalisation for columns that take a range. `size` states its own. |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
 A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
@@ -156,7 +156,8 @@ Any option below can be set on the definition or overridden per use.
 | `max_width` | `nil`        | Caps the column's width, however it was derived.          |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
-| `base`      | `nil`        | Base colour: `"#rrggbb"` or an ANSI colour name.         |
+| `base`      | `nil`        | One colour, or a `ui.Style`. See [Colours](#colours).    |
+| `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
 | `scale`     | from `setup` | `"linear"` or `"log"`.                                    |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string replaces it. |
 
@@ -177,11 +178,11 @@ about the folder is what changed.
 
 | Field          | Meaning                                                     |
 | -------------- | ----------------------------------------------------------- |
-| `ctx.base`     | The column's base style.                                     |
+| `ctx.base`     | What to draw a row with no value in: the ramp's low end, or the flat colour. |
 | `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
 | `ctx.opts`     | The options written in the spec, verbatim.                   |
 | `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`.       |
-| `ctx.style(r)` | The style for a ratio. Flat for now; the gradient hooks in here. |
+| `ctx.style(r)` | The style for that position on the column's ramp; `ctx.base` when there is no ramp, and for `nil`. |
 
 `render` may return one renderable, or a value and a style. Returning
 `text, style` skips building an intermediate line, and is what the built-in
@@ -192,7 +193,7 @@ column that styles its own spans can still set the ground under them.
 
 | Column        | Width | Align | Notes                                            |
 | ------------- | ----- | ----- | ------------------------------------------------ |
-| `size`        | 7     | right | Falls back to the entry count for a directory Yazi has already listed. |
+| `size`        | 7     | right | `scale = "log"`. Falls back to the entry count for a directory Yazi has already listed. |
 | `mtime`       | 11    | right | `ctx.opts.format` takes an `os.date` format; the default is Yazi's own. |
 | `btime`       | 11    | right | Birth time.                                       |
 | `atime`       | 11    | right | Access time.                                      |
@@ -215,7 +216,7 @@ twice. Set `width = "auto"` on any of them to have it fit instead.
 
 They do each declare `stats`, and a column that declares `stats` takes one pass
 over the listing every time you enter a folder — cheap next to what Yazi has
-already done to list it, and the same pass the gradient will read from.
+already done to list it, and the same pass a gradient reads from.
 
 ## Writing a column
 
@@ -248,20 +249,93 @@ your `init.lua` is never replayed on the async side, so a third-party column
 cannot own asynchronous state. A column that needs it has to be built into
 supaline itself.
 
-## Theming
+## Colours
 
-Base colours come from a `[supaline]` section, whose fields are named after the
-columns:
+A column draws in one colour, or on a gradient across the values in the folder.
+Both are written the same way in the spec and in your theme.
+
+### One colour
+
+`base` takes anything Yazi's own parser takes — `"#rrggbb"`, one of the sixteen
+names, a 256-colour index written as a string, `"reset"` — or a whole
+`ui.Style`, for bold or a background:
+
+```lua
+{ "size", base = "#ff8800" }
+{ "size", base = "lightcyan" }
+{ "size", base = "129" }
+{ "size", base = ui.Style():fg("cyan"):bold() }
+```
+
+### A gradient
+
+`ramp` takes two or more `#rrggbb` endpoints, as a list or as one string:
+
+```lua
+{ "size",  ramp = { "#0b3d91", "#7fd4ff" } }
+{ "size",  ramp = "#0b3d91 -> #7fd4ff" }
+{ "mtime", ramp = "#0b3d91 -> #ffffff -> #7fd4ff" }
+```
+
+Where a file lands on the ramp is `ctx.ratio`: its position between the
+smallest and largest value in the folder, on the column's `scale`. The colours
+between the endpoints are interpolated in Oklab and quantised into 64 styles
+when the linemode is built, so a row costs an array index and no colour
+arithmetic at all.
+
+A row with no value to place draws the ramp's **low** end — a directory in
+`size`, a file with no mtime.
+
+A column that declares no `stats` has no extremes to place a value between, so
+a `ramp` on one could only ever draw that low end. It is refused rather than
+drawn flat.
+
+**Endpoints have to be `#rrggbb`.** A name and a 256-colour index are whatever
+your terminal's palette makes them, and supaline has no way to ask; a ramp
+interpolated from a guess would not meet either end. They stay perfectly good
+flat colours.
+
+### From the theme
+
+Fields of a `[supaline]` section are named after the columns:
 
 ```toml
 # ~/.config/yazi/theme.toml
 [supaline]
-size  = { fg = "#ff8800" }
-mtime = "green"
+size  = "#0b3d91 -> #7fd4ff"
+mtime = { fg = "green", bold = true }
+owner = "blue"
 ```
 
-Either shape works: a style table, or a colour string. A `base` written in the
-spec wins over the theme.
+A string is a colour or a ramp; a table is a style. **A theme cannot hold a
+list** — Yazi refuses an array in a custom section and takes the whole file with
+it — which is why a ramp is written with arrows.
+
+Field names may hold lowercase letters, digits and underscores only. `my-col`
+and `MyCol` are refused, and the refusal costs the whole `theme.toml`, so a
+column you want themed needs a name of that shape.
+
+### Which one wins
+
+One source decides the whole colour: the spec if it says anything about colour,
+then the theme, then the column's own default.
+
+Within one source the two combine. `base` is the ground `ramp` is patched onto,
+so a background, bold, italic and the rest survive a gradient that knows nothing
+about them:
+
+```lua
+{ "size", base = ui.Style():bold(), ramp = "#0b3d91 -> #7fd4ff" }
+```
+
+`false` is how a spec says "neither" — the same spelling `sep` uses. It still
+counts as the spec saying something, so it drops whatever the theme or the
+column's default would have supplied:
+
+```lua
+{ "size", ramp = false }   -- flat, whatever the theme says
+{ "size", base = false, ramp = false }   -- no colour at all
+```
 
 ## Caveats
 

@@ -183,11 +183,31 @@ previewer's output, not a supaline bug.
 
 ### `T` — the theme
 
-The fixture sets a `[supaline]` section: size orange, mtime green, owner blue,
-extension magenta.
+The fixture sets a `[supaline]` section: size orange, owner blue, extension
+magenta, and mtime **a ramp** — `#0b3d91 -> #7fd4ff`, dark blue to pale.
 
 Those colours should already be on screen when Yazi opens, without pressing
 anything: Yazi applies the user's theme before the plugin runs.
+
+The ramp is the one to look at with your own eyes. `e2e.sh` can only check that
+its two ends reached the screen; whether the steps between them look like a
+gradient is what you are here for. These are the rows to compare on `m 1`,
+listed oldest first rather than in the order they appear:
+
+```text
+ large.bin                  8.8M 01/02  2020    <- the ramp's low end
+ medium.bin                 800K 12/25  2023
+ huge.bin                  87.9M 05/06  2024
+ under-1k.bin              1023B 01/01 00:00
+ empty.txt                    0B 09/09 12:34    <- its high end
+```
+
+- The colour has to climb with the date. Two rows a year apart looking
+  identical means the ratio is not reaching the ramp; a row that jumps past its
+  neighbours means the buckets are wrong.
+- There is no colour for "no value" on screen here, because every file has an
+  mtime. A column whose value is missing draws the ramp's **low** end — that is
+  what `size` does for a directory it has not evaluated.
 
 What is worth doing here is the reload. Edit `[supaline]` in
 `$TMPDIR/supaline-manual/config/theme.toml` and press `T`. Every column built
