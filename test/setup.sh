@@ -112,13 +112,18 @@ show_hidden = true
 sort_dir_first = true
 EOF
 
-# One field is a style table and the other a plain string, because the custom
-# theme section accepts either and both have to resolve. Add a `[flavor]` here
-# if you want to see the columns against a real flavour.
+# One field is a style table and the other three are strings, because the custom
+# theme section accepts either shape and both have to resolve. Add a `[flavor]`
+# here if you want to see the columns against a real flavour.
+#
+# `mtime` is a ramp rather than a colour, which a theme can only say as a
+# string: Yazi refuses an array in a custom section and takes the whole file
+# down with it. The fixture's mtimes span 2020 to today, so both ends of that
+# ramp are on screen, which is what `e2e.sh` checks for.
 cat >"$DIR/config/theme.toml" <<'EOF'
 [supaline]
 size  = { fg = "#ff8800" }
-mtime = "green"
+mtime = "#0b3d91 -> #7fd4ff"
 owner = "blue"
 ext   = "magenta"
 EOF
