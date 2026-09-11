@@ -47,7 +47,25 @@ supaline manual test
   m 9   user-written columns            a registered one and an inline one
 
   m s   Yazi's own size linemode        m n turns the linemode off
-  T     reload the theme                watch [supaline] colours arrive
+──── colour ────────────────────────────────────────────────────────────────
+  Two halves, because they move apart. `g` is where you are, which is the
+  spread of values a ramp gets stretched over; `c` is how it is coloured. A
+  `c` key holds your folder, your scroll and your hover still, so two of them
+  pressed one after the other differ in exactly one thing.
+
+  g 1   the layout fixture              g 2   a folder of other widths
+  g 3   one file per ramp step          g 4   sizes doubling from 1B
+  g 5   hi == lo, and no value at all
+
+  c r   a ramp that climbs              in g 3 -- one step per row
+  c h   a ramp that turns in hue        in g 3 -- what e2e cannot check
+  c g   a ramp over a background        in g 3 -- beside one with none
+  c s   log beside linear               in g 4
+  c e   a ramp with nothing to spread   in g 5
+  c t   whatever [supaline] says        in g 1 -- the only themed one
+
+  c 1   theme: the default              c 2   theme: every field moved
+  c 3   theme: backgrounds              T     reload without changing it
 ────────────────────────────────────────────────────────────────────────────
   You start in `data/`, which carries the awkward cases: CJK and emoji names,
   one far too long, and sizes either side of the 1K boundary. `sibling-one`
@@ -64,6 +82,37 @@ supaline manual test
   What to look for: test/MANUAL.md
 ────────────────────────────────────────────────────────────────────────────
 EOF
+
+# Every ramp whole, before Yazi takes the screen. A linemode can only show the
+# steps some folder's values land on -- `colour/ramp` is built to land on all
+# of them and even there you scroll -- so this is the only place all sixty-four
+# sit side by side, and it is in the same terminal, on the same background, as
+# the columns are about to be.
+#
+# The list is read back out of `setup.sh` rather than written again here. A
+# second copy would go stale in one of two directions, both quiet: showing a
+# ramp the fixture no longer draws, or leaving out one it does.
+ramps=$(grep -oE '#[0-9a-fA-F]{6} -> #[0-9a-fA-F]{6}' "$ROOT/test/setup.sh" | sort -u)
+if [ -z "$ramps" ]; then
+	echo "  note: no ramp found in setup.sh, so there is none to print"
+elif ! command -v lua >/dev/null 2>&1; then
+	echo "  note: lua is not on PATH, so the ramps are not printed here"
+	echo "        run test/ramp.lua yourself to see them"
+else
+	# Split on newlines alone, since a ramp has spaces in it, and with globbing
+	# off so nothing in a colour string can be taken for a pattern.
+	OLD_IFS=$IFS
+	IFS='
+'
+	set -f
+	# shellcheck disable=SC2086 # splitting on the IFS above is the point
+	set -- $ramps
+	set +f
+	IFS=$OLD_IFS
+	if ! lua "$ROOT/test/ramp.lua" "$@"; then
+		echo "  note: a ramp above could not be resolved -- the message says which"
+	fi
+fi
 
 printf 'Press Enter to open Yazi... '
 # Tolerate a closed stdin, so the script can be sourced by something else.
