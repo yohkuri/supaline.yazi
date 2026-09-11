@@ -318,6 +318,18 @@ drew=$(drawn_in_preview m8)
 same "m8: preview pane drawn, both rows (drew $drew)" "$drew" "2"
 same "m6: both edges left alone" "$(drawn_in_preview m6)" "0"
 
+echo "== the ramp =="
+# `[supaline] mtime` is `#0b3d91 -> #7fd4ff`, and the fixture's mtimes run from
+# 2020 to today, so the oldest row draws the ramp's low end and a file the
+# fixture just created draws its high one. tmux writes those out as truecolor.
+#
+# Both ends together are the check: a column that resolved the ramp string as a
+# flat colour, or failed to resolve it at all, can only put one colour on
+# screen. What the rows in between draw cannot be pinned here, because the top
+# of the range is whenever the fixture was built.
+check "a themed ramp draws its low end" "38;2;11;61;145" "$DIR/color-m1.txt"
+check "... and its high end" "38;2;127;212;255" "$DIR/color-m1.txt"
+
 echo "== theme =="
 # `[supaline] size` starts at #ff8800 and the reload above made it #00ccff.
 # tmux writes those out as 255;136;0 and 0;204;255.
