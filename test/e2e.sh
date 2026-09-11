@@ -546,7 +546,13 @@ check_ramp "a ramp that turns still draws a step per row" c_hue 0
 # of any kind: there is none inside one today, and one put there later would
 # read here as a band that came back short.
 ESC=$(printf '\033')
-BAND_CELLS=14
+# Read off the fixture rather than written here, for the reason `sgr` exists:
+# every other number this block asserts on is a hex string that appears in
+# `setup.sh` verbatim, and a width stated twice is the one that goes stale
+# quietly. Widen `c_bg`'s columns there for a reason to do with the manual case
+# and, spelled as a literal, this would report it as `fit` padding in the wrong
+# order -- the fixture moved, not the plugin.
+BAND_CELLS=$(sed -n 's/.*base = ui\.Style():bg(GROUND).*width = \([0-9][0-9]*\).*/\1/p' "$DIR/config/init.lua")
 # Splitting on the opening escape leaves one piece per band; a band runs to the
 # next escape of any kind, which `sub` takes off the end of the piece. All three
 # numbers come out of the one pass, so none of them is a count of lines that a
@@ -574,7 +580,9 @@ counts=$(awk -v esc="$ESC" -v bg="$(sgr 48 '#8b0045')" -v want="$BAND_CELLS" '
 IFS=' ' read -r banded lines narrow <<EOF
 $counts
 EOF
-if [ "$banded" -lt "$RAMP_FLOOR" ]; then
+if [ -z "$BAND_CELLS" ]; then
+	fail "c_bg: no grounded column with a stated width in the fixture's init.lua, so there is no band to measure"
+elif [ "$banded" -lt "$RAMP_FLOOR" ]; then
 	fail "c_bg: only $banded row(s) carried a background, wanted $RAMP_FLOOR"
 elif [ "$narrow" -gt 0 ]; then
 	fail "c_bg: $narrow band(s) were not $BAND_CELLS cells wide -- the padding is where to look"
