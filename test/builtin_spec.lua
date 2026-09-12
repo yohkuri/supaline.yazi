@@ -31,18 +31,29 @@ end
 
 --- Run `fn` on a build with no name lookups at all, and put them back
 --- afterwards. `ya.user_name` and `ya.group_name` are `#[cfg(unix)]` in Yazi,
---- so on Windows they are not absent-and-nil but never created; reading one
---- there is what a spec has instead of a Windows machine.
+--- so on Windows they are not absent-and-nil but never created; taking them
+--- away is what a spec has instead of a Windows machine.
+---
+--- Takes the two rather than assuming nil, so a spec that wants to watch the
+--- lookups rather than remove them uses the same restore path. Left
+--- reassigned, either one reaches every test after this one and the failure
+--- points at the wrong one.
+---@param user function?
+---@param group function?
 ---@param fn function
-local function without_names(fn)
+local function with_names(user, group, fn)
 	local before = { ya.user_name, ya.group_name }
-	ya.user_name, ya.group_name = nil, nil
+	ya.user_name, ya.group_name = user, group
 	local ok, err = pcall(fn)
 	ya.user_name, ya.group_name = before[1], before[2]
 	if not ok then
 		error(err, 0)
 	end
 end
+
+--- The build with no lookups at all: Yazi's Windows one.
+---@param fn function
+local function without_names(fn) with_names(nil, nil, fn) end
 
 --- Render one built-in column for one file, returning plain text.
 ---@param name string
@@ -181,33 +192,26 @@ test("user and group: a lone column resolves one name, not two", function()
 	-- and dropped is paid for on each of them. Counted rather than timed: the
 	-- waste is a call that should not have happened, and a clock would have to
 	-- be told how slow is too slow.
-	local before = { ya.user_name, ya.group_name }
+	local real = { ya.user_name, ya.group_name }
 	local users, groups = 0, 0
-	ya.user_name = function(uid)
-		users = users + 1
-		return before[1](uid)
-	end
-	ya.group_name = function(gid)
-		groups = groups + 1
-		return before[2](gid)
-	end
-
 	local counts = function(name)
 		users, groups = 0, 0
 		render(name, stub.file { uid = 1, gid = 2 })
 		return users .. ":" .. groups
 	end
-	local ok, err = pcall(function()
+
+	with_names(function(uid)
+		users = users + 1
+		return real[1](uid)
+	end, function(gid)
+		groups = groups + 1
+		return real[2](gid)
+	end, function()
 		eq(counts("user"), "1:0")
 		eq(counts("group"), "0:1")
 		-- The pair still wants both, and neither of them twice.
 		eq(counts("owner"), "1:1")
 	end)
-
-	ya.user_name, ya.group_name = before[1], before[2]
-	if not ok then
-		error(err, 0)
-	end
 end)
 
 test("count: directories only", function()
