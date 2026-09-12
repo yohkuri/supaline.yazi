@@ -94,6 +94,10 @@ test("is_ramp: the arrow is what a flat colour can never contain", function()
 	-- table and fail on both of those.
 	eq(colour.is_ramp(ui.Style():fg("red"):bold()), false, "a style out of the theme is not a ramp")
 	eq(colour.is_ramp {}, false)
+	-- `<->` carries the arrow inside it, so a band answers this without the
+	-- test knowing there are two spellings. That is the reason it is spelled
+	-- with one.
+	eq(colour.is_ramp("#0b3d91 <->"), true, "a band is a ramp")
 end)
 
 -- --- endpoints -------------------------------------------------------------
@@ -120,13 +124,94 @@ test("stops: a name cannot anchor a ramp", function()
 	throws(function() colour.stops("129 -> #7fd4ff", "x") end, "cannot be a gradient endpoint")
 end)
 
-test("stops: one colour is not a ramp", function()
-	throws(function() colour.stops({ "#0b3d91" }, "x") end, "at least two colours")
-	throws(function() colour.stops("#0b3d91", "x") end, "at least two colours")
+test("stops: one colour is a band, however it was written", function()
+	-- Three spellings, one path: `<->` exists for the theme, where a field
+	-- holds one value and a flat colour has to go on meaning a flat colour; a
+	-- spec needs none of that, because the key already says `ramp`.
+	local marked = colour.stops("#0b3d91 <->", "x")
+	local bare = colour.stops("#0b3d91", "x")
+	local listed = colour.stops({ "#0b3d91" }, "x")
+	for i = 1, 2 do
+		for c = 1, 3 do
+			eq(bare[i][c], marked[i][c])
+			eq(listed[i][c], marked[i][c])
+		end
+	end
+end)
+
+test("stops: an empty list names nothing to interpolate", function()
+	throws(function() colour.stops({}, "x") end, "names no colour")
 	-- The wrong value is the test, so the refusal is suppressed on the line
 	-- rather than at the top of the file.
 	---@diagnostic disable-next-line: param-type-mismatch
 	throws(function() colour.stops(42, "x") end, "must be a list of colours")
+end)
+
+test("stops: `<->` spreads one colour and says so when handed two", function()
+	throws(function() colour.stops("#0b3d91 <-> #7fd4ff", "x") end, "is not a band")
+	throws(function() colour.stops("<->", "x") end, "is not a band")
+	-- The marker is the only thing removed, so what is left is read as a
+	-- colour like any other and gets the message a bad colour gets.
+	throws(function() colour.stops("cyan <->", "x") end, "cannot be a gradient endpoint")
+end)
+
+-- --- a band ----------------------------------------------------------------
+
+test("band: a saturated colour is its own high end", function()
+	-- Every value below is from this implementation, on the arithmetic in
+	-- `colour.lua`; the same numbers come out of the derivation by hand.
+	--
+	-- `#7fd4ff` has a channel at 255, so the exposure that would lighten it is
+	-- already 1.00 and there is nowhere above it to go. Most saturated theme
+	-- colours are this shape, which is why a band usually reads as "the colour
+	-- you wrote, fading downwards".
+	local stops = colour.stops("#7fd4ff <->", "x")
+	eq(stops[2][1], 0x7f, "the high end is the colour itself")
+	eq(stops[2][2], 0xd4)
+	eq(stops[2][3], 0xff)
+	eq(stops[1][1], 0x22, "the low end is the same colour, darkened to the floor")
+	eq(stops[1][2], 0x3f)
+	eq(stops[1][3], 0x4d)
+end)
+
+test("band: a colour darker than the floor is its own low end", function()
+	-- The other degenerate end, and it degrades the same way: nowhere below to
+	-- go, so the band is everything above. `#0b1a2f` sits at 0.22 in lightness
+	-- and the floor is 0.35.
+	local stops = colour.stops("#0b1a2f <->", "x")
+	eq(stops[1][1], 0x0b, "the low end is the colour itself")
+	eq(stops[1][2], 0x1a)
+	eq(stops[1][3], 0x2f)
+	eq(stops[2][1], 0x60)
+	eq(stops[2][2], 0xa2)
+	eq(stops[2][3], 0xff)
+end)
+
+test("band: a dark colour spreads upwards, which is the point of deriving both", function()
+	-- The case the whole design turns on. `#0b3d91` has almost no room below
+	-- the floor -- 0.39 in lightness against 0.35 -- so a band anchored at the
+	-- colour and falling to the floor would be four hundredths wide and half
+	-- its steps repeats. Taking the room above it instead spreads it over 0.35
+	-- to 0.59, and every step is a colour of its own.
+	local r = colour.ramp(colour.stops("#0b3d91 <->", "x"))
+	local seen, n = {}, 0
+	for _, hex in ipairs(r) do
+		if not seen[hex] then
+			seen[hex], n = true, n + 1
+		end
+	end
+	eq(n, #r, "every step distinct")
+	eq(r[1], "#08347f")
+	eq(r[#r], "#1c71ff")
+end)
+
+test("band: a colour with no room either way is refused rather than drawn flat", function()
+	-- Black alone: the exposure that lightens it leaves it black, and it is
+	-- already below the floor. A ramp whose ends are the same colour is not a
+	-- ramp, and this plugin refuses those rather than drawing one that is
+	-- silently flat.
+	throws(function() colour.stops("#000000 <->", "x") end, "cannot be spread")
+	throws(function() colour.stops("#000000 <->", "the `[supaline] size` colour") end, "supaline] size")
 end)
 
 -- --- the ramp --------------------------------------------------------------

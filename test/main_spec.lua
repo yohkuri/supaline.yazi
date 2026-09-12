@@ -399,6 +399,21 @@ test("theme: a reload rebuilds a ramp, not only a flat colour", function()
 	end)
 end)
 
+test("theme: one colour with `<->` is a gradient a theme can ask for", function()
+	-- What a theme could not say before. A field holds one value, so a ramp
+	-- had to be written with both of its ends in it; `<->` asks for the band
+	-- around a single colour, which is the only other thing that fits.
+	--
+	-- `#7fd4ff` has a channel at 255 and so is its own high end -- the largest
+	-- file draws the colour as written, and the rest fade below it.
+	-- `colour_spec.lua` pins where the low end lands and why.
+	with_theme({ size = "#7fd4ff <->" }, function()
+		setup { detail = { { "size", width = 4 } } }
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#7fd4ff")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#223f4d", "and the low end below it")
+	end)
+end)
+
 test("theme: a colour in the spec replaces a themed ramp outright", function()
 	-- One source decides the whole colour. Half of it from the spec and half
 	-- from the theme would be a rule nobody could hold in their head, and it is
