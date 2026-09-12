@@ -219,6 +219,13 @@ numbers were minted on the server, where the same number is very likely a
 different account. Yazi's own `owner` linemode resolves them regardless, so the
 two disagree there on purpose.
 
+On Windows all three are blank for a local file, the way `permissions` is.
+Yazi hands Lua a `uid` and a `gid` for every file on every platform -- they are
+`u32` rather than optional -- and on Windows both are `0`, so a column that
+trusted them would draw `0:0` down the whole listing, which is what Yazi's own
+linemode does. A remote file still shows its numbers there: those came off the
+server.
+
 Widths are stated rather than measured, so none of them renders the folder
 twice. Set `width = "auto"` on any of them to have it fit instead.
 

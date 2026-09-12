@@ -29,6 +29,21 @@ local function with_history(folder, fn)
 	end
 end
 
+--- Run `fn` on a build with no name lookups at all, and put them back
+--- afterwards. `ya.user_name` and `ya.group_name` are `#[cfg(unix)]` in Yazi,
+--- so on Windows they are not absent-and-nil but never created; reading one
+--- there is what a spec has instead of a Windows machine.
+---@param fn function
+local function without_names(fn)
+	local before = { ya.user_name, ya.group_name }
+	ya.user_name, ya.group_name = nil, nil
+	local ok, err = pcall(fn)
+	ya.user_name, ya.group_name = before[1], before[2]
+	if not ok then
+		error(err, 0)
+	end
+end
+
 --- Render one built-in column for one file, returning plain text.
 ---@param name string
 ---@param file table
@@ -111,9 +126,26 @@ test("permissions: left-aligned, blank when the platform has none", function()
 	eq(render("permissions", stub.file {}), "          ")
 end)
 
-test("owner: user:group, blank without a uid", function()
-	eq(render("owner", stub.file { uid = 1, gid = 2 }), "user1:group2")
-	eq(render("owner", stub.file {}), "            ")
+test("owner: user:group", function() eq(render("owner", stub.file { uid = 1, gid = 2 }), "user1:group2") end)
+
+test("owner, user and group: blank on a build with no names", function()
+	-- Not "a file with no owner", which Yazi cannot hand out: `cha.uid` is a
+	-- `u32` and arrives as a number on every platform, so on Windows every
+	-- local file carries the 0 the Rust filled in. What is absent there is the
+	-- pair of lookups, and that is the only thing worth asking -- a column
+	-- keyed on the id would draw `0:0` for the whole listing. `permissions`
+	-- goes blank on the same build, for the same kind of reason.
+	without_names(function()
+		eq(render("owner", stub.file {}), "            ")
+		eq(render("user", stub.file {}), "        ")
+		eq(render("group", stub.file {}), "        ")
+
+		-- A remote file is the exception and keeps its numbers here as well.
+		-- They came off the server, so a host that could not have named them
+		-- anyway takes nothing away.
+		eq(render("owner", stub.file { uid = 501, gid = 20, url_kind = "sftp" }), "501:20      ")
+		eq(render("user", stub.file { uid = 501, gid = 20, url_kind = "sftp" }), "501     ")
+	end)
 end)
 
 test("owner: a name longer than the column is truncated, not allowed to push", function()
@@ -133,8 +165,6 @@ end)
 test("user and group: the halves of `owner`, drawn on their own", function()
 	eq(render("user", stub.file { uid = 1, gid = 2 }), "user1   ")
 	eq(render("group", stub.file { uid = 1, gid = 2 }), "group2  ")
-	eq(render("user", stub.file {}), "        ")
-	eq(render("group", stub.file {}), "        ")
 end)
 
 test("user and group: a remote file keeps its numbers here too", function()
