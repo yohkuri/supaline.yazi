@@ -83,6 +83,13 @@ Every row ends with a size, right-aligned in seven cells.
 
 - `link-broken` is `lrwxr-xr-x`, directories are `drwxr-xr-x`, and
   `read-only.txt` is `-r--------`.
+- Those characters are **coloured a character at a time**, out of your own
+  theme: the same colours Yazi's status bar gives the hovered file's
+  permissions, for the same characters. Hover `link-broken` and hold the
+  linemode cell against the status bar at the bottom — the `l`, the `r`s, the
+  `w` and the `x`s should match, pair for pair. If your flavor sets no
+  `[status]` permission styles the whole cell is plain, which is correct and
+  worth telling apart from a cell that lost its colours.
 - The owner column is twelve cells and holds your own `user:group`, so what to
   look for depends on its length: over twelve it ends in **exactly one** `…`,
   and under twelve it pads with none. Two ellipses in a row was a real bug, and

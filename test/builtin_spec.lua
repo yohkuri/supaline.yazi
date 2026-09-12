@@ -137,6 +137,104 @@ test("permissions: left-aligned, blank when the platform has none", function()
 	eq(render("permissions", stub.file {}), "          ")
 end)
 
+-- The `[status]` styles a flavor writes, distinct enough that a character
+-- drawn from the wrong one is named by the failure rather than just unequal.
+local STATUS = {
+	perm_type = ui.Style():fg("#000011"),
+	perm_read = ui.Style():fg("#000022"),
+	perm_write = ui.Style():fg("#000033"),
+	perm_exec = ui.Style():fg("#000044"),
+	perm_sep = ui.Style():fg("#000055"),
+}
+
+--- Render `permissions` with `th.status` set, through the column's `refresh`
+--- hook -- which is what main.lua runs on install and on `cd`, and the only
+--- thing that ever reads the theme for this column.
+---
+--- Returns the foreground of each character in order, so an assertion names
+--- the string it expected rather than a list of styles.
+---@param file table
+---@param opts table?
+---@param status table?
+---@return string
+local function perm_fgs(file, opts, status)
+	local before = stub.th.status
+	stub.th.status = status == nil and STATUS or status
+
+	local spec = { "permissions" }
+	for k, v in pairs(opts or {}) do
+		spec[k] = v
+	end
+	local col = column.normalize(spec, CFG)
+	col.refresh()
+	local out = column.cell(col, file)
+
+	stub.th.status = before
+
+	local fgs = {}
+	for _, part in ipairs(out._parts or { out }) do
+		fgs[#fgs + 1] = part._style and part._style.fg or "-"
+	end
+	return table.concat(fgs, " ")
+end
+
+test("permissions: every character takes its own style from the theme", function()
+	-- Yazi's own mapping, measured against the status bar of a real 26.9.1 and
+	-- written down in `.agents/skills/yazi-platform-traps/references/probes.md`:
+	-- the character decides, not the position, so the leading `-` of a regular
+	-- file is a `perm_sep` like any other bit that is off.
+	eq(
+		perm_fgs(stub.file { perm = "-rw-r--r--" }),
+		"#000055 #000022 #000033 #000055 #000022 #000055 #000055 #000022 #000055 #000055"
+	)
+	eq(
+		perm_fgs(stub.file { perm = "drwxr-xr-x" }),
+		"#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
+	)
+	-- `s` and `t` are execute bits with another bit folded into them, and `l`
+	-- is a type character like `d`.
+	eq(
+		perm_fgs(stub.file { perm = "lrwsr-xr-t" }),
+		"#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
+	)
+end)
+
+test(
+	"permissions: a theme with no `[status]` at all still draws the text",
+	function()
+		eq(text_of(column.cell(column.normalize({ "permissions" }, CFG), stub.file { perm = "drwxr-xr-x" })), "drwxr-xr-x")
+	end
+)
+
+test("permissions: a colour written for the column takes the theme's place", function()
+	-- Flat, for the whole cell: painting the characters over a colour the user
+	-- wrote would leave it visible nowhere.
+	eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }, { base = "#00ccff" }), "#00ccff")
+
+	local before = stub.th.supaline
+	stub.th.supaline = { permissions = "#00ccff" }
+	eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }), "#00ccff")
+	stub.th.supaline = before
+end)
+
+test("permissions: `refresh` is what follows a theme that moved", function()
+	local file = stub.file { perm = "drwxr-xr-x" }
+	local col = column.normalize({ "permissions" }, CFG)
+
+	local before = stub.th.status
+	stub.th.status = STATUS
+	col.refresh()
+	eq(column.cell(col, file)._parts[1]._style.fg, "#000011")
+
+	-- The flavor arriving after `init.lua`, and a later `app:theme`, look the
+	-- same from here: the section is different and the hook runs again.
+	stub.th.status = { perm_type = ui.Style():fg("#ff00ff") }
+	col.refresh()
+	eq(column.cell(col, file)._parts[1]._style.fg, "#ff00ff")
+
+	stub.th.status = before
+end)
+
 test("owner: user:group", function() eq(render("owner", stub.file { uid = 1, gid = 2 }), "user1:group2") end)
 
 test("owner, user and group: blank on a build with no names", function()
