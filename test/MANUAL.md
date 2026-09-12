@@ -227,6 +227,7 @@ coloured**, which is the linemode or the theme.
 | Key   | Draws                               | Read it in |
 | ----- | ----------------------------------- | ---------- |
 | `c r` | a ramp climbing in every channel     | `g 3`      |
+| `c b` | a band derived from one colour       | `g 3`      |
 | `c h` | a ramp that turns in hue             | `g 3`      |
 | `c g` | a ramp over a background             | `g 3`      |
 | `c s` | the same size, log then linear       | `g 4`      |
@@ -245,7 +246,7 @@ and leaves your folder, your scroll and your hover alone — so two of them
 pressed one after the other differ in exactly one thing, which is what makes
 them worth putting side by side.
 
-Only `c t` reads the theme. The other five write their endpoints in the spec,
+Only `c t` reads the theme. The other six write their colours in the spec,
 where a `base` or a `ramp` wins over `[supaline]`, so they hold still while
 `c 1` to `c 3` swap the file underneath them.
 
@@ -303,6 +304,27 @@ that goes backwards in any channel, one that repeats the row above it, and a
 row whose two cells disagree. So what is left here is only ever visibility: it
 already knows the steps are all different, and cannot know whether you can see
 that they are.
+
+### `c b` — a band nobody wrote the ends of
+
+In `g 3`, the same rows on `#0b3d91 <->`. One colour, spread as far as it goes
+each way: as light as that navy can be drawn, and as dark as a column stays
+visible. Press `c r` and `c b` one after the other — the same rows, the same
+navy, endpoints chosen by hand and endpoints derived.
+
+- **Is the spread worth drawing?** `e2e.sh` already knows every step differs
+  from the one above it, the same way it knows for `c r`. What it cannot ask is
+  whether a band this wide separates the rows enough to be read as a gradient,
+  or whether the derivation merely produced 64 shades of one colour.
+- **The bottom row against your own terminal.** The dark end stops at a
+  lightness picked on the assumption of a dark background, and yours is the one
+  it was picked for or it is not. If the first rows are sunk into the
+  background, that assumption has just failed on your terminal and the fix is
+  two endpoints, not a different floor.
+- **The top.** Nothing was chosen for it: it is as light as the hue goes before
+  the display runs out. Whether that reads as the same colour or as a different
+  one is the judgement `c r` does not need, because there both ends were
+  written down.
 
 ### `c h` — a ramp that turns
 

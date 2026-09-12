@@ -133,6 +133,7 @@ colour_shot() { # <g-key> <c-key> <label>
 	shot "$3"
 }
 colour_shot 3 r c_ramp
+colour_shot 3 b c_band
 colour_shot 3 h c_hue
 colour_shot 3 g c_bg
 colour_shot 4 s c_scale
@@ -289,7 +290,7 @@ have_rows "m0 to m9 all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9
 # the key, or the `cd` behind it, as the linemode. Which of the three it was is
 # not worth telling apart: nothing else in this run visits those folders, so
 # without this the first person to find out would be a human at `manual.sh`.
-have_rows "the six colour modes all have rows" c_ramp c_hue c_bg c_scale c_edge c_theme
+have_rows "the seven colour modes all have rows" c_ramp c_band c_hue c_bg c_scale c_edge c_theme
 
 echo "== columns =="
 # `A && B || C` would run C when B fails, and shellcheck is right to say so.
@@ -582,6 +583,13 @@ check_ramp() { # <label> <capture> <monotone>
 # only place the quantisation itself is read. What it still cannot ask is
 # whether a reader can see one step from the next; `MANUAL.md` keeps that.
 check_ramp "every step climbs, and none repeats the one above" c_ramp 1
+# The same rows on a band, whose endpoints were derived rather than written.
+# Monotone is asked of it for a reason of its own: every step of a band is the
+# same colour at another exposure, so all three channels move together by
+# construction -- measured over the 64 steps of `#0b3d91 <->`, zero reversals
+# and zero identical adjacent pairs. A band that came back flat, or that turned
+# on the way, is a derivation that went wrong rather than a ramp a user wrote.
+check_ramp "a band climbs too, on endpoints nobody wrote" c_band 1
 # The same rows on a ramp that turns in hue. Only half the question can be put
 # to it, and that half is put here so the shape is not left with nothing.
 check_ramp "a ramp that turns still draws a step per row" c_hue 0
