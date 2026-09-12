@@ -110,6 +110,11 @@ allocate as little as possible.
 - `render` may return `text, style` instead of a renderable, which skips
   building an intermediate line. The built-in columns use this.
 - `ui.Style` is immutable as of 26.5.6, so `style:fg(c)` returns a new style.
+- **`ui.Line` consumes the spans it is given**, so a list of spans cannot be
+  built once and drawn twice: the second `ui.Line` over the same table raises
+  `expected a string, Span, Line, or a table of them`, and the pane stops
+  drawing. Cache the styles, rebuild the spans. Measured on 26.9.1, and refused
+  by the stub — `column_spec.lua` "a span drawn a second time is refused".
 
 A linemode name is 1 to 20 characters. An unregistered name renders as literal
 text, so a name registered late shows up on screen.

@@ -338,6 +338,10 @@ end
 local Line = {}
 Line.__index = Line
 
+--- Every Span and Line already handed to a `ui.Line`, weakly held so a row
+--- that has been drawn and dropped does not keep its spans alive.
+local taken = setmetatable({}, { __mode = "k" })
+
 --- The plain text of anything renderable, which is all the assertions need.
 ---@param x any
 ---@return string
@@ -508,6 +512,37 @@ function Line:truncate(opts)
 	return self
 end
 
+--- Yazi **moves** a Span or a Line into the Line it is put in, so the value is
+--- gone from Lua's side and handing it over a second time raises
+--- `bad argument #2: expected a string, Span, Line, or a table of them`.
+--- Measured on 26.9.1 for a span and a line alike, in a table and bare;
+--- `Span:style` does not consume, and the same span can be styled twice.
+---
+--- Loud here for the reason every other divergence in this file is loud.
+--- Yazi's own message reaches nobody -- a linemode that raises stops drawing
+--- the pane, and the traceback goes to `yazi.log` alone -- while a stub that
+--- let one span be drawn twice would make caching a built list of them look
+--- correct, and that cache is exactly what a column drawing a character at a
+--- time invites.
+---@param part any
+---@return any
+local function take(part)
+	local mt = getmetatable(part)
+	if mt ~= Span and mt ~= Line then
+		return part
+	elseif taken[part] then
+		error(
+			string.format(
+				"stub: this %s has already been put in a Line. Yazi moves it rather than copying "
+					.. "it, so build the spans fresh for each row and cache the styles instead",
+				mt == Span and "Span" or "Line"
+			)
+		)
+	end
+	taken[part] = true
+	return part
+end
+
 function M.Line(x)
 	if getmetatable(x) == Line then
 		return x
@@ -515,6 +550,9 @@ function M.Line(x)
 	local parts = x
 	if type(x) ~= "table" or getmetatable(x) == Span then
 		parts = { x }
+	end
+	for _, part in ipairs(parts) do
+		take(part)
 	end
 	return setmetatable({ _parts = parts }, Line)
 end
