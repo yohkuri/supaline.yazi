@@ -41,9 +41,9 @@ What the library does **not** reach, and this file does:
 - `SKILL.md` by that spelling. The library reads `skill.md` too, and a
   case-insensitive filesystem answers to either, so the directory is read by
   name -- otherwise the tree passes on macOS and fails on the runner.
-- a file over 500 lines, and a reference over 100 whose `## Contents` does not
-  name every section it has. Neither is a frontmatter rule, so neither is in
-  the library at all.
+- a file of 500 lines or more, and a reference over 100 whose `## Contents`
+  does not name every section it has. Neither is a frontmatter rule, so
+  neither is in the library at all.
 """
 
 import re
@@ -65,8 +65,11 @@ CONTENTS_LIMIT = 100
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 RESERVED = ("anthropic", "claude")
 
-# A Contents entry names its section and may gloss it after an em dash.
-GLOSS = " — "
+# A Contents entry names its section and may gloss it after one of these.
+# Both spellings are in the prose here already, so a heading written with one
+# of them is not a heading that cannot be listed: the entry is matched against
+# the headings first, longest one wins, and this is only where that fails.
+GLOSSES = (" — ", " -- ")
 
 # `skills-ref` says what the rule is; these say what breaking it costs, which
 # is the half a reader cannot work out from the message.
@@ -107,7 +110,13 @@ def read(path):
         # A dangling symlink, a directory wearing the name, a byte that is not
         # UTF-8. Each of these used to be a traceback, which says the same
         # thing in a form nobody can act on.
-        report(rel(path), "cannot be read.", f"    {e}")
+        #
+        # `strerror` rather than the exception: an OSError prints the absolute
+        # path it was given, and every other line this script writes names a
+        # file the way the repository does. A decode error has no `strerror`
+        # and names no path of its own.
+        reason = getattr(e, "strerror", None) or e
+        report(rel(path), "cannot be read.", f"    {reason}")
         return None
 
 
@@ -127,26 +136,52 @@ def headings(lines):
 
 
 def contents_block(lines):
-    """The lines under `## Contents`, to the next heading outside a fence."""
+    """The lines under `## Contents`, to the next heading outside a fence.
+
+    A fenced line is not one of them, for the reason a fenced `## ` is not a
+    heading: a `- ` in an example block is an example. `headings` skipped
+    fences and this did not, so a list quoted under Contents was counted as
+    entries against sections it was never describing.
+    """
     out, fence, seen = [], False, False
     for line in lines:
         if line.startswith("```"):
             fence = not fence
-            if seen:
-                out.append(line)
+        elif fence:
             continue
-        if not fence and line == "## Contents":
+        elif line == "## Contents":
             seen = True
-            continue
-        if not fence and line.startswith("## ") and seen:
+        elif line.startswith("## ") and seen:
             break
-        if seen:
+        elif seen:
             out.append(line)
     return out
 
 
-def check_length(f, text):
-    count = text.count("\n")
+def entry_name(entry, sections):
+    """The section a Contents entry names, gloss removed.
+
+    Matched against the headings first and longest one first, so a heading
+    that carries a gloss separator of its own is still listable -- splitting
+    at the first one would name half of it, and the entry would be refused
+    from both sides at once with no spelling that satisfies either.
+    """
+    for section in sorted(sections, key=len, reverse=True):
+        if entry == section or entry.startswith(
+            tuple(section + gloss for gloss in GLOSSES)
+        ):
+            return section
+    # Names no section here: cut at the first gloss, so what is reported is
+    # the entry's own claim about its heading rather than the gloss with it.
+    cut = min(
+        (entry.index(gloss) for gloss in GLOSSES if gloss in entry),
+        default=len(entry),
+    )
+    return entry[:cut].strip()
+
+
+def check_length(f, lines):
+    count = len(lines)
     if count >= FILE_LIMIT:
         report(
             rel(f),
@@ -179,11 +214,16 @@ def check_skill(directory):
     if text is None:
         return
 
+    lines = text.splitlines()
+
     # Before the fences and before the library, because it is the one rule
     # that needs neither: a file is as long as it is however it parses.
-    check_length(f, text)
+    # `splitlines` rather than counting newlines: a file whose last line has
+    # no newline is one line shorter by that arithmetic, and the only reason
+    # nothing here shows it is that MD047 refuses such a file. A count that
+    # leans on another linter's rule is a count that breaks when it moves.
+    check_length(f, lines)
 
-    lines = text.splitlines()
     if not lines or lines[0] != "---":
         report(
             rel(f),
@@ -261,11 +301,11 @@ def check_reference(f):
     text = read(f)
     if text is None:
         return
-    count = text.count("\n")
+    lines = text.splitlines()
+    count = len(lines)
     if count <= CONTENTS_LIMIT:
         return
 
-    lines = text.splitlines()
     heads = headings(lines)
     if "Contents" not in heads:
         report(
@@ -277,11 +317,12 @@ def check_reference(f):
         return
 
     sections = [h for h in heads if h != "Contents"]
-    # The entry names the section; anything after an em dash glosses it. Named
-    # rather than contained: a section renamed to a prefix of its own entry is
-    # a rename the count cannot see and a substring test reads as present.
+    # The entry names the section; anything after a gloss separator describes
+    # it. Named rather than contained: a section renamed to a prefix of its
+    # own entry is a rename the count cannot see and a substring test reads as
+    # present.
     listed = [
-        line[2:].split(GLOSS, 1)[0].strip()
+        entry_name(line[2:].strip(), sections)
         for line in contents_block(lines)
         if line.startswith("- ")
     ]
@@ -292,6 +333,15 @@ def check_reference(f):
         report(
             rel(f), f"Contents lists {len(listed)} of {len(sections)} sections."
         )
+    for name in dict.fromkeys(listed):
+        if listed.count(name) > 1:
+            report(
+                rel(f),
+                f"in Contents {listed.count(name)} times: {name}",
+                "One entry per section. Two entries naming one heading make",
+                "the count above come out right while a section goes unnamed,",
+                "so the line that would have found it never prints.",
+            )
     for heading in sections:
         if heading not in listed:
             report(
@@ -306,7 +356,9 @@ def check_reference(f):
                 rel(f),
                 f"in Contents, but no section has that heading: {entry}",
                 "An entry names its section exactly, and may gloss it after an",
-                "em dash. Rename the entry, or the heading.",
+                "em dash or a double hyphen -- including a heading that",
+                "carries one, which is matched whole before any gloss is cut.",
+                "Rename the entry, or the heading.",
             )
     if sorted(listed) == sorted(sections):
         report(
@@ -327,10 +379,14 @@ def main():
     )
     if not directories:
         report(f"{rel(SKILLS)}/", "no skill found. Has the tree moved?")
+    # The references are walked from that same list rather than from a glob of
+    # their own, so the filter above is the only one there is. Two globs meant
+    # two chances to forget it, and the second one had: a notes file under a
+    # personal `.scratch` was read as a skill's reference.
     for directory in directories:
         check_skill(directory)
-    for reference in sorted(SKILLS.glob("*/references/*.md")):
-        check_reference(reference)
+        for reference in sorted((directory / "references").glob("*.md")):
+            check_reference(reference)
     return 1 if problems else 0
 
 
