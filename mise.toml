@@ -2,3 +2,8 @@
 # refuses to run on anything else. Pin the same version here.
 [tools]
 lua = "5.5.1"
+# `uv run .github/scripts/skills.py` is the one command here that needs
+# something Lua and Node do not bring. Pinned like everything else, though
+# nothing depends on the version: what that script resolves is in its own
+# lock file, and CI installs uv itself rather than reading this.
+uv = "0.11.19"
