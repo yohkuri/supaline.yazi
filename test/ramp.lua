@@ -2,6 +2,13 @@
 ---
 ---     lua test/ramp.lua "#0b3d91 -> #7fd4ff"
 ---     lua test/ramp.lua "#111 -> #222" "#0b3d91 -> #ffd400 -> #7fd4ff"
+---     lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
+---
+--- `--band` is `setup`'s own option, `from` first, and it is here because the
+--- two numbers cannot be settled any other way: one end of the default pair
+--- was measured against five terminal backgrounds and the other was chosen by
+--- looking at exactly this output. A light terminal has to do the same, and
+--- the alternative is editing `init.lua` and restarting Yazi per guess.
 ---
 --- `manual.sh` runs this before it opens Yazi, over every ramp the fixture can
 --- draw, so the whole of each one is on screen at once and in the terminal the
@@ -72,25 +79,52 @@ end
 --- unreadable column. Counting in tens is what lets a reader say which step
 --- stopped being readable rather than "somewhere near the bottom".
 ---@param value string
-local function show(value)
-	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua"))
+---@param band { from: number, to: number }?
+local function show(value, band)
+	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua", band))
 	print("")
 	print(string.format("  %s    %d steps, %s to %s", value, #ramp, ramp[1], ramp[#ramp]))
 	print("  " .. strip(ramp, function() return "█" end))
 	print("  " .. strip(ramp, function(i) return tostring((i - 1) % 10) end))
 end
 
-if not arg or not arg[1] then
-	io.stderr:write('usage: lua test/ramp.lua "#0b3d91 -> #7fd4ff" [...]\n')
+local USAGE = 'usage: lua test/ramp.lua [--band FROM,TO] "#0b3d91 -> #7fd4ff" [...]\n'
+
+-- `--band` taken out of the list first, so the loop below stays a loop over
+-- ramps. The pair goes through `colour.bounds` rather than being checked here,
+-- which is the point of that function living in `colour.lua`: what this prints
+-- for `--band 0,1` is what a user's `init.lua` would have said.
+local values, band = {}, nil
+local i = 1
+while arg and arg[i] do
+	if arg[i] == "--band" then
+		local pair = arg[i + 1]
+		local from, to = (pair or ""):match("^%s*([^,%s]+)%s*,%s*([^,%s]+)%s*$")
+		if not from then
+			io.stderr:write("test/ramp.lua: --band takes two lightnesses, as `--band 0.35,0.88`\n")
+			os.exit(2)
+		end
+		-- The unparsed string rather than the nil it becomes, so a `--band a,b`
+		-- is refused in the words the user typed.
+		band = colour.bounds({ from = tonumber(from) or from, to = tonumber(to) or to }, "`--band`")
+		i = i + 2
+	else
+		values[#values + 1] = arg[i]
+		i = i + 1
+	end
+end
+
+if not values[1] then
+	io.stderr:write(USAGE)
 	os.exit(2)
 end
 
 local failed = false
-for i = 1, #arg do
+for n = 1, #values do
 	-- Each ramp on its own, so one that cannot resolve does not take the rest
 	-- of the screen with it. The message is the plugin's, and it is the same
 	-- one a user gets from a `theme.toml` that says the same thing.
-	local ok, err = pcall(show, arg[i])
+	local ok, err = pcall(show, values[n], band)
 	if not ok then
 		io.stderr:write(tostring(err):gsub("^.-:%d+: ", "") .. "\n")
 		failed = true

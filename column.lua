@@ -127,6 +127,11 @@ local colour = require(".colour")
 ---@field separator string
 ---@field order integer
 ---@field scale? "linear"|"log" what the user wrote in `setup`, if anything
+--- `band` is optional for the same shape of reason `scale` is, though not the
+--- same reason: `DEFAULTS` carries none, because the pair it would carry is
+--- `colour.lua`'s to justify. Nil here means the default, and `colour.stops`
+--- is where that is applied.
+---@field band? { from: number, to: number } the lightnesses a band runs between
 
 --- Every option a column accepts. One set rather than two, because
 --- `normalize` reads the spec and the definition behind it through a single
@@ -471,7 +476,7 @@ function M.normalize(spec, cfg)
 			)
 		)
 	end
-	local ramp = wanted ~= nil and colour.styles(wanted, ground, where) or nil
+	local ramp = wanted ~= nil and colour.styles(wanted, ground, where, cfg.band) or nil
 
 	-- One context table per column, reused across rows. main.lua rebinds
 	-- `stats` and `width` whenever the folder being drawn changes, not per row.

@@ -157,33 +157,27 @@ end)
 
 -- --- a band ----------------------------------------------------------------
 
-test("band: a colour already past the ceiling is its own high end", function()
+test("band: a colour lighter than the band is still not an end of it", function()
 	-- Every value below is from this implementation, on the arithmetic in
 	-- `colour.lua`; the same numbers come out of the derivation by hand.
 	--
-	-- `#e8f4ff` sits at 0.96 in lightness, above the ceiling and with a channel
-	-- at 255, so there is nothing to raise it to and nothing to raise it with.
-	-- The band is everything below it.
+	-- `#e8f4ff` sits at 0.96 in lightness, above the band's own top, and the
+	-- band still runs 0.35 to 0.88 -- so the colour that was written appears
+	-- nowhere on it. Both ends are fixed, and what the colour supplies is the
+	-- hue. Widening the band to reach it would make this column's top step
+	-- lighter than the next column's for no reason a reader could see.
 	local stops = colour.stops("#e8f4ff <->", "x")
-	eq(stops[2][1], 0xe8, "the high end is the colour itself")
-	eq(stops[2][2], 0xf4)
-	eq(stops[2][3], 0xff)
-	eq(stops[1][1], 0x38, "the low end is the same colour, darkened to the floor")
-	eq(stops[1][2], 0x3b)
-	eq(stops[1][3], 0x3e)
+	eq(string.format("#%02x%02x%02x", stops[1][1], stops[1][2], stops[1][3]), "#383b3e")
+	eq(string.format("#%02x%02x%02x", stops[2][1], stops[2][2], stops[2][3]), "#ced9e3")
 end)
 
-test("band: a colour darker than the floor is its own low end", function()
-	-- The other degenerate end, and it degrades the same way: nowhere below to
-	-- go, so the band is everything above. `#0b1a2f` sits at 0.22 in lightness
-	-- and the floor is 0.35.
+test("band: a colour darker than the band is not an end of it either", function()
+	-- The other side, and it is fixed the same way. `#0b1a2f` sits at 0.22,
+	-- below the band's floor of 0.35, and the low end is drawn at the floor
+	-- rather than at the colour.
 	local stops = colour.stops("#0b1a2f <->", "x")
-	eq(stops[1][1], 0x0b, "the low end is the colour itself")
-	eq(stops[1][2], 0x1a)
-	eq(stops[1][3], 0x2f)
-	eq(stops[2][1], 0xbf)
-	eq(stops[2][2], 0xda)
-	eq(stops[2][3], 0xff)
+	eq(string.format("#%02x%02x%02x", stops[1][1], stops[1][2], stops[1][3]), "#1f3b61")
+	eq(string.format("#%02x%02x%02x", stops[2][1], stops[2][2], stops[2][3]), "#bfdaff")
 end)
 
 test("band: past the exposure's reach, lightness is bought with chroma", function()
@@ -228,12 +222,79 @@ test("band: a dark colour spreads upwards, which is the point of deriving both",
 	eq(r[#r], "#c2d9ff")
 end)
 
-test("band: a colour with nothing to spread is refused rather than drawn flat", function()
-	-- Black alone: scaling nothing leaves nothing, and it has no hue to hold
-	-- on to either, so there is no band around it -- only the grey the ceiling
-	-- would have invented. This plugin refuses rather than drawing that.
-	throws(function() colour.stops("#000000 <->", "x") end, "cannot be spread")
-	throws(function() colour.stops("#000000 <->", "the `[supaline] size` colour") end, "supaline] size")
+test("band: black is a grey band rather than a refusal", function()
+	-- Black used to be refused here, on the grounds that it has no lightness to
+	-- scale and no hue to hold. With both ends fixed that stops being true of
+	-- black in particular: a grey has no hue to hold at any lightness, and the
+	-- band is drawn at the two the user asked for regardless. So the three
+	-- greys furthest apart in sRGB all come out as the same band, and refusing
+	-- one of the three would have been an exception with nothing behind it.
+	local black = colour.stops("#000000 <->", "x")
+	local mid = colour.stops("#767676 <->", "x")
+	local white = colour.stops("#ffffff <->", "x")
+	for i = 1, 2 do
+		for c = 1, 3 do
+			eq(black[i][c], mid[i][c])
+			eq(black[i][c], white[i][c])
+		end
+	end
+	eq(string.format("#%02x%02x%02x", black[1][1], black[1][2], black[1][3]), "#3a3a3a")
+	eq(string.format("#%02x%02x%02x", black[2][1], black[2][2], black[2][3]), "#d7d7d7")
+end)
+
+test("band: the pair is directed, so writing it backwards inverts the ramp", function()
+	-- What a light terminal needs, and the reason the two numbers are `from`
+	-- and `to` rather than a floor and a ceiling with a boolean beside them:
+	-- ratio 0 draws `from` whichever of the two is lighter, so inversion is the
+	-- same option written the other way round and there is no second spelling
+	-- to keep in step with the first.
+	local up = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.35, to = 0.88 }))
+	local down = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.88, to = 0.35 }))
+	eq(#up, #down)
+	for i = 1, #up do
+		eq(down[i], up[#up + 1 - i], "step " .. i .. " is the other ramp's mirror")
+	end
+end)
+
+test("bounds: the default is what a band gets when `setup` says nothing", function()
+	local d = colour.bounds(nil, "x")
+	eq(d.from, 0.35)
+	eq(d.to, 0.88)
+	-- And the default is what `stops` applies, so the two cannot drift.
+	local implicit = colour.stops("#0b3d91 <->", "x")
+	local explicit = colour.stops("#0b3d91 <->", "x", d)
+	for i = 1, 2 do
+		for c = 1, 3 do
+			eq(implicit[i][c], explicit[i][c])
+		end
+	end
+end)
+
+test("bounds: an end outside `(0, 1]` is refused, NaN included", function()
+	-- 0 is black at every hue, so a band with an end there has one no colour
+	-- reaches; above 1 is off the end of the space.
+	throws(function() colour.bounds({ from = 0, to = 0.88 }, "x") end, "must be above 0")
+	throws(function() colour.bounds({ from = 0.35, to = 1.2 }, "x") end, "must be above 0")
+	throws(function() colour.bounds({ from = -0.1, to = 0.88 }, "x") end, "must be above 0")
+	-- The one the range check is written backwards for: a NaN answers false to
+	-- both comparisons, so `not (v > 0 and v <= 1)` refuses it where the
+	-- complement would have let it through and drawn 64 uncoloured cells.
+	local nan = 0 / 0
+	throws(function() colour.bounds({ from = nan, to = 0.88 }, "x") end, "must be above 0")
+end)
+
+test("bounds: a band that is not two numbers is refused", function()
+	throws(function() colour.bounds({ to = 0.88 }, "x") end, "`from` must be an Oklab lightness")
+	throws(function() colour.bounds({ from = 0.35 }, "x") end, "`to` must be an Oklab lightness")
+	throws(function() colour.bounds({ from = "dark", to = 0.88 }, "x") end, "`from` must be an Oklab lightness")
+	throws(function() colour.bounds("dark", "x") end, "must be a table of two lightnesses")
+	-- Two ends at one lightness is 64 steps of one colour, which is what a
+	-- flat `base` already is.
+	throws(function() colour.bounds({ from = 0.6, to = 0.6 }, "x") end, "flat colour rather than a band")
+end)
+
+test("bounds: the error names where the band was written", function()
+	throws(function() colour.bounds({ from = 2, to = 0.5 }, "`band` in `setup`") end, "`band` in `setup`")
 end)
 
 -- --- the ramp --------------------------------------------------------------

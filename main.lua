@@ -13,6 +13,7 @@
 -- Required for its side effects: loading it registers the built-in columns
 -- through `column.register`, the same entry point a user column uses.
 require(".builtin")
+local colour = require(".colour")
 local column = require(".column")
 
 -- Yazi calls `Linemode` for three panes. `solo()` guards `in_current` itself,
@@ -36,6 +37,10 @@ local DEFAULTS = {
 	-- Left nil instead, so `cfg.scale` means "the user wrote a scale in
 	-- `setup`" and nothing else. `column.lua` resolves the three sources in
 	-- order and holds the fallback for a column that gets none of them.
+	--
+	-- No `band` either, for a different reason: its default is two Oklab
+	-- lightnesses that only `colour.lua` can justify, so it is kept beside the
+	-- measurements that settled it and `colour.bounds` hands it back.
 }
 
 --- The module table, as a spec sees it.
@@ -83,6 +88,7 @@ local M = {}
 ---@field separator string?
 ---@field order integer?
 ---@field scale "linear"|"log"|nil
+---@field band { from: number, to: number }? the lightnesses a band runs between
 
 local cfg = DEFAULTS
 local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemode definitions
@@ -561,6 +567,10 @@ function M.setup(_st, opts)
 		-- Not `or` a default: see `DEFAULTS`. Nil here is what lets a column
 		-- definition's own scale through.
 		scale = opts.scale,
+		-- Checked in `colour.lua`, where the two numbers mean something and
+		-- where the default they fall back to lives. Before the commit, so a
+		-- band written wrong leaves the configuration already running alone.
+		band = colour.bounds(opts.band, "`band` in `setup`"),
 	}
 
 	local next_specs = opts.linemodes or {}
