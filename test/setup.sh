@@ -567,7 +567,7 @@ supaline:setup({
 		default = { "size", "mtime" },
 
 		-- m2: every built-in column at its own default width.
-		everything = { "permissions", "owner", "size", "mtime", "count" },
+		everything = { "permissions", "owner", "user", "group", "size", "mtime", "count" },
 
 		-- m3: the same value stated, measured, and measured with a cap. The
 		-- stated width is deliberately wider than any size in the fixture, so the

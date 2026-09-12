@@ -128,39 +128,71 @@ column.register("permissions", {
 	render = function(file, ctx) return file.cha:perm() or "", ctx.base end,
 })
 
+--- The user and the group of a file, as text, or nothing at all when the
+--- platform has no ownership to report.
+---
+--- `ya.user_name` and `ya.group_name` read the passwd and group databases of
+--- the machine Yazi is running on, so a name they return only means anything
+--- for a file that lives on it. An SFTP file's IDs were minted on the server,
+--- where the same number is very likely a different account; resolving those
+--- here puts a confident and wrong name on screen. Yazi's own `owner` linemode
+--- resolves them unconditionally, so these columns deliberately differ from it.
+---
+--- `spec.is_virtual` is the exposed complement of Yazi's internal
+--- `AuthKind::is_local()`: false for the `regular` and `search` kinds, true for
+--- `mount`, `hub`, `scope` and `sftp`. Keying on it rather than on the `sftp`
+--- scheme errs towards the numbers, so a remote scheme added in a later Yazi is
+--- never given a name it has not earned. `file.url` and `.spec` are both cached
+--- fields, so this is two field reads: measured at roughly twice a `cha.uid`
+--- read on a real Yazi, which is far below anything worth hoisting.
+---@param file supaline.File
+---@return string? user, string? group
+local function ownership(file)
+	local cha = file.cha
+	if not cha.uid then
+		return nil, nil
+	end
+
+	if file.url.spec.is_virtual then
+		return tostring(cha.uid), tostring(cha.gid)
+	end
+
+	local user = ya.user_name and ya.user_name(cha.uid) or cha.uid
+	local group = ya.group_name and ya.group_name(cha.gid) or cha.gid
+	return tostring(user), tostring(group)
+end
+
 column.register("owner", {
 	width = 12,
 	align = "left",
 	---@type supaline.Render
 	render = function(file, ctx)
-		local cha = file.cha
-		if not cha.uid then
+		local user, group = ownership(file)
+		if not user then
 			return "", ctx.base
 		end
-
-		-- `ya.user_name` and `ya.group_name` read the passwd and group
-		-- databases of the machine Yazi is running on, so a name they return
-		-- only means anything for a file that lives on it. An SFTP file's IDs
-		-- were minted on the server, where the same number is very likely a
-		-- different account; resolving those here puts a confident and wrong
-		-- name on screen. Yazi's own `owner` linemode resolves them
-		-- unconditionally, so this column deliberately differs from it.
-		--
-		-- `spec.is_virtual` is the exposed complement of Yazi's internal
-		-- `AuthKind::is_local()`: false for the `regular` and `search` kinds,
-		-- true for `mount`, `hub`, `scope` and `sftp`. Keying on it rather
-		-- than on the `sftp` scheme errs towards the numbers, so a remote
-		-- scheme added in a later Yazi is never given a name it has not
-		-- earned. `file.url` and `.spec` are both cached fields, so this is
-		-- two field reads: measured at roughly twice a `cha.uid` read on a
-		-- real Yazi, which is far below anything worth hoisting.
-		if file.url.spec.is_virtual then
-			return string.format("%s:%s", cha.uid, cha.gid), ctx.base
-		end
-
-		local user = ya.user_name and ya.user_name(cha.uid) or cha.uid
-		local group = ya.group_name and ya.group_name(cha.gid) or cha.gid
 		return string.format("%s:%s", user, group), ctx.base
+	end,
+})
+
+-- The two halves of `owner` on their own, for a listing where only one of them
+-- is worth the cells -- a home directory whose every file carries the same
+-- group, say. Eight is the traditional passwd limit rather than a measurement,
+-- and a machine whose names run past it has `width = "auto"` like any column.
+column.register("user", {
+	width = 8,
+	align = "left",
+	---@type supaline.Render
+	render = function(file, ctx) return ownership(file) or "", ctx.base end,
+})
+
+column.register("group", {
+	width = 8,
+	align = "left",
+	---@type supaline.Render
+	render = function(file, ctx)
+		local _, group = ownership(file)
+		return group or "", ctx.base
 	end,
 })
 

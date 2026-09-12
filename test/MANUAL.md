@@ -77,8 +77,8 @@ Every row ends with a size, right-aligned in seven cells.
 ### `m 2` — every built-in column
 
 ```text
- link-broken -> nowhere-at-all lrwxr-xr-x octocat:sta…     14B 08/28 01:06
- nested                        drwxr-xr-x octocat:sta…       2 08/28 01:06     2
+ link-broke… lrwxr-xr-x octocat:sta… octocat  staff        14B 08/28 01:06
+ nested      drwxr-xr-x octocat:sta… octocat  staff          2 08/28 01:06     2
 ```
 
 - `link-broken` is `lrwxr-xr-x`, directories are `drwxr-xr-x`, and
@@ -89,6 +89,10 @@ Every row ends with a size, right-aligned in seven cells.
   `e2e.sh` counts them off the capture now — it reads the cell, holds it
   against `id`, and refuses a second ellipsis or a cut that is not a prefix of
   the name. So this one is covered rather than yours.
+- `user` and `group` follow it, eight cells each, and hold the two halves of
+  what `owner` just said — the three agree or one of them is wrong. They are
+  cut on their own lengths rather than on the pair's, so on most machines the
+  two of them are whole while `owner` beside them is not.
 - `count` is blank for files and a number for directories.
 - The file name loses characters to make room. That is Yazi sizing the name
   against the linemode, not supaline overflowing.

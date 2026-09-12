@@ -238,8 +238,8 @@ It matters wherever a value only means something on the machine Yazi is running
 on. `ya.user_name` and `ya.group_name` read that machine's passwd and group
 databases, and an SFTP file's UID was minted on the server, where the same
 number is very likely a different account. Yazi's own `Linemode:owner` resolves
-them regardless, so the `owner` column deliberately differs from it and prints
-the numbers instead.
+them regardless, so the `owner`, `user` and `group` columns deliberately differ
+from it and print the numbers instead.
 
 Pinned by `test/auth_spec.lua`, which holds all six variants and the
 `is_virtual` / `is_local` complement, and by the stub, which refuses an
