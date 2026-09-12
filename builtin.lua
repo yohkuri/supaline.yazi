@@ -128,8 +128,8 @@ column.register("permissions", {
 	render = function(file, ctx) return file.cha:perm() or "", ctx.base end,
 })
 
---- One half of a file's ownership, as text, or nothing at all when the
---- platform has no ID to report.
+--- One half of a file's ownership, as text, or nothing at all on a platform
+--- with no names to give.
 ---
 --- A half at a time rather than the pair, because `render` runs for every
 --- visible row on every frame: a `user` column that resolved the group as well
@@ -151,25 +151,38 @@ column.register("permissions", {
 --- never given a name it has not earned. `file.url` and `.spec` are both cached
 --- fields, so this is two field reads: measured at roughly twice a `cha.uid`
 --- read on a real Yazi, which is far below anything worth hoisting.
+---
+--- `cha.uid` and `cha.gid` are `u32` in Yazi rather than `Option<u32>`, so Lua
+--- is handed a number for every file on every platform and there is no "this
+--- file has no owner" to ask about. On Windows that number is the `0` the
+--- Rust filled in, which is why the column has to ask the *platform* instead:
+--- `ya.user_name` and `ya.group_name` are `#[cfg(unix)]`, so their absence is
+--- the question "does this build have names at all", and the answer there is
+--- nothing rather than `0`. That is what `cha:perm()` already does for the
+--- `permissions` column, and what Yazi's own `owner` linemode does not -- it
+--- draws `0:0`. Read from the v26.9.1 source; no Windows machine was run.
+---
+--- The order is deliberate. A remote file's IDs come off the server -- an
+--- SFTP `Cha` carries the attrs' `uid` and `gid` whatever the host is -- so
+--- they are worth printing on a platform that could not have named them
+--- anyway, and the virtual test comes first.
 ---@param field "uid"|"gid"
 ---@param lookup "user_name"|"group_name"
 ---@return fun(file: supaline.File): string?
 local function resolver(field, lookup)
 	return function(file)
 		local id = file.cha[field]
-		if not id then
-			return nil
-		end
-
 		if file.url.spec.is_virtual then
 			return tostring(id)
 		end
 
 		-- Read per row rather than hoisted: `ya` resolves a utility on first
-		-- access and keeps it, so this is a field read, and reading it here is
-		-- what lets the absent half on a platform without one stay absent.
+		-- access and keeps it, so this is a field read.
 		local name = ya[lookup]
-		return tostring(name and name(id) or id)
+		if not name then
+			return nil
+		end
+		return tostring(name(id) or id)
 	end
 end
 
@@ -185,9 +198,9 @@ column.register("owner", {
 		if not user then
 			return "", ctx.base
 		end
-		-- `or ""` rather than a second guard: Yazi hands out both IDs or
-		-- neither, so a half-answer here is a `%s` away from printing "nil".
-		return string.format("%s:%s", user, group_of(file) or ""), ctx.base
+		-- No second guard: both halves ask the same platform the same question,
+		-- so a build that answered one of them answers the other.
+		return string.format("%s:%s", user, group_of(file)), ctx.base
 	end,
 })
 

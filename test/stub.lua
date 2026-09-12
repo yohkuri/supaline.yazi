@@ -619,8 +619,15 @@ function M.file(t)
 			mtime = t.mtime,
 			btime = t.btime,
 			atime = t.atime,
-			uid = t.uid,
-			gid = t.gid,
+			-- Numbers, always. Yazi's `Cha` carries `uid` and `gid` as `u32`
+			-- rather than `Option<u32>`, filling them with the `0` of
+			-- `unix_either!(m.uid(), 0)` on a platform that has neither, so
+			-- Lua is never handed a nil here and a column cannot ask "does
+			-- this file have an owner". A stub that left them nil let a
+			-- `not cha.uid` guard look like the Windows case while Yazi was
+			-- reaching the branch below it and drawing `0:0`.
+			uid = t.uid or 0,
+			gid = t.gid or 0,
 			perm = function() return t.perm end,
 		},
 		size = function() return t.size end,
