@@ -238,9 +238,16 @@ function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1
 --- to land on the refusing side -- `math.huge / math.huge` in a user's own
 --- arithmetic is the way one arrives.
 ---
---- Equal ends are refused too. Sixty-four steps of one colour is a flat
---- colour, which is what `base` already is, and a user who meant that would
---- have written it.
+--- The type and the range are the whole of it: nothing here reads the pair as
+--- a pair. Equal ends draw sixty-four steps of one colour, which is what
+--- `base` already is and is unlikely to be what the writer meant, and they are
+--- taken anyway. An equality test catches one spelling of a thing with many --
+--- `{ from = 0.5, to = 0.501 }` draws the same single colour and passes any
+--- comparison of the two numbers -- and where flat stops being flat is a
+--- judgement rather than a test. Asking after the ends are drawn does not help
+--- either: whether the steps collapse depends on the hue they are drawn at,
+--- which this function never sees, so one column's colour would refuse a band
+--- the rest of them take.
 ---@param value any what `setup` was given, if anything
 ---@param where string
 ---@return supaline.Band
@@ -284,17 +291,6 @@ function M.bounds(value, where)
 		out[k] = v
 	end
 
-	if out.from == out.to then
-		error(
-			string.format(
-				"supaline: %s: `from` and `to` are both %s, so every step would be the same "
-					.. "colour. That is a flat colour rather than a band; write it as `base`, "
-					.. "or move one end",
-				where,
-				tostring(out.from)
-			)
-		)
-	end
 	return out
 end
 
