@@ -326,6 +326,54 @@ your terminal's palette makes them, and supaline has no way to ask; a ramp
 interpolated from a guess would not meet either end. They stay perfectly good
 flat colours.
 
+### A band around one colour
+
+One colour is a gradient too. `<->` spreads it as far as it goes each way — as
+light as its own hue can be drawn, and as dark as a column is still visible
+against the terminal:
+
+```lua
+{ "size", ramp = "#7fd4ff <->" }
+{ "size", ramp = "#7fd4ff" }        -- the same thing; `ramp` already said so
+```
+
+```toml
+[supaline]
+size = "#7fd4ff <->"
+```
+
+The marker is there for the theme, where a field holds one value and
+`size = "#7fd4ff"` has to go on meaning a flat colour. A spec needs none of it,
+because the key says `ramp` already.
+
+Both ends are the same colour at another exposure — lightness, and the two
+colour axes with it, scaled together rather than the lightness alone — so the
+hue never moves and the band never leaves what the display can show. Everything
+after that is the ramp above: interpolated in Oklab, quantised into 64 steps,
+indexed per row.
+
+Three things follow, and they are easier read here than found on screen:
+
+- **Up is usually where the room is not.** A colour with a channel already at
+  `ff` — `#7fd4ff`, `#ff8800`, most saturated theme colours — cannot be
+  lightened at all, and is its own high end. That is the common case: the
+  colour you wrote, fading downwards.
+- **A dark colour bands upwards instead**, which is why both ends are derived
+  rather than one. `#0b3d91` has almost nothing below it and half again above,
+  and comes out spread over every one of the 64 steps.
+- **So the colour you wrote is somewhere in the band, not at a fixed end.** It
+  is always on it, but at the top for `#7fd4ff`, a sixth of the way up for
+  `#0b3d91`, and at the bottom for something darker still.
+
+The dark end stops where it does on the assumption of a **dark terminal**.
+supaline cannot check: Yazi exposes no background to read, and a flavour that
+sets none leaves your terminal's own showing through, which Yazi does not know
+either. On a light background the floor protects the wrong side — write two
+endpoints there.
+
+A colour with no room either way is refused rather than drawn flat, which in
+practice means `#000000`.
+
 ### `scale`
 
 How a value is turned into that position: `"linear"` spaces the values
@@ -360,8 +408,8 @@ Fields of a `[supaline]` section are named after the columns:
 # ~/.config/yazi/theme.toml
 [supaline]
 size  = "#0b3d91 -> #7fd4ff"
-mtime = { fg = "green", bold = true }
-owner = "blue"
+mtime = "#a6e3a1 <->"
+owner = { fg = "green", bold = true }
 ```
 
 A string is a colour or a ramp; a table is a style. **A theme cannot hold a
