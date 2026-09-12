@@ -200,24 +200,32 @@ column that styles its own spans can still set the ground under them.
 | `atime`       | 11    | right | Access time.                                      |
 | `permissions` | 10    | left  | Unix only.                                        |
 | `owner`       | 12    | left  | `user:group`. Unix only; numeric off this machine. |
+| `user`        | 8     | left  | The owning user alone, under the same rule.       |
+| `group`       | 8     | left  | The owning group alone, under the same rule.      |
 | `count`       | 5     | right | Entry count, directories only.                    |
 
 There is no `ctime` column: Yazi's `Cha` exposes `atime`, `btime` and `mtime`
 only.
 
-`owner` prints `501:20` rather than `user:group` for a file that is not on the
-machine Yazi is running on -- an SFTP one, say. The names come from this
-machine's passwd and group databases, and a remote file's numbers were minted
-on the server, where the same number is very likely a different account. Yazi's
-own `owner` linemode resolves them regardless, so the two disagree there on
-purpose.
+`user` and `group` are the two halves of `owner`, each drawn on its own, for a
+listing where only one of them is worth the cells. Eight cells is the
+traditional passwd limit rather than a measurement; a machine whose names run
+past it wants `width = "auto"`.
+
+All three print numbers -- `501`, `20`, `501:20` -- rather than names for a
+file that is not on the machine Yazi is running on, an SFTP one say. The names
+come from this machine's passwd and group databases, and a remote file's
+numbers were minted on the server, where the same number is very likely a
+different account. Yazi's own `owner` linemode resolves them regardless, so the
+two disagree there on purpose.
 
 Widths are stated rather than measured, so none of them renders the folder
 twice. Set `width = "auto"` on any of them to have it fit instead.
 
-They do each declare `stats`, and a column that declares `stats` takes one pass
-over the listing every time you enter a folder — cheap next to what Yazi has
-already done to list it, and the same pass a gradient reads from.
+`size` and the three times each declare `stats`, and a column that declares
+`stats` takes one pass over the listing every time you enter a folder — cheap
+next to what Yazi has already done to list it, and the same pass a gradient
+reads from.
 
 ## Writing a column
 

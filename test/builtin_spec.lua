@@ -130,6 +130,22 @@ test("owner: a remote file keeps its numbers, a local one gets names", function(
 	eq(render("owner", stub.file { uid = 501, gid = 20, url_kind = "mount" }), "501:20      ")
 end)
 
+test("user and group: the halves of `owner`, drawn on their own", function()
+	eq(render("user", stub.file { uid = 1, gid = 2 }), "user1   ")
+	eq(render("group", stub.file { uid = 1, gid = 2 }), "group2  ")
+	eq(render("user", stub.file {}), "        ")
+	eq(render("group", stub.file {}), "        ")
+end)
+
+test("user and group: a remote file keeps its numbers here too", function()
+	-- The same rule `owner` follows, and worth its own assertions: each of the
+	-- three reads `is_virtual` for itself, so one of them could lose it and
+	-- leave the other two green.
+	eq(render("user", stub.file { uid = 501, gid = 20, url_kind = "sftp" }), "501     ")
+	eq(render("group", stub.file { uid = 501, gid = 20, url_kind = "sftp" }), "20      ")
+	eq(render("user", stub.file { uid = 501, gid = 20, url_kind = "search" }), "user501 ")
+end)
+
 test("count: directories only", function()
 	with_history({ files = { 1, 2 } }, function()
 		eq(render("count", stub.file { name = "d", is_dir = true }), "    2")
