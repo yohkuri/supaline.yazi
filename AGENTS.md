@@ -40,6 +40,13 @@ spends whatever it has to in order to keep it -- scaling all three axes
 together while the display allows, and giving up chroma rather than hue once
 it does not. `colour.lua`'s `M.band` carries the measurements for both.
 
+Both ends of that band are **fixed lightnesses**, set plugin-wide by `band` in
+`setup` and not derived from the colour. The colour supplies the hue and
+nothing else, so it need not appear in the band it names -- black and white
+give the identical grey band, and neither is refused. Say so wherever the band
+is described: "spread a colour both ways" reads as though the written colour
+were an endpoint, which it was until `band` landed and is not now.
+
 Whether supaline ships status columns of its own — version control, dotfile
 management — is **undecided**. Do not describe them as planned or forthcoming,
 and do not justify a design choice by pointing at one; if such a column has to

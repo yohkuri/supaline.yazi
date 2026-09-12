@@ -63,54 +63,49 @@ local ARROW = "->"
 -- one, and the two spellings cannot disagree about what counts as a ramp.
 local BOTH = "<->"
 
--- How dark the derived end of a band is allowed to go, as an Oklab lightness.
+-- The two lightnesses a band runs between, as Oklab lightnesses, in the order
+-- a ratio walks them: `from` is what ratio 0 draws, `to` what ratio 1 draws.
 --
--- The premise underneath it is a dark terminal, and supaline has no way to
--- check: `types.yazi` declares no background for `th` to carry, and a flavor
--- that sets none leaves the terminal's own showing through, which is not
--- Yazi's to know either. On a light background the readable end is the dark
--- one and this floor protects the wrong side; writing two endpoints is the
--- way out, and the only one there is.
+-- **Both ends are fixed.** The colour that was written supplies the hue and
+-- nothing else; it is not placed in the band anywhere, and for a base outside
+-- these two numbers it is not on the band at all. What that buys is that two
+-- columns drawn from different hues put the same ratio at the same lightness,
+-- so a row can be read across them -- where a band widened to swallow whatever
+-- was written leaves the darkest cell of one column and the darkest cell of
+-- the next meaning different things.
 --
--- 0.35 because that is where a step stops being *lighter than* the ground it
--- is drawn on. Measured over five common dark grounds -- black, Mocha, One
--- Dark, Gruvbox dark, Solarized dark -- the lightest of them is One Dark at
--- an Oklab lightness of 0.293, and a floor of 0.30 puts the darkest step level
--- with it: contrast 1.00 over eight bases tried, which is a row drawn in the
--- background colour. 0.35 clears all five.
+-- `from = 0.35` is where a step stops being *lighter than* the ground it is
+-- drawn on. The premise under it is a dark terminal, and supaline has no way
+-- to check: `types.yazi` declares no background for `th` to carry, and a
+-- flavor that sets none leaves the terminal's own showing through, which is
+-- not Yazi's to know either. Measured over five common dark grounds -- black,
+-- Mocha, One Dark, Gruvbox dark, Solarized dark -- the lightest of them is One
+-- Dark at an Oklab lightness of 0.293, and a floor of 0.30 puts the darkest
+-- step level with it: contrast 1.00 over eight bases tried, which is a row
+-- drawn in the background colour. 0.35 clears all five.
 --
 -- What it is not is a readability threshold. Clearing a ground by 0.06 is
 -- worth a contrast of 1.20 at worst, well under what body text is held to, so
--- the bottom of a band is a colour a reader can see and not one they can
--- comfortably read. A band spends what room the base has; a column that has to
+-- the end of a band is a colour a reader can see and not one they can
+-- comfortably read. A band spends the room it is given; a column that has to
 -- be read at both ends wants two endpoints instead.
-local FLOOR = 0.35
-
--- And how light the other end is brought to, when the base's own hue runs out
--- of display before it gets there.
 --
--- Holding the hue exactly means the lightest a colour goes is the exposure
--- that puts its strongest channel at 255, and for a dark base that is not
--- light at all: `#0b3d91` stops at 0.59, against the 0.83 of a `#7fd4ff` a
--- two-ended ramp would have been given. On a real screen that reads as a band
--- that never brightens, which is what this number was added for.
+-- `to = 0.88` by looking, which is the only way a number like this gets
+-- settled. 0.83 was tried first and has an argument behind it -- it is where
+-- `#7fd4ff` sits, so a band around one would have agreed with a hand-written
+-- ramp to the byte -- and on a terminal it still read as a band that had not
+-- quite brightened. The two were drawn at 64 steps over four bases and
+-- compared side by side; 0.88 is the one that was easier to read.
 --
--- Past that point lightness is bought with chroma, the only currency there is:
--- the hue angle is held and the colour drawn at the most chroma the display
--- can show at that lightness.
---
--- 0.88 by looking, which is the only way a number like this gets settled.
--- 0.83 was tried first and has an argument behind it -- it is where `#7fd4ff`
--- sits, so a band around one would have agreed with a hand-written ramp to the
--- byte -- and on a terminal it still read as a band that had not quite
--- brightened. The two were drawn at 64 steps over four bases and compared side
--- by side; 0.88 is the one that was easier to read.
---
--- What it costs is that agreement. Nothing is left that a two-ended ramp
--- reaches and a band does not, and the price is that a base already as light
--- as `#7fd4ff` is lightened too rather than being its own top end -- only one
--- past 0.88, `#e8f4ff` and up, is left alone now.
-local CEILING = 0.88
+-- **A light terminal wants the pair the other way round**, which is the other
+-- half of what `setup`'s `band` is for: `{ from = 0.90, to = 0.35 }` puts the
+-- pale end at ratio 0 and the dark one at ratio 1, and nothing else has to
+-- change. 0.90 is the mirror of the default's own margin -- 0.35 clears the
+-- lightest dark ground by 0.057, and 0.90 clears the darkest light ground by
+-- 0.058, Latte's `#eff1f5` at 0.958. Its other end is not derivable and was
+-- not derived: 0.35 is there because the dark default's is, and a light
+-- terminal is worth looking at with `test/ramp.lua` before settling on one.
+local DEFAULT_BAND = { from = 0.35, to = 0.88 }
 
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 
@@ -226,6 +221,79 @@ end
 ---@return boolean
 function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1, true) ~= nil end
 
+--- The band `setup` was given, checked, or the default when it was given none.
+---
+--- Checked here rather than in `main.lua` because the pair means something
+--- only to this file, and because `test/ramp.lua` takes one on the command
+--- line and wants the refusals a user's `init.lua` gets.
+---
+--- A lightness of 0 is black whatever the hue, so an end there is one no
+--- colour reaches and a step most themes draw in their own background; `(0, 1]`
+--- is the range with anything in it. Written as `v > 0 and v <= 1` and negated
+--- rather than as the complement, because a NaN answers false to both and has
+--- to land on the refusing side -- `math.huge / math.huge` in a user's own
+--- arithmetic is the way one arrives.
+---
+--- Equal ends are refused too. Sixty-four steps of one colour is a flat
+--- colour, which is what `base` already is, and a user who meant that would
+--- have written it.
+---@param value any what `setup` was given, if anything
+---@param where string
+---@return { from: number, to: number }
+function M.bounds(value, where)
+	if value == nil then
+		return DEFAULT_BAND
+	elseif type(value) ~= "table" then
+		error(
+			string.format(
+				"supaline: %s must be a table of two lightnesses, as "
+					.. "`{ from = 0.35, to = 0.88 }` -- `from` is what ratio 0 draws and `to` "
+					.. "what ratio 1 draws, so a light terminal writes the larger one first",
+				where
+			)
+		)
+	end
+
+	local out = {}
+	for _, k in ipairs { "from", "to" } do
+		local v = value[k]
+		if type(v) ~= "number" then
+			error(
+				string.format(
+					"supaline: %s: `%s` must be an Oklab lightness, a number above 0 and at " .. "most 1, got `%s`",
+					where,
+					k,
+					tostring(v)
+				)
+			)
+		elseif not (v > 0 and v <= 1) then
+			error(
+				string.format(
+					"supaline: %s: `%s` must be above 0 and at most 1, got %s. 0 is black at "
+						.. "every hue and 1 is the lightest Oklab has",
+					where,
+					k,
+					tostring(v)
+				)
+			)
+		end
+		out[k] = v
+	end
+
+	if out.from == out.to then
+		error(
+			string.format(
+				"supaline: %s: `from` and `to` are both %s, so every step would be the same "
+					.. "colour. That is a flat colour rather than a band; write it as `base`, "
+					.. "or move one end",
+				where,
+				tostring(out.from)
+			)
+		)
+	end
+	return out
+end
+
 --- Take the `<->` off a value that carries one.
 ---
 --- Only the marker is removed; what is left is a colour like any other, and
@@ -265,15 +333,16 @@ end
 --- ours. Guessing them would put a ramp on screen whose ends did not meet the
 --- terminal's own cyan, which is worse than being told to write the colour out.
 ---
---- **One colour is a band**, and `M.band` derives the second end from it. That
---- is the whole of the difference between the two spellings: `<->` and a spec's
+--- **One colour is a band**, and `M.band` derives both ends from it. That is
+--- the whole of the difference between the two spellings: `<->` and a spec's
 --- bare `ramp = "#ff8800"` both arrive here as a list of one, and everything
 --- downstream -- the interpolation, the quantisation, the styles, the row
 --- lookup -- is the same code as for endpoints written out.
 ---@param value string|string[]
 ---@param where string
+---@param band { from: number, to: number }? the default when omitted
 ---@return integer[][]
-function M.stops(value, where)
+function M.stops(value, where, band)
 	local written
 	if type(value) == "string" then
 		local body, marked = unmark(value)
@@ -318,7 +387,7 @@ function M.stops(value, where)
 		-- Forward, through the table: the band is Oklab arithmetic and the
 		-- locals it runs on are declared below, where the rest of that
 		-- arithmetic lives. Reachable by the time anything calls this.
-		return M.band(stops[1], where)
+		return M.band(stops[1], band)
 	end
 	return stops
 end
@@ -441,19 +510,19 @@ local function chroma_at(L, ua, ub)
 	return lo
 end
 
---- The two ends one colour stands for: as dark as a column stays visible
---- against the terminal, and as light as `CEILING` asks for.
+--- The two ends one colour stands for: the band's two lightnesses, drawn in
+--- the base's own hue, in the order a ratio walks them.
 ---
---- The **hue is held exactly** the whole way, and everything else here is in
---- service of that. Both ends sit on the one ray out of Oklab's lightness axis
---- that the base sits on, so every step between them does too: a straight line
+--- The **hue is held exactly** at both ends, and everything else here is in
+--- service of that. Both sit on the one ray out of Oklab's lightness axis that
+--- the base sits on, so every step between them does too: a straight line
 --- between two multiples of the same direction is more of that direction.
 ---
---- Down, and up as far as the display allows, that ray is walked by scaling
---- `L`, `a` and `b` **together** -- an exposure change. Measured over seven
---- colours at four factors on this file's own arithmetic, scaling the three by
---- `s` gives, to the byte, the linear sRGB of the original multiplied by `s`
---- cubed. Nothing leaves the gamut on the way down, and the colour keeps its
+--- Along that ray, as far as the display allows, a lightness is reached by
+--- scaling `L`, `a` and `b` **together** -- an exposure change. Measured over
+--- seven colours at four factors on this file's own arithmetic, scaling the
+--- three by `s` gives, to the byte, the linear sRGB of the original multiplied
+--- by `s` cubed. Nothing leaves the gamut going down, and the colour keeps its
 --- character rather than merely its hue.
 ---
 --- Moving `L` alone is what eza does, and it is the reason not to: with `a`
@@ -462,70 +531,68 @@ end
 --- at hue 32 degrees at the bottom and 90 at the top, from 56.5; `#0b3d91`
 --- arrives at 196 from 260.7, a navy drawn as cyan.
 ---
---- Up, the exposure runs out first, and that is what `CEILING` is about. The
---- factor that puts the strongest channel at 255 is the last one in gamut, so
---- `#7fd4ff` and `#ff8800` -- a channel already there -- cannot be lightened
---- by it at all, and `#0b3d91` only reaches 0.59. Above that the ray is walked
---- by lightness alone, at whatever chroma the display can still show, which is
---- the one thing that can be given up without moving the hue.
+--- Going up the exposure runs out first. The factor that puts the strongest
+--- channel at 255 is the last one in gamut, so `#7fd4ff` and `#ff8800` -- a
+--- channel already there -- cannot be lightened by it at all, and `#0b3d91`
+--- only reaches 0.59. Above that the ray is walked by lightness alone, at
+--- whatever chroma the display can still show, which is the one thing that can
+--- be given up without moving the hue. Chroma can fall all the way to zero and
+--- a grey is in gamut at every lightness, so **every lightness is reachable**
+--- and no pair of bounds is one a base cannot be drawn at.
 ---
 --- Two consequences worth knowing before writing a band rather than finding
 --- them on screen:
 ---
---- * **A dark colour is not a dim band.** `#0b3d91` comes out spread over 0.35
----   to `CEILING` in lightness with every step of the ramp distinct, where the
+--- * **A dark colour is not a dim band.** `#0b3d91` comes out spread over the
+---   full 0.35 to 0.88 with every step of the ramp distinct, where the
 ---   exposure alone would have stopped at 0.59 and a floor alone at 0.39.
---- * **The written colour is somewhere in the band, not at an end.** It is on
----   it wherever its own lightness falls -- at the top for a colour already at
----   `CEILING` with chroma to spare, at the bottom for one darker than `FLOOR`,
----   and in between for the rest.
+--- * **The written colour supplies the hue and nothing else.** It is not put
+---   on the band anywhere, and unless its own lightness happens to fall
+---   between the two bounds it is not on it at all.
 ---@param rgb integer[]
----@param where string
----@return integer[][] two stops, dark end first
-function M.band(rgb, where)
+---@param band { from: number, to: number }? the default when omitted
+---@return integer[][] two stops, ratio 0 first
+function M.band(rgb, band)
+	band = band or DEFAULT_BAND
+
 	local L, A, B = to_oklab(rgb)
-	if L <= 0 then
-		error(
-			string.format(
-				"supaline: %s: `#%02x%02x%02x` cannot be spread. It has no lightness to scale "
-					.. "and no hue to hold on to, so there is no band around it to draw. Write "
-					.. "two endpoints with `->`",
-				where,
-				rgb[1],
-				rgb[2],
-				rgb[3]
-			)
-		)
-	end
+	local chroma = math.sqrt(A * A + B * B)
 
 	-- Linear scales as the cube, so the cube root of the headroom is the
 	-- factor that lands the strongest channel exactly on 255.
 	local peak = math.max(to_linear(rgb[1]), to_linear(rgb[2]), to_linear(rgb[3]))
 	local up = peak > 0 and (1 / peak) ^ (1 / 3) or 1
-	local down = L > FLOOR and FLOOR / L or 1
 
-	local lo = { from_oklab(L * down, A * down, B * down) }
-
-	local hi
-	if L * up >= CEILING then
-		hi = { from_oklab(L * up, A * up, B * up) }
-	else
-		local chroma = math.sqrt(A * A + B * B)
-		if chroma == 0 then
-			-- A grey has no hue to hold and no chroma to spend; the lightness
-			-- is the whole of it, and `chroma_at` would be asked for the most
-			-- of nothing in a direction that does not exist.
-			hi = { from_oklab(CEILING, 0, 0) }
-		else
-			local ua, ub = A / chroma, B / chroma
-			-- Never more chroma than the exposure would have reached, so a
-			-- colour is not made more vivid than the one that was written on
-			-- its way to being made lighter.
-			local c = math.min(chroma * (CEILING / L), chroma_at(CEILING, ua, ub))
-			hi = { from_oklab(CEILING, c * ua, c * ub) }
+	--- The base drawn at one lightness, hue held. Both ends go through this,
+	--- which is what makes them the same kind of thing: which of the two is
+	--- lighter is `band`'s business and not this function's.
+	---@param target number
+	---@return integer[]
+	local function at(target)
+		if L <= 0 or chroma == 0 then
+			-- A grey has no hue to hold and no chroma to spend, so its
+			-- lightness is the whole of it and `chroma_at` would be asked for
+			-- the most of nothing in a direction that does not exist. Black
+			-- lands here too, and is not refused: `#000000`, `#767676` and
+			-- `#ffffff` all give the identical band, so black is not a special
+			-- case but the one every grey shares.
+			return { from_oklab(target, 0, 0) }
 		end
+
+		local s = target / L
+		if L * up >= target then
+			return { from_oklab(L * s, A * s, B * s) }
+		end
+
+		-- Never more chroma than the exposure would have reached, so a colour
+		-- is not made more vivid than the one that was written on its way to
+		-- being made lighter.
+		local ua, ub = A / chroma, B / chroma
+		local c = math.min(chroma * s, chroma_at(target, ua, ub))
+		return { from_oklab(target, c * ua, c * ub) }
 	end
-	return { lo, hi }
+
+	return { at(band.from), at(band.to) }
 end
 
 --- Quantise a set of endpoints into the colours a column draws.
@@ -536,7 +603,7 @@ end
 --- last Tuesday -- and a ratio between a folder's extremes has no idea what
 --- either of those means.
 ---@param stops integer[][]
----@return string[] `STEPS` colours, low end first
+---@return string[] `STEPS` colours, the first stop's end first
 function M.ramp(stops)
 	-- `M.stops` refuses a single colour on the way in, but this is reachable
 	-- without it and `segments` would then be zero: `lab[seg + 1]` is nil and
@@ -566,7 +633,7 @@ function M.ramp(stops)
 	return out
 end
 
---- The styles a ramp draws, low end first: the endpoints as the user wrote
+--- The styles a ramp draws, ratio 0 first: the endpoints as the user wrote
 --- them, resolved, quantised, and each step patched onto `ground`.
 ---
 --- The whole way from what a user wrote to what a row is drawn in stays inside
@@ -583,10 +650,11 @@ end
 ---@param value string|string[] the endpoints, as written
 ---@param ground unknown the ui.Style each step is patched onto
 ---@param where string
----@return unknown[] `STEPS` styles, low end first
-function M.styles(value, ground, where)
+---@param band { from: number, to: number }? the default when omitted
+---@return unknown[] `STEPS` styles, ratio 0 first
+function M.styles(value, ground, where, band)
 	local out = {}
-	for i, hex in ipairs(M.ramp(M.stops(value, where))) do
+	for i, hex in ipairs(M.ramp(M.stops(value, where, band))) do
 		out[i] = ground:patch(ui.Style():fg(hex))
 	end
 	return out

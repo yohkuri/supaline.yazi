@@ -414,6 +414,52 @@ test("theme: one colour with `<->` is a gradient a theme can ask for", function(
 	end)
 end)
 
+test("theme: `band` in `setup` moves both ends of every band", function()
+	-- The plugin-wide knob, and the reason it is plugin-wide: a band is a claim
+	-- about what the terminal can show, and a terminal does not change between
+	-- one column and the next.
+	with_theme({ size = "#0b3d91 <->" }, function()
+		setup({ detail = { { "size", width = 4 } } }, { band = { from = 0.50, to = 0.70 } })
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#649cff", "the high end")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#155ace", "and the low one")
+	end)
+end)
+
+test("theme: a band written backwards is what a light terminal asks for", function()
+	-- `from` is what ratio 0 draws, so the pair carries its own direction and
+	-- inverting it is writing it the other way round. Nothing else changes:
+	-- the same two lightnesses, the same hue, the largest file now dark.
+	with_theme({ size = "#0b3d91 <->" }, function()
+		setup({ detail = { { "size", width = 4 } } }, { band = { from = 0.88, to = 0.35 } })
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#08347f", "the largest file is dark")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#c2d9ff", "and the smallest pale")
+	end)
+end)
+
+test("theme: a band survives a theme reload", function()
+	-- `build()` re-runs `compile(specs, cfg)`, so anything in `cfg` has to
+	-- reach the rebuilt ramp as well as the first one. A band read at setup and
+	-- then dropped would go back to the default the next time `app:theme`
+	-- fired, which is a colour changing under the user for no reason on screen.
+	with_theme({ size = "#0b3d91 <->" }, function()
+		setup({ detail = { { "size", width = 4 } } }, { band = { from = 0.88, to = 0.35 } })
+		stub.fire("theme")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#08347f")
+	end)
+end)
+
+test("setup: a band that is not two lightnesses is refused, and changes nothing", function()
+	setup { good = { { "size", width = 3 } } }
+	local before = draw("good", CURRENT.files[1])
+
+	throws(
+		---@diagnostic disable-next-line: assign-type-mismatch
+		function() main.setup({}, { linemodes = { good = { "size" } }, band = { from = 0.35 } }) end,
+		"`band` in `setup`"
+	)
+	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
+end)
+
 test("theme: a colour in the spec replaces a themed ramp outright", function()
 	-- One source decides the whole colour. Half of it from the spec and half
 	-- from the theme would be a rule nobody could hold in their head, and it is
