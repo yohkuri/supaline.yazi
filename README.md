@@ -182,6 +182,7 @@ about the folder is what changed.
 | `ctx.base`     | What to draw a row with no value in: the ramp's low end, or the flat colour. |
 | `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
 | `ctx.opts`     | The options written in the spec, verbatim.                   |
+| `ctx.source`   | Which of the three said what `base` is: `"spec"`, `"theme"` or `"definition"`. |
 | `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
 | `ctx.style(r)` | The style for that position on the column's ramp; `ctx.base` when there is no ramp, and for `nil`. |
 
@@ -198,7 +199,7 @@ column that styles its own spans can still set the ground under them.
 | `mtime`       | 11    | right | `ctx.opts.format` takes an `os.date` format; the default is Yazi's own. |
 | `btime`       | 11    | right | Birth time.                                       |
 | `atime`       | 11    | right | Access time.                                      |
-| `permissions` | 10    | left  | Unix only.                                        |
+| `permissions` | 10    | left  | Unix only. Coloured from your theme, a character at a time. |
 | `owner`       | 12    | left  | `user:group`. Unix only; numeric off this machine. |
 | `user`        | 8     | left  | The owning user alone, under the same rule.       |
 | `group`       | 8     | left  | The owning group alone, under the same rule.      |
@@ -206,6 +207,16 @@ column that styles its own spans can still set the ground under them.
 
 There is no `ctime` column: Yazi's `Cha` exposes `atime`, `btime` and `mtime`
 only.
+
+`permissions` is the one built-in that takes its colours from your theme rather
+than carrying any of its own. Each character is drawn in the `[status]` style
+Yazi's own status bar would give it -- `perm_type` for the `d` or the `l`,
+`perm_read`, `perm_write`, `perm_exec`, and `perm_sep` for every bit that is
+off -- so a flavor that already says what a write bit looks like says it in the
+linemode too, with nothing to set up. Writing a colour for the column turns
+that off rather than layering over it: a `base` in the spec or a
+`[supaline] permissions` field in your theme is a flat colour for the whole
+cell, and the characters stop being coloured apart.
 
 `user` and `group` are the two halves of `owner`, each drawn on its own, for a
 listing where only one of them is worth the cells. Eight cells is the

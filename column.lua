@@ -97,6 +97,7 @@ local colour = require(".colour")
 --- than here, because a column that reaches for them is reaching past `ratio`.
 ---@class supaline.Ctx
 ---@field base unknown what to draw a row with no value in: the ramp's low end, or the flat colour
+---@field source "spec"|"theme"|"definition" which of the three said what `base` is
 ---@field opts table the options the column was specified with
 ---@field stats any whatever this column's `stats` returned for the folder
 ---@field width integer? the effective width, `max_width` already applied
@@ -489,7 +490,12 @@ function M.normalize(spec, cfg)
 	-- may carry no colour of its own at all, so falling back to it would leave
 	-- a directory in `size` uncoloured beside files that are not -- or worse,
 	-- in the column definition's own default, which the user has just replaced.
-	local ctx = { base = ramp and ramp[1] or ground, opts = opts, stats = nil, width = col.fixed }
+	--
+	-- `source` rather than a flag, because a render that wants to know is
+	-- asking which file to leave alone: `permissions` draws itself out of the
+	-- theme's own `[status]` styles and has to stop the moment a colour was
+	-- written for it, wherever it was written.
+	local ctx = { base = ramp and ramp[1] or ground, source = source, opts = opts, stats = nil, width = col.fixed }
 	col.ctx = ctx
 
 	--- Where `value` sits between the extremes of the current listing, 0 to 1.

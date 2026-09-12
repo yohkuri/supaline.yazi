@@ -121,11 +121,86 @@ register_time("mtime")
 register_time("btime")
 register_time("atime")
 
+--- The `[status]` style Yazi draws each permission character in, and the one
+--- everything else takes -- the type character, whatever letter it turns out
+--- to be.
+---
+--- Keyed on the character rather than on the position, which is what Yazi
+--- does: measured against the status bar of a real 26.9.1, the leading `-` of
+--- a regular file draws in `perm_sep` like any other bit that is off, and only
+--- a type character that is *not* `-` reaches `perm_type`. `d`, `l`, `r`, `w`,
+--- `x`, `s`, `t` and `-` were each produced and read back out of
+--- `tmux capture-pane -e`; `S` and `T` -- a setuid or sticky bit with the
+--- execute bit off -- were not, and go to `perm_exec` beside `s` and `t` on
+--- the strength of the pattern rather than a measurement.
+local PERM, PERM_TYPE = {}, nil
+
+--- Re-read the permission styles. Declared as the column's `refresh` hook, so
+--- main.lua runs it whenever a linemode is installed -- which is what a `theme`
+--- event does -- and on every `cd`.
+---
+--- That hook is the whole of why this column can read the theme at all. A
+--- `th.status` read while `init.lua` runs is Yazi's preset: 26.9.1 merges
+--- `theme.toml` before any plugin code runs but not the flavor, which arrives
+--- with an unasked `theme` event a few milliseconds later. `refresh` runs
+--- after both, and again after every reload.
+local function refresh_perms()
+	local st = th.status or {}
+	PERM_TYPE = st.perm_type
+	PERM = {
+		["-"] = st.perm_sep,
+		r = st.perm_read,
+		w = st.perm_write,
+		x = st.perm_exec,
+		s = st.perm_exec,
+		t = st.perm_exec,
+		S = st.perm_exec,
+		T = st.perm_exec,
+	}
+end
+
+--- One span per character of `perm`.
+---
+--- Ten `ui.Span` allocations per row per frame, and no way around them: a
+--- listing shows a handful of distinct permission strings over dozens of rows,
+--- but **`ui.Line` consumes the spans it is given**, so a list built once and
+--- kept cannot be drawn twice. Measured on 26.9.1 -- the second `ui.Line` over
+--- the same table raises `expected a string, Span, Line, or a table of them`,
+--- and a linemode that raises stops drawing the pane. The styles are what the
+--- `refresh` hook is for; only the spans are rebuilt.
+---@param perm string
+---@return table[] spans
+local function perm_spans(perm)
+	local spans = {}
+	for i = 1, #perm do
+		local c = perm:sub(i, i)
+		local style = PERM[c] or PERM_TYPE
+		spans[i] = style and ui.Span(c):style(style) or ui.Span(c)
+	end
+	return spans
+end
+
+-- The only built-in column that draws itself out of the *theme* rather than a
+-- colour of its own, and it does it by following Yazi's own status bar rather
+-- than by inventing a mapping: a user whose flavor already says what a write
+-- bit looks like sees the same thing in both places, with nothing to configure.
+--
+-- Which is why it steps aside the moment the user says anything about colour.
+-- A `base` in the spec or a `[supaline] permissions` field in the theme is a
+-- flat colour for the whole cell, and painting the characters over it would
+-- leave the written colour visible nowhere and say nothing about why.
 column.register("permissions", {
 	width = 10,
 	align = "left",
+	refresh = refresh_perms,
 	---@type supaline.Render
-	render = function(file, ctx) return file.cha:perm() or "", ctx.base end,
+	render = function(file, ctx)
+		local perm = file.cha:perm() or ""
+		if perm == "" or ctx.source ~= "definition" then
+			return perm, ctx.base
+		end
+		return ui.Line(perm_spans(perm))
+	end,
 })
 
 --- One half of a file's ownership, as text, or nothing at all on a platform

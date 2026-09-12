@@ -17,6 +17,7 @@ detached tmux, with a probe plugin and `ya.dbg`.
 ## Contents
 
 - What is merged before any plugin code runs, and what is not
+- How Yazi colours a permission string
 - What the two theme pins discriminate
 - A fetcher that returns a boolean
 - What pins the parent-pane child
@@ -62,6 +63,26 @@ because **a colour cannot be read out of a `ui.Style` from Lua**: `fg` and `bg`
 are setters and raise when called with no argument, and `getmetatable` on one
 returns `false`. The screen is the only reader. That is also why a flavor
 cannot supply a gradient endpoint, which needs `#rrggbb` channels.
+
+## How Yazi colours a permission string
+
+Measured by hovering each file of a fixture and reading the status bar's own
+permission cell out of `tmux capture-pane -e`, against catppuccin-mocha:
+
+| character | `[status]` style | colour drawn |
+| --------- | ---------------- | ------------ |
+| `d`, `l` | `perm_type` | `#89b4fa` |
+| `r` | `perm_read` | `#f9e2af` |
+| `w` | `perm_write` | `#f38ba8` |
+| `x`, `s`, `t` | `perm_exec` | `#a6e3a1` |
+| `-` | `perm_sep` | `#7f849c` |
+
+It is the character that decides, not the position: the leading `-` of a
+regular file draws in `perm_sep` like any other off bit, and only a type
+character that is not `-` reaches `perm_type`. `S` and `T` — a setuid or
+sticky bit with the execute bit off — were never produced, so the built-in
+column's mapping sends them to `perm_exec` beside `s` and `t` on the strength
+of the pattern rather than a measurement.
 
 ## What the two theme pins discriminate
 
