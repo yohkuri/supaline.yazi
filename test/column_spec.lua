@@ -168,6 +168,20 @@ test("cell: a renderable comes back padded around, not inside", function()
 	eq(text_of(out), "   ab")
 end)
 
+test("cell: a span drawn a second time is refused, the way Yazi refuses it", function()
+	-- Yazi *moves* a span into the line it is put in, so a render that builds a
+	-- list once and hands it back for every row raises on the second row and
+	-- the pane stops drawing. Measured on 26.9.1 and reproduced by the stub
+	-- deliberately: nothing else would tell the difference between caching the
+	-- spans and caching the styles, and caching the spans is what a column
+	-- drawing one character at a time invites.
+	local kept = { ui.Span("a"), ui.Span("b") }
+	local col = column.normalize({ render = function() return ui.Line(kept) end, width = 2 }, CFG)
+
+	eq(text_of(column.cell(col, stub.file {})), "ab")
+	throws(function() column.cell(col, stub.file {}) end, "already been put in a Line")
+end)
+
 test("cell: a truncated renderable is padded back to width", function()
 	-- `Line:truncate` returns at most `width`, exactly like `ui.truncate`: a
 	-- wide character straddling the edge comes back a cell short. Left
