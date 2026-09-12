@@ -378,6 +378,11 @@ run  = "linemode c_hue"
 desc = "supaline: a ramp that turns in hue"
 
 [[mgr.prepend_keymap]]
+on   = [ "c", "b" ]
+run  = "linemode c_band"
+desc = "supaline: a ramp derived from one colour"
+
+[[mgr.prepend_keymap]]
 on   = [ "c", "g" ]
 run  = "linemode c_bg"
 desc = "supaline: a ramp over a background"
@@ -449,6 +454,21 @@ local COOL = "#0b3d91 -> #7fd4ff"
 -- columns there have to carry the *same* ramp for `e2e.sh` to read a row's two
 -- cells against each other, and two literals can drift where one cannot.
 local HUE = "#0b3d91 -> #ffd400"
+
+-- The band `c_band` draws, written with the marker even though a spec does not
+-- need it: what the marker spreads is the same either way, and a reader
+-- comparing this against `c_ramp` should see the spelling that put it there.
+--
+-- Spelled out in prose rather than quoted, and that is not a style point: the
+-- second search below reads "a line with an arrow in it" as a ramp the first
+-- one missed, and the marker has an arrow inside it. A comment here that
+-- quoted one would stop the fixture building.
+--
+-- The same navy `COOL` starts from, which is the comparison worth having on
+-- two keys. It is also the case the band exists for: `#0b3d91` has almost no
+-- room below it and half again above, so a band anchored at the colour and
+-- falling to the floor would be nearly flat, and this one is not.
+local BAND = "#0b3d91 <->"
 
 -- The background `c_bg` puts under that ramp. Picked by measurement rather
 -- than taste, because it has to answer to two things at once: the terminal
@@ -597,7 +617,7 @@ supaline:setup({
 		-- folder being drawn is what decides which part of a ramp reaches the
 		-- screen; `MANUAL.md` says which goes with which.
 		--
-		-- Four of the five write their endpoints here rather than taking them
+		-- Five of the six write their colours here rather than taking them
 		-- from the theme, and that is the point: a spec's `base` or `ramp` wins
 		-- over `[supaline]`, so these hold still while `c 1` to `c 3` swap the
 		-- theme underneath them. `c_theme` colours nothing in the spec and is
@@ -621,6 +641,16 @@ supaline:setup({
 		c_hue = {
 			{ "ratio", ramp = HUE },
 			{ "mtime", ramp = HUE },
+		},
+
+		-- c b, in `colour/ramp`: the same rows again, on a ramp with no endpoints
+		-- written anywhere -- both of them derived from the one colour in
+		-- `BAND`. Beside `c r` it is the pair worth looking at: the same navy,
+		-- spread by supaline rather than by hand, and the question a reader is
+		-- the only instrument for is whether what it chose is worth drawing.
+		c_band = {
+			{ "ratio", ramp = BAND },
+			{ "mtime", ramp = BAND },
 		},
 
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,
@@ -705,8 +735,11 @@ EOF
 # unquoted at each use on purpose: the glob is expanded there, so a theme added
 # later is picked up by both.
 RAMP_SOURCES="$DIR/config/init.lua $DIR/themes/*.toml"
+# Two alternatives, because a band is not a short ramp: it has one colour and
+# the marker sits beside it rather than between two of them. `<->` first, so
+# the arrow inside it cannot be matched as a ramp with an empty end.
 # shellcheck disable=SC2086 # the split and the glob above are the point
-grep -hoE '"#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+"' $RAMP_SOURCES |
+grep -hoE '"(#[0-9a-fA-F]{6}[[:space:]]*<->|#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+)"' $RAMP_SOURCES |
 	tr -d '"' | sort -u >"$DIR/ramps.txt"
 
 # And a second, looser search saying the first one caught everything. Nothing
@@ -716,7 +749,8 @@ grep -hoE '"#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+"' $RAMP_
 # A pipeline's status is its last command's, so the `grep` above cannot report
 # a miss by failing either.
 #
-# The arrow is what a flat colour can never contain, which makes "a line with an
+# The arrow is what a flat colour can never contain -- a band carries one inside
+# `<->`, which is why it is spelled that way -- and that makes "a line with an
 # arrow in it" a test that does not share the pattern above's assumptions: a
 # single-quoted TOML string, an unusual spacing, a third stop. `-F` matches a
 # manifest entry anywhere in the line, so a line whose ramp was caught is
