@@ -252,5 +252,5 @@ and a fenced block quoting Yazi's source or its output verbatim. Table
 alignment is not checked at all, because `test/MANUAL.md` pads its tables to
 the width the screen draws Japanese at and the rule measures characters.
 
-Both linters see only what Git tracks. Personal files are ignored, translations
-under `.ai-local/` included.
+Both linters see only what Git tracks. A personal file is out of scope
+wherever a contributor keeps one.

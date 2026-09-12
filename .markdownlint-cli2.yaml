@@ -6,10 +6,9 @@
 #
 #     npx --yes markdownlint-cli2@0.19
 #
-# Anything Git ignores is out of scope, which is what keeps the personal
-# directories out. `.ai-local/` holds Japanese translations of these documents,
-# and MD013 counts characters rather than columns, so it has nothing to say
-# about a line whose characters are two cells wide.
+# Anything Git ignores is out of scope, which is what keeps a contributor's
+# personal files out of it -- the ones `.gitignore` names, and the ones only
+# their own excludes do.
 gitignore: true
 
 globs:
