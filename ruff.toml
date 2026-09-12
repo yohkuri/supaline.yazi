@@ -1,0 +1,25 @@
+# ruff, over `.github/scripts` -- the one place this repository keeps Python.
+#
+# `stylua.toml` next to this is upstream's and stays verbatim; nothing
+# upstream exists to copy for Python, so this file is ours and every line in
+# it is a decision:
+#
+# Pinned on the command rather than here, as `AGENTS.md` and `check.yml` say:
+#
+#     uvx ruff@0.16.7 check .github/scripts
+#     uvx ruff@0.16.7 format --check .github/scripts
+#
+# `format` is given a path rather than the tree because it reformats the
+# Python inside a fenced block, and the documents are markdownlint's.
+
+# The wrap every document here keeps, and `.markdownlint-cli2.yaml` enforces.
+# ruff's own default is 88.
+line-length = 80
+
+[lint]
+# The default is E4, E7, E9 and F -- syntax, imports, and names that are not
+# there. These four are the ones that had something to say about the only
+# Python file here: a comprehension that copies a list (C4), a module-level
+# `global` (PLW), an import block in an order nobody chose (I), and a `return`
+# written the long way (RET).
+extend-select = ["C4", "I", "PLW", "RET"]
