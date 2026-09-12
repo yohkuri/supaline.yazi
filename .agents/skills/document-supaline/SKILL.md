@@ -77,7 +77,11 @@ that fits is the cheapest one that works.
    rule about what the source *says*: a forbidden name, a required
    annotation, where a call has to sit, a frontmatter field that has to stay
    inside a limit. A `grep` covers most of them; reach past one when the rule
-   needs more, as two of the steps there already do.
+   needs more, as two of the steps there already do. When a rule needs more
+   than `bash -e` can hold — a real parse, or a library someone else
+   maintains — it goes in a script under `.github/scripts/` that the step
+   calls, as `skills.py` does; what stays in the YAML is the reason, not the
+   logic.
 2. **A spec under `test/`** — for a rule about what this repository's own code
    *does* with a given input.
 3. **A stub that raises** — for a rule about what Yazi accepts, including the
@@ -166,10 +170,12 @@ belongs either in the first or in a file `SKILL.md` links itself.
 
 `Skills match the Agent Skills specification` refuses the half that can be
 counted: the frontmatter limits below, a body over 500 lines, and a reference
-over 100 whose `## Contents` does not name every section it has. Passing it
-means nothing about the three questions above. It has never reported anything,
-which is a reason to go and plant something for it rather than a reason to
-trust it.
+over 100 whose `## Contents` does not name every section it has. The
+frontmatter is parsed rather than read a line at a time, so a duplicate key or
+a field the specification does not define is refused as well. Passing it means
+nothing about the three questions above — and every rule in it has been seen
+refusing a planted violation, which is the only thing separating a check that
+works from one that exits 0.
 
 ## What a description owes a reader who has not opened it
 

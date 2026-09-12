@@ -179,6 +179,10 @@ test/manual.sh                    # ... interactively, for a human to look at
 stylua --check .                  # Lua formatting
 lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
+uv run .github/scripts/skills.py  # Agent Skills
+
+uvx ruff@0.16.7 check .github/scripts           # that script's own lint
+uvx ruff@0.16.7 format --check .github/scripts  # ... and its formatting
 ```
 
 The unit suite runs on **Lua 5.5**, the version Yazi embeds, and `test/run.lua`
@@ -199,6 +203,19 @@ records passed around, and the configuration `setup` is given — so
 `cfg.orderr`, `opts.linemodess` and `spec.paness` are refused where they used
 to cost nothing. Where that reach stops, and the rules for declaring a class of
 this plugin's own, are in `annotate-supaline`.
+
+`.github/scripts/skills.py` reads the skills under `.agents/skills` against the
+Agent Skills specification. `uv run` is the whole of what it needs and not a
+detail: the `skills-ref` pin sits in that script's own header, uv is what reads
+it, and CI runs the same line — so the version is named once. The
+specification's half of the check is that library, the one the specification
+points at for this; the rest is this repository's, and the script says which
+is which beside each rule. `uvx ruff@0.16.7` holds that file to what stylua
+holds the Lua to; its pin sits on the command rather than in the header
+because ruff is a tool this repository runs, not something the script imports.
+It is given a path rather than the tree the other linters get: `ruff format`
+reformats the Python inside a fenced block, and the documents are
+markdownlint's.
 
 `test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
 deliberately not in CI. Run them yourself before claiming anything about the
