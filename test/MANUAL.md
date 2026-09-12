@@ -307,10 +307,10 @@ that they are.
 
 ### `c b` — a band nobody wrote the ends of
 
-In `g 3`, the same rows on `#0b3d91 <->`. One colour, spread as far as it goes
-each way: as light as that navy can be drawn, and as dark as a column stays
-visible. Press `c r` and `c b` one after the other — the same rows, the same
-navy, endpoints chosen by hand and endpoints derived.
+In `g 3`, the same rows on `#0b3d91 <->`. One colour, spread both ways: as dark
+as a column stays visible, and as light as the hue allows. Press `c r` and `c b`
+one after the other — the same rows, the same navy, endpoints chosen by hand
+and endpoints derived.
 
 - **Is the spread worth drawing?** `e2e.sh` already knows every step differs
   from the one above it, the same way it knows for `c r`. What it cannot ask is
@@ -321,10 +321,10 @@ navy, endpoints chosen by hand and endpoints derived.
   it was picked for or it is not. If the first rows are sunk into the
   background, that assumption has just failed on your terminal and the fix is
   two endpoints, not a different floor.
-- **The top.** Nothing was chosen for it: it is as light as the hue goes before
-  the display runs out. Whether that reads as the same colour or as a different
-  one is the judgement `c r` does not need, because there both ends were
-  written down.
+- **The top.** It climbs past where `c r` ends and gives up chroma to get
+  there, so it is paler than the navy it came from and paler than `c r`'s own
+  last row. Whether that reads as the same colour or as a different one is the
+  judgement `c r` does not need, because there both ends were written down.
 
 ### `c h` — a ramp that turns
 

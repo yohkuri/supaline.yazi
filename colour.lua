@@ -86,6 +86,32 @@ local BOTH = "<->"
 -- be read at both ends wants two endpoints instead.
 local FLOOR = 0.35
 
+-- And how light the other end is brought to, when the base's own hue runs out
+-- of display before it gets there.
+--
+-- Holding the hue exactly means the lightest a colour goes is the exposure
+-- that puts its strongest channel at 255, and for a dark base that is not
+-- light at all: `#0b3d91` stops at 0.59, against the 0.83 of a `#7fd4ff` a
+-- two-ended ramp would have been given. On a real screen that reads as a band
+-- that never brightens, which is what this number was added for.
+--
+-- Past that point lightness is bought with chroma, the only currency there is:
+-- the hue angle is held and the colour drawn at the most chroma the display
+-- can show at that lightness.
+--
+-- 0.88 by looking, which is the only way a number like this gets settled.
+-- 0.83 was tried first and has an argument behind it -- it is where `#7fd4ff`
+-- sits, so a band around one would have agreed with a hand-written ramp to the
+-- byte -- and on a terminal it still read as a band that had not quite
+-- brightened. The two were drawn at 64 steps over four bases and compared side
+-- by side; 0.88 is the one that was easier to read.
+--
+-- What it costs is that agreement. Nothing is left that a two-ended ramp
+-- reaches and a band does not, and the price is that a base already as light
+-- as `#7fd4ff` is lightened too rather than being its own top end -- only one
+-- past 0.88, `#e8f4ff` and up, is left alone now.
+local CEILING = 0.88
+
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 
 --- Whether Yazi's own colour parser takes `value`.
@@ -356,6 +382,19 @@ local function to_oklab(rgb)
 		0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
 end
 
+--- Back to linear sRGB, and not yet clamped, so a caller can tell a colour the
+--- display can show from one it cannot. `from_oklab` clamps and `fits` asks;
+--- that second reader is the whole reason this is a step of its own.
+---@return number r, number g, number b
+local function linear_of(L, A, B)
+	local l = (L + 0.3963377774 * A + 0.2158037573 * B) ^ 3
+	local m = (L - 0.1055613458 * A - 0.0638541728 * B) ^ 3
+	local s = (L - 0.0894841775 * A - 1.2914855480 * B) ^ 3
+	return 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+		-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+		-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+end
+
 --- Back again, clamped into the gamut. A colour on the line between two
 --- in-gamut endpoints can still sit outside it -- one step of navy to yellow
 --- does -- and clamping each channel is enough where it is that rare.
@@ -365,23 +404,57 @@ end
 --- shape a stop already has.
 ---@return integer r, integer g, integer b
 local function from_oklab(L, A, B)
-	local l = (L + 0.3963377774 * A + 0.2158037573 * B) ^ 3
-	local m = (L - 0.1055613458 * A - 0.0638541728 * B) ^ 3
-	local s = (L - 0.0894841775 * A - 1.2914855480 * B) ^ 3
-	return to_srgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
-		to_srgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
-		to_srgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+	local r, g, b = linear_of(L, A, B)
+	return to_srgb(r), to_srgb(g), to_srgb(b)
 end
 
---- The two ends one colour stands for: as light as its own hue can be drawn,
---- and as dark as a column is still visible against the terminal.
+--- Whether the display can draw this colour without a clamp.
+---@return boolean
+local function fits(L, A, B)
+	local r, g, b = linear_of(L, A, B)
+	return r >= 0 and r <= 1 and g >= 0 and g <= 1 and b >= 0 and b <= 1
+end
+
+--- The most chroma one hue can carry at one lightness.
 ---
---- Both ends are the same colour at another **exposure** -- `L`, `a` and `b`
---- scaled together rather than the lightness alone. Measured over seven
---- colours at four factors on 26.9.1's own arithmetic, scaling the three by
---- `s` gives, to the byte, the linear sRGB of the original multiplied by
---- `s^3`. So the hue angle is untouched by construction, chroma keeps its
---- ratio to lightness, and nothing leaves the gamut on the way down.
+--- Searched rather than solved. The sRGB gamut in Oklab is the image of a cube
+--- under a cube root and two matrices, and the edge of it along one hue has no
+--- closed form worth carrying here -- where a bisection over `fits` is exact
+--- to a ten-thousandth in fifteen steps and runs once per band, at setup.
+---
+--- The bound is 0.5 because nothing in sRGB reaches it: the most chromatic
+--- colour it has is pure blue, a little over 0.31.
+---@param L number
+---@param ua number the hue direction, unit length
+---@param ub number
+---@return number
+local function chroma_at(L, ua, ub)
+	local lo, hi = 0, 0.5
+	for _ = 1, 32 do
+		local mid = (lo + hi) / 2
+		if fits(L, mid * ua, mid * ub) then
+			lo = mid
+		else
+			hi = mid
+		end
+	end
+	return lo
+end
+
+--- The two ends one colour stands for: as dark as a column stays visible
+--- against the terminal, and as light as `CEILING` asks for.
+---
+--- The **hue is held exactly** the whole way, and everything else here is in
+--- service of that. Both ends sit on the one ray out of Oklab's lightness axis
+--- that the base sits on, so every step between them does too: a straight line
+--- between two multiples of the same direction is more of that direction.
+---
+--- Down, and up as far as the display allows, that ray is walked by scaling
+--- `L`, `a` and `b` **together** -- an exposure change. Measured over seven
+--- colours at four factors on this file's own arithmetic, scaling the three by
+--- `s` gives, to the byte, the linear sRGB of the original multiplied by `s`
+--- cubed. Nothing leaves the gamut on the way down, and the colour keeps its
+--- character rather than merely its hue.
 ---
 --- Moving `L` alone is what eza does, and it is the reason not to: with `a`
 --- and `b` held, a saturated colour runs out of gamut in *both* directions and
@@ -389,48 +462,68 @@ end
 --- at hue 32 degrees at the bottom and 90 at the top, from 56.5; `#0b3d91`
 --- arrives at 196 from 260.7, a navy drawn as cyan.
 ---
---- The consequences are worth knowing before writing a band rather than
---- finding them on screen:
+--- Up, the exposure runs out first, and that is what `CEILING` is about. The
+--- factor that puts the strongest channel at 255 is the last one in gamut, so
+--- `#7fd4ff` and `#ff8800` -- a channel already there -- cannot be lightened
+--- by it at all, and `#0b3d91` only reaches 0.59. Above that the ray is walked
+--- by lightness alone, at whatever chroma the display can still show, which is
+--- the one thing that can be given up without moving the hue.
 ---
---- * **Up is where the room usually is not.** The scale that puts the
----   strongest channel at 255 is the last one in gamut, so a colour that
----   already has one there -- `#7fd4ff`, `#ff8800`, `#00ff00`, most saturated
----   theme colours -- cannot be lightened at all, and is its own high end.
---- * **Which is why a dark colour still bands.** `#0b3d91` has a factor of
----   1.52 above it and almost nothing below, and comes out spread over 0.35 to
----   0.59 in lightness with all `STEPS` steps distinct. A floor alone would
----   have left it 0.35 to 0.39 and half the steps repeats.
---- * **So the written colour is somewhere in the band, not at a fixed end.**
----   It is always *on* it -- both ends sit on the same ray through Oklab's
----   origin, and the segment between them passes through the colour itself --
----   but at 1.00 of the way up for `#7fd4ff`, 0.15 for `#0b3d91`, and 0.00 for
----   a base already darker than the floor.
+--- Two consequences worth knowing before writing a band rather than finding
+--- them on screen:
+---
+--- * **A dark colour is not a dim band.** `#0b3d91` comes out spread over 0.35
+---   to `CEILING` in lightness with every step of the ramp distinct, where the
+---   exposure alone would have stopped at 0.59 and a floor alone at 0.39.
+--- * **The written colour is somewhere in the band, not at an end.** It is on
+---   it wherever its own lightness falls -- at the top for a colour already at
+---   `CEILING` with chroma to spare, at the bottom for one darker than `FLOOR`,
+---   and in between for the rest.
 ---@param rgb integer[]
 ---@param where string
 ---@return integer[][] two stops, dark end first
 function M.band(rgb, where)
 	local L, A, B = to_oklab(rgb)
-	local peak = math.max(to_linear(rgb[1]), to_linear(rgb[2]), to_linear(rgb[3]))
-
-	-- Linear scales as the cube, so the cube root of the headroom is the
-	-- factor that lands the strongest channel exactly on 255.
-	local up = peak > 0 and (1 / peak) ^ (1 / 3) or 1
-	local down = L > FLOOR and FLOOR / L or 1
-
-	local lo = { from_oklab(L * down, A * down, B * down) }
-	local hi = { from_oklab(L * up, A * up, B * up) }
-	if lo[1] == hi[1] and lo[2] == hi[2] and lo[3] == hi[3] then
+	if L <= 0 then
 		error(
 			string.format(
-				"supaline: %s: `#%02x%02x%02x` cannot be spread. There is no lighter colour "
-					.. "in its own hue and no darker one a column would still be visible in, so "
-					.. "both ends of the band come out the same. Write two endpoints with `->`",
+				"supaline: %s: `#%02x%02x%02x` cannot be spread. It has no lightness to scale "
+					.. "and no hue to hold on to, so there is no band around it to draw. Write "
+					.. "two endpoints with `->`",
 				where,
 				rgb[1],
 				rgb[2],
 				rgb[3]
 			)
 		)
+	end
+
+	-- Linear scales as the cube, so the cube root of the headroom is the
+	-- factor that lands the strongest channel exactly on 255.
+	local peak = math.max(to_linear(rgb[1]), to_linear(rgb[2]), to_linear(rgb[3]))
+	local up = peak > 0 and (1 / peak) ^ (1 / 3) or 1
+	local down = L > FLOOR and FLOOR / L or 1
+
+	local lo = { from_oklab(L * down, A * down, B * down) }
+
+	local hi
+	if L * up >= CEILING then
+		hi = { from_oklab(L * up, A * up, B * up) }
+	else
+		local chroma = math.sqrt(A * A + B * B)
+		if chroma == 0 then
+			-- A grey has no hue to hold and no chroma to spend; the lightness
+			-- is the whole of it, and `chroma_at` would be asked for the most
+			-- of nothing in a direction that does not exist.
+			hi = { from_oklab(CEILING, 0, 0) }
+		else
+			local ua, ub = A / chroma, B / chroma
+			-- Never more chroma than the exposure would have reached, so a
+			-- colour is not made more vivid than the one that was written on
+			-- its way to being made lighter.
+			local c = math.min(chroma * (CEILING / L), chroma_at(CEILING, ua, ub))
+			hi = { from_oklab(CEILING, c * ua, c * ub) }
+		end
 	end
 	return { lo, hi }
 end

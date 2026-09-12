@@ -157,21 +157,20 @@ end)
 
 -- --- a band ----------------------------------------------------------------
 
-test("band: a saturated colour is its own high end", function()
+test("band: a colour already past the ceiling is its own high end", function()
 	-- Every value below is from this implementation, on the arithmetic in
 	-- `colour.lua`; the same numbers come out of the derivation by hand.
 	--
-	-- `#7fd4ff` has a channel at 255, so the exposure that would lighten it is
-	-- already 1.00 and there is nowhere above it to go. Most saturated theme
-	-- colours are this shape, which is why a band usually reads as "the colour
-	-- you wrote, fading downwards".
-	local stops = colour.stops("#7fd4ff <->", "x")
-	eq(stops[2][1], 0x7f, "the high end is the colour itself")
-	eq(stops[2][2], 0xd4)
+	-- `#e8f4ff` sits at 0.96 in lightness, above the ceiling and with a channel
+	-- at 255, so there is nothing to raise it to and nothing to raise it with.
+	-- The band is everything below it.
+	local stops = colour.stops("#e8f4ff <->", "x")
+	eq(stops[2][1], 0xe8, "the high end is the colour itself")
+	eq(stops[2][2], 0xf4)
 	eq(stops[2][3], 0xff)
-	eq(stops[1][1], 0x22, "the low end is the same colour, darkened to the floor")
-	eq(stops[1][2], 0x3f)
-	eq(stops[1][3], 0x4d)
+	eq(stops[1][1], 0x38, "the low end is the same colour, darkened to the floor")
+	eq(stops[1][2], 0x3b)
+	eq(stops[1][3], 0x3e)
 end)
 
 test("band: a colour darker than the floor is its own low end", function()
@@ -182,17 +181,41 @@ test("band: a colour darker than the floor is its own low end", function()
 	eq(stops[1][1], 0x0b, "the low end is the colour itself")
 	eq(stops[1][2], 0x1a)
 	eq(stops[1][3], 0x2f)
-	eq(stops[2][1], 0x60)
-	eq(stops[2][2], 0xa2)
+	eq(stops[2][1], 0xbf)
+	eq(stops[2][2], 0xda)
 	eq(stops[2][3], 0xff)
+end)
+
+test("band: past the exposure's reach, lightness is bought with chroma", function()
+	-- The exposure alone stops where the strongest channel hits 255, and for a
+	-- dark colour that is not light: `#0b3d91` reaches 0.59 and no further,
+	-- against the 0.83 of the `#7fd4ff` a hand-written ramp would have had.
+	-- Above it the hue is held and the chroma spent, which is the only thing
+	-- that can be given up without turning the colour.
+	local hi = colour.stops("#0b3d91 <->", "x")[2]
+	eq(string.format("#%02x%02x%02x", hi[1], hi[2], hi[3]), "#c2d9ff")
+
+	-- Having a channel at 255 already is not the same as being high enough: the
+	-- exposure cannot move `#7fd4ff` at all, and 0.83 is below the ceiling, so
+	-- this one buys the rest with chroma too. That is the whole of what a
+	-- ceiling above 0.83 changes, and it is the reason this one is 0.88.
+	local sat = colour.stops("#7fd4ff <->", "x")[2]
+	eq(string.format("#%02x%02x%02x", sat[1], sat[2], sat[3]), "#a8e1ff")
+
+	-- And never more chroma than the exposure itself would have reached, so a
+	-- colour is not made more vivid on the way to being made lighter. Grey has
+	-- none to spend and stays grey.
+	local grey = colour.stops("#767676 <->", "x")[2]
+	eq(grey[1], grey[2])
+	eq(grey[2], grey[3])
 end)
 
 test("band: a dark colour spreads upwards, which is the point of deriving both", function()
 	-- The case the whole design turns on. `#0b3d91` has almost no room below
 	-- the floor -- 0.39 in lightness against 0.35 -- so a band anchored at the
 	-- colour and falling to the floor would be four hundredths wide and half
-	-- its steps repeats. Taking the room above it instead spreads it over 0.35
-	-- to 0.59, and every step is a colour of its own.
+	-- its steps repeats. Taking the room above it instead spreads it from the
+	-- floor to the ceiling, and every step is a colour of its own.
 	local r = colour.ramp(colour.stops("#0b3d91 <->", "x"))
 	local seen, n = {}, 0
 	for _, hex in ipairs(r) do
@@ -202,14 +225,13 @@ test("band: a dark colour spreads upwards, which is the point of deriving both",
 	end
 	eq(n, #r, "every step distinct")
 	eq(r[1], "#08347f")
-	eq(r[#r], "#1c71ff")
+	eq(r[#r], "#c2d9ff")
 end)
 
-test("band: a colour with no room either way is refused rather than drawn flat", function()
-	-- Black alone: the exposure that lightens it leaves it black, and it is
-	-- already below the floor. A ramp whose ends are the same colour is not a
-	-- ramp, and this plugin refuses those rather than drawing one that is
-	-- silently flat.
+test("band: a colour with nothing to spread is refused rather than drawn flat", function()
+	-- Black alone: scaling nothing leaves nothing, and it has no hue to hold
+	-- on to either, so there is no band around it -- only the grey the ceiling
+	-- would have invented. This plugin refuses rather than drawing that.
 	throws(function() colour.stops("#000000 <->", "x") end, "cannot be spread")
 	throws(function() colour.stops("#000000 <->", "the `[supaline] size` colour") end, "supaline] size")
 end)
