@@ -443,9 +443,12 @@ local function uninstall()
 	installed = { names = {}, prev = {}, child = nil }
 end
 
---- Rebuild every linemode from the stored specs. Subscribed to `theme`
---- because `app:theme` re-reads `theme.toml` from disk mid-run: a base colour
---- resolved once at setup is the old one from then on, and nothing says so.
+--- Rebuild every linemode from the stored specs. Subscribed to `theme` for
+--- two reasons, one of them at startup. `app:theme` re-reads `theme.toml`
+--- from disk mid-run, so a base colour resolved once at setup is the old one
+--- from then on and nothing says so -- and 26.9.1 merges the flavor *after*
+--- `init.lua` has run, announcing it with a `theme` event nobody asked for, so
+--- a colour the flavor supplies is a preset's until this handler has run once.
 --- Which panes a linemode wants cannot change under a theme reload, so the
 --- third value is not wanted here.
 ---
