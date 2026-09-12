@@ -170,10 +170,14 @@ belongs either in the first or in a file `SKILL.md` links itself.
 
 `Skills match the Agent Skills specification` refuses the half that can be
 counted: the frontmatter limits below, a file of 500 lines or more, and a
-reference over 100 whose `## Contents` does not name every section it has,
-each entry spelling its heading and glossing it after an em dash if it wants
-to. The frontmatter is parsed rather than read a line at a time, so a
-duplicate key or a field the specification does not define is refused as well.
+reference over 100 whose `## Contents` does not name every section it has.
+That list is the sections and nothing else: one entry each, spelling the
+heading and glossing it after an em dash or a double hyphen if it wants to, in
+the order the file puts them. An entry that names no section, a heading listed
+twice, and a list that is complete but reordered are each refused by name
+rather than left to the count. The frontmatter is parsed rather than read a
+line at a time, so a duplicate key or a field the specification does not
+define is refused as well.
 Passing it means nothing about the three questions above — and every rule in
 it has been seen refusing a planted violation, which is the only thing
 separating a check that works from one that exits 0.
