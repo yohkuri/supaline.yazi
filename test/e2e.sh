@@ -318,21 +318,44 @@ check "m2: permissions" "drwxr-xr-x" "$DIR/screen-m2.txt"
 # the owner text: a `user:group` carries no space, so the column's own padding
 # delimits it, and no width arithmetic is needed to find where the text ends.
 who="$(id -un):$(id -gn)"
-seen=$(current_of m2 | sed -n 's/^.*[-dl][rwxsStT-]\{9\} \([^ ][^ ]*\) .*$/\1/p' | sort -u)
+
+# The one cell every m2 row agrees on, answered in `$cell` and empty when there
+# was none or the rows disagreed -- `fail` has said which by then. A function
+# rather than the triage written once per column, and not a subshell: `fail`
+# counts in the shell it runs in, and a `$(...)` would throw that count away
+# along with the shell.
+cell_of() { # <label> <sed expression>
+	cell=$(current_of m2 | sed -n "$2" | sort -u)
+	if [ -z "$cell" ]; then
+		fail "m2: no $1 on screen"
+	elif [ "$(printf '%s\n' "$cell" | wc -l | tr -d ' ')" -ne 1 ]; then
+		fail "m2: the rows disagree on the $1: $(printf '%s' "$cell" | tr '\n' ' ')"
+		cell=""
+	fi
+}
+
+# Whether a cell is what is left of a name once the column cut it: the text up
+# to the ellipsis has to be a prefix of what `id` says, and a cell that fits
+# carries no ellipsis to strip.
+is_cut_of() { # <name> <cell>
+	case $1 in "${2%…}"*) return 0 ;; esac
+	return 1
+}
+
+cell_of "owner cell behind a permissions field" \
+	's/^.*[-dl][rwxsStT-]\{9\} \([^ ][^ ]*\) .*$/\1/p'
+seen=$cell
 dots=$(printf '%s' "$seen" | grep -o '…' | wc -l | tr -d ' ')
 if [ -z "$seen" ]; then
-	fail "m2: no owner cell behind a permissions field on screen"
-elif [ "$(printf '%s\n' "$seen" | wc -l | tr -d ' ')" -ne 1 ]; then
-	fail "m2: the rows disagree on the owner cell: $(printf '%s' "$seen" | tr '\n' ' ')"
+	: # `cell_of` has already said so
 elif [ "$seen" = "$who" ]; then
 	echo "  m2: the owner column holds \`$who\` whole, with no ellipsis"
 elif [ "$dots" -ne 1 ]; then
 	fail "m2: the owner cell carries $dots ellipses, wanted one -- \`$seen\`"
+elif is_cut_of "$who" "$seen"; then
+	echo "  m2: the owner column cuts \`$who\` with one ellipsis"
 else
-	case $who in
-	"${seen%…}"*) echo "  m2: the owner column cuts \`$who\` with one ellipsis" ;;
-	*) fail "m2: the owner cell \`$seen\` is not a cut of \`$who\`" ;;
-	esac
+	fail "m2: the owner cell \`$seen\` is not a cut of \`$who\`"
 fi
 
 # `user` and `group` draw those same two names again, eight cells each rather
@@ -340,25 +363,15 @@ fi
 # pair comes out whole where `owner` beside it did not. Read as one capture --
 # they are adjacent, and a pattern that found only one of them would not say
 # which -- and held against `id` half by half, since either may be the one that
-# had to be cut.
-pair=$(current_of m2 | sed -n 's/^.*[-dl][rwxsStT-]\{9\} [^ ][^ ]*  *\([^ ][^ ]*\)  *\([^ ][^ ]*\)  *.*$/\1:\2/p' | sort -u)
-if [ -z "$pair" ]; then
-	fail "m2: no user and group cells behind the owner one on screen"
-elif [ "$(printf '%s\n' "$pair" | wc -l | tr -d ' ')" -ne 1 ]; then
-	fail "m2: the rows disagree on the user and group cells: $(printf '%s' "$pair" | tr '\n' ' ')"
-else
+# had to be cut. The halves come off `$who` rather than a second `id`, so the
+# two blocks cannot end up measuring against different names.
+cell_of "user and group cells behind the owner one" \
+	's/^.*[-dl][rwxsStT-]\{9\} [^ ][^ ]*  *\([^ ][^ ]*\)  *\([^ ][^ ]*\)  *.*$/\1:\2/p'
+pair=$cell
+if [ -n "$pair" ]; then
 	bad=""
-	# `id` first and the cell second in each pair, so the split below is the
-	# same one either way round. Neither a user nor a group name may hold a
-	# colon -- the passwd and group files are colon-separated themselves.
-	for both in "$(id -un):${pair%%:*}" "$(id -gn):${pair#*:}"; do
-		want=${both%%:*}
-		got=${both#*:}
-		case $want in
-		"${got%…}"*) ;;
-		*) bad="$bad \`$got\` is not a cut of \`$want\`" ;;
-		esac
-	done
+	is_cut_of "${who%%:*}" "${pair%%:*}" || bad="$bad \`${pair%%:*}\` is not a cut of \`${who%%:*}\`"
+	is_cut_of "${who#*:}" "${pair#*:}" || bad="$bad \`${pair#*:}\` is not a cut of \`${who#*:}\`"
 	if [ -n "$bad" ]; then
 		fail "m2:$bad"
 	else

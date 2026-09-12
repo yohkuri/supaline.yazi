@@ -129,7 +129,7 @@ column.register("permissions", {
 })
 
 --- One half of a file's ownership, as text, or nothing at all on a platform
---- with no names to give.
+--- with no names to give, and the column that draws it.
 ---
 --- A half at a time rather than the pair, because `render` runs for every
 --- visible row on every frame: a `user` column that resolved the group as well
@@ -166,29 +166,55 @@ column.register("permissions", {
 --- SFTP `Cha` carries the attrs' `uid` and `gid` whatever the host is -- so
 --- they are worth printing on a platform that could not have named them
 --- anyway, and the virtual test comes first.
+--- Registers the column that draws one half on its own, and hands the
+--- resolution back for `owner` to reuse -- the shape `register_time` above
+--- uses for the three time columns, which is why the width and the alignment
+--- of a half are written once rather than once per column.
+---
+--- Eight is the traditional passwd limit rather than a measurement, and a
+--- machine whose names run past it has `width = "auto"` like any column.
+---@param name "user"|"group"
 ---@param field "uid"|"gid"
 ---@param lookup "user_name"|"group_name"
 ---@return fun(file: supaline.File): string?
-local function resolver(field, lookup)
-	return function(file)
+local function register_half(name, field, lookup)
+	local of = function(file)
 		local id = file.cha[field]
 		if file.url.spec.is_virtual then
 			return tostring(id)
 		end
 
-		-- Read per row rather than hoisted: `ya` resolves a utility on first
-		-- access and keeps it, so this is a field read.
-		local name = ya[lookup]
-		if not name then
+		-- Read per row rather than captured when this file is loaded, and the
+		-- reason is the test rather than the clock: `builtin_spec.lua` has no
+		-- Windows machine, so it takes the two lookups off `ya` between renders
+		-- and a captured upvalue would go on answering. The read itself is one
+		-- table index, against a `ya` that resolves a utility once and keeps it.
+		local found = ya[lookup]
+		if not found then
 			return nil
 		end
-		return tostring(name(id) or id)
+
+		-- `tostring` only where the name is missing and the id has to stand in
+		-- for it. A resolved name is already a string, and this runs per row.
+		return found(id) or tostring(id)
 	end
+
+	column.register(name, {
+		width = 8,
+		align = "left",
+		---@type supaline.Render
+		render = function(file, ctx) return of(file) or "", ctx.base end,
+	})
+	return of
 end
 
-local user_of = resolver("uid", "user_name")
-local group_of = resolver("gid", "group_name")
+-- The two halves on their own, for a listing where only one of them is worth
+-- the cells -- a home directory whose every file carries the same group, say.
+local user_of = register_half("user", "uid", "user_name")
+local group_of = register_half("group", "gid", "group_name")
 
+-- ... and the pair, as the composition of the two rather than a third copy of
+-- the rule they follow.
 column.register("owner", {
 	width = 12,
 	align = "left",
@@ -202,24 +228,6 @@ column.register("owner", {
 		-- so a build that answered one of them answers the other.
 		return string.format("%s:%s", user, group_of(file)), ctx.base
 	end,
-})
-
--- The two halves of `owner` on their own, for a listing where only one of them
--- is worth the cells -- a home directory whose every file carries the same
--- group, say. Eight is the traditional passwd limit rather than a measurement,
--- and a machine whose names run past it has `width = "auto"` like any column.
-column.register("user", {
-	width = 8,
-	align = "left",
-	---@type supaline.Render
-	render = function(file, ctx) return user_of(file) or "", ctx.base end,
-})
-
-column.register("group", {
-	width = 8,
-	align = "left",
-	---@type supaline.Render
-	render = function(file, ctx) return group_of(file) or "", ctx.base end,
 })
 
 column.register("count", {
