@@ -207,8 +207,9 @@ jobs:
         #
         # Both commands run whatever the first one says: `run:` is `bash -e`,
         # so an unguarded `check` that fails would take `format --check` with
-        # it and report half of what is wrong. Every other step in this file
-        # accumulates into `rc` for the same reason.
+        # it and report half of what is wrong. Every other step here that runs
+        # more than one check accumulates into `rc` for the same reason; the
+        # ones that run a single command have nothing to lose after it.
         #
         # `.github/scripts` rather than the tree every other linter here is
         # given, because the two halves of ruff do not walk the same tree:
