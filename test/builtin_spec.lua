@@ -146,6 +146,40 @@ test("user and group: a remote file keeps its numbers here too", function()
 	eq(render("user", stub.file { uid = 501, gid = 20, url_kind = "search" }), "user501 ")
 end)
 
+test("user and group: a lone column resolves one name, not two", function()
+	-- `render` runs for every visible row on every frame, so a name looked up
+	-- and dropped is paid for on each of them. Counted rather than timed: the
+	-- waste is a call that should not have happened, and a clock would have to
+	-- be told how slow is too slow.
+	local before = { ya.user_name, ya.group_name }
+	local users, groups = 0, 0
+	ya.user_name = function(uid)
+		users = users + 1
+		return before[1](uid)
+	end
+	ya.group_name = function(gid)
+		groups = groups + 1
+		return before[2](gid)
+	end
+
+	local counts = function(name)
+		users, groups = 0, 0
+		render(name, stub.file { uid = 1, gid = 2 })
+		return users .. ":" .. groups
+	end
+	local ok, err = pcall(function()
+		eq(counts("user"), "1:0")
+		eq(counts("group"), "0:1")
+		-- The pair still wants both, and neither of them twice.
+		eq(counts("owner"), "1:1")
+	end)
+
+	ya.user_name, ya.group_name = before[1], before[2]
+	if not ok then
+		error(err, 0)
+	end
+end)
+
 test("count: directories only", function()
 	with_history({ files = { 1, 2 } }, function()
 		eq(render("count", stub.file { name = "d", is_dir = true }), "    2")

@@ -128,8 +128,14 @@ column.register("permissions", {
 	render = function(file, ctx) return file.cha:perm() or "", ctx.base end,
 })
 
---- The user and the group of a file, as text, or nothing at all when the
---- platform has no ownership to report.
+--- One half of a file's ownership, as text, or nothing at all when the
+--- platform has no ID to report.
+---
+--- A half at a time rather than the pair, because `render` runs for every
+--- visible row on every frame: a `user` column that resolved the group as well
+--- would look up a name and build a Lua string per row only to drop it, and
+--- `group` beside it would do the same in the other direction. `owner` is the
+--- only one that wants both, and asks for them itself.
 ---
 --- `ya.user_name` and `ya.group_name` read the passwd and group databases of
 --- the machine Yazi is running on, so a name they return only means anything
@@ -145,33 +151,43 @@ column.register("permissions", {
 --- never given a name it has not earned. `file.url` and `.spec` are both cached
 --- fields, so this is two field reads: measured at roughly twice a `cha.uid`
 --- read on a real Yazi, which is far below anything worth hoisting.
----@param file supaline.File
----@return string? user, string? group
-local function ownership(file)
-	local cha = file.cha
-	if not cha.uid then
-		return nil, nil
-	end
+---@param field "uid"|"gid"
+---@param lookup "user_name"|"group_name"
+---@return fun(file: supaline.File): string?
+local function resolver(field, lookup)
+	return function(file)
+		local id = file.cha[field]
+		if not id then
+			return nil
+		end
 
-	if file.url.spec.is_virtual then
-		return tostring(cha.uid), tostring(cha.gid)
-	end
+		if file.url.spec.is_virtual then
+			return tostring(id)
+		end
 
-	local user = ya.user_name and ya.user_name(cha.uid) or cha.uid
-	local group = ya.group_name and ya.group_name(cha.gid) or cha.gid
-	return tostring(user), tostring(group)
+		-- Read per row rather than hoisted: `ya` resolves a utility on first
+		-- access and keeps it, so this is a field read, and reading it here is
+		-- what lets the absent half on a platform without one stay absent.
+		local name = ya[lookup]
+		return tostring(name and name(id) or id)
+	end
 end
+
+local user_of = resolver("uid", "user_name")
+local group_of = resolver("gid", "group_name")
 
 column.register("owner", {
 	width = 12,
 	align = "left",
 	---@type supaline.Render
 	render = function(file, ctx)
-		local user, group = ownership(file)
+		local user = user_of(file)
 		if not user then
 			return "", ctx.base
 		end
-		return string.format("%s:%s", user, group), ctx.base
+		-- `or ""` rather than a second guard: Yazi hands out both IDs or
+		-- neither, so a half-answer here is a `%s` away from printing "nil".
+		return string.format("%s:%s", user, group_of(file) or ""), ctx.base
 	end,
 })
 
@@ -183,17 +199,14 @@ column.register("user", {
 	width = 8,
 	align = "left",
 	---@type supaline.Render
-	render = function(file, ctx) return ownership(file) or "", ctx.base end,
+	render = function(file, ctx) return user_of(file) or "", ctx.base end,
 })
 
 column.register("group", {
 	width = 8,
 	align = "left",
 	---@type supaline.Render
-	render = function(file, ctx)
-		local _, group = ownership(file)
-		return group or "", ctx.base
-	end,
+	render = function(file, ctx) return group_of(file) or "", ctx.base end,
 })
 
 column.register("count", {
