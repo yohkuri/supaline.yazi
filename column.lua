@@ -131,7 +131,7 @@ local colour = require(".colour")
 --- same reason: `DEFAULTS` carries none, because the pair it would carry is
 --- `colour.lua`'s to justify. Nil here means the default, and `colour.stops`
 --- is where that is applied.
----@field band? { from: number, to: number } the lightnesses a band runs between
+---@field band? supaline.Band the lightnesses a band runs between
 
 --- Every option a column accepts. One set rather than two, because
 --- `normalize` reads the spec and the definition behind it through a single

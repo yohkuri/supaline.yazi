@@ -6,6 +6,23 @@
 
 local colour = require(".colour")
 
+--- A stop as the colour it is, so a mismatch reads as two colours rather than
+--- as two channel numbers. Injective over the integers 0-255, so comparing two
+--- of these is exactly comparing the channels.
+---@param stop integer[]
+---@return string
+local function hex(stop) return string.format("#%02x%02x%02x", stop[1], stop[2], stop[3]) end
+
+--- Both ends of two bands, against each other.
+---@param a integer[][]
+---@param b integer[][]
+---@param why string?
+local function same_band(a, b, why)
+	for i = 1, 2 do
+		eq(hex(a[i]), hex(b[i]), why)
+	end
+end
+
 -- --- one colour ------------------------------------------------------------
 
 test("colour: a hex triple comes back with its channels", function()
@@ -131,12 +148,8 @@ test("stops: one colour is a band, however it was written", function()
 	local marked = colour.stops("#0b3d91 <->", "x")
 	local bare = colour.stops("#0b3d91", "x")
 	local listed = colour.stops({ "#0b3d91" }, "x")
-	for i = 1, 2 do
-		for c = 1, 3 do
-			eq(bare[i][c], marked[i][c])
-			eq(listed[i][c], marked[i][c])
-		end
-	end
+	same_band(bare, marked, "written bare")
+	same_band(listed, marked, "written as a list of one")
 end)
 
 test("stops: an empty list names nothing to interpolate", function()
@@ -167,8 +180,8 @@ test("band: a colour lighter than the band is still not an end of it", function(
 	-- hue. Widening the band to reach it would make this column's top step
 	-- lighter than the next column's for no reason a reader could see.
 	local stops = colour.stops("#e8f4ff <->", "x")
-	eq(string.format("#%02x%02x%02x", stops[1][1], stops[1][2], stops[1][3]), "#383b3e")
-	eq(string.format("#%02x%02x%02x", stops[2][1], stops[2][2], stops[2][3]), "#ced9e3")
+	eq(hex(stops[1]), "#383b3e")
+	eq(hex(stops[2]), "#ced9e3")
 end)
 
 test("band: a colour darker than the band is not an end of it either", function()
@@ -176,8 +189,8 @@ test("band: a colour darker than the band is not an end of it either", function(
 	-- below the band's floor of 0.35, and the low end is drawn at the floor
 	-- rather than at the colour.
 	local stops = colour.stops("#0b1a2f <->", "x")
-	eq(string.format("#%02x%02x%02x", stops[1][1], stops[1][2], stops[1][3]), "#1f3b61")
-	eq(string.format("#%02x%02x%02x", stops[2][1], stops[2][2], stops[2][3]), "#bfdaff")
+	eq(hex(stops[1]), "#1f3b61")
+	eq(hex(stops[2]), "#bfdaff")
 end)
 
 test("band: past the exposure's reach, lightness is bought with chroma", function()
@@ -187,14 +200,14 @@ test("band: past the exposure's reach, lightness is bought with chroma", functio
 	-- Above it the hue is held and the chroma spent, which is the only thing
 	-- that can be given up without turning the colour.
 	local hi = colour.stops("#0b3d91 <->", "x")[2]
-	eq(string.format("#%02x%02x%02x", hi[1], hi[2], hi[3]), "#c2d9ff")
+	eq(hex(hi), "#c2d9ff")
 
 	-- Having a channel at 255 already is not the same as being high enough: the
 	-- exposure cannot move `#7fd4ff` at all, and 0.83 is below the ceiling, so
 	-- this one buys the rest with chroma too. That is the whole of what a
 	-- ceiling above 0.83 changes, and it is the reason this one is 0.88.
 	local sat = colour.stops("#7fd4ff <->", "x")[2]
-	eq(string.format("#%02x%02x%02x", sat[1], sat[2], sat[3]), "#a8e1ff")
+	eq(hex(sat), "#a8e1ff")
 
 	-- And never more chroma than the exposure itself would have reached, so a
 	-- colour is not made more vivid on the way to being made lighter. Grey has
@@ -232,14 +245,10 @@ test("band: black is a grey band rather than a refusal", function()
 	local black = colour.stops("#000000 <->", "x")
 	local mid = colour.stops("#767676 <->", "x")
 	local white = colour.stops("#ffffff <->", "x")
-	for i = 1, 2 do
-		for c = 1, 3 do
-			eq(black[i][c], mid[i][c])
-			eq(black[i][c], white[i][c])
-		end
-	end
-	eq(string.format("#%02x%02x%02x", black[1][1], black[1][2], black[1][3]), "#3a3a3a")
-	eq(string.format("#%02x%02x%02x", black[2][1], black[2][2], black[2][3]), "#d7d7d7")
+	same_band(black, mid, "black against a mid grey")
+	same_band(black, white, "black against white")
+	eq(hex(black[1]), "#3a3a3a")
+	eq(hex(black[2]), "#d7d7d7")
 end)
 
 test("band: the pair is directed, so writing it backwards inverts the ramp", function()
@@ -263,11 +272,7 @@ test("bounds: the default is what a band gets when `setup` says nothing", functi
 	-- And the default is what `stops` applies, so the two cannot drift.
 	local implicit = colour.stops("#0b3d91 <->", "x")
 	local explicit = colour.stops("#0b3d91 <->", "x", d)
-	for i = 1, 2 do
-		for c = 1, 3 do
-			eq(implicit[i][c], explicit[i][c])
-		end
-	end
+	same_band(implicit, explicit)
 end)
 
 test("bounds: an end outside `(0, 1]` is refused, NaN included", function()

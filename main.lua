@@ -88,7 +88,7 @@ local M = {}
 ---@field separator string?
 ---@field order integer?
 ---@field scale "linear"|"log"|nil
----@field band { from: number, to: number }? the lightnesses a band runs between
+---@field band supaline.Band? the lightnesses a band runs between
 
 local cfg = DEFAULTS
 local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemode definitions

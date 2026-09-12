@@ -105,6 +105,10 @@ local BOTH = "<->"
 -- 0.058, Latte's `#eff1f5` at 0.958. Its other end is not derivable and was
 -- not derived: 0.35 is there because the dark default's is, and a light
 -- terminal is worth looking at with `test/ramp.lua` before settling on one.
+--- The two lightnesses a band runs between, `from` at ratio 0.
+---@alias supaline.Band { from: number, to: number }
+
+---@type supaline.Band
 local DEFAULT_BAND = { from = 0.35, to = 0.88 }
 
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
@@ -239,7 +243,7 @@ function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1
 --- have written it.
 ---@param value any what `setup` was given, if anything
 ---@param where string
----@return { from: number, to: number }
+---@return supaline.Band
 function M.bounds(value, where)
 	if value == nil then
 		return DEFAULT_BAND
@@ -340,7 +344,7 @@ end
 --- lookup -- is the same code as for endpoints written out.
 ---@param value string|string[]
 ---@param where string
----@param band { from: number, to: number }? the default when omitted
+---@param band supaline.Band? the default when omitted
 ---@return integer[][]
 function M.stops(value, where, band)
 	local written
@@ -550,7 +554,7 @@ end
 ---   on the band anywhere, and unless its own lightness happens to fall
 ---   between the two bounds it is not on it at all.
 ---@param rgb integer[]
----@param band { from: number, to: number }? the default when omitted
+---@param band supaline.Band? the default when omitted
 ---@return integer[][] two stops, ratio 0 first
 function M.band(rgb, band)
 	band = band or DEFAULT_BAND
@@ -563,23 +567,27 @@ function M.band(rgb, band)
 	local peak = math.max(to_linear(rgb[1]), to_linear(rgb[2]), to_linear(rgb[3]))
 	local up = peak > 0 and (1 / peak) ^ (1 / 3) or 1
 
+	-- The hue as a unit direction, taken once rather than per end. Black is the
+	-- only colour in sRGB with no direction at all: the Oklab matrices do not
+	-- cancel exactly, so `#010101` carries a chroma of 2.5e-09 and `#ffffff`
+	-- one of 3.7e-08, and 255 of the 256 greys go down the ordinary path.
+	-- Leaving it at zero is what lets black go down it too -- `chroma * s` is
+	-- then zero, and the colour drawn is the grey at that lightness, which is
+	-- the whole of what black has ever meant here.
+	local ua, ub = 0, 0
+	if chroma > 0 then
+		ua, ub = A / chroma, B / chroma
+	end
+
 	--- The base drawn at one lightness, hue held. Both ends go through this,
 	--- which is what makes them the same kind of thing: which of the two is
 	--- lighter is `band`'s business and not this function's.
 	---@param target number
 	---@return integer[]
 	local function at(target)
-		if L <= 0 or chroma == 0 then
-			-- A grey has no hue to hold and no chroma to spend, so its
-			-- lightness is the whole of it and `chroma_at` would be asked for
-			-- the most of nothing in a direction that does not exist. Black
-			-- lands here too, and is not refused: `#000000`, `#767676` and
-			-- `#ffffff` all give the identical band, so black is not a special
-			-- case but the one every grey shares.
-			return { from_oklab(target, 0, 0) }
-		end
-
-		local s = target / L
+		-- Zero for black alone, and only to keep the division total; every
+		-- multiple of zero below is zero, which is the answer black wants.
+		local s = L > 0 and target / L or 0
 		if L * up >= target then
 			return { from_oklab(L * s, A * s, B * s) }
 		end
@@ -587,11 +595,9 @@ function M.band(rgb, band)
 		-- Never more chroma than the exposure would have reached, so a colour
 		-- is not made more vivid than the one that was written on its way to
 		-- being made lighter.
-		local ua, ub = A / chroma, B / chroma
 		local c = math.min(chroma * s, chroma_at(target, ua, ub))
 		return { from_oklab(target, c * ua, c * ub) }
 	end
-
 	return { at(band.from), at(band.to) }
 end
 
@@ -650,7 +656,7 @@ end
 ---@param value string|string[] the endpoints, as written
 ---@param ground unknown the ui.Style each step is patched onto
 ---@param where string
----@param band { from: number, to: number }? the default when omitted
+---@param band supaline.Band? the default when omitted
 ---@return unknown[] `STEPS` styles, ratio 0 first
 function M.styles(value, ground, where, band)
 	local out = {}
