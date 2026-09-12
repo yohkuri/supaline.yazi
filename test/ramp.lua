@@ -79,7 +79,7 @@ end
 --- unreadable column. Counting in tens is what lets a reader say which step
 --- stopped being readable rather than "somewhere near the bottom".
 ---@param value string
----@param band { from: number, to: number }?
+---@param band supaline.Band?
 local function show(value, band)
 	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua", band))
 	print("")
@@ -88,15 +88,16 @@ local function show(value, band)
 	print("  " .. strip(ramp, function(i) return tostring((i - 1) % 10) end))
 end
 
-local USAGE = 'usage: lua test/ramp.lua [--band FROM,TO] "#0b3d91 -> #7fd4ff" [...]\n'
-
 -- `--band` taken out of the list first, so the loop below stays a loop over
--- ramps. The pair goes through `colour.bounds` rather than being checked here,
--- which is the point of that function living in `colour.lua`: what this prints
--- for `--band 0,1` is what a user's `init.lua` would have said.
+-- ramps, and taken wherever it appears: a reader iterating on the bounds is as
+-- likely to append the flag as to lead with it, and a positional rule would
+-- answer that by refusing the ramp as a colour. The pair goes through
+-- `colour.bounds` rather than being checked here, which is the point of that
+-- function living in `colour.lua`: what this prints for `--band 0,1` is what a
+-- user's `init.lua` would have said.
 local values, band = {}, nil
 local i = 1
-while arg and arg[i] do
+while arg[i] do
 	if arg[i] == "--band" then
 		local pair = arg[i + 1]
 		local from, to = (pair or ""):match("^%s*([^,%s]+)%s*,%s*([^,%s]+)%s*$")
@@ -115,7 +116,7 @@ while arg and arg[i] do
 end
 
 if not values[1] then
-	io.stderr:write(USAGE)
+	io.stderr:write('usage: lua test/ramp.lua [--band FROM,TO] "#0b3d91 -> #7fd4ff" [...]\n')
 	os.exit(2)
 end
 
