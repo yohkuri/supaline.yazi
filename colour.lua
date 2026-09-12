@@ -54,6 +54,38 @@ local STEPS = 64
 -- which is what lets a ramp be written in a theme at all.
 local ARROW = "->"
 
+-- And what says "spread this one colour" where the same constraint applies.
+-- A band has no second endpoint to write, so a theme field holding one would
+-- otherwise be indistinguishable from a flat colour -- which is what
+-- `size = "#ff8800"` has always meant and has to go on meaning.
+--
+-- It contains `ARROW`, so `is_ramp` answers a band without being told about
+-- one, and the two spellings cannot disagree about what counts as a ramp.
+local BOTH = "<->"
+
+-- How dark the derived end of a band is allowed to go, as an Oklab lightness.
+--
+-- The premise underneath it is a dark terminal, and supaline has no way to
+-- check: `types.yazi` declares no background for `th` to carry, and a flavor
+-- that sets none leaves the terminal's own showing through, which is not
+-- Yazi's to know either. On a light background the readable end is the dark
+-- one and this floor protects the wrong side; writing two endpoints is the
+-- way out, and the only one there is.
+--
+-- 0.35 because that is where a step stops being *lighter than* the ground it
+-- is drawn on. Measured over five common dark grounds -- black, Mocha, One
+-- Dark, Gruvbox dark, Solarized dark -- the lightest of them is One Dark at
+-- an Oklab lightness of 0.293, and a floor of 0.30 puts the darkest step level
+-- with it: contrast 1.00 over eight bases tried, which is a row drawn in the
+-- background colour. 0.35 clears all five.
+--
+-- What it is not is a readability threshold. Clearing a ground by 0.06 is
+-- worth a contrast of 1.20 at worst, well under what body text is held to, so
+-- the bottom of a band is a colour a reader can see and not one they can
+-- comfortably read. A band spends what room the base has; a column that has to
+-- be read at both ends wants two endpoints instead.
+local FLOOR = 0.35
+
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 
 --- Whether Yazi's own colour parser takes `value`.
@@ -168,6 +200,22 @@ end
 ---@return boolean
 function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1, true) ~= nil end
 
+--- Take the `<->` off a value that carries one.
+---
+--- Only the marker is removed; what is left is a colour like any other, and
+--- goes on to be read as the one stop a band is built from. So there is one
+--- path from written value to stops, and `<->` decides nothing but whether a
+--- theme field is a ramp at all.
+---@param s string
+---@return string body, boolean marked
+local function unmark(s)
+	local a, b = s:find(BOTH, 1, true)
+	if not a then
+		return s, false
+	end
+	return (s:sub(1, a - 1) .. s:sub(b + 1)):match("^%s*(.-)%s*$"), true
+end
+
 ---@param s string
 ---@return string[]
 local function split(s)
@@ -190,13 +238,30 @@ end
 --- both ends, and the numbers behind `cyan` are the terminal's rather than
 --- ours. Guessing them would put a ramp on screen whose ends did not meet the
 --- terminal's own cyan, which is worse than being told to write the colour out.
+---
+--- **One colour is a band**, and `M.band` derives the second end from it. That
+--- is the whole of the difference between the two spellings: `<->` and a spec's
+--- bare `ramp = "#ff8800"` both arrive here as a list of one, and everything
+--- downstream -- the interpolation, the quantisation, the styles, the row
+--- lookup -- is the same code as for endpoints written out.
 ---@param value string|string[]
 ---@param where string
 ---@return integer[][]
 function M.stops(value, where)
 	local written
 	if type(value) == "string" then
-		written = split(value)
+		local body, marked = unmark(value)
+		if marked and (body == "" or body:find("%s")) then
+			error(
+				string.format(
+					"supaline: %s: `%s` is not a band. `<->` spreads one colour both ways, "
+						.. "as `#ff8800 <->`; to choose the ends yourself, write them with `->`",
+					where,
+					value
+				)
+			)
+		end
+		written = marked and { body } or split(value)
 	elseif type(value) == "table" then
 		written = value
 	else
@@ -221,8 +286,13 @@ function M.stops(value, where)
 		stops[i] = rgb
 	end
 
-	if #stops < 2 then
-		error(string.format("supaline: %s needs at least two colours to interpolate between", where))
+	if #stops == 0 then
+		error(string.format("supaline: %s names no colour at all", where))
+	elseif #stops == 1 then
+		-- Forward, through the table: the band is Oklab arithmetic and the
+		-- locals it runs on are declared below, where the rest of that
+		-- arithmetic lives. Reachable by the time anything calls this.
+		return M.band(stops[1], where)
 	end
 	return stops
 end
@@ -289,17 +359,80 @@ end
 --- Back again, clamped into the gamut. A colour on the line between two
 --- in-gamut endpoints can still sit outside it -- one step of navy to yellow
 --- does -- and clamping each channel is enough where it is that rare.
----@return string a `#rrggbb`
+---
+--- Channels rather than a `#rrggbb`, because both callers want them that way:
+--- a ramp formats them, and a band hands them back as a stop, which is the
+--- shape a stop already has.
+---@return integer r, integer g, integer b
 local function from_oklab(L, A, B)
 	local l = (L + 0.3963377774 * A + 0.2158037573 * B) ^ 3
 	local m = (L - 0.1055613458 * A - 0.0638541728 * B) ^ 3
 	local s = (L - 0.0894841775 * A - 1.2914855480 * B) ^ 3
-	return string.format(
-		"#%02x%02x%02x",
-		to_srgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+	return to_srgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
 		to_srgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
 		to_srgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
-	)
+end
+
+--- The two ends one colour stands for: as light as its own hue can be drawn,
+--- and as dark as a column is still visible against the terminal.
+---
+--- Both ends are the same colour at another **exposure** -- `L`, `a` and `b`
+--- scaled together rather than the lightness alone. Measured over seven
+--- colours at four factors on 26.9.1's own arithmetic, scaling the three by
+--- `s` gives, to the byte, the linear sRGB of the original multiplied by
+--- `s^3`. So the hue angle is untouched by construction, chroma keeps its
+--- ratio to lightness, and nothing leaves the gamut on the way down.
+---
+--- Moving `L` alone is what eza does, and it is the reason not to: with `a`
+--- and `b` held, a saturated colour runs out of gamut in *both* directions and
+--- the clamp turns it. Measured the same way -- `#ff8800` reaches the screen
+--- at hue 32 degrees at the bottom and 90 at the top, from 56.5; `#0b3d91`
+--- arrives at 196 from 260.7, a navy drawn as cyan.
+---
+--- The consequences are worth knowing before writing a band rather than
+--- finding them on screen:
+---
+--- * **Up is where the room usually is not.** The scale that puts the
+---   strongest channel at 255 is the last one in gamut, so a colour that
+---   already has one there -- `#7fd4ff`, `#ff8800`, `#00ff00`, most saturated
+---   theme colours -- cannot be lightened at all, and is its own high end.
+--- * **Which is why a dark colour still bands.** `#0b3d91` has a factor of
+---   1.52 above it and almost nothing below, and comes out spread over 0.35 to
+---   0.59 in lightness with all `STEPS` steps distinct. A floor alone would
+---   have left it 0.35 to 0.39 and half the steps repeats.
+--- * **So the written colour is somewhere in the band, not at a fixed end.**
+---   It is always *on* it -- both ends sit on the same ray through Oklab's
+---   origin, and the segment between them passes through the colour itself --
+---   but at 1.00 of the way up for `#7fd4ff`, 0.15 for `#0b3d91`, and 0.00 for
+---   a base already darker than the floor.
+---@param rgb integer[]
+---@param where string
+---@return integer[][] two stops, dark end first
+function M.band(rgb, where)
+	local L, A, B = to_oklab(rgb)
+	local peak = math.max(to_linear(rgb[1]), to_linear(rgb[2]), to_linear(rgb[3]))
+
+	-- Linear scales as the cube, so the cube root of the headroom is the
+	-- factor that lands the strongest channel exactly on 255.
+	local up = peak > 0 and (1 / peak) ^ (1 / 3) or 1
+	local down = L > FLOOR and FLOOR / L or 1
+
+	local lo = { from_oklab(L * down, A * down, B * down) }
+	local hi = { from_oklab(L * up, A * up, B * up) }
+	if lo[1] == hi[1] and lo[2] == hi[2] and lo[3] == hi[3] then
+		error(
+			string.format(
+				"supaline: %s: `#%02x%02x%02x` cannot be spread. There is no lighter colour "
+					.. "in its own hue and no darker one a column would still be visible in, so "
+					.. "both ends of the band come out the same. Write two endpoints with `->`",
+				where,
+				rgb[1],
+				rgb[2],
+				rgb[3]
+			)
+		)
+	end
+	return { lo, hi }
 end
 
 --- Quantise a set of endpoints into the colours a column draws.
@@ -332,7 +465,10 @@ function M.ramp(stops)
 		local seg = math.min(math.floor(t) + 1, segments)
 		local f = t - (seg - 1)
 		local a, b = lab[seg], lab[seg + 1]
-		out[i] = from_oklab(a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f)
+		out[i] = string.format(
+			"#%02x%02x%02x",
+			from_oklab(a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f)
+		)
 	end
 	return out
 end
