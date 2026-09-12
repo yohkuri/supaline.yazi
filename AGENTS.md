@@ -20,8 +20,9 @@ calls for them:
 
 supaline is a [Yazi](https://github.com/sxyazi/yazi) plugin that replaces the
 linemode with a configurable set of columns: sizes and timestamps coloured flat
-or on a gradient between endpoints the user chooses. Built-in columns and
-user-written ones go through the same interface; neither has a privileged path.
+or on a gradient, between endpoints the user chooses or across the band one
+colour is spread into. Built-in columns and user-written ones go through the
+same interface; neither has a privileged path.
 
 Do not call that gradient eza's. eza was read at v0.23.5 and it does something
 else: it replaces the Oklab **lightness** of a colour it takes from the file's
@@ -30,6 +31,13 @@ interpolate between at all. Its `--color-scale-mode=fixed` is not the
 absolute-scale mode the name suggests either -- it draws every size in one
 colour. What supaline does take from it is the shape of the idea and the
 extremes of the listing, which is what `builtin.lua` says and all it says.
+
+The band is not eza's either, and is the likelier of the two to be mistaken
+for it, since both start from one colour. eza moves the lightness and holds
+the other two Oklab axes, which runs a saturated colour out of gamut in both
+directions and turns its hue at the clamp; supaline scales all three together,
+which is an exposure change and leaves the hue alone. `colour.lua`'s `M.band`
+carries the measurements for both.
 
 Whether supaline ships status columns of its own — version control, dotfile
 management — is **undecided**. Do not describe them as planned or forthcoming,
