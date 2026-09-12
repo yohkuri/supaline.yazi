@@ -13,3 +13,8 @@ AGENTS.override.md
 # global excludes file `git config --global core.excludesFile` names, and not
 # here. A rule in this file is the project telling every contributor what to
 # hide; those are yours to decide.
+
+# Dropped by `uvx ruff ...`, which `AGENTS.md` tells every contributor to run.
+# Not a personal file like the ones above: the project's own command makes it,
+# so the project is what hides it.
+.ruff_cache/

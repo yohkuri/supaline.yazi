@@ -175,183 +175,43 @@ jobs:
       # `gitignore: true` in that file needs the checkout to be a repository,
       # which it is.
       - run: npx --yes markdownlint-cli2@0.19
+      # uv, for one script and one reason: `.github/scripts/skills.py` carries
+      # its own `skills-ref` pin in a PEP 723 header, and `uv run` is what
+      # reads it. Nothing else here needs Python, and no version of it is
+      # named twice.
+      #
+      # A release rather than the major tag every other action here is given:
+      # this one publishes no bare major past v7, and `@v10` is a run that
+      # fails to start rather than a job that runs against something newer.
+      - uses: astral-sh/setup-uv@v10.1.0
       - name: Skills match the Agent Skills specification
-        # The hard constraints from the specification at
-        # https://agentskills.io/specification, read 2026-09-08, and the
-        # numbers Anthropic's authoring guide repeats: `name` at most 64
-        # characters of lowercase alphanumerics and single hyphens, equal to
-        # its own directory and clear of the words the spec reserves;
-        # `description` non-empty and at most 1024; `compatibility` at most
-        # 500; a body under 500 lines; and a table of contents on a reference
-        # over 100.
+        # The same command to run by hand, and the script says what it checks
+        # and what it leans on.
         #
-        # 1024 is the one that bites. Past it a strict client rejects the
-        # skill at load time and a lenient one truncates, which takes the
-        # "when not to read it" half of the description with it -- the same
-        # damage a literal `---` does, and that one is measured in
-        # `document-supaline`. `yazi-platform-traps` sat 5 characters short
-        # of it before this step existed.
+        # The frontmatter half is `skills-ref`, the reference library the
+        # specification points at for exactly this -- so the limits, the name
+        # rules and an undefined field are its answers, taken off a real YAML
+        # parse rather than the `awk` that stood here. The rest is this
+        # repository's own, and the script says which is which and why, beside
+        # each rule. Do not keep a second copy of that list here.
+        run: uv run .github/scripts/skills.py
+      - name: ruff, over the one Python file here
+        # Held to what stylua holds the Lua to: the lint, and then the shape.
         #
-        # Read out of the frontmatter proper, between the opening `---` and
-        # the closing one, and a file missing either fence fails rather than
-        # measuring as empty: counting the body from the second `---` is what
-        # let a 900-line one through as zero. `description` is taken whichever
-        # scalar style writes it -- a block (`>-`, `>`, `|`, `|-`) or a single
-        # line, quoted or not -- because the spec constrains the value and not
-        # how YAML spells it. Folding is approximated by joining on single
-        # spaces, which agrees with a real parse to the character on all four
-        # descriptions here and can drift by one per blank line in a block.
+        # `.github/scripts` rather than the tree every other linter here is
+        # given, because the two halves of ruff do not walk the same tree:
+        # `check .` reaches one file, and `format --check .` reaches fifteen
+        # -- it formats the Python inside a fenced block, so the documents
+        # would be markdownlint's and ruff's at once. Measured on 0.16.7.
         #
-        # The Contents test is a correspondence, not a presence: a heading the
-        # list does not name fails, so neither adding a section without
-        # listing it nor renaming one can pass. Headings inside fenced blocks
-        # are not headings -- these files quote shell, where `##` is a
-        # comment. What is deliberately *not* here is the spec's "keep
-        # references one level deep": that is about a reference linking on to
-        # another reference, which needs judgement, so it is prose in
-        # `document-supaline` instead.
-        #
-        # `run:` is `bash -e`, so every `grep -c` here is guarded -- a count
-        # of zero is an exit status, and an unguarded one would abort the step
-        # in the middle rather than report anything.
-        #
-        # The upstream `skills-ref validate` covers the frontmatter rules too.
-        # It is not used here because it would add a toolchain for four
-        # skills, and every other tool in this file is pinned.
+        # `uvx` rather than `uv run`: ruff is a tool this repository runs, not
+        # something `skills.py` imports, so the pin belongs on the command and
+        # not in that script's header. Pinned for the reason stylua is -- a
+        # release that adds a rule would otherwise fail a branch nobody
+        # touched.
         run: |
-          rc=0
-          found=0
-
-          # One frontmatter scalar, whichever style writes it: $1 file,
-          # $2 last frontmatter line, $3 key.
-          scalar() {
-            sed -n "2,$2p" "$1" | awk -v k="$3" '
-              !cap && index($0, k ":") == 1 {
-                v = substr($0, length(k) + 2)
-                sub(/^[[:space:]]*/, "", v)
-                if (v ~ /^[|>][+-]?$/ || v == "") { cap = 1; next }
-                if (v ~ /^".*"$/ || v ~ /^\047.*\047$/) v = substr(v, 2, length(v) - 2)
-                print v
-                exit
-              }
-              cap {
-                if ($0 == "") { print ""; next }
-                if ($0 ~ /^[[:space:]]/) { sub(/^[[:space:]]+/, ""); print; next }
-                exit
-              }
-            ' | tr '\n' ' ' | sed 's/  *$//'
-          }
-
-          for d in .agents/skills/*/; do
-            d=${d%/}
-            f="$d/SKILL.md"
-            if [ ! -f "$f" ]; then
-              echo "$d: no SKILL.md."
-              rc=1
-              continue
-            fi
-            found=$((found + 1))
-
-            if [ "$(head -1 "$f")" != "---" ]; then
-              echo "$f: does not open with a --- frontmatter fence."
-              echo "  A client reads no skill here, and nothing below can be measured."
-              rc=1
-              continue
-            fi
-            fm_end=$(awk 'NR>1 && $0=="---" {print NR; exit}' "$f")
-            if [ -z "$fm_end" ]; then
-              echo "$f: the frontmatter never closes."
-              echo "  Add the closing ---. Without it a client reads no skill here, and"
-              echo "  the body below measures as zero lines however long it is."
-              rc=1
-              continue
-            fi
-
-            name=$(scalar "$f" "$((fm_end - 1))" name)
-            desc=$(scalar "$f" "$((fm_end - 1))" description)
-            compat=$(scalar "$f" "$((fm_end - 1))" compatibility)
-            body=$(( $(wc -l < "$f" | tr -d '[:space:]') - fm_end ))
-
-            [ "$name" = "${d##*/}" ] || { echo "$f: name is \`$name\`, directory is \`${d##*/}\`."; rc=1; }
-            case $name in
-              "") echo "$f: no name in the frontmatter."; rc=1 ;;
-              *[!a-z0-9-]*|-*|*-|*--*) echo "$f: name \`$name\` is not lowercase-alphanumeric-hyphen."; rc=1 ;;
-            esac
-            case $name in
-              *anthropic*|*claude*)
-                echo "$f: name \`$name\` uses a word the spec reserves."
-                echo "  \`anthropic\` and \`claude\` are refused however they are spelled into it."
-                rc=1 ;;
-            esac
-            [ ${#name} -le 64 ] || { echo "$f: name is ${#name} characters, over the spec's 64."; rc=1; }
-
-            if [ -z "$desc" ]; then
-              echo "$f: description is empty."
-              echo "  Any scalar style is read -- a block, or one line, quoted or not."
-              rc=1
-            elif [ ${#desc} -gt 1024 ]; then
-              echo "$f: description is ${#desc} characters, over the spec's 1024."
-              echo "  Past it a strict client rejects the skill outright, and a lenient"
-              echo "  one truncates -- taking the 'when not to read it' half with it."
-              rc=1
-            fi
-            case $desc in
-              *---*) echo "$f: the description contains a literal ---, which cuts the listing there."; rc=1 ;;
-            esac
-
-            [ ${#compat} -le 500 ] || {
-              echo "$f: compatibility is ${#compat} characters, over the spec's 500."
-              rc=1
-            }
-
-            [ "$body" -le 500 ] || {
-              echo "$f: body is $body lines, over the 500-line budget."
-              echo "  Move what a reader does not need every time into references/."
-              rc=1
-            }
-          done
-          [ "$found" -gt 0 ] || { echo ".agents/skills/: no skill found. Has the tree moved?"; rc=1; }
-
-          for f in .agents/skills/*/references/*.md; do
-            [ -f "$f" ] || continue
-            lines=$(wc -l < "$f" | tr -d '[:space:]')
-            [ "$lines" -gt 100 ] || continue
-
-            heads=$(awk '/^```/ { fence = !fence; next } !fence && /^## / { sub(/^## /, ""); print }' "$f")
-            printf '%s\n' "$heads" | grep -qx 'Contents' || {
-              echo "$f: $lines lines and no '## Contents' heading."
-              echo "  List the sections at the top, so a partial read still shows what the"
-              echo "  file covers."
-              rc=1
-              continue
-            }
-
-            block=$(awk '
-              /^```/ { fence = !fence; if (c) print; next }
-              !fence && /^## Contents$/ { c = 1; next }
-              !fence && /^## / { if (c) exit }
-              c { print }
-            ' "$f")
-            listed=$(printf '%s\n' "$block" | grep -c '^- ' || true)
-            actual=$(printf '%s\n' "$heads" | grep -v '^Contents$' | grep -c '.' || true)
-            [ "$listed" -eq "$actual" ] || {
-              echo "$f: Contents lists $listed of $actual sections."
-              rc=1
-            }
-
-            missing=$(printf '%s\n' "$heads" | grep -v '^Contents$' | while IFS= read -r h; do
-              [ -n "$h" ] || continue
-              printf '%s\n' "$block" | grep -qF -- "$h" || printf '%s\n' "$h"
-            done)
-            [ -z "$missing" ] || {
-              printf '%s\n' "$missing" | sed "s|^|$f: not in Contents: |"
-              echo "  A renamed section keeps the count and loses its entry, so the count"
-              echo "  above says nothing about it."
-              rc=1
-            }
-          done
-
-          exit $rc
+          uvx ruff@0.16.7 check .github/scripts
+          uvx ruff@0.16.7 format --check .github/scripts
       - name: Every skill is reachable from .claude/skills
         # Claude Code reads `.claude/skills`; the skills live under
         # `.agents/skills` where every agent can reach them, and a tracked
