@@ -268,6 +268,7 @@ nothing here measures the terminal.
 
 ```sh
 lua test/ramp.lua "#0b3d91 -> #7fd4ff"    # any ramp you like, no Yazi needed
+lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"   # ... at other bounds
 ```
 
 Any Lua will do — it reads `colour.lua` and never asks Yazi anything, so this
@@ -307,20 +308,23 @@ that they are.
 
 ### `c b` — a band nobody wrote the ends of
 
-In `g 3`, the same rows on `#0b3d91 <->`. One colour, spread both ways: as dark
-as a column stays visible, and as light as the hue allows. Press `c r` and `c b`
-one after the other — the same rows, the same navy, endpoints chosen by hand
-and endpoints derived.
+In `g 3`, the same rows on `#0b3d91 <->`. One colour, spread across the band's
+two fixed lightnesses. Press `c r` and `c b` one after the other — the same
+rows, the same navy, endpoints chosen by hand and endpoints derived.
 
 - **Is the spread worth drawing?** `e2e.sh` already knows every step differs
   from the one above it, the same way it knows for `c r`. What it cannot ask is
   whether a band this wide separates the rows enough to be read as a gradient,
   or whether the derivation merely produced 64 shades of one colour.
-- **The bottom row against your own terminal.** The dark end stops at a
-  lightness picked on the assumption of a dark background, and yours is the one
-  it was picked for or it is not. If the first rows are sunk into the
-  background, that assumption has just failed on your terminal and the fix is
-  two endpoints, not a different floor.
+- **The bottom row against your own terminal.** The dark end stops at 0.35,
+  picked on the assumption of a dark background, and yours is the one it was
+  picked for or it is not. If the first rows are sunk into the background, that
+  assumption has just failed here — move `band.from` up and look again with
+  `lua test/ramp.lua --band 0.40,0.88 "#0b3d91 <->"`, which needs no Yazi.
+- **A light terminal instead.** Then the band is upside down rather than
+  slightly wrong, and the pair goes backwards: `band = { from = 0.90, to = 0.35 }`.
+  0.90 is derived, 0.35 is a guess inherited from the dark default, and this is
+  the screen that settles it.
 - **The top.** It climbs past where `c r` ends and gives up chroma to get
   there, so it is paler than the navy it came from and paler than `c r`'s own
   last row. Whether that reads as the same colour or as a different one is the

@@ -73,6 +73,7 @@ desc = "Linemode: size and mtime"
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
 | `separator` | `" "`       | Drawn between columns, unless a column opts out.     |
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
+| `band`      | `{ from = 0.35, to = 0.88 }` | The two Oklab lightnesses a one-colour band runs between, `from` at ratio 0. Write it backwards for a light terminal; see [`band`](#band). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
 A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
@@ -328,8 +329,8 @@ flat colours.
 
 ### A band around one colour
 
-One colour is a gradient too. `<->` spreads it both ways — as dark as a column
-is still visible against the terminal, and as light as the hue allows:
+One colour is a gradient too. `<->` spreads it across a fixed band of
+lightness — 0.35 to 0.88 in Oklab by default, dark end first:
 
 ```lua
 { "size", ramp = "#7fd4ff <->" }
@@ -346,13 +347,13 @@ The marker is there for the theme, where a field holds one value and
 because the key says `ramp` already.
 
 **The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
-axis as the colour you wrote, so every step between them does too. Down, and up
-as far as the display allows, that ray is walked by scaling lightness and the
-two colour axes together — an exposure change, which keeps the colour's
-character and not merely its hue. Past where the display runs out, lightness is
-bought with chroma, the one thing that can be given up without turning the
-colour. Everything after that is the ramp above: interpolated in Oklab,
-quantised into 64 steps, indexed per row.
+axis as the colour you wrote, so every step between them does too. As far as
+the display allows, that ray is walked by scaling lightness and the two colour
+axes together — an exposure change, which keeps the colour's character and not
+merely its hue. Past where the display runs out, lightness is bought with
+chroma, the one thing that can be given up without turning the colour.
+Everything after that is the ramp above: interpolated in Oklab, quantised into
+64 steps, indexed per row.
 
 Two things follow, and they are easier read here than found on screen:
 
@@ -361,22 +362,57 @@ Two things follow, and they are easier read here than found on screen:
   `#7fd4ff` a two-ended ramp would have reached. Above that it keeps climbing
   and gives up chroma to do it, so the band arrives at `#c2d9ff` with all 64
   steps distinct.
-- **The colour you wrote is somewhere in the band, not at an end.** It is on it
-  wherever its own lightness falls — at the bottom for something darker than
-  the floor, at the top for something already lighter than the band climbs to,
-  and in between for the rest. Most colours are in between: the band goes to a
-  lightness of 0.88, and `#7fd4ff` at 0.83 is lightened to `#a8e1ff` along with
-  everything darker than it.
+- **The colour you wrote supplies the hue and nothing else.** It is not put on
+  the band anywhere, and unless its own lightness happens to fall between the
+  two bounds it is not on the band at all. `#7fd4ff` sits at 0.83 and is drawn
+  from `#223f4d` up to `#a8e1ff`; `#000000` and `#ffffff` are both greys with
+  no hue to hold, and both give the same `#3a3a3a` to `#d7d7d7`.
 
-The dark end stops where it does on the assumption of a **dark terminal**.
-supaline cannot check: Yazi exposes no background to read, and a flavour that
-sets none leaves your terminal's own showing through, which Yazi does not know
-either. On a light background the floor protects the wrong side — write two
-endpoints there.
+Fixed is the point. Two columns spread from different colours put the same
+ratio at the same lightness, so a row reads across them — where a band widened
+to take in whatever colour was written would leave the darkest cell of one
+column and the darkest cell of the next meaning different things.
 
-A colour with no lightness to scale and no hue to hold is refused rather than
-drawn as the greys the band would otherwise invent, which in practice means
-`#000000`.
+### `band`
+
+Where those two lightnesses are. `from` is what ratio 0 draws and `to` what
+ratio 1 draws, so the pair carries its own direction:
+
+```lua
+require("supaline"):setup {
+  band = { from = 0.35, to = 0.88 },
+  linemodes = { ... },
+}
+```
+
+Plugin-wide and nowhere else. A band is a claim about what your terminal can
+show, and that does not change between one column and the next.
+
+The default assumes a **dark terminal**, and supaline cannot check: Yazi
+exposes no background to read, and a flavour that sets none leaves your
+terminal's own showing through, which Yazi does not know either. 0.35 is where
+a step stops being lighter than the ground it is drawn on, measured against
+five common dark backgrounds; 0.88 was chosen by looking.
+
+**On a light terminal, write the pair backwards:**
+
+```lua
+band = { from = 0.90, to = 0.35 }
+```
+
+Ratio 0 is then the pale end and ratio 1 the dark one, and nothing else
+changes. 0.90 is the mirror of the default's own margin — it clears the
+darkest light background of the five by the same amount 0.35 clears the
+lightest dark one. The other end of that pair is a guess; look at it before
+keeping it:
+
+```sh
+lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
+```
+
+Both numbers are Oklab lightnesses, above 0 and at most 1, and they may not be
+equal — sixty-four steps of one colour is a flat colour, which is what `base`
+already is.
 
 ### `scale`
 
