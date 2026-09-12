@@ -18,8 +18,14 @@ line-length = 80
 
 [lint]
 # The default is E4, E7, E9 and F -- syntax, imports, and names that are not
-# there. These four are the ones that had something to say about the only
-# Python file here: a comprehension that copies a list (C4), a module-level
-# `global` (PLW), an import block in an order nobody chose (I), and a `return`
-# written the long way (RET).
+# there. Four families on top of it, and not all four for the same reason.
+#
+# C4 and PLW each refused something in the only Python file here: a
+# comprehension that copied a list, and a module-level `global`. I and RET
+# never had anything to say about it -- measured with
+# `ruff check --isolated --select I,RET` over that file as it stood, which
+# passed while `--select C4,PLW` found two. They are on anyway, because the
+# order of an import block and the shape of a `return` are worth settling by a
+# tool in a repository where the next Python file may be written by an agent
+# that has not read this one.
 extend-select = ["C4", "I", "PLW", "RET"]

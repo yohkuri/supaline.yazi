@@ -6,4 +6,11 @@ lua = "5.5.1"
 # something Lua and Node do not bring. Pinned like everything else, though
 # nothing depends on the version: what that script resolves is in its own
 # lock file, and CI installs uv itself rather than reading this.
+#
+# One direction is worth knowing before the pin moves: `skills.py.lock` opens
+# with the `version` and `revision` of the format uv wrote it in, so a newer uv
+# re-running `uv lock --script` can leave behind a lock this version has never
+# been asked to read. Whether it would refuse such a lock or read it anyway is
+# not measured here -- move the pin and regenerate the lock in the same change,
+# and the question does not come up.
 uv = "0.11.19"
