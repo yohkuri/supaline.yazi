@@ -697,12 +697,18 @@ function M.install(root)
 		render = function() end,
 	}
 
-	-- One table, because 26.9.1 has one state: the user's `theme.toml` and
-	-- flavor are merged before any plugin code runs, so `th.supaline` and a
-	-- `[mgr]` override alike are readable from the first line of `init.lua`.
-	-- Measured, not assumed -- a `[mgr] cwd` captured at load time paints the
-	-- user's colour, and a `Style` read out of `th` is a value frozen at that
-	-- moment, not a handle that follows later reloads.
+	-- One table, because 26.9.1 has one state by the time the plugin draws
+	-- anything. `theme.toml` is merged before any plugin code runs, so
+	-- `th.supaline` and a `[mgr]` override alike are readable from the first
+	-- line of `init.lua`. Measured, not assumed -- a `[mgr] cwd` captured at
+	-- load time paints the user's colour, and a `Style` read out of `th` is a
+	-- value frozen at that moment, not a handle that follows later reloads.
+	--
+	-- The flavor is *not* there that early: a field only the flavor supplies
+	-- holds Yazi's preset while `init.lua` runs and reaches its real value with
+	-- an unasked `theme` event a few milliseconds later. One table is still
+	-- right, because nothing here models a startup -- a spec that cares writes
+	-- the preset, then writes the flavor's value and calls `fire("theme")`.
 	--
 	-- What a test writes here is what the plugin can already see.
 	--

@@ -309,9 +309,12 @@ end
 --- array is refused by Yazi, taking the whole file with it -- so a themed ramp
 --- arrives as a string, and `is_ramp` is what tells the two apart.
 ---
---- This runs inside `build()` rather than once at setup: 26.9.1 has the user's
---- theme merged before any plugin code runs, but `app:theme` re-reads it
---- mid-run, and a colour resolved once is the old one from then on.
+--- This runs inside `build()` rather than once at setup, and `build` is what
+--- the `theme` event calls. Both halves of the timing need that. 26.9.1 has
+--- `theme.toml` merged before any plugin code runs but **not the flavor**, so
+--- a field the flavor supplies still holds Yazi's preset while `init.lua` is
+--- running; and `app:theme` re-reads both mid-run, so a colour resolved once
+--- is the old one from then on.
 ---@param name string?
 ---@param opts supaline.ColumnOpts
 ---@param def supaline.ColumnOpts
