@@ -410,9 +410,11 @@ keeping it:
 lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
 ```
 
-Both numbers are Oklab lightnesses, above 0 and at most 1, and they may not be
-equal — sixty-four steps of one colour is a flat colour, which is what `base`
-already is.
+Both numbers are Oklab lightnesses, above 0 and at most 1. Nothing checks them
+against each other: two ends at one lightness draw sixty-four steps of one
+colour, which is what `base` already is, and supaline takes it rather than
+guessing you did not mean it — a pair a hair apart draws the same column and no
+comparison of two numbers tells them apart.
 
 ### `scale`
 
