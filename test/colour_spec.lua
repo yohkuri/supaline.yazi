@@ -293,9 +293,23 @@ test("bounds: a band that is not two numbers is refused", function()
 	throws(function() colour.bounds({ from = 0.35 }, "x") end, "`to` must be an Oklab lightness")
 	throws(function() colour.bounds({ from = "dark", to = 0.88 }, "x") end, "`from` must be an Oklab lightness")
 	throws(function() colour.bounds("dark", "x") end, "must be a table of two lightnesses")
-	-- Two ends at one lightness is 64 steps of one colour, which is what a
-	-- flat `base` already is.
-	throws(function() colour.bounds({ from = 0.6, to = 0.6 }, "x") end, "flat colour rather than a band")
+end)
+
+test("bounds: two ends at one lightness are taken rather than refused", function()
+	local band = colour.bounds({ from = 0.6, to = 0.6 }, "x")
+	eq(band.from, 0.6)
+	eq(band.to, 0.6)
+	-- Why they are taken: sixty-four steps of one colour is what a flat `base`
+	-- already is, so an equality test reads like the right refusal -- and it
+	-- would catch this spelling and not the one beside it, which draws the
+	-- identical column. Where flat stops being flat is a judgement, and the two
+	-- ends are the writer's to make, degenerate ones included.
+	local flat = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.5, to = 0.5 }))
+	local near = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.5, to = 0.501 }))
+	for i = 1, 64 do
+		eq(flat[i], "#155ace")
+		eq(near[i], flat[i])
+	end
 end)
 
 test("bounds: the error names where the band was written", function()
