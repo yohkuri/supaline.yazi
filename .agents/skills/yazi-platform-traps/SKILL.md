@@ -2,12 +2,13 @@
 name: yazi-platform-traps
 description: >-
   Three behaviours of Yazi 26.9.1 that break this plugin silently and that CI
-  does not catch: a theme reload replaces colours already resolved, a fetcher
-  returns a function rather than a boolean, and linemode children also render
-  in the parent pane. Plus the budget a linemode render runs under. Read when
-  a change resolves a colour or reads the theme, writes a fetcher, touches the
-  parent- or preview-pane child, or adds a column's render or stats -- not for
-  every edit to plugin Lua, and not for a rename or a format string. Six
+  does not catch: a theme reload replaces colours already resolved and the
+  flavor lands after `init.lua` has run, a fetcher returns a function rather
+  than a boolean, and linemode children also render in the parent pane. Plus
+  the budget a linemode render runs under. Read when a change resolves a colour
+  or reads the theme, writes a fetcher, touches the parent- or preview-pane
+  child, or adds a column's render or stats -- not for every edit to plugin
+  Lua, and not for a rename or a format string. Six
   further traps are refused by a test or a CI job that prints the fix, so they
   need no reading in advance; references/checked-traps.md has them for when one
   fires, and references/probes.md has what was run to establish the three
@@ -33,17 +34,26 @@ checked list, take it.
 
 ## A theme reload replaces colours already resolved
 
-On 26.9.1 the user's `theme.toml` and flavor are merged **before any plugin
-code runs**. `th.supaline` and a `[mgr]` override alike are readable from the
-first line of `init.lua`, so resolving a base colour inside `setup` gets the
-user's value, not a preset's.
+On 26.9.1 the user's `theme.toml` is merged **before any plugin code runs**:
+`th.supaline` and a `[mgr]` override alike are readable from the first line of
+`init.lua`, so a section the user wrote reaches a colour resolved inside
+`setup`.
 
-**What still bites is the reload.** `app:theme` re-reads `theme.toml` from disk
+**The flavor is not there yet.** A field only the flavor supplies —
+`th.status.perm_read`, `th.mode.normal_main` — still holds Yazi's preset while
+`init.lua` runs, and reaches the flavor's value with the `theme` event that
+fires a few milliseconds later, unasked. So "resolve it at setup and it is the
+user's" is true of `theme.toml` and false of a flavor, and the two are
+indistinguishable from Lua: both arrive as `th.<section>.<key>`.
+
+**The reload bites too.** `app:theme` re-reads `theme.toml` from disk
 mid-run, and a plugin that resolved its colours once at `setup` goes on drawing
 the old ones — no error, just a stale colour, because a `Style` out of `th` is
 a value frozen when it was read rather than a handle. So: resolve base colours
 and build styles inside `ps.sub("theme", ...)`, and run that same builder once
-at setup so the plugin has something to draw with before the first event.
+at setup so the plugin has something to draw with before the first event. One
+subscription answers both halves — the unasked event corrects the flavor, a
+later one the reload — which is why the plugin is not already broken.
 
 Custom theme sections are read as `th.<section>`. Section names are normalised
 from kebab-case to snake_case (`[my-plugin]` becomes `th.my_plugin`), field

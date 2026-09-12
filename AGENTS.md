@@ -149,9 +149,10 @@ need; the mechanism behind each, and the experiment that established it, is in
 `.agents/skills/yazi-platform-traps/`.
 
 - `app:theme` re-reads `theme.toml` mid-run — a colour resolved once and
-  cached goes stale, and nothing says so. (Read `th.*` freely at setup: 26.9.1
-  merges the user's theme before any plugin code runs; it is the *reload* that
-  bites)
+  cached goes stale, and nothing says so. The first `theme` event bites as
+  well: `theme.toml` is merged before any plugin code runs, the flavor only a
+  few milliseconds later, so a field the flavor supplies still holds Yazi's
+  preset while `init.lua` runs
 - `ya.sync` binds by the position of the call, per file — one written elsewhere
   reads a different state table
 - a fetcher returns a function, not a boolean — the error reaches only the task

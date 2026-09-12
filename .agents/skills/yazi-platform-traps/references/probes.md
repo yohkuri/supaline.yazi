@@ -14,14 +14,22 @@ retire one of the three.
 Everything here was measured on Yazi 26.9.1 (Homebrew 2026-09-01), in a
 detached tmux, with a probe plugin and `ya.dbg`.
 
-## The theme is merged before any plugin code runs
+## Contents
+
+- What is merged before any plugin code runs, and what is not
+- What the two theme pins discriminate
+- A fetcher that returns a boolean
+- What pins the parent-pane child
+
+## What is merged before any plugin code runs, and what is not
 
 Measured with a probe column painted from `init.lua`:
 
 - `th.supaline.mtime` reads the user's `green` at the top of `init.lua`, before
   `setup` is called and before any `theme` event.
 - A `[mgr] cwd` override captured into an upvalue at load time paints the
-  user's colour, so built-in sections are merged that early too.
+  user's colour, so built-in sections of `theme.toml` are merged that early
+  too.
 - A `theme` event fires by itself a couple of milliseconds after `init.lua`,
   without the terminal probe ever being answered. What that costs a headless
   run is `verify-supaline`'s subject, not this one's.
@@ -31,6 +39,29 @@ captured value and a re-read disagree: the capture keeps its colour across a
 reload while the same field read inside the handler follows the new one. That
 is the mechanism behind the trap — a `Style` out of `th` is a value frozen when
 it was read, not a handle.
+
+**The flavor is merged later than all of that**, and this file said otherwise
+until it was measured. Three columns drawn side by side, over a `theme.toml`
+holding `[flavor] dark = "catppuccin-mocha"`, an `[mgr] cwd` override and a
+`[supaline] probe` field, each column painting one capture of the same field:
+
+| field | captured in `init.lua` | captured in a `theme` handler | read per row |
+| ----- | ---------------------- | ----------------------------- | ------------ |
+| `th.mgr.cwd`, overridden in `theme.toml` | `#ff00ff` | — | `#ff00ff` |
+| `th.supaline.probe`, a custom section | `#00ff00` | — | `#00ff00` |
+| `th.mode.normal_main`, the flavor's | `[1m[44m` | catppuccin | catppuccin |
+
+The flavor writes every one of its colours as `#rrggbb`, so a bold 4-bit
+`[44m` cannot have come from it: that is Yazi's own preset, and the capture
+taken while `init.lua` ran is holding it. The middle column is what keeps the
+plugin working — the unasked `theme` event of the third bullet above lands
+after the flavor does, and `main.lua` rebuilds on it.
+
+The probe reads the field back through supaline rather than out of `th`,
+because **a colour cannot be read out of a `ui.Style` from Lua**: `fg` and `bg`
+are setters and raise when called with no argument, and `getmetatable` on one
+returns `false`. The screen is the only reader. That is also why a flavor
+cannot supply a gradient endpoint, which needs `#rrggbb` channels.
 
 ## What the two theme pins discriminate
 
