@@ -404,12 +404,12 @@ test("theme: one colour with `<->` is a gradient a theme can ask for", function(
 	-- had to be written with both of its ends in it; `<->` asks for the band
 	-- around a single colour, which is the only other thing that fits.
 	--
-	-- `#7fd4ff` has a channel at 255 and so is its own high end -- the largest
-	-- file draws the colour as written, and the rest fade below it.
-	-- `colour_spec.lua` pins where the low end lands and why.
+	-- Both ends are derived, neither is the colour written: the largest file
+	-- draws the light end of the band around `#7fd4ff` and the smallest draws
+	-- the dark one. `colour_spec.lua` pins where each lands and why.
 	with_theme({ size = "#7fd4ff <->" }, function()
 		setup { detail = { { "size", width = 4 } } }
-		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#7fd4ff")
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#a8e1ff")
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#223f4d", "and the low end below it")
 	end)
 end)

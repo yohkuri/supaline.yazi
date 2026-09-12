@@ -328,9 +328,8 @@ flat colours.
 
 ### A band around one colour
 
-One colour is a gradient too. `<->` spreads it as far as it goes each way — as
-light as its own hue can be drawn, and as dark as a column is still visible
-against the terminal:
+One colour is a gradient too. `<->` spreads it both ways — as dark as a column
+is still visible against the terminal, and as light as the hue allows:
 
 ```lua
 { "size", ramp = "#7fd4ff <->" }
@@ -346,24 +345,28 @@ The marker is there for the theme, where a field holds one value and
 `size = "#7fd4ff"` has to go on meaning a flat colour. A spec needs none of it,
 because the key says `ramp` already.
 
-Both ends are the same colour at another exposure — lightness, and the two
-colour axes with it, scaled together rather than the lightness alone — so the
-hue never moves and the band never leaves what the display can show. Everything
-after that is the ramp above: interpolated in Oklab, quantised into 64 steps,
-indexed per row.
+**The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
+axis as the colour you wrote, so every step between them does too. Down, and up
+as far as the display allows, that ray is walked by scaling lightness and the
+two colour axes together — an exposure change, which keeps the colour's
+character and not merely its hue. Past where the display runs out, lightness is
+bought with chroma, the one thing that can be given up without turning the
+colour. Everything after that is the ramp above: interpolated in Oklab,
+quantised into 64 steps, indexed per row.
 
-Three things follow, and they are easier read here than found on screen:
+Two things follow, and they are easier read here than found on screen:
 
-- **Up is usually where the room is not.** A colour with a channel already at
-  `ff` — `#7fd4ff`, `#ff8800`, most saturated theme colours — cannot be
-  lightened at all, and is its own high end. That is the common case: the
-  colour you wrote, fading downwards.
-- **A dark colour bands upwards instead**, which is why both ends are derived
-  rather than one. `#0b3d91` has almost nothing below it and half again above,
-  and comes out spread over every one of the 64 steps.
-- **So the colour you wrote is somewhere in the band, not at a fixed end.** It
-  is always on it, but at the top for `#7fd4ff`, a sixth of the way up for
-  `#0b3d91`, and at the bottom for something darker still.
+- **A dark colour is not a dim band.** Holding the hue caps how far an exposure
+  can lighten: `#0b3d91` stops at a lightness of 0.59, well short of the
+  `#7fd4ff` a two-ended ramp would have reached. Above that it keeps climbing
+  and gives up chroma to do it, so the band arrives at `#c2d9ff` with all 64
+  steps distinct.
+- **The colour you wrote is somewhere in the band, not at an end.** It is on it
+  wherever its own lightness falls — at the bottom for something darker than
+  the floor, at the top for something already lighter than the band climbs to,
+  and in between for the rest. Most colours are in between: the band goes to a
+  lightness of 0.88, and `#7fd4ff` at 0.83 is lightened to `#a8e1ff` along with
+  everything darker than it.
 
 The dark end stops where it does on the assumption of a **dark terminal**.
 supaline cannot check: Yazi exposes no background to read, and a flavour that
@@ -371,8 +374,9 @@ sets none leaves your terminal's own showing through, which Yazi does not know
 either. On a light background the floor protects the wrong side — write two
 endpoints there.
 
-A colour with no room either way is refused rather than drawn flat, which in
-practice means `#000000`.
+A colour with no lightness to scale and no hue to hold is refused rather than
+drawn as the greys the band would otherwise invent, which in practice means
+`#000000`.
 
 ### `scale`
 
