@@ -335,6 +335,37 @@ else
 	esac
 fi
 
+# `user` and `group` draw those same two names again, eight cells each rather
+# than twelve shared, so each is cut on its own length and on most machines the
+# pair comes out whole where `owner` beside it did not. Read as one capture --
+# they are adjacent, and a pattern that found only one of them would not say
+# which -- and held against `id` half by half, since either may be the one that
+# had to be cut.
+pair=$(current_of m2 | sed -n 's/^.*[-dl][rwxsStT-]\{9\} [^ ][^ ]*  *\([^ ][^ ]*\)  *\([^ ][^ ]*\)  *.*$/\1:\2/p' | sort -u)
+if [ -z "$pair" ]; then
+	fail "m2: no user and group cells behind the owner one on screen"
+elif [ "$(printf '%s\n' "$pair" | wc -l | tr -d ' ')" -ne 1 ]; then
+	fail "m2: the rows disagree on the user and group cells: $(printf '%s' "$pair" | tr '\n' ' ')"
+else
+	bad=""
+	# `id` first and the cell second in each pair, so the split below is the
+	# same one either way round. Neither a user nor a group name may hold a
+	# colon -- the passwd and group files are colon-separated themselves.
+	for both in "$(id -un):${pair%%:*}" "$(id -gn):${pair#*:}"; do
+		want=${both%%:*}
+		got=${both#*:}
+		case $want in
+		"${got%…}"*) ;;
+		*) bad="$bad \`$got\` is not a cut of \`$want\`" ;;
+		esac
+	done
+	if [ -n "$bad" ]; then
+		fail "m2:$bad"
+	else
+		echo "  m2: the user and group columns hold the halves of \`$who\`"
+	fi
+fi
+
 # m4 puts one over-long name through ellipsis, clip and grow, so the same row
 # must carry all four renderings of it. Grepping the screen as a whole is not
 # enough: Yazi truncates long names in the parent pane by itself, and that
