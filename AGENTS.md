@@ -206,15 +206,18 @@ this plugin's own, are in `annotate-supaline`.
 
 `.github/scripts/skills.py` reads the skills under `.agents/skills` against the
 Agent Skills specification. `uv run` is the whole of what it needs and not a
-detail: the `skills-ref` pin sits in that script's own header, uv is what reads
-it, and CI runs the same line — so the version is named once. The
-specification's half of the check is that library, the one the specification
-points at for this; the rest is this repository's, and the script says which
-is which beside each rule. `uvx ruff@0.16.7` holds that file to what stylua
-holds the Lua to; its pin sits on the command rather than in the header
-because ruff is a tool this repository runs, not something the script imports.
-It is given a path rather than the tree the other linters get: `ruff format`
-reformats the Python inside a fenced block, and the documents are
+detail: the `skills-ref` pin sits in that script's own header, `skills.py.lock`
+beside it pins what that header cannot reach, uv reads both, and CI runs the
+same line — so no version here is named twice. `mise.toml` pins uv for whoever
+uses mise, as it does Lua; CI installs its own. The specification's half of the
+check is that library, the one the specification points at for this; the rest
+is this repository's, and the script says which is which beside each rule.
+
+`uvx ruff@0.16.7` lints that file and checks its shape, under the rules and the
+80-column wrap `ruff.toml` sets. The pin sits on the command rather than in
+`ruff.toml` because ruff is a tool this repository runs, not something the
+script imports. It is given a path rather than the tree the other linters get:
+`ruff format` reformats the Python inside a fenced block, and the documents are
 markdownlint's.
 
 `test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
@@ -231,6 +234,9 @@ suite can and cannot prove, and how a headless run differs from a terminal.
 
 `stylua.toml` and `.luarc.json` are copied verbatim from
 [yazi-rs/plugins](https://github.com/yazi-rs/plugins). Keep them that way.
+`ruff.toml` is the exception beside them: nothing upstream exists to copy for
+Python, so that one is this repository's own and every line in it is a
+decision it states.
 
 `.lua` files are tab-indented: `indent_width = 2` is a tab's assumed display
 width when measuring against `column_width`, not two spaces. Markdown code

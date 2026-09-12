@@ -166,7 +166,10 @@ jobs:
       - run: shellcheck test/*.sh .githooks/*
 
   docs:
-    name: markdownlint
+    # Not `markdownlint` any more: it runs that, then the skills against the
+    # specification, then ruff over the script that does the second. A job
+    # name that names one of the three is a name for the one nobody looks up.
+    name: Documents and skills
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -186,7 +189,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
       - name: Skills match the Agent Skills specification
         # The same command to run by hand, and the script says what it checks
-        # and what it leans on.
+        # and what it leans on. `skills.py.lock` beside it pins what the PEP
+        # 723 header cannot -- `strictyaml`, which is what actually refuses a
+        # duplicate key -- and `uv run` reads it with no flag here or there.
         #
         # The frontmatter half is `skills-ref`, the reference library the
         # specification points at for exactly this -- so the limits, the name
@@ -196,7 +201,14 @@ jobs:
         # each rule. Do not keep a second copy of that list here.
         run: uv run .github/scripts/skills.py
       - name: ruff, over the one Python file here
-        # Held to what stylua holds the Lua to: the lint, and then the shape.
+        # The lint, and then the shape. `ruff.toml` holds the rules and the
+        # 80-column wrap; unlike `stylua.toml` beside it, that file is this
+        # repository's own rather than upstream's, and says so.
+        #
+        # Both commands run whatever the first one says: `run:` is `bash -e`,
+        # so an unguarded `check` that fails would take `format --check` with
+        # it and report half of what is wrong. Every other step in this file
+        # accumulates into `rc` for the same reason.
         #
         # `.github/scripts` rather than the tree every other linter here is
         # given, because the two halves of ruff do not walk the same tree:
@@ -210,8 +222,10 @@ jobs:
         # release that adds a rule would otherwise fail a branch nobody
         # touched.
         run: |
-          uvx ruff@0.16.7 check .github/scripts
-          uvx ruff@0.16.7 format --check .github/scripts
+          rc=0
+          uvx ruff@0.16.7 check .github/scripts || rc=1
+          uvx ruff@0.16.7 format --check .github/scripts || rc=1
+          exit $rc
       - name: Every skill is reachable from .claude/skills
         # Claude Code reads `.claude/skills`; the skills live under
         # `.agents/skills` where every agent can reach them, and a tracked

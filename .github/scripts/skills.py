@@ -5,26 +5,30 @@
 """Every skill under `.agents/skills`, against the Agent Skills specification.
 
 The specification's own half is `skills-ref`, the reference library the
-specification points at for exactly this (<https://agentskills.io/specification>,
-read 2026-09-12). It parses the frontmatter with a real YAML parser, so a
-duplicate key, an unquoted `:` and a field the specification does not define
-are refused here as well now -- the shell this replaced read the frontmatter
-with `awk`, which took the first `name:` line it saw and said nothing about the
-rest.
+specification points at for exactly this
+(<https://agentskills.io/specification>, read 2026-09-12). It parses the
+frontmatter with a real YAML parser, so a duplicate key, an unquoted `:` and
+a field the specification does not define are refused here as well -- the
+shell this replaced read the frontmatter with `awk`, which took the first
+`name:` line it saw and said nothing about the rest.
 
-The pin is in the header above and nowhere else: `uv run` reads it, and CI runs
-the same line rather than installing anything of its own. `skills-ref` is
-0.1.1 on PyPI and 0.1.0 in its own tree; the published one is the one pinned,
-and it carries a fix the tree does not.
+Only what the library exports is called. `validate` and `read_properties` are
+in its `__all__`; the internals under them are not, and a release that moves
+one would be an ImportError rather than a finding.
 
-What `skills-ref validate` does **not** reach, and this file does:
+`skills.py.lock` beside this file pins what the header cannot: `strictyaml`,
+which is what actually refuses a duplicate key and folds a `>-` description
+before it is measured. Written by `uv lock --script`, read by `uv run` with no
+flag. Re-run that after changing the header.
+
+What the library does **not** reach, and this file does:
 
 - a literal `---` in the frontmatter. Its parser is `content.split("---", 2)`,
   so a `---` anywhere past the opening fence ends the frontmatter there, and
   what follows is dropped in silence. Measured on 0.1.1: a 2045-character
   description with `---` at character 41 is read as 40 characters and passes
-  the 1024 limit. This one is checked first and stops the rest of the file
-  being measured, because past it `skills-ref` is measuring something else.
+  the 1024 limit. What the library would say about such a file is withheld
+  rather than printed, because past that point it is measuring something else.
 - a name carrying `anthropic` or `claude`. Not the specification's -- it
   reserves nothing (read 2026-09-12, and no commit in the last 200 of its
   history added such a rule), and Claude Code's reserved names are a rule
@@ -34,8 +38,11 @@ What `skills-ref validate` does **not** reach, and this file does:
   "unicode lowercase alphanumeric characters (`a-z`, `0-9`)", and `skills-ref`
   reads it the permissive way: a name in Japanese validates. This tree stays
   ASCII, which is this repository's choice rather than the specification's.
-- a body over 500 lines, and a reference over 100 without a `## Contents` that
-  names every section it has. Neither is a frontmatter rule, so neither is in
+- `SKILL.md` by that spelling. The library reads `skill.md` too, and a
+  case-insensitive filesystem answers to either, so the directory is read by
+  name -- otherwise the tree passes on macOS and fails on the runner.
+- a file over 500 lines, and a reference over 100 whose `## Contents` does not
+  name every section it has. Neither is a frontmatter rule, so neither is in
   the library at all.
 """
 
@@ -43,21 +50,23 @@ import re
 import sys
 from pathlib import Path
 
-from skills_ref.errors import ParseError
-from skills_ref.parser import parse_frontmatter
-from skills_ref.validator import validate_metadata
+from skills_ref import SkillError, read_properties, validate
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".agents" / "skills"
 
-# "Keep your main `SKILL.md` under 500 lines", from the specification.
-BODY_LIMIT = 500
+# "Keep your main `SKILL.md` under 500 lines", from the specification -- the
+# file, so a long frontmatter counts, and *under*, so 500 is already over.
+FILE_LIMIT = 500
 # This repository's: past it a reference is read in parts, and a part has to
 # show what the whole covers.
 CONTENTS_LIMIT = 100
 
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 RESERVED = ("anthropic", "claude")
+
+# A Contents entry names its section and may gloss it after an em dash.
+GLOSS = " — "
 
 # `skills-ref` says what the rule is; these say what breaking it costs, which
 # is the half a reader cannot work out from the message.
@@ -70,22 +79,36 @@ LIBRARY_NOTES = {
         "The specification defines those six and no others. Anything of your",
         "own goes under `metadata:`, as a map of string to string.",
     ),
+    "Field 'description'": (
+        "Any scalar style is read -- a block, or one line, quoted or not.",
+    ),
 }
 
-rc = 0
+problems = []
 
 
 def report(where, what, *notes):
     """Say what is wrong, then what to write instead. Never just the first."""
-    global rc
     print(f"{where}: {what}")
     for note in notes:
         print(f"  {note}")
-    rc = 1
+    problems.append(where)
 
 
 def rel(path):
     return path.relative_to(ROOT)
+
+
+def read(path):
+    """The file's text, or None once the reason it has none is reported."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, ValueError) as e:
+        # A dangling symlink, a directory wearing the name, a byte that is not
+        # UTF-8. Each of these used to be a traceback, which says the same
+        # thing in a form nobody can act on.
+        report(rel(path), "cannot be read.", f"    {e}")
+        return None
 
 
 def headings(lines):
@@ -122,6 +145,16 @@ def contents_block(lines):
     return out
 
 
+def check_length(f, text):
+    count = text.count("\n")
+    if count >= FILE_LIMIT:
+        report(
+            rel(f),
+            f"is {count} lines, at or over the {FILE_LIMIT}-line budget.",
+            "Move what a reader does not need every time into references/.",
+        )
+
+
 def check_skill(directory):
     # Read off the directory rather than asking whether the path exists: a
     # case-insensitive filesystem answers yes to `SKILL.md` when the file on
@@ -131,17 +164,26 @@ def check_skill(directory):
     if "SKILL.md" not in names:
         notes = []
         if "skill.md" in names:
-            notes.append("There is a skill.md here. `skills-ref` reads that spelling")
-            notes.append("too; every skill in this tree spells it SKILL.md, and which")
+            notes.append(
+                "There is a skill.md here. `skills-ref` reads that spelling"
+            )
+            notes.append(
+                "too; every skill in this tree spells it SKILL.md, and which"
+            )
             notes.append("clients read the lowercase one is not measured here.")
         report(rel(directory), "no SKILL.md.", *notes)
         return
 
     f = directory / "SKILL.md"
+    text = read(f)
+    if text is None:
+        return
 
-    text = f.read_text(encoding="utf-8")
+    # Before the fences and before the library, because it is the one rule
+    # that needs neither: a file is as long as it is however it parses.
+    check_length(f, text)
+
     lines = text.splitlines()
-
     if not lines or lines[0] != "---":
         report(
             rel(f),
@@ -150,7 +192,9 @@ def check_skill(directory):
         )
         return
 
-    fm_end = next((n for n, line in enumerate(lines[1:], 2) if line == "---"), 0)
+    fm_end = next(
+        (n for n, line in enumerate(lines[1:], 2) if line == "---"), 0
+    )
     if not fm_end:
         report(
             rel(f),
@@ -160,11 +204,16 @@ def check_skill(directory):
         )
         return
 
-    cut = [
-        (n, line) for n, line in enumerate(lines[1 : fm_end - 1], 2) if "---" in line
-    ]
+    cut = next(
+        (
+            (n, line)
+            for n, line in enumerate(lines[1 : fm_end - 1], 2)
+            if "---" in line
+        ),
+        None,
+    )
     if cut:
-        n, line = cut[0]
+        n, line = cut
         report(
             f"{rel(f)}:{n}",
             "a literal --- inside the frontmatter.",
@@ -173,55 +222,45 @@ def check_skill(directory):
             "fence, so everything from here on is dropped: the description in",
             "the listing ends at this point, and a field below it is not read",
             "at all. Name a class or a field annotation rather than spelling",
-            "one. Nothing else in this frontmatter is measured until it is gone.",
+            "one. The frontmatter rules are withheld until it is gone, because",
+            "past it the library is measuring something else.",
         )
         return
 
-    try:
-        metadata, _ = parse_frontmatter(text)
-    except ParseError as e:
-        headline, *rest = str(e).splitlines()
-        report(rel(f), headline, *rest)
-        return
-
-    for error in validate_metadata(metadata, directory):
+    for error in validate(directory):
         headline, *rest = error.splitlines()
-        notes = [line for line in rest]
+        notes = list(rest)
         for prefix, note in LIBRARY_NOTES.items():
             if headline.startswith(prefix):
                 notes.extend(note)
         report(rel(f), headline, *notes)
 
-    name = metadata.get("name")
-    if isinstance(name, str) and name.strip():
-        name = name.strip()
-        if not NAME.fullmatch(name):
-            report(
-                rel(f),
-                f"name `{name}` is not lowercase-alphanumeric-hyphen.",
-                "The specification allows a Unicode letter and skills-ref takes",
-                "it at its word; this tree stays on a-z, 0-9 and single hyphens.",
-            )
-        for word in RESERVED:
-            if word in name:
-                report(
-                    rel(f),
-                    f"name `{name}` carries `{word}`.",
-                    "This plugin is not from that vendor, so its skills do not",
-                    "say so. This rule is this repository's, not the spec's.",
-                )
+    try:
+        name = read_properties(directory).name
+    except SkillError:
+        return  # `validate` above has already said why.
 
-    body = text.count("\n") - fm_end
-    if body > BODY_LIMIT:
+    if not NAME.fullmatch(name):
         report(
             rel(f),
-            f"body is {body} lines, over the {BODY_LIMIT}-line budget.",
-            "Move what a reader does not need every time into references/.",
+            f"name `{name}` is not lowercase-alphanumeric-hyphen.",
+            "The specification allows a Unicode letter and skills-ref takes",
+            "it at its word; this tree stays on a-z, 0-9 and single hyphens.",
         )
+    for word in RESERVED:
+        if word in name:
+            report(
+                rel(f),
+                f"name `{name}` carries `{word}`.",
+                "This plugin is not from that vendor, so its skills do not",
+                "say so. This rule is this repository's, not the spec's.",
+            )
 
 
 def check_reference(f):
-    text = f.read_text(encoding="utf-8")
+    text = read(f)
+    if text is None:
+        return
     count = text.count("\n")
     if count <= CONTENTS_LIMIT:
         return
@@ -237,32 +276,62 @@ def check_reference(f):
         )
         return
 
-    block = contents_block(lines)
     sections = [h for h in heads if h != "Contents"]
-    listed = sum(1 for line in block if line.startswith("- "))
-    if listed != len(sections):
-        report(rel(f), f"Contents lists {listed} of {len(sections)} sections.")
+    # The entry names the section; anything after an em dash glosses it. Named
+    # rather than contained: a section renamed to a prefix of its own entry is
+    # a rename the count cannot see and a substring test reads as present.
+    listed = [
+        line[2:].split(GLOSS, 1)[0].strip()
+        for line in contents_block(lines)
+        if line.startswith("- ")
+    ]
+    if listed == sections:
+        return
 
-    joined = "\n".join(block)
+    if len(listed) != len(sections):
+        report(
+            rel(f), f"Contents lists {len(listed)} of {len(sections)} sections."
+        )
     for heading in sections:
-        if heading not in joined:
+        if heading not in listed:
             report(
                 rel(f),
                 f"not in Contents: {heading}",
                 "A renamed section keeps the count and loses its entry, so the",
                 "count above says nothing about it.",
             )
+    for entry in listed:
+        if entry not in sections:
+            report(
+                rel(f),
+                f"in Contents, but no section has that heading: {entry}",
+                "An entry names its section exactly, and may gloss it after an",
+                "em dash. Rename the entry, or the heading.",
+            )
+    if sorted(listed) == sorted(sections):
+        report(
+            rel(f),
+            "Contents lists every section, in a different order than the file.",
+            "Put the entries in the order the sections come in.",
+        )
 
 
 def main():
-    directories = sorted(p for p in SKILLS.glob("*") if p.is_dir())
+    # `*/` in the shell this replaced skipped a dotted directory, and
+    # `Path.glob` does not. A personal scratch directory under here is not
+    # this check's business -- `AGENTS.md` says the linters see what Git
+    # tracks -- and the step below that walks `.agents/skills/*/` would
+    # disagree about what a skill is.
+    directories = sorted(
+        p for p in SKILLS.glob("*") if p.is_dir() and not p.name.startswith(".")
+    )
     if not directories:
         report(f"{rel(SKILLS)}/", "no skill found. Has the tree moved?")
     for directory in directories:
         check_skill(directory)
     for reference in sorted(SKILLS.glob("*/references/*.md")):
         check_reference(reference)
-    return rc
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":
