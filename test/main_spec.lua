@@ -158,6 +158,24 @@ test("setup: a name Yazi cannot hold is refused", function()
 	throws(function() main.setup({}, { linemodes = { [string.rep("あ", 21)] = { "size" } } }) end, "1 to 20 characters")
 end)
 
+test("setup: a separator that is not a string is refused", function()
+	-- The wrong value is the test; the checker refuses both of these where it
+	-- runs, which is not over anyone's `init.lua`.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = 42 }) end, "`separator` in `setup`")
+
+	-- `false` is the one this is really for. It reads like a column's
+	-- `sep = false` and it is falsy, so it fell through to the plugin-wide
+	-- separator: the linemode drew the separator it had asked to be rid of,
+	-- and not until a row was drawn.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() main.setup({}, { linemodes = { t = { "size", separator = false } } }) end, "linemode `t`")
+
+	-- The spelling the message names is taken.
+	setup { detail = { { "size", width = 2 }, { "size", width = 2 }, separator = "" } }
+	eq(draw("detail", CURRENT.files[1]), "1B1B", "an empty separator draws nothing between two columns")
+end)
+
 test("setup: a linemode has to be a table", function()
 	-- A string where a list of columns goes -- the wrong value is the test,
 	-- and the checker refuses it now that a spec has a class.
