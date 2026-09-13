@@ -741,31 +741,34 @@ fi
 # puts it and where a `patch` that landed in the wrong order would not. The
 # ramp's own escape carries `;` in its body, so a plain numeric SGR cannot be
 # confused for one.
-pairs=$(awk -v esc="$ESC" -F"$BAR" '
+# Counted in `END` and read with one `read`, the way the `c_bg` block above
+# does it: the verdict per row is one bit, and printing three fields for the
+# shell to grep back out would state the passing shape twice.
+counts=$(awk -v esc="$ESC" -F"$BAR" '
 	BEGIN { E = "\\[38;2;[0-9]+;[0-9]+;[0-9]+m" }
 	{
 		row = $2
 		n = 0
-		left = ""
-		right = ""
-		lb = 0
-		rb = 0
 		while (match(row, esc E " *[01]\\.[0-9][0-9]")) {
 			cell = substr(row, RSTART, RLENGTH)
-			p = index(cell, "m")
-			colour = substr(cell, 3, p - 3)
+			# The whole SGR, escape and all: it is only ever compared against
+			# the other cell on the same row, so slicing the prefix off buys an
+			# offset to get wrong and nothing else.
+			colour = substr(cell, 1, index(cell, "m"))
 			bold = (RSTART > 4 && substr(row, RSTART - 4, 4) == esc "[1m") ? 1 : 0
 			n++
 			if (n == 1) { left = colour; lb = bold } else if (n == 2) { right = colour; rb = bold }
 			row = substr(row, RSTART + RLENGTH)
 		}
 		if (n >= 2) {
-			print (left == right ? "same" : "differ"), lb, rb
+			if (left == right && lb && !rb) { ok++ } else { bad++ }
 		}
 	}
+	END { print ok + 0, bad + 0 }
 ' "$DIR/color-c_attrs.txt")
-rows=$(printf '%s\n' "$pairs" | grep -c "same 1 0" || true)
-wrong=$(printf '%s\n' "$pairs" | grep -cv "same 1 0" || true)
+IFS=' ' read -r rows wrong <<EOF
+$counts
+EOF
 if [ "$rows" -lt "$RAMP_FLOOR" ]; then
 	fail "c_attrs: only $rows row(s) had a bold cell beside an unbold one of the same colour, wanted $RAMP_FLOOR"
 elif [ "$wrong" -gt 0 ]; then

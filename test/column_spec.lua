@@ -641,12 +641,15 @@ test("attrs: a definition may carry one, and a spec replaces it whole", function
 end)
 
 test("attrs: a function is called, and named for the file it was written in", function()
+	-- One spec across both builds, the way the `base` version does it: a second
+	-- call with a fresh table and a fresh closure cannot tell "asked again"
+	-- from "asked for the first time", so the claim would be unearned.
 	local answer = { bold = true }
-	local ctx = coloured { attrs = function() return answer end }
-	eq(ctx.base.bold, true)
+	local spec = { attrs = function() return answer end }
+	eq(coloured(spec).base.bold, true)
 
 	answer = { italic = true }
-	eq(coloured({ attrs = function() return answer end }).base.italic, true, "the next build asks again")
+	eq(coloured(spec).base.italic, true, "the next build asks again")
 
 	-- Nil is how a function says "none", which is what lets one be written
 	-- conditionally. `false` is not, and `colour.attrs` says so by name.
