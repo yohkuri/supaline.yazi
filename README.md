@@ -552,6 +552,21 @@ Field names may hold lowercase letters, digits and underscores only. `my-col`
 and `MyCol` are refused, and the refusal costs the whole `theme.toml`, so a
 column you want themed needs a name of that shape.
 
+A style table takes the keys Yazi's own theme fields take: `fg`, `bg`, `bold`,
+`dim`, `italic`, `underline`, `blink`, `blink_rapid`, `reversed`, `hidden` and
+`crossed`. Any of them stands alone — `{ bold = true }` draws the column bold
+in whatever colour the row already carries — and `fg` takes everything `base`
+does. A table is never a ramp, so a gradient with a background or a bold on it
+is a `base` in the spec rather than anything a theme can say.
+
+Two spellings are worth getting right, because neither is refused. It is
+`reversed`, where the `ui.Style` method of the same effect is `reverse()`; and
+a key Yazi does not know is **ignored silently**. Measured on 26.9.1:
+`reverse = true` and `strikethrough = true` each left the column with no
+attribute at all, the rest of the table applied, and nothing was said anywhere
+— where a *colour* Yazi cannot parse takes the whole `theme.toml` down with a
+message. `reset` is not a key either; write `fg = "reset"`.
+
 ### Which one wins
 
 One source decides the whole colour: the spec if it says anything about colour,
