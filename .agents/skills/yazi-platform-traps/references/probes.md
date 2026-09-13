@@ -97,10 +97,20 @@ permission cell out of `tmux capture-pane -e`, against catppuccin-mocha:
 
 It is the character that decides, not the position: the leading `-` of a
 regular file draws in `perm_sep` like any other off bit, and a type character
-reaches `perm_type` only by being none of the rest. `S` and `T` — a setuid or
-sticky bit with the execute bit off — were never produced, so the built-in
-column's mapping sends them to `perm_exec` beside `s` and `t` on the strength
-of the pattern rather than a measurement.
+reaches `perm_type` only by being none of the rest.
+
+The measurement stops at the characters a fixture could produce, and source
+closes the rest — read 2026-09-13 off the v26.9.1 tag of the Rust tree.
+`Status:perm()` in `yazi-plugin/preset/components/status.lua` branches on the
+character exactly as the built-in column does, with `x`, `s`, `S`, `t` and `T`
+in one arm, so `S` and `T` — a setuid or sticky bit with the execute bit off,
+never produced on screen here and still not — are Yazi's mapping rather than a
+guess at it. The same branching places the type characters no fixture had:
+`ChaMode::permissions` in `yazi-fs/src/cha/mode.rs` writes one of `dlbcsp-`,
+so `b`, `c` and `p` join `d` and `l` in `perm_type`, and a socket's `s` goes
+to `perm_exec` with every other `s`. A socket's type character drawing as an
+execute bit is Yazi's own behaviour, in its status bar as here, rather than a
+divergence to fix.
 
 `?` was produced by `reveal`-ing a path that does not exist: Yazi draws the
 row with a dummy `Cha`, and `cha:perm()` answers a type character followed by

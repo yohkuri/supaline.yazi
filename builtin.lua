@@ -151,9 +151,17 @@ register_time("atime")
 --- type character reaches `perm_type` only by being none of the characters
 --- below. `d`, `l`, `r`, `w`, `x`, `s`, `t`, `-` and `?` were each produced
 --- and read back out of `tmux capture-pane -e`; `S` and `T` -- a setuid or
---- sticky bit with the execute bit off -- were not, and go to `perm_exec`
---- beside `s` and `t` on the strength of the pattern rather than a
---- measurement.
+--- sticky bit with the execute bit off -- were not, and are the source's
+--- rather than the screen's. `Status:perm()` in
+--- `yazi-plugin/preset/components/status.lua` at 26.9.1 branches on the
+--- character just as this does, with `x`, `s`, `S`, `t` and `T` in one arm,
+--- so the table below is Yazi's mapping character for character rather than
+--- one that agrees with it as far as the screen was read.
+---
+--- Which is also why a socket's leading `s` draws in `perm_exec` rather than
+--- `perm_type`: `ChaMode::permissions` writes `s` for a socket, and keying on
+--- the character sends it where every other `s` goes. That is Yazi's own
+--- behaviour, in its status bar exactly as here, and not a divergence.
 ---
 --- `?` is `perm_sep` beside `-`, and is a whole string rather than a stray
 --- character: `cha:perm()` on a file Yazi has no metadata for answers a type
