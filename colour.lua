@@ -294,6 +294,34 @@ local function from_table(t, where)
 				where
 			)
 		)
+	-- A list of colours, which is a gradient written where a flat style goes.
+	-- Caught by its shape and before the allow-list below, because the
+	-- allow-list answers it in the wrong vocabulary: `base = { "#aabbcc",
+	-- "#ff8800" }` comes back as "`1`, `2` are not style keys" followed by the
+	-- eleven keys a style table takes, and never names `ramp` -- which is the
+	-- one key that takes exactly the list the reader wrote.
+	--
+	-- One `[1]` is the whole test. `ramp = "#ff8800"` is a list of one, so
+	-- `{ "#aabbcc" }` is the same mistake and gets the same answer, and a table
+	-- carrying both a positional entry and a style key is a gradient half
+	-- rewritten rather than a style with a stray key.
+	--
+	-- The message names a *column's* `ramp` because that is the only place one
+	-- can be written. A separator's `style` reaches here too and has no
+	-- gradient to offer, so naming the column is what tells that reader the key
+	-- is not theirs to write. A theme never reaches here at all: Yazi refuses a
+	-- TOML array in a style field and takes the whole file with it, which is why
+	-- a themed ramp is the `#a -> #b` string the message ends on.
+	elseif t[1] ~= nil then
+		error(
+			string.format(
+				"supaline: %s is a list of colours rather than a style. A gradient between "
+					.. "colours is a column's `ramp`, beside `base` rather than inside it: write "
+					.. '`ramp = { "#aabbcc", "#ff8800" }` in a spec, or `"#aabbcc -> #ff8800"` in a '
+					.. 'theme. A style table takes named keys, as `{ fg = "#ff8800", bold = true }`',
+				where
+			)
+		)
 	end
 
 	local unknown, quoted = M.unknown(t, claims_style)

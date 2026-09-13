@@ -190,6 +190,28 @@ test("style: a table that is not a style at all is refused", function()
 	throws(function() colour.style({}, "x") end, "no keys in it")
 end)
 
+test("style: a list of colours is answered with `ramp`, not with `1` and `2`", function()
+	-- The vocabulary is the whole of what this branch buys. Without it the key
+	-- allow-list below it answers `{ "#aabbcc", "#ff8800" }` with "`1`, `2` are
+	-- not style keys" and the eleven keys a style table takes -- every word of it
+	-- true, and no use at all to someone who wrote two colours meaning a
+	-- gradient. So both halves are asserted: that the shape is what refuses it,
+	-- and that the answer names the key that takes exactly what was written.
+	throws(function() colour.style({ "#aabbcc", "#ff8800" }, "x") end, "is a list of colours")
+	-- A *column's* `ramp`, because a separator's `style` arrives here too and has
+	-- no ramp to write one under; naming the column is what says so.
+	throws(function() colour.style({ "#aabbcc", "#ff8800" }, "x") end, "a column's `ramp`")
+
+	-- `ramp = "#ff8800"` is a list of one, so a list of one is the same mistake
+	-- written shorter and gets the same answer rather than the empty table's.
+	throws(function() colour.style({ "#aabbcc" }, "x") end, "is a list of colours")
+
+	-- A gradient half rewritten: the positional entries decide and the style key
+	-- beside them does not, because "`1` is not a style key" is precisely the
+	-- answer this branch exists to stop giving.
+	throws(function() colour.style({ "#aabbcc", "#ff8800", bold = true }, "x") end, "is a list of colours")
+end)
+
 -- --- telling a ramp from a flat colour -------------------------------------
 
 test("is_ramp: the arrow is what a flat colour can never contain", function()
