@@ -662,6 +662,51 @@ local function id_of(t, field)
 	return v
 end
 
+--- The ten positions `ChaMode::permissions` writes, and the dummy it leaves
+--- alone. Read off `yazi-fs/src/cha/mode.rs` at 26.9.1, which starts from a
+--- fixed `-?????????` and overwrites it: a type character from `dlbcsp-`, then
+--- `r` and `w` where the bit is set, and an execute bit that carries the
+--- setuid, setgid or sticky bit folded into it as `s`, `S`, `t` or `T`. Where
+--- the `Cha` was never stat-ed the function returns after the type character,
+--- so the nine `?` are the whole of the rest and never mixed in among letters.
+local PERM_REAL = "^[dlbcsp%-][r%-][w%-][xsS%-][r%-][w%-][xsS%-][r%-][w%-][xtT%-]$"
+local PERM_DUMMY = "^[dlbcsp%-]" .. ("%?"):rep(9) .. "$"
+
+--- A file's permission string, as Yazi would have handed it over -- or a
+--- refusal, for a string Yazi cannot produce.
+---
+--- nil is the one value that is not an error, and is the platform rather than
+--- the file: `Cha:perm` is `Ok(Value::Nil)` under `#[cfg(windows)]` and ten
+--- bytes under `#[cfg(unix)]`, never an empty string and never a short one. So
+--- leaving the field out is how a spec asks for a build with no permissions to
+--- name, which is what `builtin.lua` spells `cha:perm() or ""`.
+---
+--- Everything else is gated because the column will not notice. `perm_spans`
+--- walks the string a character at a time and falls back to `PERM_TYPE` for
+--- anything it does not know, so `perm = "nope"` renders four spans and a spec
+--- asserting on them passes, describing a file no Yazi has ever produced --
+--- the same silence `id_of` above was written to break, one field over.
+---@param t table
+---@return string?
+local function perm_of(t)
+	local v = t.perm
+	if v == nil then
+		return nil
+	elseif type(v) ~= "string" or not (v:match(PERM_REAL) or v:match(PERM_DUMMY)) then
+		error(
+			string.format(
+				"stub: `perm` is what `Cha:perm` answers, so it takes a ten-character "
+					.. "string -- a type character from `dlbcsp-`, then either nine `?` for "
+					.. "a `Cha` Yazi could not stat or `rwx` per position, with `s`, `S`, "
+					.. "`t` or `T` where a bit is folded into the execute one; got %s. Leave "
+					.. "it out for the nil Yazi answers where a platform has no permissions.",
+				type(v) == "string" and string.format("%q", v) or tostring(v)
+			)
+		)
+	end
+	return v
+end
+
 --- A stand-in for `fs::File`. Everything the built-in columns read is either
 --- passed in or defaulted to something harmless.
 ---
@@ -677,6 +722,10 @@ function M.file(t)
 	--- The `AuthKind` of the file's URL: `regular`, `search`, `mount`, `hub`,
 	--- `scope` or `sftp`.
 	local kind = t.url_kind or "regular"
+	-- Read now rather than inside the closure below, so a string Yazi could
+	-- not have produced is refused at the `stub.file` that wrote it rather
+	-- than at whichever render first reaches for it.
+	local perm = perm_of(t)
 	local file = {
 		name = name,
 		in_current = t.in_current == nil and true or t.in_current,
@@ -704,7 +753,7 @@ function M.file(t)
 			atime = t.atime,
 			uid = id_of(t, "uid"),
 			gid = id_of(t, "gid"),
-			perm = function() return t.perm end,
+			perm = function() return perm end,
 		},
 		size = function() return t.size end,
 	}
