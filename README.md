@@ -71,7 +71,7 @@ desc = "Linemode: size and mtime"
 | Option      | Default     | Meaning                                              |
 | ----------- | ----------- | ---------------------------------------------------- |
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
-| `separator` | `" "`       | Drawn between columns, unless a column opts out.     |
+| `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](#a-coloured-separator). |
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
 | `band`      | `{ from = 0.35, to = 0.88 }` | The two Oklab lightnesses a one-colour band runs between, `from` at ratio 0. Write it backwards for a light terminal; see [`band`](#band). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
@@ -102,7 +102,7 @@ linemodes = {
 
 | Option      | Default      | Meaning                              |
 | ----------- | ------------ | ------------------------------------ |
-| `separator` | from `setup` | Overrides the plugin-wide separator. |
+| `separator` | from `setup` | Overrides the plugin-wide separator, colour and all. |
 
 Those columns are drawn in the **current pane**, which is all Yazi itself ever
 does. Whatever else the linemode carries has to be a pane's name or that
@@ -200,7 +200,7 @@ Any option below can be set on the definition or overridden per use.
 | `base`      | `nil`        | One colour, a `ui.Style`, or a function returning one. See [Colours](#colours). |
 | `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
-| `sep`       | `nil`        | `false` drops the separator before this column; a string replaces it. |
+| `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated
@@ -621,6 +621,59 @@ is a ramp, and a spec that wants a flat colour instead has to name one:
 ```lua
 { "size", base = "cyan" }
 ```
+
+### A coloured separator
+
+A separator is a string, and a table beside it when a string is not enough:
+
+```lua
+separator = " │ "
+separator = { " │ ", style = { fg = "#585b70" } }
+```
+
+The first element is what to draw and `style` is what to draw it in — a colour
+string, a style table, a `ui.Style`, or a function returning one, which is
+what [`base`](#one-colour) takes. All three places that take a separator take
+the table: `separator` in `setup`, `separator` on a linemode, and a column's
+own `sep`.
+
+```lua
+require("supaline"):setup {
+  separator = { " │ ", style = { fg = "#585b70" } },
+  linemodes = {
+    detail = {
+      "size",
+      { "mtime", sep = { " · ", style = "#f38ba8" } },
+    },
+  },
+}
+```
+
+A function is called wherever the colours are built, so it follows a theme
+reload the way a column's does:
+
+```lua
+sep = { " │ ", style = function() return th.status.perm_sep end }
+```
+
+There is no `ramp`. A separator is drawn between two columns rather than on a
+file, so it has no value to place between the extremes of the listing.
+
+Whichever level writes a separator supplies both halves of it. A bare string
+on a column draws uncoloured even under a linemode that wrote a colour: the
+nearer one replaces the farther one whole, the way a spec's `base` replaces
+the theme's. `sep = false` still drops the separator before a column, and `""`
+still draws nothing between two of them.
+
+Written wrong it says so, while `setup` runs rather than a session later: a
+table with nothing to draw, a key that is neither the text nor `style`, and a
+`style` on `""` — which would colour no cells at all — are each refused by
+name.
+
+What none of this reaches is the cell at the very start of the row. That space
+is Yazi's own, added before the linemode is asked for anything, so a
+background running from one edge of the linemode to the other still begins one
+cell in.
 
 ## Caveats
 
