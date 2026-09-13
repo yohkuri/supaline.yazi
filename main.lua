@@ -213,6 +213,10 @@ for _, pane in ipairs(PANES) do
 	IS_PANE[pane] = true
 end
 
+-- What a linemode spec is entitled to: its columns at the numeric keys, a pane
+-- name, or one of the options above.
+local function claims_spec(key) return type(key) == "number" or IS_PANE[key] or OPTIONS[key] end
+
 --- How many columns are written in `list`, counting the ones `ipairs` would
 --- never reach. `compile` walks a column list with `ipairs`, so it stops at
 --- the first missing index and anything past a gap draws nowhere -- the same
@@ -283,19 +287,9 @@ local function panes_of(spec)
 		end
 	end
 
-	-- Every key nobody claimed, rather than the first one found. `pairs` walks
-	-- a spec in whatever order the hash gives, so naming one of two
-	-- misspellings makes the same mistake report differently from one run to
-	-- the next -- and costs a second run to find the other half of it.
-	local unknown = {}
-	for key in pairs(spec) do
-		if type(key) ~= "number" and not IS_PANE[key] and not OPTIONS[key] then
-			unknown[#unknown + 1] = string.format("`%s`", tostring(key))
-		end
-	end
-	if #unknown > 0 then
-		table.sort(unknown)
-		error(string.format(OPTION_HELP, table.concat(unknown, ", ")))
+	local _, unknown = colour.unknown(spec, claims_spec)
+	if unknown then
+		error(string.format(OPTION_HELP, unknown))
 	end
 
 	if next(sets) == nil then
