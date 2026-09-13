@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "ask": [
+      "Bash(gh pr merge *)",
+      "Bash(gh api *merge*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
