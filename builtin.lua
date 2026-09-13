@@ -18,6 +18,15 @@
 --- it was `#cdd6f4`, so the two columns that carried one were the only things
 --- on the screen the flavor did not reach. `permissions` is the exception and
 --- reads the theme, a character at a time, rather than a colour of its own.
+---
+--- What they do differ in is `stats`, and there the difference is
+--- load-bearing: `column.lua` refuses a `ramp` on a column that declares none,
+--- so declaring one is the whole of what lets a user write a gradient over
+--- that column. `size` and the three time columns do. `count` does not, and
+--- cannot honestly -- `entries` below answers `-` for a directory Yazi has
+--- never listed, so a folder's extremes would depend on where the user had
+--- already been, and the same listing would colour differently on a second
+--- visit. The rest have no number to take extremes of at all.
 
 local column = require(".column")
 
