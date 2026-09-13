@@ -170,7 +170,7 @@ more strictly and saying in every document which one a sentence is about.
 
 ## Traps
 
-Nine behaviours of Yazi break this plugin **silently** — no error, just an
+Ten behaviours of Yazi break this plugin **silently** — no error, just an
 empty column, a stale colour, or a task that never finishes. Knowing that they
 exist is what this list is for, and for most changes it is the whole of what you
 need; the mechanism behind each, and the experiment that established it, is in
@@ -199,13 +199,18 @@ need; the mechanism behind each, and the experiment that established it, is in
 - both truncations count characters where the screen counts clusters — three
   cells of `❤️abc` come back as four, and a Line cut without an ellipsis is a
   cell shorter than the same string
+- an attribute method on `ui.Style` takes a removal flag rather than the value
+  — `bold()` and `bold(false)` both add the attribute and only `bold(true)`
+  takes it off, so a theme's `bold = false` copied into a call arrives as a
+  second `true`
 
-**Six of the nine are refused by a check**, which prints what to write
+**Seven of the ten are refused by a check**, which prints what to write
 instead: `ya.sync` placement in CI, the names `in_preview` and `is_regular`
 by the `Forbidden spellings` job, an unpublished DDS kind by the stub, a
 module returning a boolean by `test/module_spec.lua`, a cut that counts
-characters by `truncate_spec.lua` and `column_spec.lua`. Nobody has to read
-about those.
+characters by `truncate_spec.lua` and `column_spec.lua`, and an attribute
+given the value rather than the removal flag by `colour_spec.lua`. Nobody has
+to read about those.
 
 The other three are why the skill exists, because a green suite says nothing
 about them. The parent-pane child is pinned against the code already here, so

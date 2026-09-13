@@ -1,6 +1,6 @@
 # The traps a check already catches
 
-Six of the nine constraints are refused by a test or a CI job, so writing one
+Seven of the ten constraints are refused by a test or a CI job, so writing one
 the wrong way fails on its own and prints what to write instead. They are here
 rather than in `SKILL.md` for that reason: reading about them in advance buys
 nothing the check does not already give you.
@@ -14,6 +14,7 @@ Read this when one of them fires and the message is not enough.
 - DDS event names are not all in the changelog
 - Truncation counts characters; the screen counts clusters
 - Every module must return a table
+- An attribute method takes a removal flag, not the value
 - Prefer `Url.spec.*`
 - `in_preview`, in Yazi's own source
 - `AuthKind`, and why `is_regular` is the wrong question
@@ -143,6 +144,38 @@ file fails with "error converting Lua boolean to table"; return `{}` instead.
 **Checked.** `test/module_spec.lua` asks `git ls-files` for the plugin's
 modules and requires each, so a module added later is covered without anyone
 adding it to a list.
+
+## An attribute method takes a removal flag, not the value
+
+`ui.Style`'s attribute methods take **`remove`**, not the value the attribute
+is being given. `bold()` and `bold(false)` both *add* bold; only `bold(true)`
+takes it off. Read off `yazi-binding/src/style/style.rs`, where every one of
+the nine is written `|_, me, remove: bool|` over `add_modifier` and
+`remove_modifier`, and measured through `Style:raw()`:
+
+| call | `raw()` |
+| ---- | ------- |
+| `ui.Style():bold()` | `{ bold = true }` |
+| `ui.Style():bold(false)` | `{ bold = true }` |
+| `ui.Style():bold(true)` | `{ bold = false }` |
+
+That `false` is not the absence of bold. A style field holds three states, and
+`bold = false` is the attribute **removed** — `ratatui`'s `sub_modifier`,
+which strips a `bold` off whatever the style is patched onto or drawn over. A
+theme carries the same three: `bold = false` under `[supaline]` reaches a
+plugin as a style whose raw `bold` is `false`, because a custom theme section
+deserializes into the same `StyleFlat`.
+
+So a theme's `bold = false` copied into a call arrives as a second `true`, the
+attribute is added where the user asked for it to be taken off, and nothing is
+said anywhere. It shows on screen only where something underneath carries the
+attribute: measured in a detached tmux with a `[filetype]` rule drawing `*.txt`
+bold, a linemode cell built with the value passed through kept the row's bold,
+and the same cell built with the removal reset it.
+
+**Checked.** `test/colour_spec.lua` builds every attribute both ways through
+`colour.style` and asserts the removal, and `test/stub.lua` models the
+argument as `remove` so the suite cannot agree with the wrong reading.
 
 ## Prefer `Url.spec.*`
 
