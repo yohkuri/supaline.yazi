@@ -402,9 +402,9 @@ again. A function is called again each time the linemode is built: at startup,
 on the event the flavor arrives with, and on every reload. Once per column
 each time, never per row.
 
-`ramp` takes no function. Its endpoints need `#rrggbb` channels to interpolate
-between, and a colour cannot be read back out of a `ui.Style` from Lua, so the
-one thing a function there could reach for is the one thing it could not use.
+`ramp` takes no function, where `base` does. Its endpoints are parsed into
+channels when the linemode is built, and nothing yet supplies them any later
+than that: write them out, in the spec or in the theme.
 
 ### A gradient
 

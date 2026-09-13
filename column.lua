@@ -656,10 +656,11 @@ function M.normalize(spec, cfg)
 	-- but never evaluated again. A function is, so it sees the flavor that was
 	-- not there while `init.lua` ran and follows every reload after it.
 	--
-	-- Once per column per build, never per row. `ramp` deliberately takes none:
-	-- its endpoints need the `#rrggbb` channels `colour.lua`'s header measures
-	-- a style cannot be read back as, so the one thing a function there could
-	-- reach for is the one thing it could not use.
+	-- Once per column per build, never per row. `ramp` takes none, and that is
+	-- a feature nobody has written rather than one the platform refuses: a
+	-- colour does come back out of a style, through the `raw()` `colour.lua`'s
+	-- header measures, so a function there could reach a flavor's `#rrggbb`
+	-- after all. What it would cost is written down beside the measurement.
 	local base_where = where
 	if type(base) == "function" then
 		-- Named for the file it was written in rather than for `base`, because

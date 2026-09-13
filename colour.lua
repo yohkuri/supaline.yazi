@@ -9,13 +9,23 @@
 --- that message alone, the plugin never installs, and Yazi draws the
 --- linemode's *name* on every row.
 ---
---- What cannot be done here is read a colour back out. `ui.Style` is
---- write-only: it is userdata, `pairs` refuses it, `==` is false between two
---- styles built the same way, and `style.fg` hands back the setter rather than
---- the colour. So a ramp can never be derived from a style -- a
---- `[supaline] size = { fg = "#ff8800" }` out of the theme included, which
---- 26.9.1 turns into a `Style` before any plugin sees it -- and endpoints have
---- to arrive as strings this file parses itself.
+--- A colour can be read back out, and this file does not do it. `ui.Style` is
+--- userdata -- `pairs` refuses it, `==` is false between two styles built the
+--- same way, and `style.fg` hands back the setter rather than the colour --
+--- but it also answers `raw()`, with a plain table: `fg` and `bg` as strings,
+--- the attributes as booleans, and nothing at all for a style holding nothing.
+--- It answers for a style Yazi built as readily as for one built here.
+--- Measured on 26.9.1 -- `ui.Style():fg("#ff8800"):raw()` comes back
+--- `{ fg = "#FF8800" }`, uppercased, and a flavor's `th.status.perm_read`
+--- comes back `{ fg = "#F9E2AF" }` once the `theme` event has landed.
+---
+--- So a ramp could be derived from a style, and a flavor could anchor one.
+--- Neither is done: endpoints arrive as strings this file parses itself, and
+--- `ramp` takes no function. What stops it is no longer that it cannot be
+--- written -- `types.yazi` declares no `raw` on a class it marks `(exact)`,
+--- and `test/stub.lua` models none, so the colours would rest on a method
+--- neither the type check nor the harness can see.
+--- `.agents/skills/yazi-platform-traps/references/probes.md` holds the run.
 
 --- The module table. Declared for the same reason `supaline.ColumnModule` is:
 --- `require(".colour")` resolves to this tree and the signatures below are read
