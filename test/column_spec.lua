@@ -133,6 +133,16 @@ test("separator: a style written as a function is called", function()
 	-- again on the next build is `main_spec.lua`'s to say, since only `setup`
 	-- has a build to run twice.
 	eq(separator({ "|", style = function() return "#ff8800" end }).style.fg, "#ff8800")
+
+	-- And named when it raises, which is the half the `pcall` around it is
+	-- there for. The likely failure is the call itself: `th.status.perm_sep`
+	-- against a flavor with no `[status]` section raises `attempt to index a
+	-- nil value`, and it reaches the user as `build`'s notification -- where a
+	-- message carrying no location says nothing about which line to open.
+	refuses_sep(
+		{ "|", style = function() return th.nosuch.field end },
+		"the style function under `sep` of column `plain` raised"
+	)
 end)
 
 test("separator: what a separator is refused for", function()
