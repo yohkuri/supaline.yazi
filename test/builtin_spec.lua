@@ -280,14 +280,13 @@ test("permissions: `attrs` decorates the characters rather than replacing them",
 	-- and say nothing.
 	local file = stub.file { perm = "drwxr-xr-x" }
 
-	-- The colours are untouched, which is what says `attrs` is not a colour: it
-	-- does not move `ctx.source`, so the column does not step aside the way a
-	-- `base` makes it.
-	eq(
-		perm_fgs(file, { attrs = { bold = true } }),
-		"#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
-	)
+	-- Held against the column drawn without `attrs` rather than against a
+	-- second copy of the ten-colour literal the test above already pins. What
+	-- this asserts is "untouched", and that is what it should be spelled as.
+	eq(perm_fgs(file, { attrs = { bold = true } }), perm_fgs(file), "the colours are the theme's either way")
 
+	-- Which says `attrs` is not a colour: it does not move `ctx.source`, so the
+	-- column does not step aside the way a `base` makes it.
 	for i, style in ipairs(perm_styles(file, { attrs = { bold = true } })) do
 		eq(assert(style, "character " .. i .. " lost its style").bold, true, "character " .. i)
 	end
