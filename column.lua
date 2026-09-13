@@ -147,7 +147,7 @@ local colour = require(".colour")
 ---@field render supaline.Render?
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
----@field base unknown? a colour string, or a ui.Style
+---@field base unknown? a colour string, a ui.Style, or a function returning one
 ---@field ramp string|string[]|false|nil `#rrggbb` endpoints, `"#a -> #b"`, or `false` for none
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
@@ -354,6 +354,11 @@ local WHERE = {
 local NO_STATS = "Give the column a `stats` function, or write that colour as `base`"
 local NO_STATS_THEMED = "Write a flat colour there instead"
 
+--- What to call a colour a function handed back. The value in the file is the
+--- function, so a message naming `base` would send the reader to a line that
+--- is not the one to change.
+local FROM_FN = "what the `base` function of column `%s` returned"
+
 --- Apply a column's `max_width`, if it has one. Every width a column can end
 --- up with passes through here exactly once -- the stated one when the spec is
 --- normalised, the derived ones when the folder is measured -- so `cell` never
@@ -462,7 +467,26 @@ function M.normalize(spec, cfg)
 
 	local base, wanted, source = colours_of(name, opts, def)
 	local where = string.format(WHERE[source], name or "?")
-	local ground = colour.style(base, where)
+
+	-- A `base` written as a function is called here, and here is the whole of
+	-- what it buys: this runs inside `build`, so the call sees the theme as it
+	-- is now rather than as it was when the spec was written. 26.9.1 merges the
+	-- flavor *after* `init.lua` has run, so `base = th.status.perm_read` in a
+	-- spec captures Yazi's preset -- and keeps it, because the stored spec is
+	-- never evaluated again, only re-read. A function is called again on every
+	-- build, which is to say on every `theme` event.
+	--
+	-- Once per column per build, never per row: the rendering budget is
+	-- unchanged and a function that costs something is still paid for once.
+	-- `ramp` deliberately takes none. Its endpoints need `#rrggbb` channels,
+	-- and a colour cannot be read back out of a `ui.Style` from Lua, so the one
+	-- thing a function there could reach for is the one thing it could not use.
+	local base_where = where
+	if type(base) == "function" then
+		base_where = string.format(FROM_FN, name or "?")
+		base = base()
+	end
+	local ground = colour.style(base, base_where)
 
 	-- A ramp needs extremes to place a value between, and only a column that
 	-- declares `stats` ever gets any: without one `ctx.ratio` is nil for every
