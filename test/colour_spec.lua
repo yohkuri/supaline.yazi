@@ -171,6 +171,25 @@ test("style: a key Yazi would have dropped is refused by name", function()
 	throws(function() colour.style({ reset = true }, "x") end, 'write `fg = "reset"`')
 end)
 
+test("style: a list of colours is sent to `ramp` rather than named key by key", function()
+	-- The key that takes exactly this value, and the allow-list above could
+	-- not name it: a list has no style key in it, so every index came back as
+	-- "not a style key" and the eleven a style table does take were recited
+	-- after it -- eleven names, none of them `ramp`, in front of someone who
+	-- had written a gradient.
+	local both = { "#aabbcc", "#ff8800" }
+	throws(function() colour.style(both, "x") end, "has a value at index `1`")
+	throws(function() colour.style(both, "x") end, "under `ramp`")
+
+	-- The shape is asked before the keys are, so a table carrying both is
+	-- diagnosed as the gradient it most likely is rather than by the key that
+	-- happens to be spelled wrong.
+	throws(function() colour.style({ "#aabbcc", fgg = "cyan" }, "x") end, "has a value at index `1`")
+
+	-- ... and a style table is untouched by any of it.
+	eq(colour.style({ fg = "cyan" }, "x").fg, "cyan")
+end)
+
 test("style: a table says a colour with a colour and an attribute with a boolean", function()
 	-- `fg` and `bg` go through the same allow-list a bare string does, so there
 	-- is one answer to "is this a colour" however it was written.

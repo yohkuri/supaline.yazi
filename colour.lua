@@ -254,6 +254,22 @@ local function from_table(t, where)
 				where
 			)
 		)
+	elseif t[1] ~= nil then
+		-- Before the allow-list below and not inside it. A list of colours has
+		-- no style key in it at all, so the allow-list names every index it
+		-- found -- "`1`, `2` are not style keys" -- and then recites the eleven
+		-- keys a style table takes without once mentioning the key that takes
+		-- exactly the list in front of it. Diagnosed by shape instead, which is
+		-- one lookup and reaches the whole of the mistake.
+		error(
+			string.format(
+				"supaline: %s has a value at index `1`, where a style table has named keys and "
+					.. "nothing else. A list of colours is a gradient, and a column writes one "
+					.. 'under `ramp` -- `ramp = { "#aabbcc", "#ff8800" }` or `ramp = "#aabbcc -> '
+					.. '#ff8800"`; `base` takes the single colour a ramp is patched onto',
+				where
+			)
+		)
 	end
 
 	local unknown = {}

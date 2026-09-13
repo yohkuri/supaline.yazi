@@ -385,6 +385,9 @@ and off — and off strips a `bold` the row beneath already carries. `ui.Style`
 without the call, and a table with nothing in it, are both refused: neither is
 a style, and both would otherwise draw the column in no colour at all.
 
+A **list** of colours written there is a gradient rather than a style, and is
+sent to [`ramp`](#a-gradient) by that name rather than reported index by index.
+
 It also takes a **function returning one**, which is how you borrow a colour
 from the rest of your theme:
 
