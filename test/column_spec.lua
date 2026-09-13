@@ -632,6 +632,12 @@ test("attrs: a definition may carry one, and a spec replaces it whole", function
 	local ctx = column.normalize({ "att3", attrs = { bold = true } }, CFG).ctx
 	eq(ctx.attrs.bold, true)
 	eq(rawget(ctx.attrs, "italic"), nil, "the spec's replaces it rather than adding to it")
+
+	-- And `false` drops it, which is the half `pick` makes necessary: a
+	-- definition can write `attrs`, so a use site needs a way to say none.
+	-- `sep` and `base` spell it the same.
+	eq(column.normalize({ "att3", attrs = false }, CFG).ctx.attrs, nil)
+	eq(column.normalize({ "att3", attrs = function() return false end }, CFG).ctx.attrs, nil, "a function says it too")
 end)
 
 test("attrs: a function is called, and named for the file it was written in", function()
@@ -658,12 +664,11 @@ end)
 test("attrs: written wrong it says which column, while `setup` runs", function()
 	column.register("att5", { render = function() return "" end })
 	throws(function() column.normalize({ "att5", attrs = { fg = "cyan" } }, CFG) end, "`attrs` of column `att5`")
-	-- Suppressed on the line rather than at the top of the file, and worth
-	-- noting for what it says: the class refuses `false` here at check time,
-	-- where the refusal being tested is the runtime one -- which is the only
-	-- one a user's `init.lua` ever meets, since no check reads that file.
+	-- Suppressed on the line rather than at the top of the file: the class
+	-- refuses this at check time, and the refusal under test is the runtime one
+	-- -- the only one a user's `init.lua` ever meets, since no check reads it.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "att5", attrs = false }, CFG) end, "`attrs` of column `att5`")
+	throws(function() column.normalize({ "att5", attrs = 42 }, CFG) end, "`attrs` of column `att5` is a number")
 end)
 
 -- --- derived widths --------------------------------------------------------

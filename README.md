@@ -199,7 +199,7 @@ Any option below can be set on the definition or overridden per use.
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `base`      | `nil`        | One colour, a `ui.Style`, or a function returning one. See [Colours](#colours). |
 | `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
-| `attrs`     | `nil`        | Style keys to put over the colour, whoever supplied it. See [`attrs`](#attrs). |
+| `attrs`     | `nil`        | Style keys to put over the colour, whoever supplied it; `false` drops a definition's. See [`attrs`](#attrs). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 
@@ -657,9 +657,11 @@ A `ui.Style` is refused too, where `base` takes one. Its keys sit where nothing
 here reads them, so an `fg` inside one could not be refused — and a refusal
 that cannot be made is a colour taken over in silence. Write the table.
 
-`false` is refused as well. Nothing stands behind `attrs` to turn off — no
-theme field and no column default writes attributes — so leaving it out is how
-a column has none, and `base = false` is how the colour goes.
+`false` is how a use site drops the `attrs` a column definition wrote, the
+spelling `sep` and `base` already use. A function returning `false` says it
+too. Nothing else writes attributes — a `[supaline]` field is the colour, not
+this — so on a column whose definition wrote none it is simply the same as
+leaving it out.
 
 It takes a **function returning a table**, called wherever the colours are
 built, so it follows a theme reload the way [`base`](#one-colour) does:
@@ -669,7 +671,8 @@ built, so it follows a theme reload the way [`base`](#one-colour) does:
 ```
 
 Returning `nil` from one is how it says "none", which is what lets a condition
-decide.
+decide; `false` from one says it too, and drops a definition's as writing
+`false` does.
 
 An ordinary option otherwise: written on a definition and again in the spec,
 the spec's replaces it whole, the way `align` and `width` do.
