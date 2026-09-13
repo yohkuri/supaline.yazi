@@ -127,12 +127,19 @@ register_time("atime")
 ---
 --- Keyed on the character rather than on the position, which is what Yazi
 --- does: measured against the status bar of a real 26.9.1, the leading `-` of
---- a regular file draws in `perm_sep` like any other bit that is off, and only
---- a type character that is *not* `-` reaches `perm_type`. `d`, `l`, `r`, `w`,
---- `x`, `s`, `t` and `-` were each produced and read back out of
---- `tmux capture-pane -e`; `S` and `T` -- a setuid or sticky bit with the
---- execute bit off -- were not, and go to `perm_exec` beside `s` and `t` on
---- the strength of the pattern rather than a measurement.
+--- a regular file draws in `perm_sep` like any other bit that is off, and a
+--- type character reaches `perm_type` only by being none of the characters
+--- below. `d`, `l`, `r`, `w`, `x`, `s`, `t`, `-` and `?` were each produced
+--- and read back out of `tmux capture-pane -e`; `S` and `T` -- a setuid or
+--- sticky bit with the execute bit off -- were not, and go to `perm_exec`
+--- beside `s` and `t` on the strength of the pattern rather than a
+--- measurement.
+---
+--- `?` is `perm_sep` beside `-`, and is a whole string rather than a stray
+--- character: `cha:perm()` on a file Yazi has no metadata for answers a type
+--- character and nine of them. A row like that is not exotic -- Yazi builds
+--- one whenever a listed entry cannot be stat-ed, and `reveal` on a path that
+--- does not exist yet draws one outright.
 local PERM, PERM_TYPE = {}, nil
 
 --- Re-read the permission styles. Declared as the column's `refresh` hook, so
@@ -149,6 +156,7 @@ local function refresh_perms()
 	PERM_TYPE = st.perm_type
 	PERM = {
 		["-"] = st.perm_sep,
+		["?"] = st.perm_sep,
 		r = st.perm_read,
 		w = st.perm_write,
 		x = st.perm_exec,
