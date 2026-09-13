@@ -65,7 +65,11 @@ test("style: a colour string and a style both come back as a style", function()
 	eq(colour.style("#0b3d91", "x").fg, "#0b3d91")
 	eq(colour.style("cyan", "x").fg, "cyan", "a name is Yazi's to resolve, not ours")
 
-	-- Handed back as it stands, so a theme's `bold` and `bg` survive.
+	-- Handed back as it stands, so a theme's `bold` and `bg` survive. That it
+	-- goes down the `patch` branch rather than the table one below is
+	-- load-bearing: the harness's `Style` is a Lua table, so a branch on `type`
+	-- alone would read one as a table of style keys and refuse the very value a
+	-- themed column is handed.
 	local own = ui.Style():fg("red"):bold()
 	eq(colour.style(own, "x"), own)
 
@@ -115,13 +119,29 @@ test("style: a table is the theme's spelling, built into a style", function()
 	-- `bold = false` is an attribute left off rather than an error, which is
 	-- what the same line means in a theme.
 	eq(rawget(colour.style({ fg = "cyan", bold = false }, "x"), "bold"), nil)
+end)
 
-	-- A style built by the user still goes down the `patch` branch above, and
-	-- that order is load-bearing: the harness's `Style` is a Lua table, so a
-	-- branch on `type` alone would read one as a table of style keys and refuse
-	-- the very value a themed column is handed.
-	local own = ui.Style():fg("red"):bold()
-	eq(colour.style(own, "x"), own)
+test("style: every attribute a theme can write reaches its method", function()
+	-- The nine keys are written out in three places -- `colour.lua`'s allow-list,
+	-- the stub's methods, and here -- because neither of the other two can read
+	-- the other: the stub stands in for Yazi and must not require the plugin.
+	-- This loop is what holds the three together. A key the allow-list stopped
+	-- taking is refused here by name, and a method the stub is missing is
+	-- `attempt to call a nil value`; the table's own spelling of it is the
+	-- theme's, and only `reversed` differs from the method it drives.
+	for key, method in pairs {
+		bold = "bold",
+		dim = "dim",
+		italic = "italic",
+		underline = "underline",
+		blink = "blink",
+		blink_rapid = "blink_rapid",
+		reversed = "reverse",
+		hidden = "hidden",
+		crossed = "crossed",
+	} do
+		eq(colour.style({ [key] = true }, "x")[method], true, key)
+	end
 end)
 
 test("style: a key Yazi would have dropped is refused by name", function()
