@@ -202,6 +202,30 @@ local OPTIONS = { separator = true }
 local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `parent`, "
 	.. "`preview` and `separator`; got %s"
 
+local SEP_HELP = 'supaline: %s must be a string, got a %s -- write "" to draw nothing between '
+	.. "two columns, `sep = false` being a column's spelling rather than a linemode's"
+
+--- The separator written at `where`, handed back once it is a string. Nil is
+--- what "nothing was written" looks like and is handed back as it is, for the
+--- caller to fall back from.
+---
+--- `false` is the value worth a check of its own. It reads like a column's
+--- `sep = false` and it is falsy, so it fell through to the separator it was
+--- written to be rid of, and the linemode drew the very thing it asked to
+--- drop. Nothing said so at the time: a separator is not read until a row is,
+--- so a wrong one is a render-time failure with the cause a whole session
+--- behind it. `lua-language-server` refuses this where it runs, and it does
+--- not run over anyone's `init.lua`.
+---@param sep any
+---@param where string names where it was written, for the message
+---@return string?
+local function separator_of(sep, where)
+	if sep ~= nil and type(sep) ~= "string" then
+		error(string.format(SEP_HELP, where, type(sep)))
+	end
+	return sep
+end
+
 -- `PANES` as a set, so a key can be classified without walking it. Derived
 -- rather than written out, because a list and a set of the same three names
 -- are two things to keep in step.
@@ -544,13 +568,14 @@ local function compile(from, with)
 			end
 		end
 
+		local own = separator_of(spec.separator, string.format("`separator` on linemode `%s`", name))
 		local reaches = cols.parent ~= nil or cols.preview ~= nil
 		outer = outer or reaches
 		modes[name] = {
 			name = name,
 			cols = cols,
 			outer = reaches,
-			sep = spec.separator or with.separator,
+			sep = own or with.separator,
 		}
 	end
 	return modes, hooks, outer
@@ -701,7 +726,7 @@ function M.setup(_st, opts)
 	-- every later theme event throw instead of rebuilding.
 	---@type supaline.Cfg
 	local next_cfg = {
-		separator = opts.separator or DEFAULTS.separator,
+		separator = separator_of(opts.separator, "`separator` in `setup`") or DEFAULTS.separator,
 		order = opts.order or DEFAULTS.order,
 		-- Not `or` a default: see `DEFAULTS`. Nil here is what lets a column
 		-- definition's own scale through.
