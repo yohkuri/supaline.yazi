@@ -201,8 +201,9 @@ local colour = require(".colour")
 ---@field ramp string|string[]|false|nil `#rrggbb` endpoints, `"#a -> #b"`, or `false` for none
 --- Not a fourth colour source: it never enters `colours_of`, and it is patched
 --- over whatever came out of it. An ordinary option otherwise, read through
---- `pick` like `align` and `width`, so a spec's replaces a definition's whole.
----@field attrs table|(fun(): table)|nil style keys to put over the colour, `fg` excepted
+--- `pick` like `align` and `width`, so a spec's replaces a definition's whole
+--- and `false` drops one the definition wrote.
+---@field attrs table|(fun(): table|false)|false|nil style keys over the colour, `fg` excepted
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
@@ -695,16 +696,21 @@ function M.normalize(spec, cfg)
 	-- column keeps the colour whichever of the three sources gave it, and
 	-- `ctx.source` does not move, so `permissions` goes on painting its own
 	-- characters rather than stepping aside for a bold.
-	local attrs, attrs_where = pick("attrs"), string.format("`attrs` of column `%s`", name or "?")
+	local attrs, attrs_where = pick("attrs")
 	if type(attrs) == "function" then
 		local fn = string.format("the `attrs` function of column `%s`", name or "?")
 		attrs, attrs_where = called(attrs, fn), "what " .. fn .. " returned"
 	end
-	-- `~= nil` rather than truthiness, so `false` reaches the reader that
-	-- refuses it by name instead of passing for "no attributes".
-	local over = nil
-	if attrs ~= nil then
-		over = colour.attrs(attrs, attrs_where)
+	-- Truthiness, because `false` is a value here rather than a mistake: `pick`
+	-- reads the definition as well as the spec, so a column that ships `attrs`
+	-- needs a way for a use site to drop them, and `false` is the spelling
+	-- `sep` and `base` already give that. A function returning one says it too.
+	--
+	-- The `where` is built here rather than beside `pick`, because every column
+	-- goes past that line and almost none of them reaches this one.
+	local over
+	if attrs then
+		over = colour.attrs(attrs, attrs_where or string.format("`attrs` of column `%s`", name or "?"))
 		ground = ground:patch(over)
 	end
 
