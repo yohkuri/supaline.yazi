@@ -71,7 +71,7 @@ desc = "Linemode: size and mtime"
 | Option      | Default     | Meaning                                              |
 | ----------- | ----------- | ---------------------------------------------------- |
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
-| `separator` | `" "`       | Drawn between columns, unless a column opts out.     |
+| `separator` | `" "`       | Drawn between columns, unless a column opts out. Takes a colour of its own; see [Separators](#separators). |
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
 | `band`      | `{ from = 0.35, to = 0.88 }` | The two Oklab lightnesses a one-colour band runs between, `from` at ratio 0. Write it backwards for a light terminal; see [`band`](#band). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
@@ -102,7 +102,7 @@ linemodes = {
 
 | Option      | Default      | Meaning                              |
 | ----------- | ------------ | ------------------------------------ |
-| `separator` | from `setup` | Overrides the plugin-wide separator. |
+| `separator` | from `setup` | Overrides the plugin-wide separator. See [Separators](#separators). |
 
 Those columns are drawn in the **current pane**, which is all Yazi itself ever
 does. Whatever else the linemode carries has to be a pane's name or that
@@ -200,7 +200,7 @@ Any option below can be set on the definition or overridden per use.
 | `base`      | `nil`        | One colour, a `ui.Style`, or a function returning one. See [Colours](#colours). |
 | `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
-| `sep`       | `nil`        | `false` drops the separator before this column; a string replaces it. |
+| `sep`       | `nil`        | `false` drops the separator before this column; anything else replaces it. See [Separators](#separators). |
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated
@@ -212,6 +212,54 @@ property of any file — the built-in timestamp columns hold the current year, s
 `smart` can decide its format with an integer comparison instead of an
 `os.date` per cell. Nothing about the folder is passed in, because nothing
 about the folder is what changed.
+
+### Separators
+
+What goes between two columns is written in three places, each overriding the
+one above it:
+
+```lua
+require("supaline"):setup {
+  separator = " ",                       -- the plugin-wide one
+  linemodes = {
+    detail = {
+      "size",
+      { "mtime", sep = " | " },          -- ... before this column alone
+      separator = "  ",                  -- ... everywhere in this linemode
+    },
+  },
+}
+```
+
+All three take the same two shapes — a string, or a table carrying the text
+and the colour it draws in:
+
+```lua
+separator = "│"
+separator = { "│", base = "#585b70" }
+```
+
+That `base` is a column's `base`, read the same way: a colour string, a style
+table, a `ui.Style`, or a function returning one. [Colours](#colours) spells
+each of them out, and the function is there for the reason it is there on a
+column — a colour borrowed from your theme has to be borrowed again every time
+the theme is reloaded.
+
+```lua
+{ "│", base = { fg = "#585b70", dim = true } }
+{ "│", base = function() return th.status.perm_sep end }
+```
+
+A separator takes no `ramp`. A gradient places a value between the extremes of
+the listing, and a separator draws between two columns rather than on a file,
+so there is nothing to place.
+
+`sep = false` drops the separator before that column, and `false` is a
+column's spelling alone: a linemode draws its separator between every pair of
+columns it has, so `""` is how it draws nothing there. Written where a
+linemode's `separator` goes it is **refused by name** — it is falsy, so it
+used to fall through to the very separator it was written to be rid of, and
+said nothing until a row was drawn.
 
 ### `ctx`
 

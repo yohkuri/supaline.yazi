@@ -132,6 +132,29 @@ local colour = require(".colour")
 
 ---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
 
+--- A separator written as a table: its text first, and the colour it draws in
+--- under `base`, which takes everything a column's `base` takes.
+---
+--- `[1]` constrains the value and not the index, the way `supaline.ColumnEntry`
+--- does: a separator is one string, so anything at `[2]` is a key nobody
+--- claimed and `M.separator` refuses it by name.
+---@class supaline.SepSpec
+---@field [1] string the text drawn between two columns
+---@field base unknown? a colour string, a style table, a ui.Style, or a function returning one
+
+--- What a user may write where a separator is taken. `false` is not in here:
+--- it is a column's spelling for `sep` and a linemode has no use for it, so
+--- the two places that take one differ by that alone.
+---@alias supaline.SepValue string|supaline.SepSpec
+
+--- A separator once `M.separator` has resolved it. `style` is absent rather
+--- than an empty `ui.Style` when nothing was written, so that the common case
+--- stays a bare string in the Line: main.lua's `render` pays for a `ui.Span`
+--- per row only where a colour was actually asked for.
+---@class supaline.Sep
+---@field text string
+---@field style unknown? a ui.Style
+
 --- Plugin-wide options, once `setup` has filled them in from `DEFAULTS`.
 --- Separate from `supaline.Opts` in main.lua, which is what the user actually
 --- wrote. `separator` and `order` are always present, so nothing that reads
@@ -139,7 +162,7 @@ local colour = require(".colour")
 --- because a column definition can state one too and nil is what tells "the
 --- user asked for this scale" from "nobody said".
 ---@class supaline.Cfg
----@field separator string
+---@field separator supaline.SepValue
 ---@field order integer
 ---@field scale? "linear"|"log" what the user wrote in `setup`, if anything
 --- `band` is optional for the same shape of reason `scale` is, though not the
@@ -166,7 +189,7 @@ local colour = require(".colour")
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
----@field sep string|false|nil a separator of this column's own, `false` for none
+---@field sep supaline.SepValue|false|nil a separator of this column's own, `false` for none
 ---@field width number|"auto"|(fun(stats: any): number?)|nil a number is floored
 ---@field scale "linear"|"log"|nil
 
@@ -204,7 +227,7 @@ local colour = require(".colour")
 ---@field align "left"|"right"
 ---@field overflow "ellipsis"|"clip"|"grow"
 ---@field max_width integer?
----@field sep string|false|nil a separator of this column's own, `false` for none
+---@field sep supaline.Sep|false|nil this column's own separator, `false` for none
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
 ---@field render supaline.Render
@@ -392,6 +415,119 @@ local function cap(width, max)
 	return width
 end
 
+--- A colour written as a function, called and handed back as a value. Anything
+--- else comes back as it was, so every caller can hand its `base` through here
+--- without asking what shape it is in.
+---
+--- Here is the whole of what a function buys: `colours_of` above says why
+--- resolving a colour has to happen inside `build` rather than once at setup,
+--- and a spec is re-read on every one of those passes but never evaluated
+--- again. A function is, so it sees the flavor that was not there while
+--- `init.lua` ran and follows every reload after it. Once per column per
+--- build, never per row.
+---
+--- The `where` it hands back names the call rather than the line the value was
+--- written on, because that is where the value came from. Two ways for this to
+--- go wrong and one mechanism for both: the likely one is the call itself --
+--- `th.status.perm_read` against a flavor with no `[status]` section raises
+--- `attempt to index a nil value`, and that reaches the user as `build`'s
+--- notification, where a message carrying no name says nothing about which
+--- line to open.
+---@param value any
+---@param where string names where the value was written
+---@param fn_where string names it as a function, for a message about the call
+---@return any value, string where
+local function evaluated(value, where, fn_where)
+	if type(value) ~= "function" then
+		return value, where
+	end
+	local ok, got = pcall(value)
+	if not ok then
+		error(string.format("supaline: %s raised: %s", fn_where, tostring(got)))
+	end
+	-- `or nil` for the reason `colours_of` writes it: `false` is how a spec
+	-- says "no colour at all", and a function that hands one back is saying
+	-- that rather than handing back a value Yazi would refuse.
+	return got or nil, "what " .. fn_where .. " returned"
+end
+
+local SEP_HELP = "supaline: %s must be a string, or a table like "
+	.. '`{ "|", base = "#585b70" }` to give it a colour; got a %s'
+
+local SEP_FALSE = "supaline: %s is `false`, which is a column's spelling for `sep` rather than a "
+	.. "linemode's: a linemode draws its separator between every pair of columns it has, so "
+	.. '`""` is how it draws nothing'
+
+local SEP_TEXT = "supaline: %s is a table, so its first element is the text drawn between two "
+	.. "columns and has to be a string; got %s"
+
+local SEP_KEY = "supaline: %s: `%s` %s. A separator table takes its text as the first element "
+	.. 'and `base` for the colour it draws in, as `{ "|", base = "#585b70" }`'
+
+--- The separator written at `where`, resolved into its text and the style it
+--- draws in. Nil is what "nothing was written" looks like and is handed back
+--- as it is, for the caller to fall back from.
+---
+--- `false` is the value worth a message of its own. It reads like a column's
+--- `sep = false` and it is falsy, so before this refusal it fell through to
+--- the separator it was written to be rid of, and the linemode drew the very
+--- thing it asked to drop. Nothing said so at the time: a separator is not
+--- read until a row is, so a wrong one is a render-time failure with the cause
+--- a whole session behind it. `lua-language-server` refuses it where it runs,
+--- and it does not run over anyone's `init.lua`.
+---
+--- The style is resolved here rather than carried as what the user wrote, and
+--- it has to be: `normalize` below and `compile` in main.lua are the only two
+--- callers, both are reached from the `theme` event, and a colour resolved
+--- anywhere else is the old one from the first reload on.
+---@param sep any
+---@param where string names where it was written, for the message
+---@return supaline.Sep?
+function M.separator(sep, where)
+	if sep == nil then
+		return nil
+	elseif sep == false then
+		error(string.format(SEP_FALSE, where))
+	elseif type(sep) == "string" then
+		return { text = sep }
+	elseif type(sep) ~= "table" then
+		error(string.format(SEP_HELP, where, type(sep)))
+	end
+
+	local text = sep[1]
+	if type(text) ~= "string" then
+		error(string.format(SEP_TEXT, where, text == nil and "nothing" or "a " .. type(text)))
+	end
+
+	local unknown = {}
+	for k in pairs(sep) do
+		if k ~= 1 and k ~= "base" then
+			unknown[#unknown + 1] = tostring(k)
+		end
+	end
+	if #unknown > 0 then
+		-- Every key nobody claimed rather than the first one found, and sorted,
+		-- the way `colour.lua` names the keys a style table does not take:
+		-- `pairs` walks in whatever order the hash gives, so one of two
+		-- misspellings would be reported differently from one run to the next.
+		table.sort(unknown)
+		error(
+			string.format(
+				SEP_KEY,
+				where,
+				table.concat(unknown, "`, `"),
+				#unknown == 1 and "is not a separator key" or "are not separator keys"
+			)
+		)
+	end
+
+	local base, base_where =
+		evaluated(sep.base, string.format("the colour of %s", where), string.format("the `base` function of %s", where))
+	-- Nil rather than an empty style, so that a separator nobody coloured stays
+	-- a bare string in the Line: see the class above.
+	return { text = text, style = base ~= nil and colour.style(base, base_where) or nil }
+end
+
 --- Turn one entry of a linemode spec into a runtime column.
 ---@param spec supaline.ColumnSpec
 ---@param cfg supaline.Cfg
@@ -445,12 +581,20 @@ function M.normalize(spec, cfg)
 		return v
 	end
 
+	-- `false` is carried through as it is rather than resolved: a column is the
+	-- one place it means anything, and `M.separator` refuses it everywhere
+	-- else. Nil is left to `render`, which falls back to the linemode's.
+	local sep = pick("sep")
+	if sep ~= false then
+		sep = M.separator(sep, string.format("`sep` on column `%s`", name or "?"))
+	end
+
 	local col = {
 		name = name,
 		align = pick("align") or "right",
 		overflow = pick("overflow") or "ellipsis",
 		max_width = pick("max_width"),
-		sep = pick("sep"),
+		sep = sep,
 		stats = pick("stats"),
 		refresh = pick("refresh"),
 		render = opts.render or def.render,
@@ -487,33 +631,12 @@ function M.normalize(spec, cfg)
 	local base, wanted, source = colours_of(name, opts, def)
 	local where = string.format(WHERE[source], name or "?")
 
-	-- A `base` written as a function is called here, and here is the whole of
-	-- what it buys: `colours_of` above says why this runs inside `build` rather
-	-- than once at setup, and a spec is re-read on every one of those passes
-	-- but never evaluated again. A function is, so it sees the flavor that was
-	-- not there while `init.lua` ran and follows every reload after it.
-	--
-	-- Once per column per build, never per row. `ramp` deliberately takes none:
-	-- its endpoints need the `#rrggbb` channels `colour.lua`'s header measures
-	-- a style cannot be read back as, so the one thing a function there could
-	-- reach for is the one thing it could not use.
-	local base_where = where
-	if type(base) == "function" then
-		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
-		-- Two ways for this to go wrong and one mechanism for both. The likely
-		-- one is the call itself: `th.status.perm_read` against a flavor with
-		-- no `[status]` section raises `attempt to index a nil value`, and that
-		-- reaches the user as `build`'s notification, where a message carrying
-		-- no column name says nothing about which line to open.
-		local ok, got = pcall(base)
-		if not ok then
-			error(string.format("supaline: %s raised: %s", fn, tostring(got)))
-		end
-		-- `or nil` for the reason `colours_of` writes it: `false` is how a spec
-		-- says "no colour at all", and a function that hands one back is saying
-		-- that rather than handing back a value Yazi would refuse.
-		base, base_where = got or nil, "what " .. fn .. " returned"
-	end
+	-- `ramp` deliberately takes no function, where `base` does: its endpoints
+	-- need the `#rrggbb` channels `colour.lua`'s header measures a style cannot
+	-- be read back as, so the one thing a function there could reach for is the
+	-- one thing it could not use.
+	local base_where
+	base, base_where = evaluated(base, where, string.format(FN_WHERE[source] or WHERE[source], name or "?"))
 	local ground = colour.style(base, base_where)
 
 	-- A ramp needs extremes to place a value between, and only a column that

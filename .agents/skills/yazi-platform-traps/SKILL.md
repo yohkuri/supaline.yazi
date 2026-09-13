@@ -125,7 +125,9 @@ allocate as little as possible.
   `column_spec.lua` "a span drawn a second time is refused" and "a whole Line
   drawn a second time is refused too". The Line half was missing from the stub
   until a review asked for it, and it is the half `column.cell` walks into:
-  every render's output goes through one `ui.Line`.
+  every render's output goes through one `ui.Line`. So does every coloured
+  separator between two columns, which is why `main.lua`'s `render` keeps the
+  style a separator carries and builds its `ui.Span` again for every row.
 
 A linemode name is 1 to 20 characters. An unregistered name renders as literal
 text, so a name registered late shows up on screen.

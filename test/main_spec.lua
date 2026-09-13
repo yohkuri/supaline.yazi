@@ -76,6 +76,43 @@ test("setup: the separator can be replaced per plugin and per linemode", functio
 	eq(draw("detail", CURRENT.files[1]), "1B::1B")
 end)
 
+-- A column that hands back text and no style, so the only style anywhere in
+-- the row is the separator's. The built-in `size` returns `ctx.base` alongside
+-- its text whether or not a colour was asked for, which would be the style
+-- `first_style` found instead.
+local PLAIN = { render = function() return "x" end, width = 1 }
+
+test("setup: a separator can carry a colour, in all three places it is written", function()
+	setup({ detail = { PLAIN, PLAIN } }, { separator = { "|", base = "cyan" } })
+	eq(draw("detail", CURRENT.files[1]), "x|x")
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "cyan", "written in `setup`")
+
+	setup { detail = { PLAIN, PLAIN, separator = { "::", base = "red" } } }
+	eq(draw("detail", CURRENT.files[1]), "x::x")
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "red", "written on the linemode")
+
+	setup { detail = { PLAIN, { render = PLAIN.render, width = 1, sep = { ">", base = "green" } } } }
+	eq(draw("detail", CURRENT.files[1]), "x>x")
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "green", "written on the column")
+end)
+
+test("setup: a separator that states no colour goes in as the string it is", function()
+	setup({ detail = { PLAIN, PLAIN } }, { separator = "|" })
+	eq(draw("detail", CURRENT.files[1]), "x|x")
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }), nil, "no style in the row at all")
+end)
+
+test("setup: a coloured separator is built again for every row", function()
+	setup({ detail = { PLAIN, PLAIN } }, { separator = { "|", base = "cyan" } })
+	eq(draw("detail", CURRENT.files[1]), "x|x")
+	-- `ui.Line` *consumes* what it is given. A Span built once while the
+	-- linemode was compiled and kept on it is refused the second time it is
+	-- drawn -- `expected a string, Span, Line, or a table of them` -- and the
+	-- pane stops drawing altogether, on the second row of the first frame. The
+	-- stub refuses a reused Span the same way, so this is the line that fails.
+	eq(draw("detail", CURRENT.files[2]), "x|x", "the second row of the same frame")
+end)
+
 test("setup: `sep = false` drops the separator before a column", function()
 	setup { detail = { { "size", width = 3 }, { "size", width = 3, sep = false } } }
 	eq(draw("detail", CURRENT.files[1]), " 1B 1B")

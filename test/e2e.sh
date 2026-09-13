@@ -450,6 +450,11 @@ check "m3: a stated width does not shrink to fit" "….txt         1B" "$DIR/scr
 
 # m5: `ext` (5, left), then `size` with `sep = false`, then `mtime` behind "│".
 check "m5: sep = false and a separator of one's own" "bin    1024B│" "$DIR/screen-m5.txt"
+# A separator that carries a colour is the one that goes in as a `ui.Span`, and
+# `ui.Line` consumes a Span rather than copying it: one built while the linemode
+# was compiled draws the first row and then stops the pane, which is a failure
+# the text above cannot tell from a colour that never arrived.
+check "m5: ... and that separator carries a colour" "$(sgr 38 '#ff00aa')" "$DIR/color-m5.txt"
 
 # m9: a registered column, one clipped to 8 without an ellipsis, and a bare
 # function in the spec.

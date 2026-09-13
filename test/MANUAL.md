@@ -27,7 +27,7 @@ comparing against.
 | `m 2` | `everything` | Every built-in column                             |
 | `m 3` | `widths`     | Stated width vs `"auto"` vs `max_width`           |
 | `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`, string and Line   |
-| `m 5` | `seps`       | The separator, `sep = false`, and one of your own |
+| `m 5` | `seps`       | The separator, `sep = false`, and one of your own in a colour |
 | `m 6` | `pane_cur`   | The current pane alone                            |
 | `m 7` | `pane_par`   | `current` + `parent`, one list between them       |
 | `m 8` | `pane_prev`  | `current` + `preview`, one list between them      |

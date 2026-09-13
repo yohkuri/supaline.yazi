@@ -598,11 +598,14 @@ supaline:setup({
 			{ "name", overflow = "grow" },
 		},
 
-		-- m5: the default separator, none at all, and one of your own.
+		-- m5: the default separator, none at all, and one of your own -- the
+		-- last of those in a colour, which is the one shape of separator that
+		-- reaches the screen as a `ui.Span` rather than a bare string. Nothing
+		-- else in the fixture draws `#ff00aa`, so `e2e.sh` can look for it.
 		seps = {
 			{ "ext" },
 			{ "size", sep = false },
-			{ "mtime", sep = "│" },
+			{ "mtime", sep = { "│", base = "#ff00aa" } },
 		},
 
 		-- m6 to m8: the panes. The difference shows in the left and right

@@ -14,6 +14,89 @@ local function cell(spec, file)
 	return text_of(column.cell(col, file or stub.file {}))
 end
 
+-- --- separators ------------------------------------------------------------
+
+test("separator: a string is the whole of it, and costs no style", function()
+	local sep = assert(column.separator("|", "`separator` in `setup`"))
+	eq(sep.text, "|")
+	-- Nil rather than an empty style: it is what keeps an uncoloured separator
+	-- a bare string in the Line, and a `ui.Span` per row is what that saves.
+	eq(sep.style, nil)
+end)
+
+test(
+	"separator: nothing written is nothing to fall back from",
+	function() eq(column.separator(nil, "`separator` in `setup`"), nil) end
+)
+
+test("separator: a table is the text and the colour it draws in", function()
+	local sep = assert(column.separator({ "|", base = "cyan" }, "`separator` in `setup`"))
+	eq(sep.text, "|")
+	eq(assert(sep.style).fg, "cyan")
+end)
+
+test("separator: `base` takes everything a column's `base` takes", function()
+	---@param base any
+	---@return table the style that `base` came back as
+	local function style(base) return assert(assert(column.separator({ "|", base = base }, "x")).style) end
+	eq(style({ fg = "cyan", bold = true }).fg, "cyan", "a style table")
+	eq(rawget(style { fg = "cyan", bold = true }, "bold"), true, "... attributes and all")
+	eq(style(ui.Style():fg("red")).fg, "red", "a `ui.Style`")
+	eq(style("129").fg, "129", "an index Yazi's own parser takes")
+end)
+
+test("separator: a `base` written as a function is called, never stored", function()
+	-- The repair a column's `base` gets, for the reason `normalize` gives: a
+	-- spec is re-read on every `theme` event and never evaluated again, so a
+	-- colour borrowed from the theme has to be borrowed inside the build.
+	local calls = 0
+	local sep = assert(column.separator({
+		"|",
+		base = function()
+			calls = calls + 1
+			return "cyan"
+		end,
+	}, "`separator` in `setup`"))
+	eq(calls, 1)
+	eq(assert(sep.style).fg, "cyan")
+
+	throws(function()
+		column.separator({ "|", base = function() error("no `[status]` section") end }, "x")
+	end, "the `base` function of x raised")
+end)
+
+test("separator: what is not one is refused by name", function()
+	throws(function() column.separator(42, "`separator` in `setup`") end, "must be a string, or a table")
+	-- The one worth its own sentence: `false` is a column's spelling for `sep`,
+	-- and being falsy it used to fall through to the separator it was written
+	-- to be rid of.
+	throws(function() column.separator(false, "`separator` in `setup`") end, "a column's spelling for `sep`")
+	throws(function() column.separator({ base = "cyan" }, "x") end, "first element is the text")
+	throws(function() column.separator({ 42 }, "x") end, "has to be a string; got a number")
+	throws(
+		function() column.separator({ "|", bass = "cyan", colour = "x" }, "x") end,
+		"`bass`, `colour` are not separator keys"
+	)
+	throws(function() column.separator({ "|", base = { fgg = "cyan" } }, "x") end, "the colour of x")
+end)
+
+test("normalize: a column's own `sep` takes the table form too", function()
+	column.register("fixed", { width = 4, render = function() return "ab" end })
+	-- Cast rather than asserted: `assert` narrows the nil away and leaves the
+	-- `false` a column's `sep` can also be.
+	local sep = column.normalize({ "fixed", sep = { "|", base = "cyan" } }, CFG).sep --[[@as supaline.Sep]]
+	eq(sep.text, "|")
+	eq(assert(sep.style).fg, "cyan")
+
+	-- Refused nowhere until a row was drawn, and then as Yazi emptying the
+	-- screen. The message names the column, because a linemode has as many
+	-- `sep`s as it has columns.
+	-- The wrong value is the test; the checker refuses it where it runs, which
+	-- is not over anyone's `init.lua`.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", sep = 42 }, CFG) end, "`sep` on column `fixed`")
+end)
+
 -- --- spec shapes -----------------------------------------------------------
 
 test("normalize: a registered column by name", function()
@@ -32,7 +115,7 @@ test("normalize: an option written on the definition survives, `false` and all",
 	-- definition that said `sep = false` still got a separator drawn.
 	column.register("tight", { width = 3, sep = false, render = function() return "x" end })
 	eq(column.normalize("tight", CFG).sep, false)
-	eq(column.normalize({ "tight", sep = "|" }, CFG).sep, "|", "the use site still wins")
+	eq(column.normalize({ "tight", sep = "|" }, CFG).sep.text, "|", "the use site still wins")
 end)
 
 test("normalize: a bare function", function()

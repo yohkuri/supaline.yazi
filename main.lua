@@ -85,7 +85,7 @@ local M = {}
 ---@field current supaline.ColumnSpec[]? what the current pane draws, instead of the list above
 ---@field parent supaline.ColumnSpec[]? what the parent pane draws; nothing by default
 ---@field preview supaline.ColumnSpec[]? what the preview pane draws; nothing by default
----@field separator string? overrides the plugin-wide one
+---@field separator supaline.SepValue? overrides the plugin-wide one
 
 --- The table `setup` is handed. `linemodes` is the only field it cannot do
 --- without and it is still optional here, because `setup` takes the dot call
@@ -93,7 +93,7 @@ local M = {}
 --- say which one it was.
 ---@class supaline.Opts
 ---@field linemodes table<string, supaline.LinemodeSpec>?
----@field separator string?
+---@field separator supaline.SepValue?
 ---@field order integer?
 ---@field scale "linear"|"log"|nil
 ---@field band supaline.Band? the lightnesses a band runs between
@@ -112,7 +112,7 @@ local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemo
 ---@field name string
 ---@field cols table<string, supaline.Column[]> what each pane draws, by pane name
 ---@field outer boolean whether it draws anywhere but the current pane
----@field sep string what goes between two columns
+---@field sep supaline.Sep what goes between two columns
 
 local linemodes = {} ---@type table<string, supaline.Mode>
 
@@ -201,30 +201,6 @@ local OPTIONS = { separator = true }
 
 local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `parent`, "
 	.. "`preview` and `separator`; got %s"
-
-local SEP_HELP = 'supaline: %s must be a string, got a %s -- write "" to draw nothing between '
-	.. "two columns, `sep = false` being a column's spelling rather than a linemode's"
-
---- The separator written at `where`, handed back once it is a string. Nil is
---- what "nothing was written" looks like and is handed back as it is, for the
---- caller to fall back from.
----
---- `false` is the value worth a check of its own. It reads like a column's
---- `sep = false` and it is falsy, so it fell through to the separator it was
---- written to be rid of, and the linemode drew the very thing it asked to
---- drop. Nothing said so at the time: a separator is not read until a row is,
---- so a wrong one is a render-time failure with the cause a whole session
---- behind it. `lua-language-server` refuses this where it runs, and it does
---- not run over anyone's `init.lua`.
----@param sep any
----@param where string names where it was written, for the message
----@return string?
-local function separator_of(sep, where)
-	if sep ~= nil and type(sep) ~= "string" then
-		error(string.format(SEP_HELP, where, type(sep)))
-	end
-	return sep
-end
 
 -- `PANES` as a set, so a key can be classified without walking it. Derived
 -- rather than written out, because a list and a set of the same three names
@@ -455,7 +431,13 @@ local function render(mode, pane, cols, file, folder)
 	local sep, out = mode.sep, {}
 	for i, col in ipairs(cols) do
 		if i > 1 and col.sep ~= false then
-			out[#out + 1] = col.sep or sep
+			local one = col.sep or sep
+			-- A separator that states no colour goes in as the string it is.
+			-- The Span is built per row and cannot be built anywhere else:
+			-- `ui.Line` *consumes* what it is given, so one built once and
+			-- drawn on every row is refused the second time and the pane stops
+			-- drawing altogether. What is built once is the style.
+			out[#out + 1] = one.style and ui.Span(one.text):style(one.style) or one.text
 		end
 		out[#out + 1] = column.cell(col, file)
 	end
@@ -568,14 +550,23 @@ local function compile(from, with)
 			end
 		end
 
-		local own = separator_of(spec.separator, string.format("`separator` on linemode `%s`", name))
+		-- Resolved per linemode rather than once per build, because the message
+		-- has to name the place the separator was written and only one of the
+		-- two is a linemode's. It costs a style per linemode on a `theme`
+		-- event, which is where `compile` runs from, and nothing per row. The
+		-- cast below is what `with.separator` always being set buys: nil is
+		-- `column.separator` saying nothing was written, and something was.
+		local own, where = spec.separator, string.format("`separator` on linemode `%s`", name)
+		if own == nil then
+			own, where = with.separator, "`separator` in `setup`"
+		end
 		local reaches = cols.parent ~= nil or cols.preview ~= nil
 		outer = outer or reaches
 		modes[name] = {
 			name = name,
 			cols = cols,
 			outer = reaches,
-			sep = own or with.separator,
+			sep = column.separator(own, where) --[[@as supaline.Sep]],
 		}
 	end
 	return modes, hooks, outer
@@ -724,9 +715,21 @@ function M.setup(_st, opts)
 	-- refused must leave the configuration already running untouched: the
 	-- `theme` handler reads `specs`, so a rejected spec left there would make
 	-- every later theme event throw instead of rebuilding.
+	--
+	-- The separator is the one option nothing here refuses. Telling the table
+	-- form from a string is `column.separator`'s, and that resolves the colour
+	-- a table carries, which has to happen inside a build rather than once at
+	-- setup. `compile` below is inside one and runs before the commit, so a
+	-- separator written wrong still raises out of `setup` rather than arriving
+	-- as a notification an hour later.
+	local sep = opts.separator
+	if sep == nil then
+		sep = DEFAULTS.separator
+	end
+
 	---@type supaline.Cfg
 	local next_cfg = {
-		separator = separator_of(opts.separator, "`separator` in `setup`") or DEFAULTS.separator,
+		separator = sep,
 		order = opts.order or DEFAULTS.order,
 		-- Not `or` a default: see `DEFAULTS`. Nil here is what lets a column
 		-- definition's own scale through.
