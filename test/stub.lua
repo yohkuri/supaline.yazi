@@ -626,6 +626,41 @@ function M.spec_of(kind)
 	}
 end
 
+--- One of `Cha`'s two owner ids, as Yazi would have handed it over -- or a
+--- refusal, for a value Yazi cannot produce.
+---
+--- Numbers, always. Yazi's `Cha` carries `uid` and `gid` as `u32` rather than
+--- `Option<u32>`, filling them with the `0` of `unix_either!(m.uid(), 0)` on a
+--- platform that has neither, so Lua is never handed a nil here and a column
+--- cannot ask "does this file have an owner". A stub that left them nil let a
+--- `not cha.uid` guard look like the Windows case while Yazi was reaching the
+--- branch below it and drawing `0:0`.
+---
+--- `nil or 0` was the whole of it until this raised as well, which is half a
+--- stub: it stopped a spec seeing a nil, and passed anything else through
+--- untouched. `uid = "root"` reached `ya.user_name` and came back `userroot`,
+--- green, describing a file no Yazi has ever produced -- the silence this
+--- harness is supposed to break rather than reproduce.
+---@param v any
+---@param field "uid"|"gid"
+---@return integer
+local function id_of(v, field)
+	if v == nil then
+		return 0
+	elseif math.type(v) ~= "integer" or v < 0 or v > 0xffffffff then
+		error(
+			string.format(
+				"stub: `%s` is a `u32` in Yazi's `Cha`, so it takes a whole number in "
+					.. "[0, 2^32); got %s. Leave it out for the `0` Yazi fills in where a "
+					.. "platform has no owner.",
+				field,
+				tostring(v)
+			)
+		)
+	end
+	return v
+end
+
 --- A stand-in for `fs::File`. Everything the built-in columns read is either
 --- passed in or defaulted to something harmless.
 ---
@@ -666,15 +701,8 @@ function M.file(t)
 			mtime = t.mtime,
 			btime = t.btime,
 			atime = t.atime,
-			-- Numbers, always. Yazi's `Cha` carries `uid` and `gid` as `u32`
-			-- rather than `Option<u32>`, filling them with the `0` of
-			-- `unix_either!(m.uid(), 0)` on a platform that has neither, so
-			-- Lua is never handed a nil here and a column cannot ask "does
-			-- this file have an owner". A stub that left them nil let a
-			-- `not cha.uid` guard look like the Windows case while Yazi was
-			-- reaching the branch below it and drawing `0:0`.
-			uid = t.uid or 0,
-			gid = t.gid or 0,
+			uid = id_of(t.uid, "uid"),
+			gid = id_of(t.gid, "gid"),
 			perm = function() return t.perm end,
 		},
 		size = function() return t.size end,
