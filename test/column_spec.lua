@@ -407,35 +407,69 @@ test("base: a function is called for its colour, and called again on the next bu
 	-- merges the flavor after `init.lua` has run, so `base = th.status.perm_read`
 	-- captures Yazi's preset and keeps it: the stored spec is re-read on every
 	-- `theme` event but never evaluated again. A function is evaluated again.
-	---@type string|ui.Style
 	local answer = "#112233"
 	local spec = { base = function() return answer end }
 	eq(coloured(spec).base.fg, "#112233")
 
-	answer = ui.Style():fg("#445566"):bold()
-	local ctx = coloured(spec)
-	eq(ctx.base.fg, "#445566", "the next build asks again")
-	eq(ctx.base.bold, true, "and a style is as good as a string")
+	answer = "#445566"
+	eq(coloured(spec).base.fg, "#445566", "the next build asks again")
+
+	-- And a `ui.Style` comes back through it, which is what the field this was
+	-- written for holds.
+	local ctx = coloured { base = function() return ui.Style():fg("#778899"):bold() end }
+	eq(ctx.base.fg, "#778899")
+	eq(ctx.base.bold, true)
 end)
 
-test("base: a function in the spec outranks the theme, the way a colour does", function()
-	column.register("hue4", { render = function() return "" end })
-	local before = stub.th.supaline
-	stub.th.supaline = { hue4 = "#00ccff" }
-	local ctx = column.normalize({ "hue4", base = function() return "#ff8800" end }, CFG).ctx
-	stub.th.supaline = before
-
-	eq(ctx.base.fg, "#ff8800")
-	-- Which is what tells `permissions` to stop colouring itself: a function is
-	-- still the spec saying something.
+test("base: a function that returns `false` drops the colour, as writing it does", function()
+	-- `false` is the only way to turn off a colour the theme or the definition
+	-- would otherwise supply, and handed to `colour.style` it would come back
+	-- refused as a boolean. The spec has still said something, so the theme
+	-- stays out of it.
+	local ctx = coloured { base = function() return false end }
+	eq(rawget(ctx.base, "fg"), nil)
 	eq(ctx.source, "spec")
 end)
 
-test("base: what a function returns is checked, and the message names the function", function()
-	-- Naming `base` would send the reader to the line holding the function,
-	-- which is not the line to change. A definition may carry one too.
+test("base: `ui.Style` with the call forgotten is refused, not called", function()
+	-- Measured on 26.9.1: `type(ui.Style)` is `table` and only `ui.Style()` is
+	-- userdata, so Yazi refuses the bare name as a plain table. The branch above
+	-- reads `type(base)`, which is what makes the stub's shape load-bearing here
+	-- -- as a plain function it would have been called for a colour and come
+	-- back an empty style, green and uncoloured.
+	eq(type(ui.Style), "table")
+	throws(function() coloured { base = ui.Style } end, "plain table")
+end)
+
+test("base: a function in the spec outranks the theme, the way a colour does", function()
+	-- Which is also what tells `permissions` to stop colouring itself.
+	column.register("hue4", { render = function() return "" end })
+	local before = stub.th.supaline
+	stub.th.supaline = { hue4 = "#00ccff" }
+	-- Restored through a `pcall`, because `test` pcalls this body too: a section
+	-- left set by a raising `normalize` reaches every test after this one, and
+	-- the failure then points at the wrong one.
+	local ok, col = pcall(column.normalize, { "hue4", base = function() return "#ff8800" end }, CFG)
+	stub.th.supaline = before
+	assert(ok, col)
+
+	eq(col.ctx.base.fg, "#ff8800")
+	eq(col.ctx.source, "spec")
+end)
+
+test("base: a function that fails is reported in terms of the file it was written in", function()
+	-- Two ways to fail and one mechanism for both. A value `colour.style` would
+	-- refuse is named for the function rather than for `base`, because the line
+	-- holding the function is not the line to change -- and a definition may
+	-- carry one, where the reader has no `base` of their own to look at.
 	column.register("hue5", { render = function() return "" end, base = function() return 42 end })
-	throws(function() column.normalize("hue5", CFG) end, "the `base` function of column `hue5`")
+	throws(function() column.normalize("hue5", CFG) end, "what the default `base` function of column `hue5` returned")
+
+	-- The call raising is the likelier half: a flavor with no such section, a
+	-- field that moved. Lua's own message for it carries no column at all.
+	throws(function()
+		column.normalize({ "hue5", base = function() return th.nosuch.field end }, CFG)
+	end, "the `base` function of column `hue5` raised")
 end)
 
 test("colour: a value Yazi would refuse says which column it was", function()
