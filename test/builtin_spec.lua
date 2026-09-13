@@ -141,19 +141,17 @@ local STATUS = {
 --- the string it expected rather than a list of styles.
 ---@param file table
 ---@param opts table?
----@param status table?
 ---@return string
-local function perm_fgs(file, opts, status)
+local function perm_fgs(file, opts)
 	local spec = { "permissions" }
 	for k, v in pairs(opts or {}) do
 		spec[k] = v
 	end
 	local col = column.normalize(spec, CFG)
 
-	local out
-	with(stub.th, "status", status == nil and STATUS or status, function()
+	local out = with(stub.th, "status", STATUS, function()
 		col.refresh()
-		out = column.cell(col, file)
+		return column.cell(col, file)
 	end)
 
 	-- Walked rather than read off `_parts` directly: `column.cell` puts what a

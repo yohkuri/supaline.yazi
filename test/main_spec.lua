@@ -120,9 +120,12 @@ test("setup: a member Yazi adds later is refused too", function()
 	-- The guard asks `Linemode` what it holds rather than listing it. Yazi is on
 	-- CalVer and adds to the component between releases; a hand-written denylist
 	-- would let this through the moment it did.
-	Linemode.reflow = function() return "" end
-	throws(function() main.setup({}, { linemodes = { reflow = { "size" } } }) end, "part of Yazi's `Linemode` component")
-	Linemode.reflow = nil
+	with(Linemode, "reflow", function() return "" end, function()
+		throws(
+			function() main.setup({}, { linemodes = { reflow = { "size" } } }) end,
+			"part of Yazi's `Linemode` component"
+		)
+	end)
 end)
 
 test("setup: overriding one of Yazi's own linemode names is still allowed", function()
