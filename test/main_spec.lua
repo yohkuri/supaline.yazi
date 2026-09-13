@@ -211,6 +211,13 @@ test("setup: a separator that is neither a string nor a table is refused", funct
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() main.setup({}, { linemodes = { t = { "size", separator = false } } }) end, "linemode `t`")
 
+	-- And plugin-wide, which is the one the default could swallow: `setup`
+	-- falls back to `DEFAULTS.separator` when nothing was written, and an `or`
+	-- there would take `false` for nothing written and hand the user back the
+	-- separator they wrote `false` to be rid of.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = false }) end, "`separator` in `setup`")
+
 	-- The spelling the message names is taken.
 	setup { detail = { { "size", width = 2 }, { "size", width = 2 }, separator = "" } }
 	eq(draw("detail", CURRENT.files[1]), "1B1B", "an empty separator draws nothing between two columns")
@@ -496,7 +503,7 @@ test("theme: a reload replaces a colour already resolved", function()
 	end)
 end)
 
-test("theme: a separator's style function is read again on a reload", function()
+test("theme: a linemode's separator style function is read again on a reload", function()
 	-- The same repair a column's `base` gets and for the same reason: a spec is
 	-- re-read on every build and never evaluated, so a style written as a value
 	-- freezes whatever the theme held while `init.lua` ran. A function is
@@ -519,6 +526,31 @@ test("theme: a separator's style function is read again on a reload", function()
 			"#00ccff",
 			"the reloaded colour, not the one the function returned at setup"
 		)
+	end)
+end)
+
+test("theme: the plugin-wide separator's style function is read again too", function()
+	-- The level the test above does not reach, and the one that was frozen.
+	-- `setup` stores `cfg` once and hands that same table to every later
+	-- build, so a separator read into a record there held whatever the
+	-- function returned while `init.lua` ran and held it for the session.
+	-- `compile` reads it instead, on the pass that draws, which is where the
+	-- linemode's and the column's were already being read.
+	--
+	-- Written as the flavor case rather than as a second reload, because that
+	-- is how it bites: a field only the flavor supplies is *nil* while `setup`
+	-- runs and arrives with the `theme` event a few milliseconds later.
+	-- Frozen, this separator is not merely a stale colour -- it is uncoloured
+	-- for the rest of the session, with nothing anywhere to say so.
+	with_theme({}, function()
+		setup({ detail = { plain("a"), plain("b") } }, {
+			separator = { "|", style = function() return th.supaline.sep end },
+		})
+		eq(style_in("detail"), nil, "nothing to draw it in yet, which the table form allows")
+
+		stub.th.supaline = { sep = "#00ccff" }
+		stub.fire("theme")
+		eq(style_in("detail").fg, "#00ccff", "the colour the flavor brought with the event")
 	end)
 end)
 

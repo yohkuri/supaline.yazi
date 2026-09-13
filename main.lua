@@ -23,10 +23,11 @@ local PANES = { "current", "parent", "preview" }
 
 ---@type supaline.Cfg
 local DEFAULTS = {
-	-- Already a record rather than the string a user writes it as. `render`
-	-- reads one shape and not two, and this is the only separator in the plugin
-	-- that never passes through `column.separator` to become one.
-	separator = { text = " " },
+	-- The string a user writes, not the record `render` reads. Every separator
+	-- in the plugin now becomes a record in the same place and on the same
+	-- pass -- `compile` -- so the default is not the one that skips the reader,
+	-- and there is no second shape for a future invariant to miss.
+	separator = " ",
 	-- Order of the parent/preview child among Linemode's children. Anything
 	-- below `padding` (2000) keeps it inside the linemode block.
 	order = 1400,
@@ -513,6 +514,21 @@ end
 ---@return table<string, supaline.Mode> modes, function[] hooks, boolean outer whether any mode leaves the current pane
 local function compile(from, with)
 	local modes, hooks, outer = {}, {}, false
+	-- Read here rather than in `setup`, which is what makes a `style` function
+	-- under it follow the theme. `cfg` is stored once and handed to every
+	-- later build, so a record resolved into it while `setup` ran would carry
+	-- the colour the flavor had not supplied yet and carry it through every
+	-- reload after -- the trap `base` takes a function to escape, reappearing
+	-- one level out. The linemode's and the column's were already read on this
+	-- pass; measured, those two followed a reload and this one did not.
+	--
+	-- Once per compile rather than once per linemode: it is the same record
+	-- for all of them, and `render` only ever reads it.
+	--
+	-- Never nil, so the reader's nil case is unreachable from here: `setup`
+	-- falls back to `DEFAULTS.separator` and the `cfg` before any `setup` is
+	-- `DEFAULTS` itself.
+	local wide = column.separator(with.separator, "`separator` in `setup`") --[[@as supaline.Sep]]
 	for name, spec in pairs(from) do
 		local sets = panes_of(spec)
 		-- Keyed by the list the user wrote rather than by the pane it was
@@ -555,7 +571,7 @@ local function compile(from, with)
 			name = name,
 			cols = cols,
 			outer = reaches,
-			sep = own or with.separator,
+			sep = own or wide,
 		}
 	end
 	return modes, hooks, outer
@@ -700,13 +716,29 @@ function M.setup(_st, opts)
 	end
 	opts = opts or {}
 
+	-- Kept as the user wrote it rather than read into a record here. `compile`
+	-- below is what reads it, on this pass and on every later one, so a
+	-- `style` written as a function is called again on each -- and because
+	-- that call happens inside the `compile` this function already makes
+	-- before it commits, a separator written wrong is still refused while
+	-- `setup` runs rather than a session later.
+	--
+	-- An `if` rather than an `or`, because `false` is the one value `or`
+	-- cannot pass through. It is meaningless on a plugin-wide separator and
+	-- `column.separator` says so by name, which it never gets to do if the
+	-- default quietly stands in for it first.
+	local sep = opts.separator
+	if sep == nil then
+		sep = DEFAULTS.separator
+	end
+
 	-- Everything up to the commit below works on locals. A `setup` that is
 	-- refused must leave the configuration already running untouched: the
 	-- `theme` handler reads `specs`, so a rejected spec left there would make
 	-- every later theme event throw instead of rebuilding.
 	---@type supaline.Cfg
 	local next_cfg = {
-		separator = column.separator(opts.separator, "`separator` in `setup`") or DEFAULTS.separator,
+		separator = sep,
 		order = opts.order or DEFAULTS.order,
 		-- Not `or` a default: see `DEFAULTS`. Nil here is what lets a column
 		-- definition's own scale through.
