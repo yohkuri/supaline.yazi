@@ -199,6 +199,7 @@ Any option below can be set on the definition or overridden per use.
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `base`      | `nil`        | One colour, a `ui.Style`, or a function returning one. See [Colours](#colours). |
 | `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
+| `attrs`     | `nil`        | Style keys to put over the colour, whoever supplied it. See [`attrs`](#attrs). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 
@@ -223,6 +224,7 @@ about the folder is what changed.
 | `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
 | `ctx.opts`     | The options written in the spec, verbatim.                   |
 | `ctx.source`   | Which of the three said what `base` is: `"spec"`, `"theme"` or `"definition"`. |
+| `ctx.attrs`    | The style [`attrs`](#attrs) asked for, or `nil`. Already in `ctx.base` and in every step of a ramp; only a column that paints its own spans needs it. |
 | `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
 | `ctx.style(r)` | The style for that position on the column's ramp; `ctx.base` when there is no ramp, and for `nil`. |
 
@@ -623,6 +625,60 @@ is a ramp, and a spec that wants a flat colour instead has to name one:
 ```lua
 { "size", base = "cyan" }
 ```
+
+### `attrs`
+
+Everything above is one auction with one winner. `attrs` does not enter it: it
+is what goes **over** the colour, whoever supplied it.
+
+```lua
+{ "size", attrs = { bold = true } }
+```
+
+With `size = "#0b3d91 -> #7fd4ff"` in your theme, that draws the theme's
+gradient, bold. Writing `base = { bold = true }` instead would not: `base` is
+one of the three sources, so saying anything in it takes the whole colour from
+the theme and leaves the column bold in no colour at all. The only way to a
+themed gradient with a bold on it used to be copying the endpoints into
+`init.lua`, where they stop following the theme.
+
+It takes the same keys a [style table](#one-colour) takes, with one exception:
+
+| | |
+| --- | --- |
+| `bg` and the nine attributes | yours to write |
+| `fg` | **refused by name** — a flat colour is `base`, a gradient is `ramp` |
+
+`fg` is refused rather than ignored because it is the one key that would make
+this a fourth source, and a spec that wrote one meant a colour: it would
+otherwise get a colour nowhere and the theme would go on drawing underneath.
+
+A `ui.Style` is refused too, where `base` takes one. Its keys sit where nothing
+here reads them, so an `fg` inside one could not be refused — and a refusal
+that cannot be made is a colour taken over in silence. Write the table.
+
+`false` is refused as well. Nothing stands behind `attrs` to turn off — no
+theme field and no column default writes attributes — so leaving it out is how
+a column has none, and `base = false` is how the colour goes.
+
+It takes a **function returning a table**, called wherever the colours are
+built, so it follows a theme reload the way [`base`](#one-colour) does:
+
+```lua
+{ "size", attrs = function() return th.supaline.emphasis end }
+```
+
+Returning `nil` from one is how it says "none", which is what lets a condition
+decide.
+
+An ordinary option otherwise: written on a definition and again in the spec,
+the spec's replaces it whole, the way `align` and `width` do.
+
+`permissions` is worth naming, because it is the exception everywhere else.
+It colours each character out of your theme's `[status]` section and steps
+aside the moment you say anything about the colour — but `attrs` is not a
+colour, so it does not step aside. The reds and greens stay and the attribute
+goes over all ten of them.
 
 ### A coloured separator
 
