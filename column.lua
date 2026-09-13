@@ -161,7 +161,7 @@ local colour = require(".colour")
 ---@field render supaline.Render?
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
----@field base unknown? a colour string, a ui.Style, or a function returning one
+---@field base unknown? a colour string, a style table, a ui.Style, or a function returning one
 ---@field ramp string|string[]|false|nil `#rrggbb` endpoints, `"#a -> #b"`, or `false` for none
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil

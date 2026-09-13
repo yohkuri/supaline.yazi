@@ -136,6 +136,46 @@ local function styled(value)
 	return ok and style or nil
 end
 
+-- The attribute keys a style table takes, in the order an error lists them,
+-- and the one place that spelling and the `ui.Style` method behind it
+-- disagree.
+--
+-- The spelling is `theme.toml`'s rather than the API's, which is the whole of
+-- what taking a table here buys: one style, written the same way in both
+-- files. The two names part company in exactly the place a reader is most
+-- likely to get wrong -- the theme key is `reversed` where the method is
+-- `reverse()` -- and a theme that writes the method name is not corrected,
+-- it is ignored. Measured on 26.9.1: `reverse = true` in `[supaline]` left
+-- the column with no attribute and said nothing anywhere.
+--
+-- Which is the other half of what this is for. Yazi hands a plugin the
+-- `Style` it parsed, never the table behind it, so a key it does not know is
+-- gone before `th.supaline` exists and no check here could ever see it; the
+-- README is the only instrument the theme side has. A table written in a
+-- spec reaches this file verbatim, so here a misspelling is refused by name.
+local ATTRS = { "bold", "dim", "italic", "underline", "blink", "blink_rapid", "reversed", "hidden", "crossed" }
+
+local METHOD = { reversed = "reverse" }
+
+-- What a key that is none of those most likely meant. Only spellings a reader
+-- arrives at honestly: `reverse` off the method name or another terminal
+-- library, `strikethrough` off CSS, and `reset` off the colour of that name,
+-- which is a colour rather than an attribute and has to be written as one.
+local MEANT = {
+	reverse = "`reversed` is the spelling, here and in `theme.toml`",
+	strikethrough = "`crossed` is the spelling",
+	reset = '`reset` is a colour rather than an attribute -- write `fg = "reset"`',
+}
+
+local IS_ATTR, KEYS = {}, {}
+for i, k in ipairs(ATTRS) do
+	IS_ATTR[k] = true
+	KEYS[i] = string.format("`%s`", k)
+end
+-- "`a`, `b` and `c`", built rather than written out, so a key added above
+-- cannot be missing from the message that lists them.
+local KEY_LIST = table.concat(KEYS, ", ", 1, #KEYS - 1) .. " and " .. KEYS[#KEYS]
+
 ---@param value string
 ---@param where string
 local function refuse(value, where)
@@ -172,14 +212,117 @@ function M.colour(value, where)
 	return nil
 end
 
+--- The style a table written in a spec asks for.
+---
+--- The same keys `theme.toml` takes, and the same meanings -- `false` is not
+--- an error but an attribute left off, which is what `bold = false` means in
+--- a theme and has to go on meaning here.
+---
+--- `fg` and `bg` go through `M.colour`, so a colour is one thing in this file
+--- whichever key it arrived under. It parses both through Yazi's `fg`, which
+--- is the same `AsColor` the background takes.
+---@param t table
+---@param where string
+---@return unknown a ui.Style
+local function from_table(t, where)
+	-- A table with a `__call` is a constructor rather than a style: `base =
+	-- ui.Style`, with the call forgotten. Measured on 26.9.1, `type(ui.Style)`
+	-- is `table` and `pairs` over it finds nothing, so without this it would
+	-- build an empty style and draw the column in no colour at all -- which is
+	-- the silence this whole branch exists to end. The harness's `ui.Style` is
+	-- the same shape, which is what keeps the test a test of this line.
+	local mt = getmetatable(t)
+	if type(mt) == "table" and mt.__call ~= nil then
+		error(
+			string.format(
+				"supaline: %s is a table you can call rather than a style. `ui.Style` is the "
+					.. 'constructor: write `ui.Style()` with the call, or `{ fg = "#ff8800", '
+					.. "bold = true }` to say the same thing as a table",
+				where
+			)
+		)
+	elseif next(t) == nil then
+		error(
+			string.format(
+				"supaline: %s is a style table with no keys in it, which says nothing at all. "
+					.. 'Write the keys you mean, as `{ fg = "#ff8800", bold = true }`, or `false` '
+					.. "to turn the colour off",
+				where
+			)
+		)
+	end
+
+	local unknown = {}
+	for k in pairs(t) do
+		if k ~= "fg" and k ~= "bg" and not IS_ATTR[k] then
+			unknown[#unknown + 1] = tostring(k)
+		end
+	end
+	if #unknown > 0 then
+		-- Every key nobody claimed rather than the first one found, and sorted:
+		-- `pairs` walks a table in whatever order the hash gives, so naming one
+		-- of two misspellings would report the same mistake differently from one
+		-- run to the next. `main.lua` refuses a linemode's options the same way.
+		table.sort(unknown)
+		local names, hints = {}, {}
+		for i, k in ipairs(unknown) do
+			names[i] = string.format("`%s`", k)
+			hints[#hints + 1] = MEANT[k]
+		end
+		error(
+			string.format(
+				"supaline: %s: %s %s. A style table takes `fg` and `bg`, "
+					.. "plus %s -- the spelling `theme.toml` uses, so a style is written the "
+					.. "same way in both files%s",
+				where,
+				table.concat(names, ", "),
+				#names == 1 and "is not a style key" or "are not style keys",
+				KEY_LIST,
+				#hints > 0 and ". " .. table.concat(hints, "; ") or ""
+			)
+		)
+	end
+
+	local style = ui.Style()
+	for _, k in ipairs { "fg", "bg" } do
+		local v = t[k]
+		if v ~= nil then
+			M.colour(v, string.format("%s: `%s`", where, k))
+			style = style[k](style, v)
+		end
+	end
+	for _, k in ipairs(ATTRS) do
+		local v = t[k]
+		if v ~= nil and type(v) ~= "boolean" then
+			error(
+				string.format(
+					"supaline: %s: `%s` is an attribute rather than a colour, so it must be true or false, got a %s",
+					where,
+					k,
+					type(v)
+				)
+			)
+		elseif v then
+			style = style[METHOD[k] or k](style)
+		end
+	end
+	return style
+end
+
 --- The style a flat colour draws in, whichever way the user wrote it.
 ---
 --- The whole "is this a colour" decision lives here, in one allow-list, so
 --- there is one place to read and one message to keep right. A value that is
---- neither is refused *now*: `Span:style` takes a `Style` or nil and nothing
---- else, and anything else fails while drawing -- measured on 26.9.1,
---- `base = { fg = "#ff8800" }` survived `setup` and then emptied the screen,
---- with `Failed to redraw the Root component` in the log and nothing on it.
+--- none of them is refused *now*: `Span:style` takes a `Style` or nil and
+--- nothing else, and anything else fails while drawing -- measured on 26.9.1,
+--- a value that was neither survived `setup` and then emptied the screen, with
+--- `Failed to redraw the Root component` in the log and nothing on it.
+---
+--- A table is built into a style rather than turned away. `{ fg = "#ff8800",
+--- bold = true }` is what the same style is written as in `theme.toml`, and
+--- for a while it was the one spelling that emptied the screen -- so the two
+--- files now say a style the same way, and `from_table` above refuses by name
+--- what a theme can only drop in silence.
 ---
 --- Telling a style from anything else has to be done by what it answers to,
 --- not by what it is. `getmetatable` cannot do it: measured on 26.9.1, mlua
@@ -191,7 +334,7 @@ end
 --- `style:patch(ui.Style())` succeeds where the Span and the Line both raise.
 --- The harness's stand-in answers it too, which is what keeps one test a test
 --- of this branch.
----@param value any nil, a colour string, or a ui.Style
+---@param value any nil, a colour string, a style table, or a ui.Style
 ---@param where string
 ---@return unknown a ui.Style
 function M.style(value, where)
@@ -199,17 +342,23 @@ function M.style(value, where)
 		return ui.Style()
 	elseif type(value) == "string" then
 		return styled(value) or refuse(value, where)
+	-- Before the table branch, and not merely first by habit: the harness's
+	-- stand-in for a `Style` is a Lua table, so a check on `type` would send it
+	-- to `from_table` and refuse the very value Yazi hands a themed column.
 	elseif pcall(function() return value:patch(ui.Style()) end) then
 		return value
+	elseif type(value) == "table" then
+		return from_table(value, where)
 	end
 
 	error(
 		string.format(
-			"supaline: %s is a %s. Yazi takes a colour string or a `ui.Style` and nothing "
-				.. "else, and anything else reaches it as neither: the linemode stops drawing "
-				.. 'and the screen goes blank. Write `"#rrggbb"`, or `ui.Style():fg(...):bold()`',
+			"supaline: %s is a %s. A style is a colour string, a table of style keys or a "
+				.. "`ui.Style`, and anything else reaches Yazi as none of them: the linemode "
+				.. 'stops drawing and the screen goes blank. Write `"#rrggbb"`, '
+				.. '`{ fg = "#ff8800", bold = true }`, or `ui.Style():fg(...):bold()`',
 			where,
-			type(value) == "table" and "plain table" or type(value)
+			type(value)
 		)
 	)
 end
