@@ -182,6 +182,19 @@ test("cell: a span drawn a second time is refused, the way Yazi refuses it", fun
 	throws(function() column.cell(col, stub.file {}) end, "already been put in a Line")
 end)
 
+test("cell: a whole Line drawn a second time is refused too", function()
+	-- Not only the spans inside it. Measured on 26.9.1: `ui.Line(line)` takes
+	-- the line the same way, so a render caching one finished Line raises on
+	-- the second row exactly as a render caching its spans does -- and
+	-- `column.cell` puts whatever comes back through `ui.Line`, so there is no
+	-- shape of cached renderable that escapes it.
+	local kept = ui.Line { ui.Span("a"), ui.Span("b") }
+	local col = column.normalize({ render = function() return kept end, width = 2 }, CFG)
+
+	eq(text_of(column.cell(col, stub.file {})), "ab")
+	throws(function() column.cell(col, stub.file {}) end, "already been put in a Line")
+end)
+
 test("cell: a truncated renderable is padded back to width", function()
 	-- `Line:truncate` returns at most `width`, exactly like `ui.truncate`: a
 	-- wide character straddling the edge comes back a cell short. Left

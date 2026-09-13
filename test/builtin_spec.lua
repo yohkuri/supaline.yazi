@@ -171,10 +171,21 @@ local function perm_fgs(file, opts, status)
 
 	stub.th.status = before
 
+	-- Walked rather than read off `_parts` directly: `column.cell` puts what a
+	-- render hands back through a `ui.Line` of its own, which Yazi answers with
+	-- a new Line wrapping it, so the spans sit a level below the cell.
 	local fgs = {}
-	for _, part in ipairs(out._parts or { out }) do
-		fgs[#fgs + 1] = part._style and part._style.fg or "-"
+	local function walk(x)
+		if type(x) == "table" and x._parts then
+			for _, part in ipairs(x._parts) do
+				walk(part)
+			end
+			return
+		end
+		local style = stub.style_of(x)
+		fgs[#fgs + 1] = style and style.fg or "-"
 	end
+	walk(out)
 	return table.concat(fgs, " ")
 end
 
@@ -232,13 +243,13 @@ test("permissions: `refresh` is what follows a theme that moved", function()
 	local before = stub.th.status
 	stub.th.status = STATUS
 	col.refresh()
-	eq(column.cell(col, file)._parts[1]._style.fg, "#000011")
+	eq(stub.first_style(column.cell(col, file)).fg, "#000011")
 
 	-- The flavor arriving after `init.lua`, and a later `app:theme`, look the
 	-- same from here: the section is different and the hook runs again.
 	stub.th.status = { perm_type = ui.Style():fg("#ff00ff") }
 	col.refresh()
-	eq(column.cell(col, file)._parts[1]._style.fg, "#ff00ff")
+	eq(stub.first_style(column.cell(col, file)).fg, "#ff00ff")
 
 	stub.th.status = before
 end)
