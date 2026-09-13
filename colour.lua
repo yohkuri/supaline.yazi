@@ -155,7 +155,13 @@ end
 -- spec reaches this file verbatim, so here a misspelling is refused by name.
 local ATTRS = { "bold", "dim", "italic", "underline", "blink", "blink_rapid", "reversed", "hidden", "crossed" }
 
+-- The `ui.Style` method each of those keys drives, filled in for the eight
+-- that answer to their own name, so that one table is both the allow-list the
+-- refusal below reads and the lookup the style is built through.
 local METHOD = { reversed = "reverse" }
+for _, k in ipairs(ATTRS) do
+	METHOD[k] = METHOD[k] or k
+end
 
 -- What a key that is none of those most likely meant. Only spellings a reader
 -- arrives at honestly: `reverse` off the method name or another terminal
@@ -167,14 +173,9 @@ local MEANT = {
 	reset = '`reset` is a colour rather than an attribute -- write `fg = "reset"`',
 }
 
-local IS_ATTR, KEYS = {}, {}
-for i, k in ipairs(ATTRS) do
-	IS_ATTR[k] = true
-	KEYS[i] = string.format("`%s`", k)
-end
 -- "`a`, `b` and `c`", built rather than written out, so a key added above
 -- cannot be missing from the message that lists them.
-local KEY_LIST = table.concat(KEYS, ", ", 1, #KEYS - 1) .. " and " .. KEYS[#KEYS]
+local KEY_LIST = string.format("`%s` and `%s`", table.concat(ATTRS, "`, `", 1, #ATTRS - 1), ATTRS[#ATTRS])
 
 ---@param value string
 ---@param where string
@@ -254,7 +255,7 @@ local function from_table(t, where)
 
 	local unknown = {}
 	for k in pairs(t) do
-		if k ~= "fg" and k ~= "bg" and not IS_ATTR[k] then
+		if k ~= "fg" and k ~= "bg" and not METHOD[k] then
 			unknown[#unknown + 1] = tostring(k)
 		end
 	end
@@ -264,19 +265,18 @@ local function from_table(t, where)
 		-- of two misspellings would report the same mistake differently from one
 		-- run to the next. `main.lua` refuses a linemode's options the same way.
 		table.sort(unknown)
-		local names, hints = {}, {}
-		for i, k in ipairs(unknown) do
-			names[i] = string.format("`%s`", k)
+		local hints = {}
+		for _, k in ipairs(unknown) do
 			hints[#hints + 1] = MEANT[k]
 		end
 		error(
 			string.format(
-				"supaline: %s: %s %s. A style table takes `fg` and `bg`, "
+				"supaline: %s: `%s` %s. A style table takes `fg` and `bg`, "
 					.. "plus %s -- the spelling `theme.toml` uses, so a style is written the "
 					.. "same way in both files%s",
 				where,
-				table.concat(names, ", "),
-				#names == 1 and "is not a style key" or "are not style keys",
+				table.concat(unknown, "`, `"),
+				#unknown == 1 and "is not a style key" or "are not style keys",
 				KEY_LIST,
 				#hints > 0 and ". " .. table.concat(hints, "; ") or ""
 			)
@@ -303,7 +303,7 @@ local function from_table(t, where)
 				)
 			)
 		elseif v then
-			style = style[METHOD[k] or k](style)
+			style = style[METHOD[k]](style)
 		end
 	end
 	return style
