@@ -204,13 +204,29 @@ end
 --- the same table raises `expected a string, Span, Line, or a table of them`,
 --- and a linemode that raises stops drawing the pane. The styles are what the
 --- `refresh` hook is for; only the spans are rebuilt.
+---
+--- `over` is the column's `attrs`, and this is the only place in the plugin
+--- that has to be handed it. Everywhere else a column's attributes arrive
+--- already patched into `ctx.base` and into every step of a ramp; these ten
+--- styles come out of the theme's own `[status]` section and pass through
+--- neither, so without this a `bold` written on `permissions` would do nothing
+--- and say nothing -- which is the failure this plugin has the least excuse
+--- for.
+---
+--- Ten more patches per row when a column asks for one, and one comparison
+--- against nil when it does not. The allocations above are the floor here
+--- anyway, and a column nobody wrote an `attrs` on pays a test per character.
 ---@param perm string
+---@param over unknown? a ui.Style to put over each character's own
 ---@return table[] spans
-local function perm_spans(perm)
+local function perm_spans(perm, over)
 	local spans = {}
 	for i = 1, #perm do
 		local c = perm:sub(i, i)
 		local style = PERM[c] or PERM_TYPE
+		if over then
+			style = style and style:patch(over) or over
+		end
 		spans[i] = style and ui.Span(c):style(style) or ui.Span(c)
 	end
 	return spans
@@ -225,6 +241,11 @@ end
 -- A `base` in the spec or a `[supaline] permissions` field in the theme is a
 -- flat colour for the whole cell, and painting the characters over it would
 -- leave the written colour visible nowhere and say nothing about why.
+--
+-- `attrs` is the one thing that does not make it step aside, because it is not
+-- a colour: it says what goes over whichever colour won, and here that is ten
+-- of them. A bold on this column is a bold on every character, with the
+-- theme's own reds and greens underneath it still.
 column.register("permissions", {
 	width = 10,
 	align = "left",
@@ -235,7 +256,7 @@ column.register("permissions", {
 		if perm == "" or ctx.source ~= "definition" then
 			return perm, ctx.base
 		end
-		return ui.Line(perm_spans(perm))
+		return ui.Line(perm_spans(perm, ctx.attrs))
 	end,
 })
 

@@ -503,6 +503,25 @@ test("theme: a reload replaces a colour already resolved", function()
 	end)
 end)
 
+test("theme: a column's `attrs` function is read again on a reload", function()
+	-- The level test, not the key test. `attrs` can be written in exactly one
+	-- place, so one of these covers the feature -- which is the thing the
+	-- plugin-wide separator got wrong by having a second level nobody checked.
+	--
+	-- Written as the flavor case because that is how it bites: a field only the
+	-- flavor supplies is nil while `setup` runs and arrives a few milliseconds
+	-- later with the `theme` event, so a frozen `attrs` is not a stale
+	-- attribute, it is no attribute at all for the rest of the session.
+	with_theme({}, function()
+		setup { detail = { { "size", width = 3, attrs = function() return th.supaline.over end } } }
+		eq(rawget(assert(style_in("detail")), "bold"), nil, "nothing to put over it yet")
+
+		stub.th.supaline = { over = { bold = true } }
+		stub.fire("theme")
+		eq(assert(style_in("detail")).bold, true, "the attribute the flavor brought with the event")
+	end)
+end)
+
 test("theme: a linemode's separator style function is read again on a reload", function()
 	-- The same repair a column's `base` gets and for the same reason: a spec is
 	-- re-read on every build and never evaluated, so a style written as a value

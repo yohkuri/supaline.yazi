@@ -212,6 +212,57 @@ test("style: a list of colours is answered with `ramp`, not with `1` and `2`", f
 	throws(function() colour.style({ "#aabbcc", "#ff8800", bold = true }, "x") end, "is a list of colours")
 end)
 
+-- --- `attrs` -------------------------------------------------------------
+
+test("attrs: a table of style keys, `fg` excepted", function()
+	local st = colour.attrs({ bold = true, bg = "#1e1e2e" }, "x")
+	eq(st.bold, true)
+	eq(st.bg, "#1e1e2e")
+	eq(rawget(st, "fg"), nil, "nothing here ever says what the colour is")
+
+	-- The same three states a theme's attribute holds, because this goes
+	-- through the same reader: `false` is the attribute stripped off whatever
+	-- is underneath, which here is the colour the source won.
+	eq(rawget(colour.attrs({ bold = false }, "x"), "bold"), false)
+end)
+
+test("attrs: `fg` is refused by name, and sent to `base`", function()
+	-- The one key that would make this a fourth colour source. Refused rather
+	-- than dropped, because a spec that wrote it meant a colour and would
+	-- otherwise get one nowhere, with the theme still drawing underneath.
+	throws(function() colour.attrs({ fg = "#ff8800" }, "x") end, "`fg` is the one key")
+	throws(function() colour.attrs({ fg = "#ff8800" }, "x") end, "`base` for a flat one")
+	throws(function() colour.attrs({ fg = "#ff8800", bold = true }, "x") end, "`fg` is the one key")
+end)
+
+test("attrs: the shape tests answer before `fg` does", function()
+	-- `attrs = ui.Style`, the constructor with its call forgotten. Every method
+	-- on it is a field, so `t.fg` is not nil and the `fg` refusal would fire
+	-- first if it were written any earlier -- and answer a question nobody
+	-- asked.
+	throws(function() colour.attrs(ui.Style, "x") end, "is the constructor")
+	throws(function() colour.attrs({}, "x") end, "no keys in it")
+	throws(function() colour.attrs({ "#aabbcc", "#ff8800" }, "x") end, "is a list of colours")
+end)
+
+test("attrs: a `ui.Style` is refused, where `base` takes one", function()
+	-- Not a limitation being described: a style cannot be asked for its keys
+	-- without `raw()`, which this plugin does not use, so `fg` inside one could
+	-- not be refused and would take the colour over in silence.
+	throws(function() colour.attrs(ui.Style():bold(), "x") end, "is a `ui.Style`")
+	throws(function() colour.attrs(ui.Style():bold(), "x") end, "takes the table spelling")
+end)
+
+test("attrs: `false` is refused, and says why there is nothing to turn off", function()
+	throws(function() colour.attrs(false, "x") end, "nothing to turn off")
+	throws(function() colour.attrs(false, "x") end, "`base = false`")
+end)
+
+test("attrs: a colour string is refused, since `fg` is what it would mean", function()
+	throws(function() colour.attrs("#ff8800", "x") end, "is a string")
+	throws(function() colour.attrs(42, "x") end, "is a number")
+end)
+
 -- --- telling a ramp from a flat colour -------------------------------------
 
 test("is_ramp: the arrow is what a flat colour can never contain", function()
