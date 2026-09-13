@@ -1,5 +1,3 @@
----@diagnostic disable: inject-field
-
 --- `main.lua` through its real entry point: what `setup` registers, what it
 --- refuses, how the columns are joined, and which panes a linemode reaches.
 ---

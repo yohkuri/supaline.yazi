@@ -1,5 +1,3 @@
----@diagnostic disable: inject-field
-
 --- The stub's `AuthKind` table, pinned against Yazi's own.
 ---
 --- `yazi-shared/src/auth/kind.rs` has six variants and two predicates over
