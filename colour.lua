@@ -479,40 +479,27 @@ end
 --- won the colour, rather than a fourth source competing with the three.
 ---
 --- Only a table, and a function is unwrapped by the caller before it arrives.
---- The two spellings `M.style` also takes are both refused, for one reason
---- each. A colour string would be an `fg` written without the key, and `fg` is
---- the key this one does not take. A `ui.Style` carries its keys where nothing
---- here reads them: `raw()` would, and `probes.md` holds the measurement, but
+--- `false` never reaches here either -- it is how a spec drops the `attrs` a
+--- definition wrote, which is `normalize`'s to read, the way it reads a `sep`
+--- of `false` before `column.separator` sees it.
+---
+--- The two spellings `M.style` also takes are refused, for one reason each. A
+--- colour string would be an `fg` written without the key, and `fg` is the key
+--- this one does not take. A `ui.Style` carries its keys where nothing here
+--- reads them: `raw()` would, and `probes.md` holds the measurement, but
 --- taking it would rest the refusal below on a method `types.yazi` does not
 --- declare and `test/stub.lua` does not model -- and a refusal that cannot be
 --- made is a colour quietly taken over.
----
---- `false` is refused rather than read as "none". A separator's `style` says
---- the same thing for the same reason: there is nothing behind `attrs` to turn
---- off, so leaving it out is how a column has none, and `false` is a reader
---- expecting an inheritance that does not exist.
 ---@param value any a table of style keys, or a function returning one
 ---@param where string
 ---@return unknown a ui.Style
 function M.attrs(value, where)
-	-- Before the `type` test, for the reason `M.style` puts the same probe
-	-- there: the harness's stand-in for a `Style` is a Lua table, so a check on
-	-- `type` alone would refuse it here and take it in the suite.
 	if is_style(value) then
 		error(
 			string.format(
 				"supaline: %s is a `ui.Style`. `attrs` takes the table spelling -- "
 					.. "`{ bold = true }` -- because it is the one this plugin reads the keys "
 					.. "out of, and `fg` is the key it has to refuse. A colour goes under `base`",
-				where
-			)
-		)
-	elseif value == false then
-		error(
-			string.format(
-				"supaline: %s is `false`, and there is nothing to turn off: no theme and no "
-					.. "definition puts attributes on a column, so leaving `attrs` out is how one "
-					.. "has none. To drop the colour instead, write `base = false`",
 				where
 			)
 		)

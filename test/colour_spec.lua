@@ -253,14 +253,14 @@ test("attrs: a `ui.Style` is refused, where `base` takes one", function()
 	throws(function() colour.attrs(ui.Style():bold(), "x") end, "takes the table spelling")
 end)
 
-test("attrs: `false` is refused, and says why there is nothing to turn off", function()
-	throws(function() colour.attrs(false, "x") end, "nothing to turn off")
-	throws(function() colour.attrs(false, "x") end, "`base = false`")
-end)
-
 test("attrs: a colour string is refused, since `fg` is what it would mean", function()
 	throws(function() colour.attrs("#ff8800", "x") end, "is a string")
 	throws(function() colour.attrs(42, "x") end, "is a number")
+
+	-- `false` is `normalize`'s to read, not this function's -- it is how a spec
+	-- drops what a definition wrote. Reaching here it is a boolean like any
+	-- other, which is the backstop rather than the message anyone should see.
+	throws(function() colour.attrs(false, "x") end, "is a boolean")
 end)
 
 -- --- telling a ramp from a flat colour -------------------------------------
