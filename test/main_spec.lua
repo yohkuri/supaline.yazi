@@ -158,19 +158,22 @@ test("setup: a name Yazi cannot hold is refused", function()
 	throws(function() main.setup({}, { linemodes = { [string.rep("あ", 21)] = { "size" } } }) end, "1 to 20 characters")
 end)
 
-test("setup: a linemode has to be a list of columns", function()
+test("setup: a linemode has to be a table", function()
 	-- A string where a list of columns goes -- the wrong value is the test,
 	-- and the checker refuses it now that a spec has a class.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() main.setup({}, { linemodes = { detail = "size" } }) end, "must be a list of columns")
+	throws(function() main.setup({}, { linemodes = { detail = "size" } }) end, "`detail` is a string")
 end)
 
 -- --- panes -----------------------------------------------------------------
 
-local function panes_error(value)
-	local ok, err = pcall(function() main.setup({}, { linemodes = { t = { "size", panes = value } } }) end)
-	assert(not ok, "expected `panes` to be refused")
-	return tostring(err)
+--- Assert that `setup` refuses `spec`, with a message mentioning `pattern`. A
+--- whole spec rather than one value out of it, because a pane and a column sit
+--- in the same table and half of what is refused is the two of them together.
+---@param spec supaline.LinemodeSpec
+---@param pattern string
+local function refuses(spec, pattern)
+	throws(function() main.setup({}, { linemodes = { t = spec } }) end, pattern)
 end
 
 test("panes: the default is the current pane alone", function()
@@ -179,16 +182,18 @@ test("panes: the default is the current pane alone", function()
 	eq(draw_child(stub.file { name = "x", in_current = false }), "")
 end)
 
-test("panes: a list opts into the panes it names", function()
-	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
+test("panes: a pane key opts into the pane it names", function()
+	local one = { { "size", width = 3 } }
+	setup { detail = { current = one, parent = one } }
 	eq(#stub.children, 1, "one child, added once")
 
 	local outside = stub.file { name = "current", in_current = false, size = 1 }
 	eq(draw_child(outside), "  1B", "the parent pane draws, with solo()'s leading space")
 end)
 
-test("panes: a pane left off the list stays bare", function()
-	setup { detail = { { "size", width = 3 }, panes = { "current", "preview" } } }
+test("panes: a pane left out stays bare", function()
+	local one = { { "size", width = 3 } }
+	setup { detail = { current = one, preview = one } }
 
 	local parent_row = stub.file { name = "current", in_current = false, size = 1 }
 	eq(draw_child(parent_row), "", "the parent pane was not asked for")
@@ -199,21 +204,21 @@ end)
 test("panes: every preview row draws, not just the one Yazi flags", function()
 	-- `in_preview` is true for the previewed folder's cursor row alone, so a
 	-- pane test that reads it passes on the first row and leaves the rest of
-	-- the pane bare -- and, under `panes = { parent }`, draws them instead.
-	setup { detail = { { "size", width = 3 }, panes = { "current", "preview" } } }
+	-- the pane bare -- and, under a `parent` key, draws them instead.
+	setup { detail = { preview = { { "size", width = 3 } } } }
 	eq(draw_child(PREVIEW.files[2]), "  2B", "the second preview row")
 
-	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
+	setup { detail = { parent = { { "size", width = 3 } } } }
 	eq(draw_child(PREVIEW.files[2]), "", "and it is not mistaken for a parent row")
 end)
 
 test("setup: a second call replaces what the first installed", function()
 	-- `Linemode:redraw()` calls every child it holds, so a second one draws
 	-- the parent and preview panes twice over.
-	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
+	setup { detail = { parent = { { "size", width = 3 } } } }
 	eq(#stub.children, 1, "one child after the first setup")
 
-	setup { detail = { { "size", width = 3 }, panes = { "current", "preview" } } }
+	setup { detail = { preview = { { "size", width = 3 } } } }
 	eq(#stub.children, 1, "still one after the second")
 
 	setup { detail = { "size" } }
@@ -273,8 +278,8 @@ test("setup: a refused configuration leaves the running one alone", function()
 	local before = draw("good", CURRENT.files[1])
 
 	throws(
-		function() main.setup({}, { linemodes = { good = { "size" }, bad = { "size", panes = { "nope" } } } }) end,
-		"`panes` takes a list"
+		function() main.setup({}, { linemodes = { good = { "size" }, bad = { "size", parnet = { "mark" } } } }) end,
+		"`parnet`"
 	)
 
 	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
@@ -285,28 +290,110 @@ test("setup: a refused configuration leaves the running one alone", function()
 end)
 
 test("panes: the current pane is never drawn twice", function()
-	setup { detail = { { "size", width = 3 }, panes = { "current", "parent" } } }
+	local one = { { "size", width = 3 } }
+	setup { detail = { current = one, parent = one } }
 	-- `solo()` has already drawn it, so the child has to stand down.
 	eq(draw_child(CURRENT.files[1]), "")
 end)
 
 test("panes: a linemode that never asked for the current pane is bare there", function()
 	-- The pane set used to be consulted only by the parent/preview child, so
-	-- leaving `current` out of the list changed nothing at all.
-	setup { detail = { { "size", width = 4 }, panes = { "parent" } } }
+	-- leaving `current` out changed nothing at all.
+	setup { detail = { parent = { { "size", width = 4 } } } }
 	eq(draw("detail", CURRENT.files[1]), "", "the current pane")
 	eq(draw_child(stub.file { name = "current", in_current = false, size = 1 }), "   1B", "the parent pane")
 end)
 
-test("panes: everything but a list of pane names is refused", function()
-	local wanted = "takes a list of"
-	assert(panes_error("all"):find(wanted, 1, true), '"all" is no longer a value')
-	assert(panes_error({ "all" }):find(wanted, 1, true), '"all" is no longer a value in a list')
-	assert(panes_error("current"):find('write { "current" }', 1, true), "a bare string names the list to write")
-	assert(panes_error({ current = true }):find("no list entries", 1, true), "a map draws nothing, so it is refused")
-	assert(panes_error({}):find("no list entries", 1, true), "an empty list draws nothing")
-	assert(panes_error("sidebar"):find("`sidebar`", 1, true), "an unknown pane name")
-	assert(panes_error(3):find("got a number", 1, true), "a value of the wrong type")
+test("panes: a pane given anything but a list of columns is refused", function()
+	-- The wrong value is the test, and the checker refuses it now that a pane
+	-- is a declared field rather than an entry in a map.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	refuses({ current = true }, "rather than a list of columns")
+	-- An empty list is refused where the linemode's own is not: leaving the
+	-- pane out says the same thing, and there is no second way to say it.
+	refuses({ current = {} }, "empty list")
+end)
+
+test("panes: columns beside a pane key are refused", function()
+	-- The list is what the current pane draws and so is a `current` key, so a
+	-- linemode carrying both says the same thing twice -- and, once any pane is
+	-- named, the list is what would have been drawn nowhere. A column the user
+	-- wrote and cannot find is what this refuses rather than ships.
+	-- A registered column on both sides, so a regression here is reported as
+	-- the refusal that did not happen rather than as the name it tripped over
+	-- on its way into `compile`.
+	refuses({ "size", parent = { "mtime" } }, "drawn nowhere")
+
+	-- Not `#spec`, which is 0 for a list that starts anywhere but index 1: a
+	-- stray column used to pass here and be dropped, and the very same column
+	-- written at index 1 was refused.
+	refuses({ [2] = "size", parent = { "mtime" } }, "drawn nowhere")
+end)
+
+test("panes: a key that is neither a pane nor an option is refused", function()
+	-- Nothing else refuses one; `OPTIONS` in `main.lua` says why.
+	refuses({ "size", parnet = { "mark" } }, "`parnet`")
+	refuses({ "size", separatorr = "|" }, "`separatorr`")
+	refuses({ "size", pane = { "parent" } }, "`pane`")
+
+	-- Every one of them, in an order two runs agree on: a spec is walked with
+	-- `pairs`, so naming whichever came up first would hide the second
+	-- misspelling until the first was fixed.
+	refuses({ "size", parnet = { "mark" }, preivew = { "mark" } }, "`parnet`, `preivew`")
+end)
+
+test("panes: an entry `ipairs` would not reach is refused", function()
+	-- `compile` walks a column list with `ipairs`, so an entry it does not
+	-- visit is not drawn and not complained about -- the same silence the keys
+	-- of a linemode are refused for, one level down.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	refuses({ current = { "size", separator = "|" } }, "an option goes on the linemode itself")
+	---@diagnostic disable-next-line: assign-type-mismatch
+	refuses({ current = { "size", parent = { "size" } } }, "`parent`")
+
+	-- `ipairs` stops at the first missing index, so a list numbered around a
+	-- gap draws the columns before it and drops the rest.
+	refuses({ current = { [1] = "size", [3] = "mtime" } }, "`current` has a gap")
+	refuses({ [1] = "size", [3] = "mtime" }, "this one has a gap")
+end)
+
+test("panes: each pane draws the columns written under it", function()
+	setup {
+		detail = {
+			current = { { "size", width = 3 }, { "size", width = 4 } },
+			parent = { { "size", width = 5 } },
+		},
+	}
+
+	eq(draw("detail", CURRENT.files[1]), " 1B   1B", "the current pane draws the two columns it was given")
+
+	local parent_row = stub.file { name = "current", in_current = false, size = 1 }
+	eq(draw_child(parent_row), "    1B", "the parent pane draws the one it was given")
+	eq(draw_child(PREVIEW.files[1]), "", "and the pane nobody named stays bare")
+end)
+
+test("panes: one list handed to two panes is compiled once", function()
+	-- Sharing the compiled columns is what keeps a `refresh` to one run per
+	-- `cd`; compiling the list once per pane would multiply it by the panes.
+	local ran = 0
+	main.column("ticking_panes", {
+		width = 2,
+		render = function(_, ctx) return "ok", ctx.base end,
+		refresh = function() ran = ran + 1 end,
+	})
+
+	local both = { "ticking_panes" }
+	setup { detail = { current = both, parent = both } }
+	eq(ran, 1, "installed once, not once per pane")
+
+	stub.fire("cd")
+	eq(ran, 2, "and once per cd")
+
+	-- Two lists that happen to hold the same column are two columns, because
+	-- each pane can bind its own width and stats onto them.
+	ran = 0
+	setup { detail = { current = { "ticking_panes" }, parent = { "ticking_panes" } } }
+	eq(ran, 2, "written twice, compiled twice")
 end)
 
 -- --- the theme -------------------------------------------------------------
@@ -560,7 +647,8 @@ test("stats: each pane is measured against its own folder", function()
 		render = function() return "x" end,
 	})
 
-	setup { detail = { "seen", panes = { "current", "parent" } } }
+	local one = { "seen" }
+	setup { detail = { current = one, parent = one } }
 	draw("detail", CURRENT.files[1])
 	draw_child(stub.file { name = "current", in_current = false })
 

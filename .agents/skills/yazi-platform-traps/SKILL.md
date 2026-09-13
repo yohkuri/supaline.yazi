@@ -102,7 +102,7 @@ parent pane. Decide explicitly whether a given child renders there, and
 remember that folder-wide statistics for such a row must come from the parent
 folder, not `cx.active.current`.
 
-Pinned by `test/main_spec.lua` "a list opts into the panes it names", which
+Pinned by `test/main_spec.lua` "a pane key opts into the pane it names", which
 covers the code that exists and not a column written tomorrow.
 
 ## The rendering budget

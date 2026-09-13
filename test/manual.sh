@@ -40,9 +40,10 @@ supaline manual test
   m 4   ellipsis / clip / grow          one name, three ways
   m 5   separators                      default, none, and "│"
 
-  m 6   panes = current                 the other two panes stay bare
-  m 7   panes = current + parent        the left pane fills in
-  m 8   panes = current + preview       the right pane fills in
+  m 6   the current pane alone          the other two panes stay bare
+  m 7   current + parent                the left pane fills in
+  m 8   current + preview               the right pane fills in
+  m e   a column set per pane           each pane draws columns of its own
 
   m 9   user-written columns            a registered one and an inline one
 

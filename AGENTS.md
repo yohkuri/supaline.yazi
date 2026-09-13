@@ -217,9 +217,9 @@ that not getting them fails the job rather than weakening it.
 What the check reaches is what carries a type, and that is most of the plugin:
 Yazi's own `cx`, `ya` and `Url`, the two values a `render` is handed, the
 records passed around, and the configuration `setup` is given — so
-`cfg.orderr`, `opts.linemodess` and `spec.paness` are refused where they used
-to cost nothing. Where that reach stops, and the rules for declaring a class of
-this plugin's own, are in `annotate-supaline`.
+`cfg.orderr`, `opts.linemodess` and `spec.separatorr` are refused where they
+used to cost nothing. Where that reach stops, and the rules for declaring a
+class of this plugin's own, are in `annotate-supaline`.
 
 `.github/scripts/skills.py` reads the skills under `.agents/skills` against the
 Agent Skills specification. `uv run` is the whole of what it needs and not a

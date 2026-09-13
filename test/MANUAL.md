@@ -28,10 +28,11 @@ comparing against.
 | `m 3` | `widths`     | Stated width vs `"auto"` vs `max_width`           |
 | `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`, string and Line   |
 | `m 5` | `seps`       | The separator, `sep = false`, and one of your own |
-| `m 6` | `pane_cur`   | `panes = { "current" }`                           |
-| `m 7` | `pane_par`   | `panes = { "current", "parent" }`                 |
-| `m 8` | `pane_prev`  | `panes = { "current", "preview" }`                |
+| `m 6` | `pane_cur`   | The current pane alone                            |
+| `m 7` | `pane_par`   | `current` + `parent`, one list between them       |
+| `m 8` | `pane_prev`  | `current` + `preview`, one list between them      |
 | `m 9` | `custom`     | A registered user column, and an inline one       |
+| `m e` | `pane_each`  | A column set per pane                             |
 | `m s` | —            | Yazi's own size linemode                          |
 | `m n` | —            | Yazi's own "none"                                 |
 | `T`   | —            | Reload the theme                                  |
@@ -194,6 +195,21 @@ The preview pane keeps whatever its last peek drew, so switching between these
 without moving the hover leaves the right pane showing the previous mode. Move
 the hover — `j` then `k` — and it catches up. This is Yazi caching the
 previewer's output, not a supaline bug.
+
+### `m e` — a column set per pane
+
+A list under each pane's own name, which is the only way the panes can carry
+different columns. Compare it against `m 7`, which names the same two panes and
+hands them one list between them:
+
+- The **left pane** is identical to `m 7`'s — the same one-cell marker.
+- The **middle pane** is not: extension and size, which is what a pane an eighth
+  of the terminal has no room for and this one does.
+- The **right pane** is bare. Nobody names `preview`, and that is all it takes;
+  there is no `false` to write.
+
+The caching note above applies here too, so move the hover before reading the
+right pane.
 
 ### `m 9` — user-written columns
 

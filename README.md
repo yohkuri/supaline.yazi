@@ -85,7 +85,7 @@ exception is Yazi's own linemodes: naming one `size`, `mtime`, `btime`,
 
 ### Linemode options
 
-A linemode is a list of columns, and may carry named options alongside them:
+A linemode is a list of columns, and may carry one named option alongside them:
 
 ```lua
 linemodes = {
@@ -95,33 +95,70 @@ linemodes = {
     "size",
     "mtime",
 
-    panes     = { "current", "parent", "preview" },
     separator = " ",
   },
 }
 ```
 
-| Option      | Default       | Meaning                                       |
-| ----------- | ------------- | --------------------------------------------- |
-| `panes`     | `{ "current" }` | Which panes this linemode draws in.         |
-| `separator` | from `setup`  | Overrides the plugin-wide separator.          |
+| Option      | Default      | Meaning                              |
+| ----------- | ------------ | ------------------------------------ |
+| `separator` | from `setup` | Overrides the plugin-wide separator. |
 
-`panes` is a list of pane names:
+Those columns are drawn in the **current pane**, which is all Yazi itself ever
+does. Whatever else the linemode carries has to be a pane's name or that
+option: a key that is neither — `parnet`, `separatorr` — is refused by name
+rather than quietly ignored.
+
+#### Different columns per pane
+
+The parent and preview panes are supaline's own addition, and each is asked for
+by writing its name on the linemode, with the columns that pane draws:
 
 ```lua
-panes = { "current" }                       -- the default, and all Yazi itself does
-panes = { "current", "preview" }            -- any combination
-panes = { "current", "parent", "preview" }  -- every pane
+linemodes = {
+  wide = {
+    current = { "permissions", "owner", "size", "mtime" },
+    parent  = { "mark" },
+  },
+}
 ```
 
-Yazi only ever draws a linemode in the current pane; the parent and preview
-panes are supaline's own addition. Leaving `current` off the list is allowed and
-means what it says — the current pane draws nothing for that linemode.
+A pane nobody names draws nothing — `preview` above is bare — and that includes
+the current pane, for a linemode that names only the other two. The two ways of
+saying what the current pane draws do not mix: once any pane is named, a list
+left beside it is refused rather than drawn nowhere.
 
-**Mind the width at the edges.** `panes` applies the whole column set to every
-pane it names, and Yazi gives the linemode priority over the file name: what
-does not fit is taken out of the name, not out of the columns. The parent pane
-is an eighth of the terminal under Yazi's default `ratio`, so:
+`mark` there is a column of your own rather than one supaline ships. Every
+built-in starts at 5 cells and a parent pane has room for one or two, which is
+what the width note below is about; three lines register one that narrow:
+
+```lua
+supaline.column("mark", {
+  width  = 1,
+  render = function(file, ctx)
+    return file.cha.is_dir and "d" or "f", ctx.base
+  end,
+})
+```
+
+[Writing a column](#writing-a-column) has the rest of what one may do.
+
+Two panes can share one set of columns. Write the list once and hand it to
+both: a spec is only ever read, so the same table is safe in two places, and one
+written this way is compiled once rather than once per pane.
+
+```lua
+local full = { "permissions", "owner", "size", "mtime" }
+
+linemodes = {
+  wide = { current = full, preview = full, parent = { "mark" } },
+}
+```
+
+**Mind the width at the edges.** Handing one list to several panes is what
+costs here: Yazi gives the linemode priority over the file name, so what does
+not fit is taken out of the name, not out of the columns. The parent pane is an
+eighth of the terminal under Yazi's default `ratio`, so:
 
 | Terminal | Parent pane |
 | -------- | ----------- |
@@ -134,6 +171,9 @@ is an eighth of the terminal under Yazi's default `ratio`, so:
 Every built-in column is 5 to 12 cells wide. The parent pane is worth turning on
 for a **narrow marker** — one or two cells — and not for the built-ins as they
 stand. The preview pane is three eighths, so it is far less tight.
+
+That is what a list per pane is for: give the edges a column that fits them and
+leave the built-ins to the pane with the room for them.
 
 ### Column specs
 
