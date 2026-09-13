@@ -444,17 +444,11 @@ end)
 test("base: a function in the spec outranks the theme, the way a colour does", function()
 	-- Which is also what tells `permissions` to stop colouring itself.
 	column.register("hue4", { render = function() return "" end })
-	local before = stub.th.supaline
-	stub.th.supaline = { hue4 = "#00ccff" }
-	-- Restored through a `pcall`, because `test` pcalls this body too: a section
-	-- left set by a raising `normalize` reaches every test after this one, and
-	-- the failure then points at the wrong one.
-	local ok, col = pcall(column.normalize, { "hue4", base = function() return "#ff8800" end }, CFG)
-	stub.th.supaline = before
-	assert(ok, col)
-
-	eq(col.ctx.base.fg, "#ff8800")
-	eq(col.ctx.source, "spec")
+	with(stub.th, "supaline", { hue4 = "#00ccff" }, function()
+		local col = column.normalize({ "hue4", base = function() return "#ff8800" end }, CFG)
+		eq(col.ctx.base.fg, "#ff8800")
+		eq(col.ctx.source, "spec")
+	end)
 end)
 
 test("base: a function that fails is reported in terms of the file it was written in", function()
