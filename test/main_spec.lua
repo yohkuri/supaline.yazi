@@ -506,9 +506,6 @@ test("theme: a separator's style function is read again on a reload", function()
 	-- Changing the section *after* `setup` is what makes this test say that. A
 	-- section that never changed would pass for a plugin that resolved the
 	-- function once and kept the answer.
-	local function plain(text)
-		return function() return text end
-	end
 	with_theme({ sep = "#ff8800" }, function()
 		setup {
 			detail = { plain("a"), plain("b"), separator = { "|", style = function() return th.supaline.sep end } },
