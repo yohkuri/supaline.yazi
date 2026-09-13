@@ -261,6 +261,7 @@ coloured**, which is the linemode or the theme.
 | `c b` | a band derived from one colour       | `g 3`      |
 | `c h` | a ramp that turns in hue             | `g 3`      |
 | `c g` | a ramp over a background             | `g 3`      |
+| `c a` | `attrs` over a colour it did not pick | `g 3`     |
 | `c s` | the same size, log then linear       | `g 4`      |
 | `c e` | a ramp with nothing to spread over   | `g 5`      |
 | `c t` | whatever `[supaline]` says           | `g 1`      |
@@ -412,6 +413,30 @@ instead of guessing it, and `setup.sh` says against what.
 `e2e.sh` reads the first two off the capture — that a band is there, that it is
 14 cells rather than 11, and that the column beside it did not pick one up. The
 third is a reader's, and is why this is a manual case at all.
+
+### `c a` — an attribute over someone else's colour
+
+In `g 3`. The same ratio twice on the same ramp, the left one carrying
+`attrs = { bold = true }`, and `permissions` beside them with the same thing
+written on it. `attrs` is the key that does not enter the colour auction: it
+says what goes over whichever source won, so the columns here are meant to
+differ in exactly one way.
+
+- The two ratio columns have to be the **same colour on every row** and differ
+  only in weight. A pair that disagrees on the colour is `attrs` having got
+  into the ramp rather than sitting over it.
+- `permissions` has to keep its reds and greens. It is the only column that
+  paints its own cell, and the only one where the attribute is carried by hand
+  rather than arriving inside `ctx.base` — a cell that came back in one flat
+  colour is the column having stepped aside for something that is not a colour.
+- Whether bold is **legible** here is the reader's question and the reason this
+  is a manual case. A terminal that draws bold as a brighter colour rather than
+  a heavier face turns one column of the pair into a different step of the
+  ramp, which is not a bug in supaline and is worth knowing about your own
+  terminal before reading `c r` beside it.
+
+`e2e.sh` reads the first two off the capture — the pair on each row, and a bold
+opening a run of differently coloured characters. The third it cannot see.
 
 ### `c s` — log beside linear
 

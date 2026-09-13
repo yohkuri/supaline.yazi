@@ -395,6 +395,11 @@ run  = "linemode c_bg"
 desc = "supaline: a ramp over a background"
 
 [[mgr.prepend_keymap]]
+on   = [ "c", "a" ]
+run  = "linemode c_attrs"
+desc = "supaline: attributes over a colour someone else chose"
+
+[[mgr.prepend_keymap]]
 on   = [ "c", "s" ]
 run  = "linemode c_scale"
 desc = "supaline: log beside linear"
@@ -697,6 +702,26 @@ supaline:setup({
 		c_bg = {
 			{ "mtime", ramp = COOL, width = 14 },
 			{ "mtime", base = ui.Style():bg(GROUND), ramp = COOL, width = 14 },
+		},
+
+		-- c a, in `colour/ramp`: `attrs` over a colour it did not choose. The
+		-- same ratio twice on the same ramp, the left one bold, so the question
+		-- is whether one column differs from the other in exactly one way --
+		-- which is a thing a reader can answer and a capture cannot.
+		--
+		-- `permissions` is the third because it is the only column that paints
+		-- its own cell: its ten characters take their colours from the theme's
+		-- `[status]` section and pass through neither `ctx.base` nor a ramp, so
+		-- it is the one place `attrs` is carried by hand. Bold there with the
+		-- theme's own reds and greens still under it is the whole claim.
+		--
+		-- `┊` for the same reason `c_scale` uses it: the two ratio columns hold
+		-- the same number and would read as one, and `e2e.sh` splits a capture
+		-- on `│` to find the current pane.
+		c_attrs = {
+			{ "ratio", ramp = COOL, attrs = { bold = true } },
+			{ "ratio", ramp = COOL, sep = "┊" },
+			{ "permissions", attrs = { bold = true } },
 		},
 
 		-- c s, in `colour/scale`: the same size twice, log then linear, on one

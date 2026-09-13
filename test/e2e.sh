@@ -138,6 +138,7 @@ colour_shot 3 r c_ramp
 colour_shot 3 b c_band
 colour_shot 3 h c_hue
 colour_shot 3 g c_bg
+colour_shot 3 a c_attrs
 colour_shot 4 s c_scale
 colour_shot 5 e c_edge
 colour_shot 1 t c_theme
@@ -292,7 +293,7 @@ have_rows "m0 to m9 and me all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 me
 # the key, or the `cd` behind it, as the linemode. Which of the three it was is
 # not worth telling apart: nothing else in this run visits those folders, so
 # without this the first person to find out would be a human at `manual.sh`.
-have_rows "the seven colour modes all have rows" c_ramp c_band c_hue c_bg c_scale c_edge c_theme
+have_rows "the eight colour modes all have rows" c_ramp c_band c_hue c_bg c_attrs c_scale c_edge c_theme
 
 echo "== columns =="
 # `A && B || C` would run C when B fails, and shellcheck is right to say so.
@@ -729,6 +730,58 @@ elif [ "$banded" -ne "$lines" ]; then
 else
 	echo "  a background survives the ramp, padding included ($banded rows)"
 fi
+
+# `c_attrs` draws the same ratio twice on the same ramp, the left one carrying
+# `attrs = { bold = true }`. What the key claims is that one column differs from
+# the other in exactly one way, so the pair is read off one row rather than
+# grepped for separately: two independent checks would pass a build that had
+# lost the ramp on both sides and bolded both.
+#
+# Bold is read as the escape immediately before the colour, which is where tmux
+# puts it and where a `patch` that landed in the wrong order would not. The
+# ramp's own escape carries `;` in its body, so a plain numeric SGR cannot be
+# confused for one.
+pairs=$(awk -v esc="$ESC" -F"$BAR" '
+	BEGIN { E = "\\[38;2;[0-9]+;[0-9]+;[0-9]+m" }
+	{
+		row = $2
+		n = 0
+		left = ""
+		right = ""
+		lb = 0
+		rb = 0
+		while (match(row, esc E " *[01]\\.[0-9][0-9]")) {
+			cell = substr(row, RSTART, RLENGTH)
+			p = index(cell, "m")
+			colour = substr(cell, 3, p - 3)
+			bold = (RSTART > 4 && substr(row, RSTART - 4, 4) == esc "[1m") ? 1 : 0
+			n++
+			if (n == 1) { left = colour; lb = bold } else if (n == 2) { right = colour; rb = bold }
+			row = substr(row, RSTART + RLENGTH)
+		}
+		if (n >= 2) {
+			print (left == right ? "same" : "differ"), lb, rb
+		}
+	}
+' "$DIR/color-c_attrs.txt")
+rows=$(printf '%s\n' "$pairs" | grep -c "same 1 0" || true)
+wrong=$(printf '%s\n' "$pairs" | grep -cv "same 1 0" || true)
+if [ "$rows" -lt "$RAMP_FLOOR" ]; then
+	fail "c_attrs: only $rows row(s) had a bold cell beside an unbold one of the same colour, wanted $RAMP_FLOOR"
+elif [ "$wrong" -gt 0 ]; then
+	fail "c_attrs: $wrong row(s) disagreed -- a colour that moved, or a bold on the wrong side"
+else
+	echo "  c_attrs: bold on one column, the ramp's colour on both ($rows rows)"
+fi
+
+# `permissions` is the only column that paints its own cell, so it is the one
+# place `attrs` is carried by hand rather than arriving inside `ctx.base`. The
+# pattern asks for both halves at once: the bold opening a run, and two
+# characters after it in *different* colours of their own. A cell that had
+# stepped aside for the attribute would draw in one colour and fail the second
+# half while passing the first.
+check "c_attrs: the attribute reaches the characters permissions paints" \
+	"$ESC\[1m$ESC\[[0-9]*m.$ESC\[[0-9]*m." "$DIR/color-c_attrs.txt"
 
 echo "== theme =="
 # `[supaline] size` starts at #ff8800 and the reload above made it #00ccff.
