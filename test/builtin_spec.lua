@@ -197,6 +197,14 @@ test("permissions: every character takes its own style from the theme", function
 		perm_fgs(stub.file { perm = "lrwsr-xr-t" }),
 		"#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
 	)
+	-- `?` is a `perm_sep` beside `-`, and arrives nine at a time: `cha:perm()`
+	-- on a file Yazi has no metadata for answers a type character and nine of
+	-- them. Yazi builds one for a listed entry it cannot stat, and for a
+	-- `reveal` of a path that is not there yet.
+	eq(
+		perm_fgs(stub.file { perm = "-?????????" }),
+		"#000055 #000055 #000055 #000055 #000055 #000055 #000055 #000055 #000055 #000055"
+	)
 end)
 
 test(
