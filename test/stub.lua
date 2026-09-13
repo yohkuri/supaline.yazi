@@ -324,6 +324,15 @@ end
 -- `reverse`, where the theme key for the same effect is `reversed`. A stub
 -- missing one would refuse a style the plugin is entitled to build, and it
 -- would refuse it as `attempt to call a nil value`.
+--
+-- The argument is `remove`, not the value: `bold()` and `bold(false)` both add
+-- the attribute and `bold(true)` takes it off. Read off
+-- `yazi-binding/src/style/style.rs` and measured through `Style:raw()` on
+-- 26.9.1 -- `ui.Style():bold(true)` comes back `{ bold = false }`. So the
+-- field holds the three states `StyleFlat` holds: nil where nothing was said,
+-- `true` for the attribute added, `false` for it removed. A stub that stored
+-- the argument itself would read `bold(true)` as bold and let a plugin
+-- building a removal pass while a real Yazi stripped the attribute instead.
 for _, key in ipairs {
 	"bold",
 	"dim",
@@ -335,9 +344,9 @@ for _, key in ipairs {
 	"hidden",
 	"crossed",
 } do
-	Style[key] = function(self, value)
+	Style[key] = function(self, remove)
 		local s = new_style(self)
-		s[key] = value == nil or value
+		s[key] = not remove
 		return s
 	end
 end

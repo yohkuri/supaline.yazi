@@ -116,9 +116,13 @@ test("style: a table is the theme's spelling, built into a style", function()
 	eq(st.bold, true)
 	eq(st.reverse, true, "`reversed` in the table, `reverse()` on the style")
 
-	-- `bold = false` is an attribute left off rather than an error, which is
-	-- what the same line means in a theme.
-	eq(rawget(colour.style({ fg = "cyan", bold = false }, "x"), "bold"), nil)
+	-- `bold = false` is the attribute taken off rather than an error or an
+	-- attribute never written, which is what the same line means in a theme: a
+	-- theme field holds three states, and `false` is the one that strips a
+	-- `bold` off the row beneath. `rawget`, because a style carrying nothing
+	-- under `bold` answers `Style.bold`, the method.
+	eq(rawget(colour.style({ fg = "cyan", bold = false }, "x"), "bold"), false)
+	eq(rawget(colour.style({ fg = "cyan" }, "x"), "bold"), nil, "nothing said is not the same as off")
 end)
 
 test("style: every attribute a theme can write reaches its method", function()
@@ -140,7 +144,11 @@ test("style: every attribute a theme can write reaches its method", function()
 		hidden = "hidden",
 		crossed = "crossed",
 	} do
-		eq(colour.style({ [key] = true }, "x")[method], true, key)
+		eq(rawget(colour.style({ [key] = true }, "x"), method), true, key)
+		-- The removal, which is the half the method's own argument inverts:
+		-- Yazi's `bold(true)` takes bold off, so a `false` here has to arrive as
+		-- `bold(true)` and not as a second `bold()`.
+		eq(rawget(colour.style({ [key] = false }, "x"), method), false, key .. " = false")
 	end
 end)
 
