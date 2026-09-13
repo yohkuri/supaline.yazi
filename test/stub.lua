@@ -641,10 +641,11 @@ end
 --- untouched. `uid = "root"` reached `ya.user_name` and came back `userroot`,
 --- green, describing a file no Yazi has ever produced -- the silence this
 --- harness is supposed to break rather than reproduce.
----@param v any
+---@param t table
 ---@param field "uid"|"gid"
 ---@return integer
-local function id_of(v, field)
+local function id_of(t, field)
+	local v = t[field]
 	if v == nil then
 		return 0
 	elseif math.type(v) ~= "integer" or v < 0 or v > 0xffffffff then
@@ -701,8 +702,8 @@ function M.file(t)
 			mtime = t.mtime,
 			btime = t.btime,
 			atime = t.atime,
-			uid = id_of(t.uid, "uid"),
-			gid = id_of(t.gid, "gid"),
+			uid = id_of(t, "uid"),
+			gid = id_of(t, "gid"),
 			perm = function() return t.perm end,
 		},
 		size = function() return t.size end,
