@@ -73,6 +73,20 @@ local colour = require(".colour")
 ---@class supaline.Folder : tab__Folder
 ---@field files supaline.File[]
 
+--- Yazi's tab, with the method `types.yazi` leaves out. 26.9.1's `tab::Tab`
+--- answers `history(url)` with the folder it has already listed for that URL,
+--- or nil for one it has never opened, which is what `builtin.lua` asks a
+--- directory for its entry count.
+---
+--- Declared here rather than left to the harness. `tab__Tab` is `(exact)`, so
+--- the stub's own `_G.cx` table adds nothing to it, and the call type-checked
+--- only because `builtin_spec.lua` assigned `cx.active.history` under a
+--- file-wide `inject-field` disable -- a check on the plugin passing because
+--- of a line in a test, and going quiet the moment that line was written any
+--- other way.
+---@class supaline.Tab : tab__Tab
+---@field history fun(self: self, url: Url): supaline.Folder?
+
 --- A Line, with the method `cut` below calls on one. `types.yazi` declares
 --- `ui.truncate` and nothing for `Line:truncate`, which 26.9.1 has and
 --- `test/truncate_spec.lua` pins the behaviour of, so the checker refuses the

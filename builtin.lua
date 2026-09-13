@@ -43,7 +43,7 @@ local extremes = column.extremes
 ---@param file supaline.File
 ---@return string
 local function entries(file)
-	local folder = cx.active:history(file.url)
+	local folder = (cx.active --[[@as supaline.Tab]]):history(file.url)
 	return folder and tostring(#folder.files) or "-"
 end
 
