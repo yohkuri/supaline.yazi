@@ -127,6 +127,34 @@ make this repository public` to both (measured 2026-09-08). Turn one on when
 the repository opens, and keep these three as the half that runs before a push
 rather than after it.
 
+Who merges it is a separate question, and the answer is not the agent that
+wrote it. An agent's work ends with the pull request open and its checks
+reported; whether to merge it, and what to do next, is the maintainer's. The
+reason is the one the first paragraph gives — a pull request is the last point
+at which anything gets read — and an agent that merges its own has removed the
+only reading the change was going to get. The work inside the review needs no
+asking for: another commit on the branch, a correction to one already there,
+what CI came back with. It is landing the change, and moving on to the next
+one, that waits to be asked for.
+
+Nothing local refuses that merge the way `pre-push` refuses a push, because it
+happens at GitHub rather than in the clone. What stands in for it is
+`.claude/settings.json`, which lists `gh pr merge` under `permissions.ask`, and
+`gh api` narrowed to the calls naming a merge, which is the same request
+spelled another way. Rules are evaluated deny, then ask, then allow, so an
+`ask` entry stops a call an allow rule covers outright — measured here on
+2026-09-13, by a `claude -p` session that allowed `Bash(gh pr merge *)` on the
+command line and was refused anyway, against a control in the same shape that
+allowed a `gh` subcommand the rule does not name and ran it. That it also
+prompts inside a `&&` chain, and under a mode that otherwise stops prompting,
+is read from Claude Code's permissions documentation and not measured. What it
+is not is a boundary: a Bash rule matches the text of the command, so the same
+call made from a script or through an absolute path goes past it, and no rule in
+that file reaches an agent that is not Claude Code. It stops the spelling the
+mistake is actually made in, which is all `pre-commit` does either. The ruleset
+above is the one thing that would refuse the merge for everyone; require a
+review on it too, on the day it becomes available.
+
 ## Target platform
 
 Yazi **26.9.1 or newer**. Start every Lua file with `--- @since 26.9.1` —
