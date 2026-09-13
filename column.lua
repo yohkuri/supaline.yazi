@@ -167,7 +167,10 @@ local colour = require(".colour")
 --- because a column definition can state one too and nil is what tells "the
 --- user asked for this scale" from "nobody said".
 ---@class supaline.Cfg
----@field separator supaline.Sep
+--- As the user wrote it, not as `render` reads it: `compile` turns it into a
+--- `supaline.Sep` on every build, so a `style` written as a function is called
+--- again on each one. A record resolved into here would freeze at `setup`.
+---@field separator string|supaline.SepSpec
 ---@field order integer
 ---@field scale? "linear"|"log" what the user wrote in `setup`, if anything
 --- `band` is optional for the same shape of reason `scale` is, though not the
