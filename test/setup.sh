@@ -301,22 +301,29 @@ desc = "supaline: separators"
 [[mgr.prepend_keymap]]
 on   = [ "m", "6" ]
 run  = "linemode pane_cur"
-desc = "supaline: panes = current"
+desc = "supaline: the current pane alone"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "7" ]
 run  = "linemode pane_par"
-desc = "supaline: panes = current + parent"
+desc = "supaline: current + parent"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "8" ]
 run  = "linemode pane_prev"
-desc = "supaline: panes = current + preview"
+desc = "supaline: current + preview"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "9" ]
 run  = "linemode custom"
 desc = "supaline: user-written columns"
+
+# A letter rather than a digit only because the digits are spoken for. `e` is
+# free in Yazi's own `m` table, which holds `n`, `s`, `p`, `b`, `m` and `o`.
+[[mgr.prepend_keymap]]
+on   = [ "m", "e" ]
+run  = "linemode pane_each"
+desc = "supaline: a column set per pane"
 EOF
 
 # The colour keys, in a heredoc of their own because these need `$DIR`
@@ -496,7 +503,7 @@ supaline.column("ext", {
 })
 
 -- A one-cell marker. Every built-in is 5 to 12 cells wide and the parent pane
--- is an eighth of the terminal, so none of them can demonstrate `panes` there
+-- is an eighth of the terminal, so none of them can demonstrate a pane there
 -- without swallowing the file name; what fits at the edges is a marker.
 supaline.column("mark", {
 	width = 1,
@@ -558,6 +565,9 @@ supaline.column("name_line", {
 	render = function(file, ctx) return ui.Line { ui.Span(file.name) }, ctx.base end,
 })
 
+-- One list, handed to two panes below.
+local EDGE = { "mark" }
+
 supaline:setup({
 	linemodes = {
 		-- m0: one column, so `m s` is a fair comparison.
@@ -601,9 +611,19 @@ supaline:setup({
 		-- over the file name, and those two are 19 cells against a parent
 		-- pane 21 wide, so the names vanish entirely. What fits at the edges
 		-- is a marker, which is what these panes are for.
-		pane_cur = { "mark", panes = { "current" } },
-		pane_par = { "mark", panes = { "current", "parent" } },
-		pane_prev = { "mark", panes = { "current", "preview" } },
+		pane_cur = { "mark" },
+		pane_par = { current = EDGE, parent = EDGE },
+		pane_prev = { current = EDGE, preview = EDGE },
+
+		-- m e: the same two panes as m7, each carrying columns of its own.
+		-- This is what the width table in the README is about -- the middle
+		-- takes what it has room for, the parent takes the marker, and
+		-- `preview` is named by nobody, which is how a pane is told to draw
+		-- nothing.
+		pane_each = {
+			current = { "ext", "size" },
+			parent = { "mark" },
+		},
 
 		-- m9: a registered user column, and an inline function.
 		custom = {

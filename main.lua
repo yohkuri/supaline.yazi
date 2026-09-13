@@ -72,11 +72,19 @@ local DEFAULTS = {
 
 local M = {}
 
---- What the user writes for one linemode: the columns in order, and the two
---- options that belong to the linemode rather than to any column in it.
+--- What the user writes for one linemode: the columns in order, or a list of
+--- columns under each pane that draws something, and the one option that
+--- belongs to the linemode rather than to any column in it.
+---
+--- A pane is a key here rather than a value, so each of the three is a declared
+--- field and `parent = 42` is refused by name. A key that is none of the four
+--- names is past what the checker reaches into a table constructor, which is
+--- what `OPTIONS` below is for.
 ---@class supaline.LinemodeSpec
 ---@field [integer] supaline.ColumnSpec
----@field panes string[]? the panes it draws in; `{ "current" }` by default
+---@field current supaline.ColumnSpec[]? what the current pane draws, instead of the list above
+---@field parent supaline.ColumnSpec[]? what the parent pane draws; nothing by default
+---@field preview supaline.ColumnSpec[]? what the preview pane draws; nothing by default
 ---@field separator string? overrides the plugin-wide one
 
 --- The table `setup` is handed. `linemodes` is the only field it cannot do
@@ -102,8 +110,7 @@ local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemo
 --- every field is read per row.
 ---@class supaline.Mode
 ---@field name string
----@field cols supaline.Column[]
----@field panes table<string, boolean> the panes it draws in, by name
+---@field cols table<string, supaline.Column[]> what each pane draws, by pane name
 ---@field outer boolean whether it draws anywhere but the current pane
 ---@field sep string what goes between two columns
 
@@ -120,7 +127,7 @@ local refreshers = {} ---@type table<integer, function>
 -- `cd`, which is the trade that keeps rendering O(1) per row.
 local cache, cache_n = {}, 0 ---@type table<string, supaline.Entry[]>, integer
 
--- The pane last bound, held as its three parts rather than as the composed
+-- The pane last bound, held as its four parts rather than as the composed
 -- key. `bind` runs for every visible row on every frame and almost always
 -- finds nothing has changed, so the check it does first has to be cheap:
 -- `tostring(cwd)` crosses into Rust to build a path string, and the key
@@ -130,9 +137,7 @@ local cache, cache_n = {}, 0 ---@type table<string, supaline.Entry[]>, integer
 -- test are the same userdata and Lua settles it by pointer without reaching
 -- for `__eq` at all; across frames it falls back to one Rust-side path
 -- comparison, which still allocates nothing.
-local bound_name, bound_cwd, bound_n = nil, nil, nil
-
-local DEFAULT_PANES = { "current" }
+local bound_name, bound_pane, bound_cwd, bound_n = nil, nil, nil, nil
 
 -- Everything a previous `setup` put on `Linemode`, so the next one can take it
 -- back off. Two names and a child id would each be their own special case, and
@@ -179,39 +184,138 @@ local function is_yazis(name)
 	return Linemode[name] ~= nil or name:sub(1, 1) == "_"
 end
 
-local PANES_HELP = 'supaline: `panes` takes a list of "current", "parent" and/or '
-	.. '"preview" -- e.g. { "current", "preview" }'
+-- Quoted by every refusal that is about the shape of a linemode. A message
+-- that says what is wrong without saying what to write instead sends the
+-- reader back to the README for the half it left out, which is why the one
+-- below names the keys a linemode takes rather than only the key it got.
+local PANES_HELP = "supaline: a linemode is a list of columns, drawn in the current pane -- "
+	.. 'e.g. { "size", "mtime" } -- or a list of columns under each pane it draws in -- '
+	.. 'e.g. { current = { "size" }, parent = { "count" } }'
 
---- Which panes a linemode draws in. Always a list, so there is one way to say
---- any given combination; listing all three is how you ask for all three.
+-- What a linemode may carry besides its columns and its panes. Anything else
+-- is refused rather than ignored, because nothing else refuses it: a key in a
+-- table constructor is past what `lua-language-server` checks against the
+-- class -- `(exact)` was measured not to change that -- so `separatorr` and
+-- `parnet` reach here or they reach nobody.
+local OPTIONS = { separator = true }
+
+local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `parent`, "
+	.. "`preview` and `separator`; got %s"
+
+-- `PANES` as a set, so a key can be classified without walking it. Derived
+-- rather than written out, because a list and a set of the same three names
+-- are two things to keep in step.
+local IS_PANE = {} ---@type table<string, boolean>
+for _, pane in ipairs(PANES) do
+	IS_PANE[pane] = true
+end
+
+--- How many columns are written in `list`, counting the ones `ipairs` would
+--- never reach. `compile` walks a column list with `ipairs`, so it stops at
+--- the first missing index and anything past a gap draws nowhere -- the same
+--- silence a key nobody claimed is refused for, arrived at by arithmetic
+--- rather than by spelling.
+---
+--- `#list` is what `ipairs` will reach and this is what was written, so the
+--- two differing is the whole of the test. `#` alone cannot make it: a list
+--- that starts at index 2 has an entry in it and a `#` of 0.
+---@param list table
+---@return integer
+local function entries_of(list)
+	local n = 0
+	for key in pairs(list) do
+		if type(key) == "number" then
+			n = n + 1
+		end
+	end
+	return n
+end
+
+--- What each pane of a linemode draws, keyed by pane name, with a pane that
+--- draws nothing absent rather than empty. One table answers both "which
+--- panes" and "which columns", so there is one thing for `compile` to walk and
+--- one thing per row to look up.
+---
+--- A linemode written as a bare list of columns draws them in the current pane
+--- and nowhere else, which is all Yazi itself does. Naming a pane gives that
+--- pane a list of its own, and is then the only place columns may be written:
+--- a list left beside the pane keys would be drawn nowhere, and drawing
+--- nothing without a word is the failure this refuses rather than ships.
 ---@param spec supaline.LinemodeSpec
----@return table<string, boolean>
+---@return table<string, supaline.ColumnSpec[]> by pane
 local function panes_of(spec)
-	local want = spec.panes or DEFAULT_PANES
-
-	if type(want) == "string" then
-		error(string.format('%s; got the string `%s` -- write { "%s" }', PANES_HELP, want, want))
-	elseif type(want) ~= "table" then
-		error(string.format("%s; got a %s", PANES_HELP, type(want)))
-	elseif #want == 0 then
-		-- Either an empty list, or a map such as `{ current = true }`, which
-		-- `ipairs` walks as empty. Both would draw nothing anywhere, without a
-		-- word of complaint, so refuse them here instead.
-		error(string.format("%s; got a table with no list entries", PANES_HELP))
+	local sets = {}
+	for _, pane in ipairs(PANES) do
+		local list = spec[pane]
+		if list ~= nil then
+			if type(list) ~= "table" then
+				error(string.format("%s; `%s` was given a %s rather than a list of columns", PANES_HELP, pane, type(list)))
+			elseif #list == 0 then
+				-- Leaving the pane out says exactly this and says it in one
+				-- place, so an empty list is a second spelling of nothing.
+				error(string.format("%s; `%s` was given an empty list -- leave the pane out instead", PANES_HELP, pane))
+			end
+			-- A pane takes columns and nothing else. The options live on the
+			-- linemode, one level up, where they apply to every pane it draws
+			-- in -- and a name written in here is not refused for being the
+			-- wrong option but dropped for being somewhere `ipairs` never
+			-- goes, which is the same silence again.
+			for key in pairs(list) do
+				if type(key) ~= "number" then
+					error(
+						string.format(
+							"%s; `%s` takes a list of columns and nothing else, and was given "
+								.. "`%s` beside them -- an option goes on the linemode itself",
+							PANES_HELP,
+							pane,
+							tostring(key)
+						)
+					)
+				end
+			end
+			if entries_of(list) ~= #list then
+				error(string.format("%s; `%s` has a gap in its numbering", PANES_HELP, pane))
+			end
+			sets[pane] = list
+		end
 	end
 
-	local set = {}
-	for _, name in ipairs(want) do
-		local ok = false
-		for _, pane in ipairs(PANES) do
-			ok = ok or name == pane
+	-- Every key nobody claimed, rather than the first one found. `pairs` walks
+	-- a spec in whatever order the hash gives, so naming one of two
+	-- misspellings makes the same mistake report differently from one run to
+	-- the next -- and costs a second run to find the other half of it.
+	local unknown = {}
+	for key in pairs(spec) do
+		if type(key) ~= "number" and not IS_PANE[key] and not OPTIONS[key] then
+			unknown[#unknown + 1] = string.format("`%s`", tostring(key))
 		end
-		if not ok then
-			error(string.format("%s; got `%s`", PANES_HELP, tostring(name)))
-		end
-		set[name] = true
 	end
-	return set
+	if #unknown > 0 then
+		table.sort(unknown)
+		error(string.format(OPTION_HELP, table.concat(unknown, ", ")))
+	end
+
+	if next(sets) == nil then
+		-- No pane was named, so the linemode's own list is what the current
+		-- pane draws. An empty one draws nothing there, which is a thing to
+		-- ask for and is pinned as one -- a gap in a list that has entries is
+		-- not, and is refused here as it is under a pane.
+		if entries_of(spec) ~= #spec then
+			error(string.format("%s; this one has a gap in its numbering", PANES_HELP))
+		end
+		return { current = spec }
+	-- Every column written on the linemode, not the ones `ipairs` would reach.
+	-- A list starting at index 2 has a `#` of 0, so asking `#` here let a
+	-- stray column through the moment a pane was named -- and refused the very
+	-- same column when it sat at index 1.
+	elseif entries_of(spec) > 0 then
+		error(
+			"supaline: a pane's columns are written under that pane's own name, so the "
+				.. "columns beside them on the linemode would be drawn nowhere; move them "
+				.. "under a pane"
+		)
+	end
+	return sets
 end
 
 --- Which of the two panes outside the current one a row is in, and the folder
@@ -251,12 +355,17 @@ end
 --- Cheap and idempotent: it does nothing at all while the pane being drawn has
 --- not changed.
 ---@param name string
----@param cols supaline.Column[]
+---@param pane string the pane being drawn
+---@param cols supaline.Column[] what that pane draws
 ---@param folder supaline.Folder?
-local function bind(name, cols, folder)
+local function bind(name, pane, cols, folder)
 	if not folder then
-		if bound_name ~= false then
-			bound_name, bound_cwd, bound_n = false, nil, nil
+		-- The pane is in this test for the same reason it is in the key below,
+		-- and is insurance in the same way: only the parent pane can be
+		-- without a folder, so the two panes it tells apart cannot both
+		-- arrive here.
+		if bound_name ~= false or bound_pane ~= pane then
+			bound_name, bound_pane, bound_cwd, bound_n = false, pane, nil, nil
 			for _, col in ipairs(cols) do
 				column.bind(col, {})
 			end
@@ -266,11 +375,17 @@ local function bind(name, cols, folder)
 
 	local files, cwd = folder.files, folder.cwd
 	local n = #files
-	if bound_name == name and bound_n == n and bound_cwd == cwd then
+	if bound_name == name and bound_pane == pane and bound_n == n and bound_cwd == cwd then
 		return
 	end
 
-	local key = name .. "\0" .. tostring(cwd) .. "\0" .. n
+	-- The pane is part of the identity because two panes of one linemode may
+	-- draw different columns, and `entries` is positional. Nothing puts one
+	-- folder in two panes at once -- the parent, the current and the hovered
+	-- directory are three different folders -- so this is insurance rather
+	-- than a case anyone has seen, and it costs one comparison on an interned
+	-- string.
+	local key = name .. "\0" .. pane .. "\0" .. tostring(cwd) .. "\0" .. n
 	local entries = cache[key]
 	if not entries then
 		entries = {}
@@ -295,25 +410,23 @@ local function bind(name, cols, folder)
 	for i, col in ipairs(cols) do
 		column.bind(col, entries[i])
 	end
-	bound_name, bound_cwd, bound_n = name, cwd, n
+	bound_name, bound_pane, bound_cwd, bound_n = name, pane, cwd, n
 end
 
---- Draw one row. The caller has already looked the linemode up and resolved
---- the pane, because both of them had to: `solo()` only dispatches for
---- `in_current` rows, and `child` has just asked `pane_of`. `folder` is nil
---- for a pane that has none -- the parent of the filesystem root -- which
---- `bind` handles.
+--- Draw one row. The caller has already looked the linemode up, resolved the
+--- pane and taken that pane's columns off the mode, because all three had to:
+--- `solo()` only dispatches for `in_current` rows, `child` has just asked
+--- `pane_of`, and a pane with no columns is how both of them decide there is
+--- nothing to draw at all. `folder` is nil for a pane that has none -- the
+--- parent of the filesystem root -- which `bind` handles.
 ---@param mode supaline.Mode
+---@param pane string the pane being drawn
+---@param cols supaline.Column[] what that pane draws, already looked up
 ---@param file supaline.File
 ---@param folder supaline.Folder? the folder the row belongs to
 ---@return unknown an `AsLine`
-local function render(mode, file, folder)
-	local cols = mode.cols
-	if #cols == 0 then
-		return ""
-	end
-
-	bind(mode.name, cols, folder)
+local function render(mode, pane, cols, file, folder)
+	bind(mode.name, pane, cols, folder)
 
 	local sep, out = mode.sep, {}
 	for i, col in ipairs(cols) do
@@ -348,17 +461,17 @@ local function child(self)
 	end
 
 	local pane, folder = pane_of(file)
-	if not mode.panes[pane] then
+	local cols = mode.cols[pane]
+	if not cols then
 		return ""
 	end
 
 	-- `solo()` prepends a space to a line that has width; match it, so the two
-	-- panes line up. `render` returns a Line or the empty string, so there is
-	-- nothing to re-wrap.
-	local line = render(mode, file, folder)
-	if line == "" then
-		return ""
-	end
+	-- panes line up. A pane with nothing to draw is absent from `mode.cols`
+	-- and was returned on above, so what arrives here is always a Line -- and
+	-- one with no width of its own is handed back unwrapped, which is what
+	-- `solo()` does with it too.
+	local line = render(mode, pane, cols, file, folder)
 	return line:visible() and ui.Line { " ", line } or line
 end
 
@@ -366,7 +479,7 @@ end
 --- widest cell is, so drop the cached pass and let the next frame redo it.
 local function invalidate()
 	cache, cache_n = {}, 0
-	bound_name, bound_cwd, bound_n = nil, nil, nil
+	bound_name, bound_pane, bound_cwd, bound_n = nil, nil, nil, nil
 end
 
 --- Run every column's `refresh` hook. Subscribed to `cd` through `moved`,
@@ -397,22 +510,45 @@ end
 local function compile(from, with)
 	local modes, hooks, outer = {}, {}, false
 	for name, spec in pairs(from) do
-		local cols = {}
-		for i, entry in ipairs(spec) do
-			local col = column.normalize(entry, with)
-			cols[i] = col
-			if col.refresh then
-				hooks[#hooks + 1] = col.refresh
+		local sets = panes_of(spec)
+		-- Keyed by the list the user wrote rather than by the pane it was
+		-- written under, so one list handed to two panes is compiled once and
+		-- shared. Sharing is what keeps one `ctx` per column and one `refresh`
+		-- per `cd`; only one pane is ever bound at a time, which is what makes
+		-- it safe.
+		local built, cols = {}, {}
+		-- Walked in `PANES` order and not in the spec's, so a spec that
+		-- refuses to compile names the same pane every time it is read.
+		for _, pane in ipairs(PANES) do
+			local list = sets[pane]
+			local made = list and built[list]
+			if list and not made then
+				made = {}
+				for i, entry in ipairs(list) do
+					local col = column.normalize(entry, with)
+					made[i] = col
+					if col.refresh then
+						hooks[#hooks + 1] = col.refresh
+					end
+				end
+				built[list] = made
+			end
+			-- A pane that draws nothing is absent rather than empty, which is
+			-- what lets both callers decide there is nothing to draw without
+			-- asking how many columns there are. Only the current pane can
+			-- land here: `panes_of` refuses an empty list under a pane name,
+			-- and a linemode with no columns at all is the one that reaches
+			-- this with an empty list of its own.
+			if made and #made > 0 then
+				cols[pane] = made
 			end
 		end
 
-		local set = panes_of(spec)
-		local reaches = set.parent or set.preview or false
+		local reaches = cols.parent ~= nil or cols.preview ~= nil
 		outer = outer or reaches
 		modes[name] = {
 			name = name,
 			cols = cols,
-			panes = set,
 			outer = reaches,
 			sep = spec.separator or with.separator,
 		}
@@ -598,13 +734,13 @@ function M.setup(_st, opts)
 				)
 			)
 		elseif type(spec) ~= "table" then
-			error(string.format("supaline: linemode `%s` must be a list of columns", name))
+			error(string.format("%s; linemode `%s` is a %s", PANES_HELP, name, type(spec)))
 		end
 	end
 
-	-- Compiling is what validates the columns and the `panes` list, so it also
-	-- has to happen before the commit -- and only once, rather than again
-	-- inside `build`.
+	-- Compiling is what validates the columns and the panes, so it also has to
+	-- happen before the commit -- and only once, rather than again inside
+	-- `build`.
 	local modes, hooks, wants_child = compile(next_specs, next_cfg)
 
 	-- Committed. Nothing below here may raise on a configuration that got this
@@ -613,9 +749,9 @@ function M.setup(_st, opts)
 	uninstall()
 	install(modes, hooks)
 
-	-- Registered whatever `panes` says, because an unregistered name is not
-	-- inert: `solo()` draws it as literal text. A linemode that has not asked
-	-- for the current pane draws nothing there instead.
+	-- Registered whether or not the linemode draws in the current pane,
+	-- because an unregistered name is not inert: `solo()` draws it as literal
+	-- text. One that named the other panes alone draws nothing here instead.
 	--
 	-- `solo()` only dispatches for a row it has already found `in_current`, so
 	-- the folder is the current one without asking.
@@ -625,10 +761,11 @@ function M.setup(_st, opts)
 		installed.prev[name] = Linemode[name]
 		Linemode[name] = function(self)
 			local mode = linemodes[name]
-			if not mode or not mode.panes.current then
+			local cols = mode and mode.cols.current
+			if not cols then
 				return ""
 			end
-			return render(mode, self._file, cx.active.current --[[@as supaline.Folder]])
+			return render(mode, "current", cols, self._file, cx.active.current --[[@as supaline.Folder]])
 		end
 	end
 

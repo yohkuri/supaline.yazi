@@ -102,8 +102,10 @@ shot() {
 	tmux capture-pane -t "$SESSION" -p -e >"$DIR/color-$1.txt"
 }
 
-# Every linemode the manual harness offers, so a broken one cannot hide.
-for n in 0 1 2 3 4 5 6 7 8 9; do
+# Every linemode the manual harness offers, so a broken one cannot hide. `e` is
+# one of them: the digits ran out before the cases did, and `m e` is a key like
+# any other.
+for n in 0 1 2 3 4 5 6 7 8 9 e; do
 	tmux send-keys -t "$SESSION" m "$n"
 	sleep 1
 	# Switching linemode does not re-peek the preview; move the hover to force
@@ -283,7 +285,7 @@ have_rows() { # <summary> <capture>...
 		echo "  $summary"
 	fi
 }
-have_rows "m0 to m9 all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9
+have_rows "m0 to m9 and me all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 me
 
 # The same for the colour modes, which are reached by two keys rather than one
 # and are read in folders of their own -- so a blank one here is as likely to be
@@ -477,6 +479,17 @@ differs() { # <label> <actual> <unwanted>
 		echo "  $1"
 	fi
 }
+# `differs` says a pane is not the one it is read against, which a pane drawing
+# nothing at all satisfies too -- strip the columns and Yazi's own file names
+# are left, and those differ from a marked row. This is the other half: the
+# cells that pane was actually given.
+current_holds() { # <label> <capture> <pattern>
+	if current_of "$2" | grep -q "$3"; then
+		echo "  $1"
+	else
+		fail "$1"
+	fi
+}
 
 bare_parent=$(parent_of m6)
 bare_preview=$(preview_of m6)
@@ -495,12 +508,23 @@ differs "m7: parent pane drawn" "$(parent_of m7)" "$bare_parent"
 same "m8: parent pane left alone" "$(parent_of m8)" "$bare_parent"
 same "m7: preview pane left alone" "$(preview_of m7)" "$bare_preview"
 
-# `panes` has to hold for every row of the preview pane, not just the one Yazi
+# A pane key has to hold for every row of the preview pane, not just the one Yazi
 # marks `in_preview` -- it sets that on the previewed folder's cursor row alone,
 # so a check that passes on one row proves nothing about the second.
 drew=$(drawn_in_preview m8)
 same "m8: preview pane drawn, both rows (drew $drew)" "$drew" "2"
 same "m6: both edges left alone" "$(drawn_in_preview m6)" "0"
+
+# `me` names the same two panes as m7 and gives each a list of its own. Read
+# against m7, which hands one list to both, so it says the two agree about the
+# parent pane and disagree about the middle one -- which is the whole of what a
+# list per pane adds.
+same "me: the parent pane draws what m7 drew" "$(parent_of me)" "$(parent_of m7)"
+differs "me: the current pane draws columns of its own" "$(current_of me)" "$(current_of m7)"
+# `ext` then `size`, on the one file in the fixture whose size is written to be
+# read: five cells left-aligned, a separator, seven right-aligned.
+current_holds "me: ... and they are the ext and size it was given" me "bin     1024B"
+same "me: the pane nobody named is bare" "$(preview_of me)" "$bare_preview"
 
 echo "== the ramp =="
 # The ends and the steps between them are read in different folders, because no
