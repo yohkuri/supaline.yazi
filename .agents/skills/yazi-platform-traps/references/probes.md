@@ -17,6 +17,7 @@ detached tmux, with a probe plugin and `ya.dbg`.
 ## Contents
 
 - What is merged before any plugin code runs, and what is not
+- A colour read back out of a style
 - How Yazi colours a permission string
 - What a cell with no `base` is drawn in
 - What the two theme pins discriminate
@@ -77,10 +78,63 @@ config that does not carry one silently has no flavor at all and no unasked
 `expected struct StyleFlat` -- a theme field wants `{ fg = "..." }`.
 
 The probe reads the field back through supaline rather than out of `th`,
-because **a colour cannot be read out of a `ui.Style` from Lua**: `fg` and `bg`
-are setters and raise when called with no argument, and `getmetatable` on one
-returns `false`. The screen is the only reader. That is also why a flavor
-cannot supply a gradient endpoint, which needs `#rrggbb` channels.
+because `fg` and `bg` are setters that raise when called with no argument and
+`getmetatable` on one returns `false`. What it did not reach for is `raw()`,
+which answers with the colour — the section below is that measurement, taken
+afterwards and against what this one had concluded from the two spellings it
+tried.
+
+## A colour read back out of a style
+
+`ui.Style` answers `raw()` with a plain table: `fg` and `bg` as strings, the
+attributes as booleans, nothing at all for a style that holds nothing.
+Measured on 26.9.1 in a detached tmux, from a throwaway `init.lua` printing
+into the debug log.
+
+| built by | `raw()` |
+| -------- | ------- |
+| `ui.Style():fg("#ff8800")` | `{ fg = "#FF8800" }` |
+| `ui.Style():fg("cyan")` | `{ fg = "Cyan" }` |
+| `ui.Style():fg("129")` | `{ fg = "129" }` |
+| `ui.Style():bg("#112233"):bold()` | `{ bg = "#112233", bold = true }` |
+| `ui.Style():bold(true)` | `{ bold = false }` |
+| `ui.Style()` | `{}` |
+
+A hex comes back uppercased and a name capitalised. `colour.lua`'s `HEX`
+pattern takes either case, and what comes back goes straight back into `fg()`.
+
+It answers for a style **Yazi** built as readily as for one built here, which
+is the half that matters. The same probe over a `theme.toml` holding
+`[flavor] dark = "catppuccin-mocha"` and a `[supaline]` section, reading each
+field twice — once in `init.lua`, once inside a `theme` handler:
+
+| field | in `init.lua` | in the `theme` handler |
+| ----- | ------------- | ---------------------- |
+| `th.status.perm_read` | `{ fg = "Yellow" }` | `{ fg = "#F9E2AF" }` |
+| `th.mode.normal_main` | `{ bg = "Blue", bold = true }` | `{ bg = "#89B4FA", bold = true, fg = "#1E1E2E" }` |
+| `[supaline] tbl = { fg = "#0000ff", bold = false }` | `{ bold = false, fg = "#0000FF" }` | the same |
+| `[supaline] str = "#00ff00"` | a Lua string, with no `raw` | the same |
+
+Three things fall out of it.
+
+**A flavor can supply a gradient endpoint.** It writes every colour as
+`#rrggbb`, so `raw().fg` off one is a value `colour.stops` would take. Yazi's
+own preset does not: `Yellow` is a name, and a name cannot anchor a ramp. So a
+`ramp` that took a function would refuse a flavorless user's colour, and
+refuse it from inside a `theme` handler rather than while `setup` ran — which
+is the part to design before the part that works.
+
+**The flavor timing is measured a second way here.** The two columns disagree
+for exactly the fields a flavor supplies, which is what the section above
+established by drawing three columns on a screen and reading the escapes back.
+Two lines of `ya.dbg` reach it now, and a check could.
+
+**Nothing in the plugin calls it, and taking it costs three things.**
+`types.yazi` declares no `raw` on `ui.Style`, which it marks `(exact)`, so a
+caller needs a class of its own the way `supaline.Line` does; `test/stub.lua`
+models none either, and would have to reproduce the uppercasing to be worth
+having; and a method the annotations do not carry is a CalVer surface with
+nothing watching it.
 
 ## How Yazi colours a permission string
 
