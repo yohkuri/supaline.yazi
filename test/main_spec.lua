@@ -311,21 +311,12 @@ end)
 -- --- the theme -------------------------------------------------------------
 
 --- Run `fn` with the user's `[supaline]` section set to `section`, and put the
---- stub's own back afterwards: `test` pcalls the body, so a section left set by
---- a failing assertion reaches every test after this one and the failure points
---- at the wrong one. A body that reassigns the section mid-test -- the reload
---- cases below -- is restored just the same.
+--- stub's own back afterwards. A name for one field of `with`, which is where
+--- the restore lives and says why it is protected rather than written as the
+--- last line of a body.
 ---@param section table?
 ---@param fn function
-local function with_theme(section, fn)
-	local before = stub.th.supaline
-	stub.th.supaline = section
-	local ok, err = pcall(fn)
-	stub.th.supaline = before
-	if not ok then
-		error(err, 0)
-	end
-end
+local function with_theme(section, fn) with(stub.th, "supaline", section, fn) end
 
 test("theme: a base colour comes from the user's `[supaline]` section", function()
 	-- Readable from the start on 26.9.1: the user's `theme.toml` is merged
