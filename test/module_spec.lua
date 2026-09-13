@@ -1,5 +1,3 @@
----@diagnostic disable: inject-field
-
 --- Yazi wraps every module it loads in a state table, so a file that ends
 --- `return true` fails with "error converting Lua boolean to table" and the
 --- plugin does not load at all.

@@ -1,5 +1,3 @@
----@diagnostic disable: inject-field
-
 --- `builtin.lua`: the formatters, and the fallbacks each column takes when the
 --- value it wants is not there.
 

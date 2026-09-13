@@ -1,5 +1,3 @@
----@diagnostic disable: inject-field
-
 --- The stub's DDS kind list, pinned against Yazi's own.
 ---
 --- Yazi's `ps.sub` takes any string and returns without complaining, so a
