@@ -427,12 +427,14 @@ end
 -- reaches this or it reaches nobody.
 local SEP_KEYS = { [1] = true, style = true }
 
+local function claims_sep(key) return SEP_KEYS[key] end
+
 local SEP_HELP = "supaline: %s must be a string or a table, got a %s -- "
 	.. '`" | "` draws that between two columns, `{ " | ", style = ... }` draws it in a '
 	.. 'colour, and `""` draws nothing at all. `false` drops the separator before a '
 	.. "column and is a column's `sep`, never a linemode's"
 
-local SEP_UNKNOWN = "supaline: %s: `%s` %s. A separator table takes what to draw as `[1]` "
+local SEP_UNKNOWN = "supaline: %s: %s %s. A separator table takes what to draw as `[1]` "
 	.. 'and `style` beside it -- `{ " | ", style = { fg = "#585b70" } }`'
 
 local SEP_TEXT = "supaline: %s was given %s to draw. The first element of a separator table "
@@ -476,26 +478,10 @@ function M.separator(value, where)
 		error(string.format(SEP_HELP, where, type(value)))
 	end
 
-	-- Every key nobody claimed rather than the first one found, and sorted, for
-	-- the reason `colour.lua`'s `from_table` and `main.lua`'s `panes_of` both
-	-- give: `pairs` walks a table in whatever order the hash gives, so naming
-	-- one of two misspellings makes the same mistake report differently from
-	-- one run to the next, and costs a second run to find the other half of it.
-	local unknown = {}
-	for k in pairs(value) do
-		if not SEP_KEYS[k] then
-			unknown[#unknown + 1] = tostring(k)
-		end
-	end
-	if #unknown > 0 then
-		table.sort(unknown)
+	local unknown, quoted = colour.unknown(value, claims_sep)
+	if unknown then
 		error(
-			string.format(
-				SEP_UNKNOWN,
-				where,
-				table.concat(unknown, "`, `"),
-				#unknown == 1 and "is not a separator key" or "are not separator keys"
-			)
+			string.format(SEP_UNKNOWN, where, quoted, #unknown == 1 and "is not a separator key" or "are not separator keys")
 		)
 	end
 
