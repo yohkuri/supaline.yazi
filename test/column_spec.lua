@@ -402,6 +402,42 @@ test("base: a plain style table is refused rather than drawn", function()
 	throws(function() coloured { base = 42 } end, "is a number")
 end)
 
+test("base: a function is called for its colour, and called again on the next build", function()
+	-- The one way a spec can reach a colour the theme does not have yet. 26.9.1
+	-- merges the flavor after `init.lua` has run, so `base = th.status.perm_read`
+	-- captures Yazi's preset and keeps it: the stored spec is re-read on every
+	-- `theme` event but never evaluated again. A function is evaluated again.
+	---@type string|ui.Style
+	local answer = "#112233"
+	local spec = { base = function() return answer end }
+	eq(coloured(spec).base.fg, "#112233")
+
+	answer = ui.Style():fg("#445566"):bold()
+	local ctx = coloured(spec)
+	eq(ctx.base.fg, "#445566", "the next build asks again")
+	eq(ctx.base.bold, true, "and a style is as good as a string")
+end)
+
+test("base: a function in the spec outranks the theme, the way a colour does", function()
+	column.register("hue4", { render = function() return "" end })
+	local before = stub.th.supaline
+	stub.th.supaline = { hue4 = "#00ccff" }
+	local ctx = column.normalize({ "hue4", base = function() return "#ff8800" end }, CFG).ctx
+	stub.th.supaline = before
+
+	eq(ctx.base.fg, "#ff8800")
+	-- Which is what tells `permissions` to stop colouring itself: a function is
+	-- still the spec saying something.
+	eq(ctx.source, "spec")
+end)
+
+test("base: what a function returns is checked, and the message names the function", function()
+	-- Naming `base` would send the reader to the line holding the function,
+	-- which is not the line to change. A definition may carry one too.
+	column.register("hue5", { render = function() return "" end, base = function() return 42 end })
+	throws(function() column.normalize("hue5", CFG) end, "the `base` function of column `hue5`")
+end)
+
 test("colour: a value Yazi would refuse says which column it was", function()
 	column.register("hue", { render = function() return "" end, base = "nosuchcolour" })
 	throws(function() column.normalize("hue", CFG) end, "column `hue`")
