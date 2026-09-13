@@ -167,7 +167,10 @@ The same name, four ways, against a column of twelve.
 
 - `bin` is the extension column, five cells, left-aligned.
 - **No gap** between it and the size: that column sets `sep = false`.
-- A `│` sits before the date, and no space either side of it.
+- A `│` sits before the date, and no space either side of it. It is **pink**
+  (`#ff00aa`) where everything around it is not: that separator is written as
+  `{ "│", base = "#ff00aa" }`, and the colour is the whole of what the table
+  form buys.
 - Directories have no extension, so that cell is blank — the columns after it
   should still line up.
 
