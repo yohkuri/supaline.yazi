@@ -243,6 +243,22 @@ test("permissions: `refresh` is what follows a theme that moved", function()
 	end)
 end)
 
+test("owner: an id Yazi could not have produced is refused by the stub", function()
+	-- The stub's half of the ownership columns, pinned here because nothing
+	-- else would notice it going quiet. `Cha` carries both ids as `u32`, so a
+	-- string or a negative number is a file Yazi cannot hand over -- and the
+	-- lookups below stringify whatever they are given, so `uid = "root"` would
+	-- have rendered `userroot` and passed.
+	throws(function() stub.file { uid = "root" } end, "`uid` is a `u32`")
+	throws(function() stub.file { gid = -1 } end, "`gid` is a `u32`")
+	throws(function() stub.file { uid = 1.5 } end, "whole number")
+
+	-- Left out is the one thing that is not an error: it is what Yazi fills in
+	-- where the platform has no owner to name.
+	eq(stub.file({}).cha.uid, 0)
+	eq(stub.file({}).cha.gid, 0)
+end)
+
 test("owner: user:group", function() eq(render("owner", stub.file { uid = 1, gid = 2 }), "user1:group2") end)
 
 test("owner, user and group: blank on a build with no names", function()
