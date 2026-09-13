@@ -215,6 +215,46 @@ end
 
 --- The style a table written in a spec asks for.
 ---
+--- Every key of `t` that `claims` does not answer for, sorted, and the same
+--- names quoted and joined ready to drop into a message. Nil when every key
+--- was claimed.
+---
+--- Every one of them rather than the first one found, and sorted: `pairs`
+--- walks a table in whatever order the hash gives, so naming one of two
+--- misspellings makes the same mistake report differently from one run to the
+--- next, and costs a second run to find the other half of it.
+---
+--- Here because here is the only place all three callers can reach. This file
+--- sits at the bottom of the require chain and knows nothing about a linemode
+--- spec or a separator; `column.lua` and `main.lua` both require it, and
+--- neither requires the other in the direction that would do. The three had
+--- already drifted in where the quoting happens -- `panes_of` quoted each name
+--- as it collected it, `from_table` at the join -- which is the drift a fourth
+--- copy would have continued.
+---@param t table
+---@param claims fun(key: any): boolean? whether the table is entitled to that key
+---@return string[]? names sorted, for a caller that has something to say about each
+---@return string? quoted the same names, backquoted and comma-joined
+function M.unknown(t, claims)
+	local names = {}
+	for k in pairs(t) do
+		if not claims(k) then
+			names[#names + 1] = tostring(k)
+		end
+	end
+	if #names == 0 then
+		return nil
+	end
+	table.sort(names)
+	return names, "`" .. table.concat(names, "`, `") .. "`"
+end
+
+-- What a style table is entitled to: the two colours, and an attribute under
+-- whichever of its two spellings. Derived from `METHOD` rather than written
+-- out, because a list and a set of the same names are two things to keep in
+-- step.
+local function claims_style(k) return k == "fg" or k == "bg" or METHOD[k] ~= nil end
+
 --- The same keys `theme.toml` takes, and the same meanings. A theme field
 --- holds three states rather than two: absent, `true`, and `false`, and the
 --- last is the attribute *taken off* rather than one never written. Measured
@@ -256,29 +296,19 @@ local function from_table(t, where)
 		)
 	end
 
-	local unknown = {}
-	for k in pairs(t) do
-		if k ~= "fg" and k ~= "bg" and not METHOD[k] then
-			unknown[#unknown + 1] = tostring(k)
-		end
-	end
-	if #unknown > 0 then
-		-- Every key nobody claimed rather than the first one found, and sorted:
-		-- `pairs` walks a table in whatever order the hash gives, so naming one
-		-- of two misspellings would report the same mistake differently from one
-		-- run to the next. `main.lua` refuses a linemode's options the same way.
-		table.sort(unknown)
+	local unknown, quoted = M.unknown(t, claims_style)
+	if unknown then
 		local hints = {}
 		for _, k in ipairs(unknown) do
 			hints[#hints + 1] = MEANT[k]
 		end
 		error(
 			string.format(
-				"supaline: %s: `%s` %s. A style table takes `fg` and `bg`, "
+				"supaline: %s: %s %s. A style table takes `fg` and `bg`, "
 					.. "plus %s -- the spelling `theme.toml` uses, so a style is written the "
 					.. "same way in both files%s",
 				where,
-				table.concat(unknown, "`, `"),
+				quoted,
 				#unknown == 1 and "is not a style key" or "are not style keys",
 				KEY_LIST,
 				#hints > 0 and ". " .. table.concat(hints, "; ") or ""
