@@ -861,11 +861,12 @@ function M.install(root)
 	-- being previewed, and the plugin reads `preview.folder` on every row that
 	-- is not in the current pane.
 	--
-	-- `history` is declared with the parameters Yazi's takes, and reads
-	-- neither. `types.yazi` does not describe `Tab:history` at all, so this
-	-- line is the only declaration a language server has for it, and a nullary
-	-- one makes the plugin's own `cx.active:history(url)` the thing that looks
-	-- wrong.
+	-- `history` is written with the parameters Yazi's takes, and reads
+	-- neither: a nullary one here would make the plugin's own
+	-- `cx.active:history(url)` the thing that looks wrong when a spec swaps it
+	-- out. It declares nothing, though -- `tab__Tab` is `(exact)`, so a field
+	-- this table adds is the stub's alone. The type `types.yazi` leaves out is
+	-- `supaline.Tab` in `column.lua`, beside the rest of the disagreements.
 	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
 
 	-- Whatever the module returned, handed back exactly as it came. This used

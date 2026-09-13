@@ -8,7 +8,7 @@ description: >-
   needs nothing from here, not for a spec or a stub, which `verify-supaline`
   covers, and not for a rename or a format string. Covers what carries a type
   and what does not, why a wrong value in a configuration table is refused
-  where a misspelled key is not, the five places `types.yazi` disagrees with
+  where a misspelled key is not, the six places `types.yazi` disagrees with
   Yazi 26.9.1, and why a difference is declared by inheriting from Yazi's
   class rather than re-opening it. The collision that makes `supaline.Main`
   necessary is summarised here and measured in
@@ -76,12 +76,13 @@ to read it off.
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
 neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
-string where 26.9.1 has a method, and declares `ui.truncate` but nothing for
-`Line:truncate`, which 26.9.1 has — so `column.lua` declares the difference
-itself, with the evidence written beside the classes: a probe for the four read
-off `cx`, and `test/truncate_spec.lua` for the method, which pins what it does.
-A newer Yazi is a reason to run those again and correct them there, never to
-work around them at the call site.
+string where 26.9.1 has a method, declares `ui.truncate` but nothing for
+`Line:truncate`, which 26.9.1 has, and describes no `Tab:history`, which
+`builtin.lua` asks a directory for its entry count — so `column.lua` declares
+the difference itself, with the evidence written beside the classes: a probe
+for the four read off `cx`, and `test/truncate_spec.lua` for the method, which
+pins what it does. A newer Yazi is a reason to run those again and correct them
+there, never to work around them at the call site.
 
 Declaring the fifth is what keeps the call checked, and the difference is
 worth planting once: with `cut` taking its line as `unknown`, `line:truncatee`
@@ -93,6 +94,16 @@ What it buys is the name, not the argument. `max = "wide"` passes either way —
 the limit on a table constructor above holds here too, and naming a class for
 the options was measured not to change it — so the call being checked means
 the method exists and takes an options table, and no more.
+
+The sixth is worth knowing about for how it hid rather than for what it
+declares. `cx.active:history(url)` checked out for months without a class,
+because a spec swapping the method for its own assigned the field under a
+file-wide `inject-field` disable and injected it workspace-wide; the plugin's
+call was being blessed by a line in a test. Rewriting that spec's swap through
+a shared helper indexed the field instead of assigning it, and the plugin went
+red — which is the good outcome, and worth expecting whenever a check goes red
+at a change that could not have touched it. `tab__Tab` is `(exact)`, so
+nothing the harness builds can declare a field on one.
 
 Those differences are declared by inheriting from Yazi's class, never by
 re-opening it, which means a folder taken off `cx` is cast where it arrives.
