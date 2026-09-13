@@ -354,10 +354,15 @@ local WHERE = {
 local NO_STATS = "Give the column a `stats` function, or write that colour as `base`"
 local NO_STATS_THEMED = "Write a flat colour there instead"
 
---- What to call a colour a function handed back. The value in the file is the
---- function, so a message naming `base` would send the reader to a line that
---- is not the one to change.
-local FROM_FN = "what the `base` function of column `%s` returned"
+--- What to call a `base` that was written as a function -- the job `WHERE`
+--- does for a colour, in terms of the file the function was written in, since
+--- a message naming `base` would send the reader to a line that is not the one
+--- to change. A table of its own because there is no theme row to write: a
+--- theme field holds a string or a style table and never a function.
+local FN_WHERE = {
+	spec = "the `base` function of column `%s`",
+	definition = "the default `base` function of column `%s`",
+}
 
 --- Apply a column's `max_width`, if it has one. Every width a column can end
 --- up with passes through here exactly once -- the stated one when the spec is
@@ -469,22 +474,31 @@ function M.normalize(spec, cfg)
 	local where = string.format(WHERE[source], name or "?")
 
 	-- A `base` written as a function is called here, and here is the whole of
-	-- what it buys: this runs inside `build`, so the call sees the theme as it
-	-- is now rather than as it was when the spec was written. 26.9.1 merges the
-	-- flavor *after* `init.lua` has run, so `base = th.status.perm_read` in a
-	-- spec captures Yazi's preset -- and keeps it, because the stored spec is
-	-- never evaluated again, only re-read. A function is called again on every
-	-- build, which is to say on every `theme` event.
+	-- what it buys: `colours_of` above says why this runs inside `build` rather
+	-- than once at setup, and a spec is re-read on every one of those passes
+	-- but never evaluated again. A function is, so it sees the flavor that was
+	-- not there while `init.lua` ran and follows every reload after it.
 	--
-	-- Once per column per build, never per row: the rendering budget is
-	-- unchanged and a function that costs something is still paid for once.
-	-- `ramp` deliberately takes none. Its endpoints need `#rrggbb` channels,
-	-- and a colour cannot be read back out of a `ui.Style` from Lua, so the one
-	-- thing a function there could reach for is the one thing it could not use.
+	-- Once per column per build, never per row. `ramp` deliberately takes none:
+	-- its endpoints need the `#rrggbb` channels `colour.lua`'s header measures
+	-- a style cannot be read back as, so the one thing a function there could
+	-- reach for is the one thing it could not use.
 	local base_where = where
 	if type(base) == "function" then
-		base_where = string.format(FROM_FN, name or "?")
-		base = base()
+		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
+		-- Two ways for this to go wrong and one mechanism for both. The likely
+		-- one is the call itself: `th.status.perm_read` against a flavor with
+		-- no `[status]` section raises `attempt to index a nil value`, and that
+		-- reaches the user as `build`'s notification, where a message carrying
+		-- no column name says nothing about which line to open.
+		local ok, got = pcall(base)
+		if not ok then
+			error(string.format("supaline: %s raised: %s", fn, tostring(got)))
+		end
+		-- `or nil` for the reason `colours_of` writes it: `false` is how a spec
+		-- says "no colour at all", and a function that hands one back is saying
+		-- that rather than handing back a value Yazi would refuse.
+		base, base_where = got or nil, "what " .. fn .. " returned"
 	end
 	local ground = colour.style(base, base_where)
 

@@ -520,7 +520,8 @@ about them:
 { "size", base = ui.Style():bold(), ramp = "#0b3d91 -> #7fd4ff" }
 ```
 
-A function counts as the spec saying something, whatever it goes on to return.
+A function counts as the spec saying something, whatever it goes on to return
+— `false` included, which turns the colour off exactly as writing `false` does.
 
 `false` is how a spec says "neither" — the same spelling `sep` uses. It counts
 as the spec saying something, so it takes the whole source with it: not the
