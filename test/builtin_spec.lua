@@ -213,6 +213,23 @@ test("permissions: every character takes its own style from the theme", function
 		perm_fgs(stub.file { perm = "lrwsr-xr-t" }),
 		"#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
 	)
+	-- `S` and `T` -- a setuid, setgid or sticky bit with the execute bit off
+	-- -- are the one part of the mapping the screen never produced. They are
+	-- `perm_exec` on the source instead: `Status:perm()` in
+	-- `yazi-plugin/preset/components/status.lua` at 26.9.1 holds `x`, `s`,
+	-- `S`, `t` and `T` in one branch.
+	eq(
+		perm_fgs(stub.file { perm = "-rwSr-Sr-T" }),
+		"#000055 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
+	)
+	-- A socket's type character is an `s`, and keying on the character sends
+	-- it where every other `s` goes. Pinned because it reads like a bug and is
+	-- not one: Yazi's status bar draws it in `perm_exec` too, for the same
+	-- reason, and `ChaMode::permissions` is where the `s` comes from.
+	eq(
+		perm_fgs(stub.file { perm = "srwxr-xr-x" }),
+		"#000044 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
+	)
 	-- `?` is a `perm_sep` beside `-`, and arrives nine at a time: `cha:perm()`
 	-- on a file Yazi has no metadata for answers a type character and nine of
 	-- them. Yazi builds one for a listed entry it cannot stat, and for a
