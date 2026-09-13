@@ -89,13 +89,77 @@ test("style: anything Yazi would not take as a style is refused", function()
 	-- exactly that reason -- the noun in the message is the only part that
 	-- differs from a real Yazi, where a Span is userdata rather than a table.
 	throws(function() colour.style(ui.Span("x"), "the colour of column `size`") end, "column `size`")
-	throws(function() colour.style(ui.Line {}, "x") end, "Yazi takes a colour string")
-	throws(function() colour.style({ fg = "#ff8800" }, "x") end, "plain table")
-	-- A metatable is not what makes a style, which is the whole of the repair:
-	-- this one passed before, straight through to the blank screen.
-	throws(function() colour.style(setmetatable({ fg = "#ff8800" }, {}), "x") end, "plain table")
 	throws(function() colour.style(42, "x") end, "is a number")
 	throws(function() colour.style(true, "x") end, "is a boolean")
+
+	-- A renderable is refused here and on a real Yazi, and the two arrive at it
+	-- differently: theirs is userdata and falls to the message above, the
+	-- harness's is a Lua table and is read as a style table whose keys are
+	-- nothing of the sort. Both name `where` and neither draws. Asserted on the
+	-- key it found rather than on the noun, because the noun is the harness's.
+	throws(function() colour.style(ui.Line {}, "x") end, "`_parts` is not a style key")
+end)
+
+-- --- the style a table asks for --------------------------------------------
+
+test("style: a table is the theme's spelling, built into a style", function()
+	-- The same keys `theme.toml` takes, so one style is written one way in both
+	-- files. `reversed` is the theme's spelling of the `reverse()` method, which
+	-- is the one place the two names part company.
+	local st = colour.style({ fg = "#ff8800", bg = "#7a2d00", bold = true, reversed = true }, "x")
+	eq(st.fg, "#ff8800")
+	eq(st.bg, "#7a2d00")
+	eq(st.bold, true)
+	eq(st.reverse, true, "`reversed` in the table, `reverse()` on the style")
+
+	-- `bold = false` is an attribute left off rather than an error, which is
+	-- what the same line means in a theme.
+	eq(rawget(colour.style({ fg = "cyan", bold = false }, "x"), "bold"), nil)
+
+	-- A style built by the user still goes down the `patch` branch above, and
+	-- that order is load-bearing: the harness's `Style` is a Lua table, so a
+	-- branch on `type` alone would read one as a table of style keys and refuse
+	-- the very value a themed column is handed.
+	local own = ui.Style():fg("red"):bold()
+	eq(colour.style(own, "x"), own)
+end)
+
+test("style: a key Yazi would have dropped is refused by name", function()
+	-- The whole of what the table form buys over the theme's. Yazi hands a
+	-- plugin the `Style` it parsed and never the table behind it, so a key it
+	-- does not know is gone before `th.supaline` exists -- measured on 26.9.1,
+	-- `strikethrough = true` in `[supaline]` left the column with no attribute
+	-- and said nothing. Written in a spec it reaches this file verbatim.
+	throws(function() colour.style({ fg = "cyan", strikethru = true }, "x") end, "`strikethru` is not a style key")
+
+	-- Every key nobody claimed, sorted, so the same mistake reports the same
+	-- way twice running.
+	throws(function() colour.style({ zebra = true, apple = true }, "x") end, "`apple`, `zebra` are not style keys")
+
+	-- The three a reader arrives at honestly, each pointed at the spelling that
+	-- works rather than merely turned away.
+	throws(function() colour.style({ reverse = true }, "x") end, "`reversed` is the spelling")
+	throws(function() colour.style({ strikethrough = true }, "x") end, "`crossed` is the spelling")
+	throws(function() colour.style({ reset = true }, "x") end, 'write `fg = "reset"`')
+end)
+
+test("style: a table says a colour with a colour and an attribute with a boolean", function()
+	-- `fg` and `bg` go through the same allow-list a bare string does, so there
+	-- is one answer to "is this a colour" however it was written.
+	throws(function() colour.style({ fg = "#gg0000" }, "x") end, "is not a colour Yazi accepts")
+	throws(function() colour.style({ bg = 42 }, "x") end, "must be a colour string")
+
+	-- An attribute is not a colour, and a string there is the way that mistake
+	-- arrives.
+	throws(function() colour.style({ bold = "yes" }, "x") end, "must be true or false")
+end)
+
+test("style: a table that is not a style at all is refused", function()
+	-- `ui.Style` with the call forgotten. Measured on 26.9.1: `type(ui.Style)`
+	-- is `table` and `pairs` over it finds nothing, so it would otherwise build
+	-- an empty style and leave the column in no colour at all.
+	throws(function() colour.style(ui.Style, "x") end, "is the constructor")
+	throws(function() colour.style({}, "x") end, "no keys in it")
 end)
 
 -- --- telling a ramp from a flat colour -------------------------------------
