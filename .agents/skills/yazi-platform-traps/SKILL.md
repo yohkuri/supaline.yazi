@@ -8,7 +8,7 @@ description: >-
   the budget a linemode render runs under. Read when a change resolves a colour
   or reads the theme, writes a fetcher, touches the parent- or preview-pane
   child, or adds a column's render or stats -- not for every edit to plugin
-  Lua, and not for a rename or a format string. Six
+  Lua, and not for a rename or a format string. Seven
   further traps are refused by a test or a CI job that prints the fix, so they
   need no reading in advance; references/checked-traps.md has them for when one
   fires, and references/probes.md has what was run to establish the three
@@ -27,7 +27,7 @@ reason to re-run the experiment rather than trust the sentence — and when you
 do, write down what you ran. `references/probes.md` holds what was run for the
 three below, which is what you would be re-running.
 
-Six of the nine traps are refused by a test or a CI job that prints the fix,
+Seven of the ten traps are refused by a test or a CI job that prints the fix,
 and live in `references/checked-traps.md`, worth opening when one fires. The
 three below are what no check catches. When you find a way to move one into the
 checked list, take it.
