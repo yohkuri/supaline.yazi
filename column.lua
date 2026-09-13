@@ -132,6 +132,34 @@ local colour = require(".colour")
 
 ---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
 
+--- A separator as it is written: the text first, the style beside it. A column
+--- spec's own shape, so `{ " | ", style = ... }` reads the way
+--- `{ "size", base = ... }` does.
+---
+--- `style` rather than `base` because `base` is a column's colour *source* --
+--- the thing `ramp` competes with, the thing a function borrows from the theme,
+--- the thing `colours_of` arbitrates between three writers of. A separator is
+--- drawn between two columns rather than on a file, so it has no value to place
+--- between the extremes of a listing and no source to choose: it has one style.
+---@class supaline.SepSpec
+---@field [1] string what to draw
+---@field style unknown? a colour string, a style table, a `ui.Style`, or a function returning one
+
+--- A separator once `M.separator` has read it. The text and the style travel as
+--- one value, which is what lets the three places a separator may be written --
+--- `setup`, a linemode, a column's `sep` -- fall back through the single `or`
+--- in `main.lua`'s `render`: whichever level wrote one supplies both halves of
+--- it, and none of them supplies half.
+---
+--- `style` stays nil when nobody wrote one, and that is load-bearing rather
+--- than tidy. `render` builds a `ui.Span` only where it finds a style, so a
+--- separator nobody coloured is the shared string it has always been and costs
+--- no allocation per row. Normalising it to an empty `ui.Style` would put that
+--- cost on everyone who never asked for a colour.
+---@class supaline.Sep
+---@field text string
+---@field style unknown? nil when the separator carries no colour
+
 --- Plugin-wide options, once `setup` has filled them in from `DEFAULTS`.
 --- Separate from `supaline.Opts` in main.lua, which is what the user actually
 --- wrote. `separator` and `order` are always present, so nothing that reads
@@ -139,7 +167,7 @@ local colour = require(".colour")
 --- because a column definition can state one too and nil is what tells "the
 --- user asked for this scale" from "nobody said".
 ---@class supaline.Cfg
----@field separator string
+---@field separator supaline.Sep
 ---@field order integer
 ---@field scale? "linear"|"log" what the user wrote in `setup`, if anything
 --- `band` is optional for the same shape of reason `scale` is, though not the
@@ -166,7 +194,7 @@ local colour = require(".colour")
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
----@field sep string|false|nil a separator of this column's own, `false` for none
+---@field sep string|supaline.SepSpec|false|nil a separator of this column's own, `false` for none
 ---@field width number|"auto"|(fun(stats: any): number?)|nil a number is floored
 ---@field scale "linear"|"log"|nil
 
@@ -204,7 +232,7 @@ local colour = require(".colour")
 ---@field align "left"|"right"
 ---@field overflow "ellipsis"|"clip"|"grow"
 ---@field max_width integer?
----@field sep string|false|nil a separator of this column's own, `false` for none
+---@field sep supaline.Sep|false|nil a separator of this column's own, `false` for none
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
 ---@field render supaline.Render
@@ -392,6 +420,124 @@ local function cap(width, max)
 	return width
 end
 
+-- The keys a written separator claims. `[1]` is what to draw and `style` is
+-- what to draw it in; anything else is a misspelling, and nothing else here
+-- would say so -- a key in a table constructor is past what
+-- `lua-language-server` checks against a class, `(exact)` included, so `styel`
+-- reaches this or it reaches nobody.
+local SEP_KEYS = { [1] = true, style = true }
+
+local SEP_HELP = "supaline: %s must be a string or a table, got a %s -- "
+	.. '`" | "` draws that between two columns, `{ " | ", style = ... }` draws it in a '
+	.. 'colour, and `""` draws nothing at all. `false` drops the separator before a '
+	.. "column and is a column's `sep`, never a linemode's"
+
+local SEP_UNKNOWN = "supaline: %s: `%s` %s. A separator table takes what to draw as `[1]` "
+	.. 'and `style` beside it -- `{ " | ", style = { fg = "#585b70" } }`'
+
+local SEP_TEXT = "supaline: %s was given %s to draw. The first element of a separator table "
+	.. 'is the text, as `{ " | ", style = ... }`; a table with no text in it reaches Yazi as '
+	.. "a span of nothing and the linemode stops drawing"
+
+local SEP_EMPTY = 'supaline: %s draws "" in a colour, which draws nothing: a span of no '
+	.. 'cells shows no style. Write `""` on its own to put nothing between two columns, or '
+	.. "give the separator something to draw"
+
+local SEP_FALSE = "supaline: %s has `style = false`, and there is nothing there to turn off. "
+	.. "A column's `base = false` drops a colour its theme or its definition would otherwise "
+	.. "supply; a separator has neither behind it, so leaving `style` out is how one goes "
+	.. "uncoloured"
+
+--- Read a separator, in whichever of the two shapes it was written. Every
+--- place that takes one comes through here: `separator` in `setup`,
+--- `separator` on a linemode, and a column's own `sep`, which was refused
+--- nowhere until this existed -- `sep = 42` reached Yazi and emptied the pane.
+---
+--- Nil is what "nothing was written" looks like and is handed back as it is,
+--- for the caller to fall back from.
+---
+--- `false` is the value worth a check of its own, and it arrives here as the
+--- wrong type rather than as a shape. It reads like a column's `sep = false`
+--- and it is falsy, so on a linemode it fell through to the separator it was
+--- written to be rid of, and the linemode drew the very thing it asked to
+--- drop. Nothing said so at the time: a separator is not read until a row is,
+--- so a wrong one is a render-time failure with the cause a whole session
+--- behind it. `normalize` takes a column's `false` before this is reached,
+--- which is why only the meaningless one gets here.
+---@param value any
+---@param where string names where it was written, for the message
+---@return supaline.Sep?
+function M.separator(value, where)
+	if value == nil then
+		return nil
+	elseif type(value) == "string" then
+		return { text = value }
+	elseif type(value) ~= "table" then
+		error(string.format(SEP_HELP, where, type(value)))
+	end
+
+	-- Every key nobody claimed rather than the first one found, and sorted, for
+	-- the reason `colour.lua`'s `from_table` and `main.lua`'s `panes_of` both
+	-- give: `pairs` walks a table in whatever order the hash gives, so naming
+	-- one of two misspellings makes the same mistake report differently from
+	-- one run to the next, and costs a second run to find the other half of it.
+	local unknown = {}
+	for k in pairs(value) do
+		if not SEP_KEYS[k] then
+			unknown[#unknown + 1] = tostring(k)
+		end
+	end
+	if #unknown > 0 then
+		table.sort(unknown)
+		error(
+			string.format(
+				SEP_UNKNOWN,
+				where,
+				table.concat(unknown, "`, `"),
+				#unknown == 1 and "is not a separator key" or "are not separator keys"
+			)
+		)
+	end
+
+	local text = value[1]
+	if type(text) ~= "string" then
+		error(string.format(SEP_TEXT, where, text == nil and "nothing" or "a " .. type(text)))
+	end
+
+	local style = value.style
+	if type(style) == "function" then
+		-- Called here, and here is the whole of what it buys: this runs inside
+		-- `build`, so the flavor that was not there while `init.lua` ran has
+		-- landed, and every `app:theme` after it evaluates the function again.
+		-- A spec is re-read on each of those passes and never evaluated; a
+		-- function is. The same repair, and the same `pcall`, that a column's
+		-- `base` gets below.
+		local ok, got = pcall(style)
+		if not ok then
+			error(string.format("supaline: the style function under %s raised: %s", where, tostring(got)))
+		end
+		style = got
+	end
+
+	if style == false then
+		error(string.format(SEP_FALSE, where))
+	elseif style == nil then
+		-- The table form with the colour left out. It says exactly what the
+		-- bare string says and is allowed to: every other optional key on every
+		-- other spec may be omitted, and refusing the omission here would make
+		-- this the one place that cannot be. What it must not do is mean
+		-- something else -- take the style from the level above -- because two
+		-- spellings that differ only in what they inherit is the four-way
+		-- inheritance this shape was chosen to avoid, moved inside it.
+		return { text = text }
+	end
+
+	if text == "" then
+		error(string.format(SEP_EMPTY, where))
+	end
+	return { text = text, style = colour.style(style, string.format("the style under %s", where)) }
+end
+
 --- Turn one entry of a linemode spec into a runtime column.
 ---@param spec supaline.ColumnSpec
 ---@param cfg supaline.Cfg
@@ -445,12 +591,21 @@ function M.normalize(spec, cfg)
 		return v
 	end
 
+	-- `false` is taken before the reader, because it is the one value a
+	-- separator may be that `M.separator` refuses: on a column it says "draw
+	-- nothing before this one", which is a column's answer and not a
+	-- linemode's, and the message it would otherwise get is written to say so.
+	local sep = pick("sep")
+	if sep ~= false then
+		sep = M.separator(sep, string.format("`sep` of column `%s`", name or "?"))
+	end
+
 	local col = {
 		name = name,
 		align = pick("align") or "right",
 		overflow = pick("overflow") or "ellipsis",
 		max_width = pick("max_width"),
-		sep = pick("sep"),
+		sep = sep,
 		stats = pick("stats"),
 		refresh = pick("refresh"),
 		render = opts.render or def.render,

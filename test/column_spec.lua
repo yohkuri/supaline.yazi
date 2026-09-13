@@ -32,7 +32,7 @@ test("normalize: an option written on the definition survives, `false` and all",
 	-- definition that said `sep = false` still got a separator drawn.
 	column.register("tight", { width = 3, sep = false, render = function() return "x" end })
 	eq(column.normalize("tight", CFG).sep, false)
-	eq(column.normalize({ "tight", sep = "|" }, CFG).sep, "|", "the use site still wins")
+	eq(column.normalize({ "tight", sep = "|" }, CFG).sep.text, "|", "the use site still wins")
 end)
 
 test("normalize: a bare function", function()
@@ -78,6 +78,85 @@ test("register: a column may not own asynchronous state", function()
 	throws(function()
 		column.register("async", { render = function() return "" end, fetch = function() end })
 	end, "cannot define `fetch`")
+end)
+
+-- --- separators ------------------------------------------------------------
+
+column.register("plain", { width = 2, render = function() return "x" end })
+
+--- The record `normalize` puts on a column for the separator written at
+--- `value`. Read through a column rather than through `setup` because a
+--- column's `sep` is the one of the three places that reached Yazi unread:
+--- `sep = 42` emptied the pane, with the cause a whole session behind it.
+---@param value any
+---@return supaline.Sep
+local function separator(value)
+	-- Cast because a column's `sep` is `false` where the column drops the
+	-- separator before it, and that is the one value nothing below writes:
+	-- every call here hands in a separator for `column.separator` to read.
+	return column.normalize({ "plain", sep = value }, CFG).sep --[[@as supaline.Sep]]
+end
+
+--- Assert that a separator is refused, with a message mentioning `pattern`.
+---@param value any
+---@param pattern string
+local function refuses_sep(value, pattern)
+	throws(function() separator(value) end, pattern)
+end
+
+test("separator: a string is the text and no style", function()
+	eq(separator("|").text, "|")
+	eq(separator("|").style, nil, "nobody wrote one, so `render` has no Span to build")
+	eq(separator("").text, "", "an empty separator draws nothing and is not a mistake")
+end)
+
+test("separator: the table form carries a style", function()
+	local one = separator { " | ", style = { fg = "#585b70" } }
+	eq(one.text, " | ")
+	eq(one.style.fg, "#585b70")
+end)
+
+test("separator: the table form with no style says what the bare string says", function()
+	-- Allowed rather than refused as a second spelling of the bare string:
+	-- every other optional key on every other spec may be left out, and
+	-- refusing the omission here would make this the one place that cannot be.
+	-- What it must not do is mean something else -- take the style from the
+	-- level above -- because two spellings that differ only in what they
+	-- inherit is the four-way inheritance this shape was chosen to avoid.
+	eq(separator({ " | " }).text, " | ")
+	eq(separator({ " | " }).style, nil)
+end)
+
+test("separator: a style written as a function is called", function()
+	-- Called inside `normalize`, which runs inside `build`, so it follows a
+	-- theme reload the way a column's `base` function does. That it is called
+	-- again on the next build is `main_spec.lua`'s to say, since only `setup`
+	-- has a build to run twice.
+	eq(separator({ "|", style = function() return "#ff8800" end }).style.fg, "#ff8800")
+end)
+
+test("separator: what a separator is refused for", function()
+	-- Every one of these was silence before `column.separator` existed. A
+	-- column's `sep` went through no check at all, and the rest are shapes that
+	-- could not be written until the table form was.
+	refuses_sep(42, "`sep` of column `plain`")
+	refuses_sep({ style = { fg = "cyan" } }, "given nothing to draw")
+	refuses_sep({ 42, style = { fg = "cyan" } }, "given a number to draw")
+	refuses_sep({ "|", styel = { fg = "cyan" } }, "`styel`")
+	refuses_sep({ "", style = { fg = "cyan" } }, 'draws "" in a colour')
+
+	-- `style = false` reads like a column's `base = false`, which drops a
+	-- colour the theme or the definition would otherwise supply. A separator
+	-- has neither behind it, so the value has nothing to mean.
+	refuses_sep({ "|", style = false }, "nothing there to turn off")
+end)
+
+test("separator: every key nobody claimed, in an order two runs agree on", function()
+	-- `pairs` walks a table in whatever order the hash gives, so naming
+	-- whichever came up first would hide the second misspelling until the first
+	-- was fixed. The same sentence `panes_of` and `from_table` are both written
+	-- under.
+	refuses_sep({ "|", styel = 1, colour = 2 }, "`colour`, `styel`")
 end)
 
 -- --- layout ----------------------------------------------------------------

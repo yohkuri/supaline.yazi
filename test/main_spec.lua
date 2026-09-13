@@ -81,6 +81,46 @@ test("setup: `sep = false` drops the separator before a column", function()
 	eq(draw("detail", CURRENT.files[1]), " 1B 1B")
 end)
 
+--- A column that draws `text` and asks for no colour, so the only thing in a
+--- row built out of these that can carry a style is the separator between
+--- them.
+---@param text string
+---@return supaline.Render
+local function plain(text)
+	return function() return text end
+end
+
+--- The first style anywhere in a row, or nil if nothing in it carries one.
+---@param name string
+---@return table?
+local function style_in(name) return stub.first_style(Linemode[name] { _file = CURRENT.files[1] }) end
+
+test("setup: a separator can be drawn in a colour of its own", function()
+	setup({ detail = { plain("a"), plain("b") } }, { separator = { " | ", style = { fg = "#585b70" } } })
+	eq(draw("detail", CURRENT.files[1]), "a | b")
+	eq(assert(style_in("detail"), "the separator came back unstyled").fg, "#585b70")
+end)
+
+test("setup: a nearer separator replaces a farther one whole, colour and all", function()
+	-- The one rule the table form exists to keep: whichever level wrote a
+	-- separator supplies both halves of it. A bare string at the nearer level
+	-- therefore draws uncoloured rather than borrowing the colour above it,
+	-- which is what `base` does to a theme one level down.
+	setup({
+		detail = { plain("a"), { plain("b"), sep = "-" } },
+	}, { separator = { " | ", style = { fg = "#585b70" } } })
+	eq(draw("detail", CURRENT.files[1]), "a-b")
+	eq(style_in("detail"), nil, "the nearer separator took the colour with it as well as the text")
+end)
+
+test("setup: a linemode's separator carries its style past the plugin-wide one", function()
+	setup({
+		detail = { plain("a"), plain("b"), separator = { "+", style = { fg = "#00ccff" } } },
+	}, { separator = { " | ", style = { fg = "#585b70" } } })
+	eq(draw("detail", CURRENT.files[1]), "a+b")
+	eq(assert(style_in("detail"), "the separator came back unstyled").fg, "#00ccff")
+end)
+
 test("setup: a linemode with no columns draws nothing", function()
 	setup { detail = {} }
 	eq(draw("detail", CURRENT.files[1]), "")
@@ -158,7 +198,7 @@ test("setup: a name Yazi cannot hold is refused", function()
 	throws(function() main.setup({}, { linemodes = { [string.rep("あ", 21)] = { "size" } } }) end, "1 to 20 characters")
 end)
 
-test("setup: a separator that is not a string is refused", function()
+test("setup: a separator that is neither a string nor a table is refused", function()
 	-- The wrong value is the test; the checker refuses both of these where it
 	-- runs, which is not over anyone's `init.lua`.
 	---@diagnostic disable-next-line: assign-type-mismatch
@@ -452,6 +492,35 @@ test("theme: a reload replaces a colour already resolved", function()
 			stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
 			"#00ccff",
 			"the reloaded colour, not the one resolved at setup"
+		)
+	end)
+end)
+
+test("theme: a separator's style function is read again on a reload", function()
+	-- The same repair a column's `base` gets and for the same reason: a spec is
+	-- re-read on every build and never evaluated, so a style written as a value
+	-- freezes whatever the theme held while `init.lua` ran. A function is
+	-- called inside the build, where the flavor has landed and every `app:theme`
+	-- after it runs again.
+	--
+	-- Changing the section *after* `setup` is what makes this test say that. A
+	-- section that never changed would pass for a plugin that resolved the
+	-- function once and kept the answer.
+	local function plain(text)
+		return function() return text end
+	end
+	with_theme({ sep = "#ff8800" }, function()
+		setup {
+			detail = { plain("a"), plain("b"), separator = { "|", style = function() return th.supaline.sep end } },
+		}
+		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
+
+		stub.th.supaline = { sep = "#00ccff" }
+		stub.fire("theme")
+		eq(
+			stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg,
+			"#00ccff",
+			"the reloaded colour, not the one the function returned at setup"
 		)
 	end)
 end)
