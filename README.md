@@ -383,7 +383,9 @@ A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
 what the same line means in a theme: a field holds three states — absent, on,
 and off — and off strips a `bold` the row beneath already carries. `ui.Style`
 without the call, and a table with nothing in it, are both refused: neither is
-a style, and both would otherwise draw the column in no colour at all.
+a style, and both would otherwise draw the column in no colour at all. So is a
+**list** of colours, which is a gradient written one key too far in: that one
+is answered by name too, and the name is [`ramp`](#a-gradient).
 
 It also takes a **function returning one**, which is how you borrow a colour
 from the rest of your theme:
