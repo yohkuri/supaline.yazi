@@ -320,7 +320,21 @@ function Style:patch(other)
 	end
 	return s
 end
-for _, key in ipairs { "bold", "italic", "underline", "dim", "reverse" } do
+-- Every attribute 26.9.1's `ui.Style` has, named as the API names them --
+-- `reverse`, where the theme key for the same effect is `reversed`. A stub
+-- missing one would refuse a style the plugin is entitled to build, and it
+-- would refuse it as `attempt to call a nil value`.
+for _, key in ipairs {
+	"bold",
+	"dim",
+	"italic",
+	"underline",
+	"blink",
+	"blink_rapid",
+	"reverse",
+	"hidden",
+	"crossed",
+} do
 	Style[key] = function(self, value)
 		local s = new_style(self)
 		s[key] = value == nil or value

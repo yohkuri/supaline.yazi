@@ -394,11 +394,17 @@ test("ramp: a column with no extremes to place a value between is refused", func
 	end, "has no `stats`")
 end)
 
-test("base: a plain style table is refused rather than drawn", function()
-	-- It survives `setup` and then empties the screen: `Span:style` takes a
-	-- Style or nil, and a table reaches Yazi as neither. Nor is a table the only
-	-- way in -- the refusal is an allow-list, so a number is turned away too.
-	throws(function() coloured { base = { fg = "#ff8800" } } end, "plain table")
+test("base: a style table is built into a style, and anything else is refused", function()
+	-- The spelling `theme.toml` uses, taken here too, so a style moves between
+	-- the two files unchanged. `colour_spec.lua` pins the keys; this is the
+	-- spec's own path to them.
+	local ctx = coloured { base = { fg = "#ff8800", bold = true } }
+	eq(ctx.base.fg, "#ff8800")
+	eq(ctx.base.bold, true)
+
+	-- Still an allow-list: what is not a colour, a style table or a `ui.Style`
+	-- survives `setup` and then empties the screen, because `Span:style` takes a
+	-- Style or nil and a number reaches Yazi as neither.
 	throws(function() coloured { base = 42 } end, "is a number")
 end)
 
@@ -433,12 +439,13 @@ end)
 
 test("base: `ui.Style` with the call forgotten is refused, not called", function()
 	-- Measured on 26.9.1: `type(ui.Style)` is `table` and only `ui.Style()` is
-	-- userdata, so Yazi refuses the bare name as a plain table. The branch above
-	-- reads `type(base)`, which is what makes the stub's shape load-bearing here
-	-- -- as a plain function it would have been called for a colour and come
-	-- back an empty style, green and uncoloured.
+	-- userdata. Now that a table is a style rather than a refusal, the bare name
+	-- would be read as one -- `pairs` finds nothing on it, so it would come back
+	-- an empty style, green and uncoloured. `colour.lua` tells the two apart by
+	-- the `__call` a constructor carries, and the stub's `ui.Style` has one for
+	-- the same reason Yazi's does.
 	eq(type(ui.Style), "table")
-	throws(function() coloured { base = ui.Style } end, "plain table")
+	throws(function() coloured { base = ui.Style } end, "is the constructor")
 end)
 
 test("base: a function in the spec outranks the theme, the way a colour does", function()
