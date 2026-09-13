@@ -81,6 +81,33 @@ function throws(fn, pattern)
 	end
 end
 
+--- Run `fn` with `t[key]` set to `value`, and put back whatever was there
+--- afterwards.
+---
+--- Here rather than in each spec because the restore is the part that gets
+--- dropped, and dropping it is invisible: `test` pcalls a body, so a failing
+--- assertion leaves the body at once and a restore written as the last line of
+--- it never runs. What is left set then reaches every test after that one, and
+--- the failure is reported against whichever of them trips over it -- so a
+--- swap written out by hand looks correct on the page and costs a debugging
+--- session the first time an assertion under it fails.
+---
+--- A body that reassigns the field mid-test -- the theme-reload cases do --
+--- is restored just the same: what goes back is what was there on the way in.
+---@param t table
+---@param key any
+---@param value any
+---@param fn function
+function with(t, key, value, fn)
+	local before = t[key]
+	t[key] = value
+	local ok, err = pcall(fn)
+	t[key] = before
+	if not ok then
+		error(err, 0)
+	end
+end
+
 --- The plain text of anything a column rendered.
 _G.text_of = stub.text_of
 _G.stub = stub

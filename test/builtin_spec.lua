@@ -14,19 +14,12 @@ local CFG = { scale = "linear" }
 local NO_SCALE = {}
 
 --- Run `fn` with `cx.active:history` answering `folder`, and put the stub's own
---- back afterwards: left reassigned, it reaches every test after this one and
---- the failure points at the wrong one.
+--- back afterwards.
 ---@param folder table?
 ---@param fn function
 local function with_history(folder, fn)
-	local before = cx.active.history
 	-- Yazi's parameters, for the reason `stub.lua` gives beside its own.
-	cx.active.history = function(_, _url) return folder end
-	local ok, err = pcall(fn)
-	cx.active.history = before
-	if not ok then
-		error(err, 0)
-	end
+	with(cx.active, "history", function(_, _url) return folder end, fn)
 end
 
 --- Run `fn` on a build with no name lookups at all, and put them back
@@ -35,20 +28,15 @@ end
 --- away is what a spec has instead of a Windows machine.
 ---
 --- Takes the two rather than assuming nil, so a spec that wants to watch the
---- lookups rather than remove them uses the same restore path. Left
---- reassigned, either one reaches every test after this one and the failure
---- points at the wrong one.
+--- lookups rather than remove them uses the same restore path. Nested rather
+--- than swapped in one step, because `with` carries one field: either one left
+--- reassigned reaches every test after this, and the inner call is what puts
+--- the second back when the body raises.
 ---@param user function?
 ---@param group function?
 ---@param fn function
 local function with_names(user, group, fn)
-	local before = { ya.user_name, ya.group_name }
-	ya.user_name, ya.group_name = user, group
-	local ok, err = pcall(fn)
-	ya.user_name, ya.group_name = before[1], before[2]
-	if not ok then
-		error(err, 0)
-	end
+	with(ya, "user_name", user, function() with(ya, "group_name", group, fn) end)
 end
 
 --- The build with no lookups at all: Yazi's Windows one.
@@ -158,18 +146,17 @@ local STATUS = {
 ---@param status table?
 ---@return string
 local function perm_fgs(file, opts, status)
-	local before = stub.th.status
-	stub.th.status = status == nil and STATUS or status
-
 	local spec = { "permissions" }
 	for k, v in pairs(opts or {}) do
 		spec[k] = v
 	end
 	local col = column.normalize(spec, CFG)
-	col.refresh()
-	local out = column.cell(col, file)
 
-	stub.th.status = before
+	local out
+	with(stub.th, "status", status == nil and STATUS or status, function()
+		col.refresh()
+		out = column.cell(col, file)
+	end)
 
 	-- Walked rather than read off `_parts` directly: `column.cell` puts what a
 	-- render hands back through a `ui.Line` of its own, which Yazi answers with
@@ -230,28 +217,30 @@ test("permissions: a colour written for the column takes the theme's place", fun
 	-- wrote would leave it visible nowhere.
 	eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }, { base = "#00ccff" }), "#00ccff")
 
-	local before = stub.th.supaline
-	stub.th.supaline = { permissions = "#00ccff" }
-	eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }), "#00ccff")
-	stub.th.supaline = before
+	with(
+		stub.th,
+		"supaline",
+		{ permissions = "#00ccff" },
+		function() eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }), "#00ccff") end
+	)
 end)
 
 test("permissions: `refresh` is what follows a theme that moved", function()
 	local file = stub.file { perm = "drwxr-xr-x" }
 	local col = column.normalize({ "permissions" }, CFG)
 
-	local before = stub.th.status
-	stub.th.status = STATUS
-	col.refresh()
-	eq(stub.first_style(column.cell(col, file)).fg, "#000011")
+	-- The body reassigns the section, and what `with` puts back is what was
+	-- there on the way in rather than what the body left.
+	with(stub.th, "status", STATUS, function()
+		col.refresh()
+		eq(stub.first_style(column.cell(col, file)).fg, "#000011")
 
-	-- The flavor arriving after `init.lua`, and a later `app:theme`, look the
-	-- same from here: the section is different and the hook runs again.
-	stub.th.status = { perm_type = ui.Style():fg("#ff00ff") }
-	col.refresh()
-	eq(stub.first_style(column.cell(col, file)).fg, "#ff00ff")
-
-	stub.th.status = before
+		-- The flavor arriving after `init.lua`, and a later `app:theme`, look
+		-- the same from here: the section is different and the hook runs again.
+		stub.th.status = { perm_type = ui.Style():fg("#ff00ff") }
+		col.refresh()
+		eq(stub.first_style(column.cell(col, file)).fg, "#ff00ff")
+	end)
 end)
 
 test("owner: user:group", function() eq(render("owner", stub.file { uid = 1, gid = 2 }), "user1:group2") end)
