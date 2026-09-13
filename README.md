@@ -157,7 +157,7 @@ Any option below can be set on the definition or overridden per use.
 | `max_width` | `nil`        | Caps the column's width, however it was derived.          |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
-| `base`      | `nil`        | One colour, or a `ui.Style`. See [Colours](#colours).    |
+| `base`      | `nil`        | One colour, a `ui.Style`, or a function returning one. See [Colours](#colours). |
 | `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string replaces it. |
@@ -319,6 +319,25 @@ names, a 256-colour index written as a string, `"reset"` — or a whole
 { "size", base = "129" }
 { "size", base = ui.Style():fg("cyan"):bold() }
 ```
+
+It also takes a **function returning one**, which is how you borrow a colour
+from the rest of your theme:
+
+```lua
+{ "permissions", base = function() return th.status.perm_read end }
+```
+
+Write that one as a value and it comes out wrong, in a way nothing reports.
+Yazi merges a flavor *after* your `init.lua` has run, so `th.status.perm_read`
+read there is Yazi's preset rather than your flavor's colour — and it stays
+the preset, because a spec is re-read on `app:theme` and never evaluated
+again. A function is called again each time the linemode is built: at startup,
+on the event the flavor arrives with, and on every reload. Once per column
+each time, never per row.
+
+`ramp` takes no function. Its endpoints need `#rrggbb` channels to interpolate
+between, and a colour cannot be read back out of a `ui.Style` from Lua, so the
+one thing a function there could reach for is the one thing it could not use.
 
 ### A gradient
 
@@ -500,6 +519,8 @@ about them:
 ```lua
 { "size", base = ui.Style():bold(), ramp = "#0b3d91 -> #7fd4ff" }
 ```
+
+A function counts as the spec saying something, whatever it goes on to return.
 
 `false` is how a spec says "neither" — the same spelling `sep` uses. It counts
 as the spec saying something, so it takes the whole source with it: not the

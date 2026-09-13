@@ -58,6 +58,23 @@ taken while `init.lua` ran is holding it. The middle column is what keeps the
 plugin working — the unasked `theme` event of the third bullet above lands
 after the flavor does, and `main.lua` rebuilds on it.
 
+The same timing, read from a spec rather than from the plugin, is what `base`
+takes a function for. Two probe columns over the same field, one capturing it
+in `init.lua` and one wrapping it in a function, against catppuccin-mocha and
+then a `theme.toml` that overrode `[status] perm_read` mid-run:
+
+| how the spec wrote it | at startup | after `app:theme` |
+| --------------------- | ---------- | ----------------- |
+| `base = th.status.perm_read` | `[33m`, the preset | `[33m`, unchanged |
+| `base = function() return th.status.perm_read end` | `#f9e2af` | `#ff00ff` |
+
+The captured one never moves: a spec is re-read on each `theme` event and never
+evaluated again. Two things the run cost an hour to learn and neither is
+supaline's: a flavor is found under `YAZI_CONFIG_HOME/flavors`, so a probe
+config that does not carry one silently has no flavor at all and no unasked
+`theme` event either; and `[status] perm_read = "#ff00ff"` is refused as
+`expected struct StyleFlat` -- a theme field wants `{ fg = "..." }`.
+
 The probe reads the field back through supaline rather than out of `th`,
 because **a colour cannot be read out of a `ui.Style` from Lua**: `fg` and `bg`
 are setters and raise when called with no argument, and `getmetatable` on one
