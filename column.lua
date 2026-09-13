@@ -450,6 +450,33 @@ local SEP_FALSE = "supaline: %s has `style = false`, and there is nothing there 
 	.. "supply; a separator has neither behind it, so leaving `style` out is how one goes "
 	.. "uncoloured"
 
+--- Call a function a spec wrote where a value would go, and name it if it
+--- raises.
+---
+--- Two keys take one, for one reason: a column's `base` and a separator's
+--- `style`. A spec is re-read on every build and never evaluated again, so a
+--- value freezes whatever the theme held while `init.lua` ran; a function is
+--- called inside `build`, where the flavor has landed, and again on every
+--- `app:theme` after it.
+---
+--- The `pcall` is the half both need. The likely failure is the call itself:
+--- `th.status.perm_read` against a flavor with no `[status]` section raises
+--- `attempt to index a nil value`, and that reaches the user as `build`'s
+--- notification -- where a message carrying no name says nothing about which
+--- line to open. So `what` is the caller's to supply, and the two spell it
+--- differently: a `base` names the file it was written in, a separator's
+--- style names the separator.
+---@param fn function
+---@param what string what to call the function in a message
+---@return any
+local function called(fn, what)
+	local ok, got = pcall(fn)
+	if not ok then
+		error(string.format("supaline: %s raised: %s", what, tostring(got)))
+	end
+	return got
+end
+
 --- Read a separator, in whichever of the two shapes it was written. Every
 --- place that takes one comes through here: `separator` in `setup`,
 --- `separator` on a linemode, and a column's own `sep`, which was refused
@@ -492,17 +519,9 @@ function M.separator(value, where)
 
 	local style = value.style
 	if type(style) == "function" then
-		-- Called here, and here is the whole of what it buys: this runs inside
-		-- `build`, so the flavor that was not there while `init.lua` ran has
-		-- landed, and every `app:theme` after it evaluates the function again.
-		-- A spec is re-read on each of those passes and never evaluated; a
-		-- function is. The same repair, and the same `pcall`, that a column's
-		-- `base` gets below.
-		local ok, got = pcall(style)
-		if not ok then
-			error(string.format("supaline: the style function under %s raised: %s", where, tostring(got)))
-		end
-		style = got
+		-- The same repair a column's `base` gets, through the same helper: a
+		-- separator written in a theme's colour has to follow that theme.
+		style = called(style, string.format("the style function under %s", where))
 	end
 
 	if style == false then
@@ -640,20 +659,13 @@ function M.normalize(spec, cfg)
 	-- reach for is the one thing it could not use.
 	local base_where = where
 	if type(base) == "function" then
+		-- Named for the file it was written in rather than for `base`, because
+		-- a definition's function is not on a line the reader has.
 		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
-		-- Two ways for this to go wrong and one mechanism for both. The likely
-		-- one is the call itself: `th.status.perm_read` against a flavor with
-		-- no `[status]` section raises `attempt to index a nil value`, and that
-		-- reaches the user as `build`'s notification, where a message carrying
-		-- no column name says nothing about which line to open.
-		local ok, got = pcall(base)
-		if not ok then
-			error(string.format("supaline: %s raised: %s", fn, tostring(got)))
-		end
 		-- `or nil` for the reason `colours_of` writes it: `false` is how a spec
 		-- says "no colour at all", and a function that hands one back is saying
 		-- that rather than handing back a value Yazi would refuse.
-		base, base_where = got or nil, "what " .. fn .. " returned"
+		base, base_where = called(base, fn) or nil, "what " .. fn .. " returned"
 	end
 	local ground = colour.style(base, base_where)
 
