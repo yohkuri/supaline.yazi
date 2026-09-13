@@ -186,9 +186,9 @@ and do not write a check that waits for it.
 
 ## What pins the parent-pane child
 
-`test/main_spec.lua`, "a list opts into the panes it names". It calls the child
-directly for a row with `in_current = false` — the case `solo()` would have
-refused and a child does not.
+`test/main_spec.lua`, "a pane key opts into the pane it names". It calls the
+child directly for a row with `in_current = false` — the case `solo()` would
+have refused and a child does not.
 
 It pins the code that exists and nothing else. A new column can repeat the trap
 and keep the suite green, which is why the other two constraints of that shape
