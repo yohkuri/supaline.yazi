@@ -598,11 +598,15 @@ supaline:setup({
 			{ "name", overflow = "grow" },
 		},
 
-		-- m5: the default separator, none at all, and one of your own.
+		-- m5: the default separator, none at all, and one of your own -- the
+		-- last of them in a colour. That is the half no plain-text assertion
+		-- can see: a separator used to be a bare string in the row, so it took
+		-- whatever style the row had, and the only way to tell a span of its
+		-- own from a string that inherited one is to read the escapes.
 		seps = {
 			{ "ext" },
 			{ "size", sep = false },
-			{ "mtime", sep = "│" },
+			{ "mtime", sep = { "│", style = { fg = "#a6e3a1" } } },
 		},
 
 		-- m6 to m8: the panes. The difference shows in the left and right
