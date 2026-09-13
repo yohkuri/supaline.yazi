@@ -379,10 +379,11 @@ A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
 `crossed` is the spelling
 ```
 
-`bold = false` is an attribute left off rather than an error, as it is in a
-theme. `ui.Style` without the call, and a table with nothing in it, are both
-refused: neither is a style, and both would otherwise draw the column in no
-colour at all.
+`bold = false` is the attribute **taken off** rather than an error, which is
+what the same line means in a theme: a field holds three states — absent, on,
+and off — and off strips a `bold` the row beneath already carries. `ui.Style`
+without the call, and a table with nothing in it, are both refused: neither is
+a style, and both would otherwise draw the column in no colour at all.
 
 It also takes a **function returning one**, which is how you borrow a colour
 from the rest of your theme:

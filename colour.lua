@@ -215,9 +215,12 @@ end
 
 --- The style a table written in a spec asks for.
 ---
---- The same keys `theme.toml` takes, and the same meanings -- `false` is not
---- an error but an attribute left off, which is what `bold = false` means in
---- a theme and has to go on meaning here.
+--- The same keys `theme.toml` takes, and the same meanings. A theme field
+--- holds three states rather than two: absent, `true`, and `false`, and the
+--- last is the attribute *taken off* rather than one never written. Measured
+--- on 26.9.1 through `Style:raw()`: `bold = false` under `[supaline]` reaches
+--- a plugin as a style whose raw `bold` is `false`, which strips a `bold` the
+--- row beneath it carries. `bold = false` here has to mean that too.
 ---
 --- `fg` and `bg` go through `M.colour`, so a colour is one thing in this file
 --- whichever key it arrived under. It parses both through Yazi's `fg`, which
@@ -302,8 +305,16 @@ local function from_table(t, where)
 					type(v)
 				)
 			)
-		elseif v then
-			style = style[METHOD[k]](style)
+		elseif v ~= nil then
+			-- `not v`, and the inversion is Yazi's rather than a slip: the
+			-- argument these methods take is `remove`, so `bold()` and
+			-- `bold(false)` both *add* the attribute and only `bold(true)` takes
+			-- it off. Read off `yazi-binding/src/style/style.rs` at 26.9.1 and
+			-- measured through `Style:raw()` -- `ui.Style():bold(true)` comes back
+			-- `{ bold = false }`, the same shape a theme's `bold = false` arrives
+			-- in. Written as `style[METHOD[k]](style)` a `false` would have gone
+			-- in as a second `true`.
+			style = style[METHOD[k]](style, not v)
 		end
 	end
 	return style
