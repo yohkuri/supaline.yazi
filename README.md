@@ -355,15 +355,34 @@ Both are written the same way in the spec and in your theme.
 ### One colour
 
 `base` takes anything Yazi's own parser takes — `"#rrggbb"`, one of the sixteen
-names, a 256-colour index written as a string, `"reset"` — or a whole
-`ui.Style`, for bold or a background:
+names, a 256-colour index written as a string, `"reset"` — or a whole style,
+for bold or a background. A style is written either as the table
+`theme.toml` uses or as a `ui.Style`, and the two mean the same thing:
 
 ```lua
 { "size", base = "#ff8800" }
 { "size", base = "lightcyan" }
 { "size", base = "129" }
+{ "size", base = { fg = "cyan", bold = true } }
 { "size", base = ui.Style():fg("cyan"):bold() }
 ```
+
+The table takes the keys [a theme's does](#from-the-theme), in the same
+spelling — `reversed`, not `reverse` — and here a key that is none of them is
+**refused by name**, which is the one thing a theme cannot do for you:
+
+```text
+supaline: the colour of column `size`: `strikethrough` is not a style key.
+A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
+`blink`, `blink_rapid`, `reversed`, `hidden` and `crossed` -- the spelling
+`theme.toml` uses, so a style is written the same way in both files.
+`crossed` is the spelling
+```
+
+`bold = false` is an attribute left off rather than an error, as it is in a
+theme. `ui.Style` without the call, and a table with nothing in it, are both
+refused: neither is a style, and both would otherwise draw the column in no
+colour at all.
 
 It also takes a **function returning one**, which is how you borrow a colour
 from the rest of your theme:
@@ -556,8 +575,9 @@ A style table takes the keys Yazi's own theme fields take: `fg`, `bg`, `bold`,
 `dim`, `italic`, `underline`, `blink`, `blink_rapid`, `reversed`, `hidden` and
 `crossed`. Any of them stands alone — `{ bold = true }` draws the column bold
 in whatever colour the row already carries — and `fg` takes everything `base`
-does. A table is never a ramp, so a gradient with a background or a bold on it
-is a `base` in the spec rather than anything a theme can say.
+does. [A `base` takes the same table](#one-colour). A table is never a ramp,
+so a gradient with a background or a bold on it is a `base` in the spec rather
+than anything a theme can say.
 
 Two spellings are worth getting right, because neither is refused. It is
 `reversed`, where the `ui.Style` method of the same effect is `reverse()`; and
