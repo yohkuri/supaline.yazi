@@ -18,6 +18,7 @@ detached tmux, with a probe plugin and `ya.dbg`.
 
 - What is merged before any plugin code runs, and what is not
 - How Yazi colours a permission string
+- What a cell with no `base` is drawn in
 - What the two theme pins discriminate
 - A fetcher that returns a boolean
 - What pins the parent-pane child
@@ -109,6 +110,39 @@ is how the missing row in that mapping was found, by a review rather than by
 this probe. A dummy row is not exotic: Yazi builds one for any listed entry it
 cannot stat, and `Status:perm()` in `yazi-plugin/preset/components/status.lua`
 tests `c == "-" or c == "?"` in one branch.
+
+## What a cell with no `base` is drawn in
+
+Four columns side by side, over a `theme.toml` holding nothing but
+`[flavor] dark = "catppuccin-mocha"`, read off one screen out of
+`tmux capture-pane -e`:
+
+| column | how it was written | on a directory row | on a file row |
+| ------ | ------------------ | ------------------ | ------------- |
+| `size` | `base = "cyan"` | `[36m` | `[36m` |
+| `mtime` | `base = "blue"` | `[34m` | `[34m` |
+| `user` | no `base` | `#89b4fa` | `#cdd6f4` |
+| `count` | no `base` | `#89b4fa` | `#cdd6f4` |
+
+The bottom two rows move with the row and the top two do not. A cell with no
+style of its own is drawn in the colour the flavor gave the file itself --
+`#89b4fa` is catppuccin-mocha's directory and `#cdd6f4` its regular file --
+while one of the sixteen names is resolved by the terminal, which the flavor
+never reaches. `colour.lua` says the same thing from the other end:
+`colour.colour("cyan")` is `nil`, because there are no channels behind a name
+to interpolate between.
+
+What produces the first behaviour is `colour.style(nil)` returning an empty
+`ui.Style()` rather than refusing, so "no base" arrives at the screen as "no
+style" rather than as a default of the plugin's own.
+
+**There is no theme field a size or a timestamp could borrow instead.** Read
+off `yazi-config/preset/theme-dark.toml` at v26.9.1: no section means either
+of them -- `th.mgr.cwd` is the current directory's path and
+`th.status.progress_*` the task gauge -- so a built-in naming one would be as
+arbitrary as `cyan` and harder to see. A flavor can still ship a `[supaline]`
+section of its own, which outranks a column's definition; that is the route,
+not a borrowed field.
 
 ## What the two theme pins discriminate
 
