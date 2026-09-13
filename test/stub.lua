@@ -543,12 +543,21 @@ local function take(part)
 	return part
 end
 
+--- A Line that is handed a Line is not given it back: measured on 26.9.1,
+--- `ui.Line(line)` succeeds once and the same line offered a second time
+--- raises `expected a string, Span, Line, or a table of them`, the refusal a
+--- reused Span gets. So a bare Line is consumed and wrapped like any other
+--- part, and the wrapper that comes back is a Line of its own, which a further
+--- `ui.Line` may consume in turn -- also measured.
+---
+--- Handing it straight back is what this did until a review caught it, and the
+--- cost was the whole point of the check: `column.cell` calls `ui.Line(out)`
+--- on whatever a render returns, so a column caching one finished Line was
+--- green here and blanked the pane on the second row.
 function M.Line(x)
-	if getmetatable(x) == Line then
-		return x
-	end
+	local mt = getmetatable(x)
 	local parts = x
-	if type(x) ~= "table" or getmetatable(x) == Span then
+	if type(x) ~= "table" or mt == Span or mt == Line then
 		parts = { x }
 	end
 	for _, part in ipairs(parts) do
