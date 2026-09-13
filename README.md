@@ -208,8 +208,13 @@ column that styles its own spans can still set the ground under them.
 There is no `ctime` column: Yazi's `Cha` exposes `atime`, `btime` and `mtime`
 only.
 
-`permissions` is the one built-in that takes its colours from your theme rather
-than carrying any of its own. Each character is drawn in the `[status]` style
+None of them names a colour. A built-in column leaves its cell unstyled, so it
+is drawn in whatever colour your flavor already gives the file row -- the same
+as Yazi's own linemodes. Write a `base` in the spec or a field in `[supaline]`
+to say otherwise.
+
+`permissions` is the one built-in that colours its own cell, and it takes those
+colours from your theme. Each character is drawn in the `[status]` style
 Yazi's own status bar would give it -- `perm_type` for the `d` or the `l`,
 `perm_read`, `perm_write`, `perm_exec`, and `perm_sep` for every bit that is
 off -- so a flavor that already says what a write bit looks like says it in the

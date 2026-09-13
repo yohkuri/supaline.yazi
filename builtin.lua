@@ -8,6 +8,16 @@
 --- rendering every file in the folder on each `cd`, which is the right trade
 --- only when the user asks for it -- `width = "auto"` is available on any
 --- column, these included.
+---
+--- **None of them writes a `base`.** A cell with no style of its own is drawn
+--- in whatever colour the file row already carries, which is the flavor's, and
+--- that is what Yazi's own linemodes do -- `preset/components/linemode.lua`
+--- returns bare strings. A colour named here would be the terminal palette's
+--- instead: measured on 26.9.1 under catppuccin-mocha, a column written
+--- `base = "cyan"` emitted the 4-bit ANSI escape for cyan while the row around
+--- it was `#cdd6f4`, so the two columns that carried one were the only things
+--- on the screen the flavor did not reach. `permissions` is the exception and
+--- reads the theme, a character at a time, rather than a colour of its own.
 
 local column = require(".column")
 
@@ -43,7 +53,6 @@ end
 column.register("size", {
 	width = 7,
 	align = "right",
-	base = "cyan",
 	scale = "log",
 	stats = extremes(function(file) return file:size() end),
 	---@type supaline.Render
@@ -100,7 +109,6 @@ local function register_time(field)
 	column.register(field, {
 		width = 11,
 		align = "right",
-		base = "blue",
 		stats = extremes(get),
 		refresh = refresh_year,
 		---@type supaline.Render
@@ -188,10 +196,10 @@ local function perm_spans(perm)
 	return spans
 end
 
--- The only built-in column that draws itself out of the *theme* rather than a
--- colour of its own, and it does it by following Yazi's own status bar rather
--- than by inventing a mapping: a user whose flavor already says what a write
--- bit looks like sees the same thing in both places, with nothing to configure.
+-- The only built-in column that paints its own cell at all, and it takes the
+-- colours out of the *theme* by following Yazi's own status bar rather than by
+-- inventing a mapping: a user whose flavor already says what a write bit looks
+-- like sees the same thing in both places, with nothing to configure.
 --
 -- Which is why it steps aside the moment the user says anything about colour.
 -- A `base` in the spec or a `[supaline] permissions` field in the theme is a
