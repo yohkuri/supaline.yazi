@@ -18,6 +18,9 @@
 --- it was `#cdd6f4`, so the two columns that carried one were the only things
 --- on the screen the flavor did not reach. `permissions` is the exception and
 --- reads the theme, a character at a time, rather than a colour of its own.
+--- The rule is not left to this paragraph: `builtin_spec.lua`'s
+--- `no built-in names a colour` walks the registry and refuses a `base` or a
+--- `ramp` on any definition in it, including one added after this was written.
 ---
 --- What they do differ in is `stats`, and there the difference is
 --- load-bearing: `column.lua` refuses a `ramp` on a column that declares none,

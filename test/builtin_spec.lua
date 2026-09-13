@@ -378,3 +378,27 @@ test("size: the scale is logarithmic unless something says otherwise", function(
 	eq(column.normalize({ "size", scale = "log" }, CFG).scale, "log", "and the spec outranks that")
 	eq(column.normalize("mtime", NO_SCALE).scale, "linear", "a column that states none falls back to linear")
 end)
+
+-- --- what none of them writes ----------------------------------------------
+
+test("no built-in names a colour", function()
+	-- The rule `builtin.lua`'s header states, read off the registry rather than
+	-- off a list written here, so a built-in added tomorrow is covered by the
+	-- same assertion without anyone remembering to extend one.
+	--
+	-- Over the registered definitions rather than over `builtin.lua`'s text,
+	-- which a grep would have read cheaply and read wrong: the header paragraph
+	-- stating this rule quotes the spelling it warns against, so the
+	-- documentation is the first hit. The definitions are also the last word --
+	-- `register` stores the table it was handed, so a field assigned to it
+	-- afterwards is as live as one written inside the literal.
+	local seen = 0
+	for name, def in pairs(column._registry) do
+		seen = seen + 1
+		eq(def.base, nil, name .. ": a built-in leaves its cell unstyled, so the flavor's colour reaches it")
+		eq(def.ramp, nil, name .. ": a gradient is the user's to ask for, in the spec or in `[supaline]`")
+	end
+	-- A loop over an empty table passes, which is the one way this test could
+	-- exit green over nothing at all.
+	assert(seen > 0, '`require(".builtin")` registered no columns')
+end)
