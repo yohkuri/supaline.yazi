@@ -8,8 +8,9 @@ description: >-
   needs nothing from here, not for a spec or a stub, which `verify-supaline`
   covers, and not for a rename or a format string. Covers what carries a type
   and what does not, why a wrong value in a configuration table is refused
-  where a misspelled key is not, the six places `types.yazi` disagrees with
-  Yazi 26.9.1, and why a difference is declared by inheriting from Yazi's
+  where a misspelled key is not, the seven places `types.yazi` disagrees with
+  Yazi 26.9.1 -- six where it declares less than Yazi has and one where it
+  declares more -- and why a difference is declared by inheriting from Yazi's
   class rather than re-opening it. The collision that makes `supaline.Main`
   necessary is summarised here and measured in
   references/main-collision.md.
@@ -111,3 +112,12 @@ The cast is the price of the subclass and it is worth paying: re-opening
 `fs__File` and `Cha` to write the fields straight onto them removed the casts
 and, in one arrangement, silently stopped refusing a misspelling — a check that
 quietly does nothing is the failure mode this whole job exists to avoid.
+
+All six of those are `types.yazi` describing **less** than Yazi has, and the
+difference runs the other way too — which is the worse direction, because the
+check blesses the call and the screen refuses it. `ui.Style:reset()` is one:
+declared on the `ui.Style` class the annotations mark `(exact)`, and
+`attempt to call a nil value (method 'reset')` on 26.9.1, measured in a
+detached tmux. Nothing here calls it, and the colour `"reset"` is a different
+thing that works. Take it as the limit on what a green check means: it says
+the annotations agree with the call, and the annotations are not the platform.
