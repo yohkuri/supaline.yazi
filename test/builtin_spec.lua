@@ -118,6 +118,28 @@ end)
 
 -- --- the rest --------------------------------------------------------------
 
+test("permissions: a string Yazi could not have produced is refused by the stub", function()
+	-- The stub's half of this column, pinned here because nothing else would
+	-- notice it going quiet: `perm_spans` falls back to `PERM_TYPE` for any
+	-- character it does not know, so a made-up string renders, and a spec
+	-- asserting on what came back passes while describing no file at all.
+	throws(function() stub.file { perm = "nope" } end, "ten-character")
+	throws(function() stub.file { perm = "drwxr-xr-" } end, "ten-character")
+	throws(function() stub.file { perm = "?rwxr-xr-x" } end, "type character from `dlbcsp-`")
+	-- The `?` of an unstat-able `Cha` is all nine or none: `ChaMode::permissions`
+	-- returns on the dummy before it writes a single bit, so a string cannot
+	-- carry them beside letters.
+	throws(function() stub.file { perm = "drwxr-x???" } end, "nine `?`")
+	-- And the letters are per position, so an execute bit's `s` is not a
+	-- character that may turn up in a read slot.
+	throws(function() stub.file { perm = "dswxr-xr-x" } end, "per position")
+
+	-- Left out is the one thing that is not an error, and it is the platform
+	-- rather than the file: `Cha:perm` is nil under `#[cfg(windows)]`.
+	eq(stub.file({}).cha:perm(), nil)
+	eq(stub.file({ perm = "-?????????" }).cha:perm(), "-?????????")
+end)
+
 test("permissions: left-aligned, blank when the platform has none", function()
 	eq(render("permissions", stub.file { perm = "drwxr-xr-x" }), "drwxr-xr-x")
 	eq(render("permissions", stub.file {}), "          ")
