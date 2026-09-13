@@ -574,6 +574,98 @@ test("colour: a value Yazi would refuse says which column it was", function()
 	throws(function() column.normalize("hue2", CFG) end, "column `hue2`")
 end)
 
+-- --- `attrs` ---------------------------------------------------------------
+
+test("attrs: a themed ramp keeps its colour and gains the attribute", function()
+	-- The case the key exists for. Before it, the only way to a themed ramp
+	-- with a bold on it was copying the endpoints into the spec, where they
+	-- stop following the theme -- and writing `base = { bold = true }` instead
+	-- took the source with it and left the column bold in no colour at all.
+	column.register("att1", { render = function() return "" end, stats = function() return { min = 1, max = 9 } end })
+	with(stub.th, "supaline", { att1 = "#0b3d91 -> #7fd4ff" }, function()
+		local ctx = column.normalize({ "att1", attrs = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
+		eq(ctx.source, "theme", "the colour is still the theme's, which is the whole point")
+		-- Both ends, because `attrs` is folded into the ground every step is
+		-- patched onto: one end carrying it would mean the fold had happened
+		-- somewhere that only sees one.
+		eq(ctx.style(0).fg, "#0b3d91")
+		eq(ctx.style(1).fg, "#7fd4ff")
+		eq(ctx.style(0).bold, true)
+		eq(ctx.style(1).bg, "#1e1e2e")
+	end)
+end)
+
+test("attrs: it goes over the source rather than under it", function()
+	-- A theme that says `bold = false` is a theme stripping a bold off whatever
+	-- is beneath; a spec that then asks for one is the nearer writer, and wins,
+	-- the way a spec's colour wins over a theme's everywhere else. Under, it
+	-- would lose and say nothing.
+	column.register("att2", { render = function() return "" end })
+	with(stub.th, "supaline", { att2 = { fg = "green", bold = false } }, function()
+		local ctx = column.normalize({ "att2", attrs = { bold = true } }, CFG).ctx
+		eq(ctx.base.fg, "green")
+		eq(ctx.base.bold, true)
+	end)
+end)
+
+test("attrs: it is not a colour source, so `base = false` still means none", function()
+	local ctx = coloured { base = false, attrs = { bold = true } }
+	eq(rawget(ctx.base, "fg"), nil, "no colour, and the attribute is still asked for")
+	eq(ctx.base.bold, true)
+end)
+
+test("attrs: `ctx.attrs` is what a column painting its own cell reads", function()
+	-- The only reader, and it exists because `permissions` colours ten
+	-- characters out of the theme and none of them passes through `ctx.base`.
+	local ctx = coloured { attrs = { bold = true } }
+	eq(ctx.attrs.bold, true)
+	eq(coloured({}).attrs, nil, "nil when nobody wrote one, so the check is one comparison")
+end)
+
+test("attrs: a definition may carry one, and a spec replaces it whole", function()
+	-- `pick`, like `align` and `width`. There is no merging between the two
+	-- levels and no auction: `attrs` is an ordinary column option that happens
+	-- not to enter `colours_of`.
+	column.register("att3", { render = function() return "" end, attrs = { italic = true } })
+	eq(column.normalize("att3", CFG).ctx.attrs.italic, true)
+
+	local ctx = column.normalize({ "att3", attrs = { bold = true } }, CFG).ctx
+	eq(ctx.attrs.bold, true)
+	eq(rawget(ctx.attrs, "italic"), nil, "the spec's replaces it rather than adding to it")
+end)
+
+test("attrs: a function is called, and named for the file it was written in", function()
+	local answer = { bold = true }
+	local ctx = coloured { attrs = function() return answer end }
+	eq(ctx.base.bold, true)
+
+	answer = { italic = true }
+	eq(coloured({ attrs = function() return answer end }).base.italic, true, "the next build asks again")
+
+	-- Nil is how a function says "none", which is what lets one be written
+	-- conditionally. `false` is not, and `colour.attrs` says so by name.
+	eq(coloured({ attrs = function() return nil end }).attrs, nil)
+
+	column.register("att4", { render = function() return "" end })
+	throws(function()
+		column.normalize({ "att4", attrs = function() return th.nosuch.field end }, CFG)
+	end, "the `attrs` function of column `att4` raised")
+	throws(function()
+		column.normalize({ "att4", attrs = function() return { fg = "#ff8800" } end }, CFG)
+	end, "what the `attrs` function of column `att4` returned")
+end)
+
+test("attrs: written wrong it says which column, while `setup` runs", function()
+	column.register("att5", { render = function() return "" end })
+	throws(function() column.normalize({ "att5", attrs = { fg = "cyan" } }, CFG) end, "`attrs` of column `att5`")
+	-- Suppressed on the line rather than at the top of the file, and worth
+	-- noting for what it says: the class refuses `false` here at check time,
+	-- where the refusal being tested is the runtime one -- which is the only
+	-- one a user's `init.lua` ever meets, since no check reads that file.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "att5", attrs = false }, CFG) end, "`attrs` of column `att5`")
+end)
+
 -- --- derived widths --------------------------------------------------------
 
 local FILES = {

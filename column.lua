@@ -112,6 +112,11 @@ local colour = require(".colour")
 ---@class supaline.Ctx
 ---@field base unknown what to draw a row with no value in: the ramp's low end, or the flat colour
 ---@field source "spec"|"theme"|"definition" which of the three said what `base` is
+--- Already patched into `base` and into every step of a ramp, so a column that
+--- draws with either needs nothing from this. It is here for the one that
+--- paints its own spans: `permissions` colours each character out of the
+--- theme's `[status]` styles, and those pass through neither.
+---@field attrs unknown? the style `attrs` asked for, nil when the column has none
 ---@field opts table the options the column was specified with
 ---@field stats any whatever this column's `stats` returned for the folder
 ---@field width integer? the effective width, `max_width` already applied
@@ -194,6 +199,10 @@ local colour = require(".colour")
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
 ---@field base unknown? a colour string, a style table, a ui.Style, or a function returning one
 ---@field ramp string|string[]|false|nil `#rrggbb` endpoints, `"#a -> #b"`, or `false` for none
+--- Not a fourth colour source: it never enters `colours_of`, and it is patched
+--- over whatever came out of it. An ordinary option otherwise, read through
+--- `pick` like `align` and `width`, so a spec's replaces a definition's whole.
+---@field attrs table|(fun(): table)|nil style keys to put over the colour, `fg` excepted
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
@@ -673,6 +682,32 @@ function M.normalize(spec, cfg)
 	end
 	local ground = colour.style(base, base_where)
 
+	-- What a spec wanted *beside* the colour, rather than instead of it. Folded
+	-- into the ground here, which is the whole of the implementation: a ramp is
+	-- built by patching each step's `fg` onto this same ground, and `attrs` is
+	-- refused an `fg`, so the two never touch and every step comes out carrying
+	-- both. Against a flat colour it lands the same way round -- `attrs` over
+	-- the source rather than under it, which is how a spec beats a theme
+	-- everywhere else in this file, and the only order in which a theme's
+	-- `bold = false` does not silently eat an `attrs` that asked for one.
+	--
+	-- It does not go near `colours_of`, and that is the point of the key: a
+	-- column keeps the colour whichever of the three sources gave it, and
+	-- `ctx.source` does not move, so `permissions` goes on painting its own
+	-- characters rather than stepping aside for a bold.
+	local attrs, attrs_where = pick("attrs"), string.format("`attrs` of column `%s`", name or "?")
+	if type(attrs) == "function" then
+		local fn = string.format("the `attrs` function of column `%s`", name or "?")
+		attrs, attrs_where = called(attrs, fn), "what " .. fn .. " returned"
+	end
+	-- `~= nil` rather than truthiness, so `false` reaches the reader that
+	-- refuses it by name instead of passing for "no attributes".
+	local over = nil
+	if attrs ~= nil then
+		over = colour.attrs(attrs, attrs_where)
+		ground = ground:patch(over)
+	end
+
 	-- A ramp needs extremes to place a value between, and only a column that
 	-- declares `stats` ever gets any: without one `ctx.ratio` is nil for every
 	-- row and the ramp can only ever draw its low end. Refused here rather than
@@ -704,7 +739,8 @@ function M.normalize(spec, cfg)
 	-- asking which file to leave alone: `permissions` draws itself out of the
 	-- theme's own `[status]` styles and has to stop the moment a colour was
 	-- written for it, wherever it was written.
-	local ctx = { base = ramp and ramp[1] or ground, source = source, opts = opts, stats = nil, width = col.fixed }
+	local ctx =
+		{ base = ramp and ramp[1] or ground, source = source, attrs = over, opts = opts, stats = nil, width = col.fixed }
 	col.ctx = ctx
 
 	--- Where `value` sits between the extremes of the current listing, 0 to 1.
