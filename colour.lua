@@ -277,8 +277,9 @@ local function claims_style(k) return k == "fg" or k == "bg" or METHOD[k] ~= nil
 --- is the same `AsColor` the background takes.
 ---@param t table
 ---@param where string
+---@param no_fg boolean? refuse `fg`, for a table that is not the colour's
 ---@return unknown a ui.Style
-local function from_table(t, where)
+local function from_table(t, where, no_fg)
 	-- A table with a `__call` is a constructor rather than a style: `base =
 	-- ui.Style`, with the call forgotten. Measured on 26.9.1, `type(ui.Style)`
 	-- is `table` and `pairs` over it finds nothing, so without this it would
@@ -329,6 +330,25 @@ local function from_table(t, where)
 					.. "colours is a column's `ramp`, beside `base` rather than inside it: write "
 					.. '`ramp = { "#aabbcc", "#ff8800" }` in a spec, or `"#aabbcc -> #ff8800"` in a '
 					.. 'theme. A style table takes named keys, as `{ fg = "#ff8800", bold = true }`',
+				where
+			)
+		)
+	end
+
+	-- `fg` written where the colour is not this table's to give. After the
+	-- three shape tests above and before the allow-list below, and both halves
+	-- of that matter: `attrs = ui.Style` reads a `fg` off the constructor
+	-- table -- every method is a field there -- and has a better answer waiting
+	-- for it above, while the allow-list would take `fg` as the ordinary style
+	-- key it is everywhere else.
+	if no_fg and t.fg ~= nil then
+		error(
+			string.format(
+				"supaline: %s: `fg` is the one key `attrs` does not take. A column's colour is "
+					.. "`base` for a flat one and `ramp` for a gradient, and `attrs` is what goes "
+					.. "over whichever of the two won -- so an `fg` here would be the spec taking "
+					.. "the colour back, which is what writing `base` is for. `bg` and the "
+					.. "attributes are yours to write",
 				where
 			)
 		)
@@ -440,6 +460,60 @@ function M.style(value, where)
 			type(value)
 		)
 	)
+end
+
+--- The style a column's `attrs` asks for: what goes *over* whichever source
+--- won the colour, rather than a fourth source competing with the three.
+---
+--- Only a table, and a function is unwrapped by the caller before it arrives.
+--- The two spellings `M.style` also takes are both refused, for one reason
+--- each. A colour string would be an `fg` written without the key, and `fg` is
+--- the key this one does not take. A `ui.Style` carries its keys where nothing
+--- here reads them: `raw()` would, and `probes.md` holds the measurement, but
+--- taking it would rest the refusal below on a method `types.yazi` does not
+--- declare and `test/stub.lua` does not model -- and a refusal that cannot be
+--- made is a colour quietly taken over.
+---
+--- `false` is refused rather than read as "none". A separator's `style` says
+--- the same thing for the same reason: there is nothing behind `attrs` to turn
+--- off, so leaving it out is how a column has none, and `false` is a reader
+--- expecting an inheritance that does not exist.
+---@param value any a table of style keys, or a function returning one
+---@param where string
+---@return unknown a ui.Style
+function M.attrs(value, where)
+	-- Before the `type` test, for the reason `M.style` puts the same probe
+	-- there: the harness's stand-in for a `Style` is a Lua table, so a check on
+	-- `type` alone would refuse it here and take it in the suite.
+	if value ~= nil and pcall(function() return value:patch(ui.Style()) end) then
+		error(
+			string.format(
+				"supaline: %s is a `ui.Style`. `attrs` takes the table spelling -- "
+					.. "`{ bold = true }` -- because it is the one this plugin reads the keys "
+					.. "out of, and `fg` is the key it has to refuse. A colour goes under `base`",
+				where
+			)
+		)
+	elseif value == false then
+		error(
+			string.format(
+				"supaline: %s is `false`, and there is nothing to turn off: no theme and no "
+					.. "definition puts attributes on a column, so leaving `attrs` out is how one "
+					.. "has none. To drop the colour instead, write `base = false`",
+				where
+			)
+		)
+	elseif type(value) ~= "table" then
+		error(
+			string.format(
+				"supaline: %s is a %s. `attrs` takes a table of style keys, as "
+					.. '`{ bold = true, bg = "#1e1e2e" }`, or a function returning one',
+				where,
+				type(value)
+			)
+		)
+	end
+	return from_table(value, where, true)
 end
 
 --- Whether a theme value asks for a ramp rather than a flat colour.

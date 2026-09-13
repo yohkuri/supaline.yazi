@@ -159,12 +159,12 @@ local STATUS = {
 --- hook -- which is what main.lua runs on install and on `cd`, and the only
 --- thing that ever reads the theme for this column.
 ---
---- Returns the foreground of each character in order, so an assertion names
---- the string it expected rather than a list of styles.
+--- Returns the style of each character in order, `false` where one carries
+--- none, so that a caller can ask about any field of it.
 ---@param file table
 ---@param opts table?
----@return string
-local function perm_fgs(file, opts)
+---@return table[]
+local function perm_styles(file, opts)
 	local spec = { "permissions" }
 	for k, v in pairs(opts or {}) do
 		spec[k] = v
@@ -179,7 +179,7 @@ local function perm_fgs(file, opts)
 	-- Walked rather than read off `_parts` directly: `column.cell` puts what a
 	-- render hands back through a `ui.Line` of its own, which Yazi answers with
 	-- a new Line wrapping it, so the spans sit a level below the cell.
-	local fgs = {}
+	local styles = {}
 	local function walk(x)
 		if type(x) == "table" and x._parts then
 			for _, part in ipairs(x._parts) do
@@ -187,10 +187,22 @@ local function perm_fgs(file, opts)
 			end
 			return
 		end
-		local style = stub.style_of(x)
-		fgs[#fgs + 1] = style and style.fg or "-"
+		styles[#styles + 1] = stub.style_of(x) or false
 	end
 	walk(out)
+	return styles
+end
+
+--- The foreground of each character in order, so an assertion names the string
+--- it expected rather than a list of styles.
+---@param file table
+---@param opts table?
+---@return string
+local function perm_fgs(file, opts)
+	local fgs = {}
+	for _, style in ipairs(perm_styles(file, opts)) do
+		fgs[#fgs + 1] = style and style.fg or "-"
+	end
 	return table.concat(fgs, " ")
 end
 
@@ -258,6 +270,33 @@ test("permissions: a colour written for the column takes the theme's place", fun
 		{ permissions = "#00ccff" },
 		function() eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }), "#00ccff") end
 	)
+end)
+
+test("permissions: `attrs` decorates the characters rather than replacing them", function()
+	-- The one column in the plugin that paints its own cell, and so the one
+	-- place a column's `attrs` has to be carried by hand: these ten styles come
+	-- out of `[status]` and pass through neither `ctx.base` nor a ramp. Without
+	-- `ctx.attrs` reaching `perm_spans`, a bold written here would do nothing
+	-- and say nothing.
+	local file = stub.file { perm = "drwxr-xr-x" }
+
+	-- The colours are untouched, which is what says `attrs` is not a colour: it
+	-- does not move `ctx.source`, so the column does not step aside the way a
+	-- `base` makes it.
+	eq(
+		perm_fgs(file, { attrs = { bold = true } }),
+		"#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044"
+	)
+
+	for i, style in ipairs(perm_styles(file, { attrs = { bold = true } })) do
+		eq(assert(style, "character " .. i .. " lost its style").bold, true, "character " .. i)
+	end
+
+	-- And nothing is added when nobody asked, so the common path is the one it
+	-- has always been.
+	for i, style in ipairs(perm_styles(file)) do
+		eq(rawget(assert(style), "bold"), nil, "character " .. i .. " gained an attribute nobody wrote")
+	end
 end)
 
 test("permissions: `refresh` is what follows a theme that moved", function()
