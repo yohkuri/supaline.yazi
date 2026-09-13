@@ -94,18 +94,24 @@ end
 ---
 --- A body that reassigns the field mid-test -- the theme-reload cases do --
 --- is restored just the same: what goes back is what was there on the way in.
+---
+--- What `fn` returns comes back, so a body that has to hand a value out of the
+--- swap says so with a `return` rather than assigning to a local declared
+--- above the call for that one purpose.
 ---@param t table
 ---@param key any
 ---@param value any
 ---@param fn function
+---@return any
 function with(t, key, value, fn)
 	local before = t[key]
 	t[key] = value
-	local ok, err = pcall(fn)
+	local ok, res = pcall(fn)
 	t[key] = before
 	if not ok then
-		error(err, 0)
+		error(res, 0)
 	end
+	return res
 end
 
 --- The plain text of anything a column rendered.
