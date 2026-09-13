@@ -450,6 +450,12 @@ check "m3: a stated width does not shrink to fit" "….txt         1B" "$DIR/scr
 
 # m5: `ext` (5, left), then `size` with `sep = false`, then `mtime` behind "│".
 check "m5: sep = false and a separator of one's own" "bin    1024B│" "$DIR/screen-m5.txt"
+# The colour the separator was given, and immediately before the glyph it was
+# given for. A separator was a bare string in the row until it could carry a
+# style, so it took whatever the row had: greened anywhere in the capture would
+# pass for a colour that landed on the wrong span. `$BAR` is the same glyph,
+# read out of the variable to keep this file ASCII.
+check "m5: that separator is drawn in its own colour" "$(sgr 38 '#a6e3a1')$BAR" "$DIR/color-m5.txt"
 
 # m9: a registered column, one clipped to 8 without an ellipsis, and a bare
 # function in the spec.
