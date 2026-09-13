@@ -408,6 +408,28 @@ local function from_table(t, where, no_fg)
 	return style
 end
 
+--- Whether `value` is a `ui.Style` rather than something that merely looks
+--- like one.
+---
+--- By what it answers to, not by what it is. `getmetatable` cannot do it:
+--- measured on 26.9.1, mlua gives every one of Yazi's userdata
+--- `__metatable = false`, so `getmetatable(ui.Style())`,
+--- `getmetatable(ui.Span("x"))` and `getmetatable(ui.Line {})` are all `false`
+--- and all equal to each other -- a check written on the metatable waves a
+--- Span through as a colour. `patch` is a `Style` method and nothing else here
+--- has one: on the same 26.9.1, `style:patch(ui.Style())` succeeds where the
+--- Span and the Line both raise. The harness's stand-in answers it too, which
+--- is what keeps one test a test of the branch that calls this.
+---
+--- Both callers reach it before their own `type` test, and for the same
+--- reason: the harness's stand-in for a `Style` is a Lua table, so a check on
+--- `type` alone would take it in the suite and refuse it in Yazi.
+---@param value any
+---@return boolean
+local function is_style(value)
+	return value ~= nil and pcall(function() return value:patch(ui.Style()) end)
+end
+
 --- The style a flat colour draws in, whichever way the user wrote it.
 ---
 --- The whole "is this a colour" decision lives here, in one allow-list, so
@@ -423,16 +445,8 @@ end
 --- files now say a style the same way, and `from_table` above refuses by name
 --- what a theme can only drop in silence.
 ---
---- Telling a style from anything else has to be done by what it answers to,
---- not by what it is. `getmetatable` cannot do it: measured on 26.9.1, mlua
---- gives every one of Yazi's userdata `__metatable = false`, so
---- `getmetatable(ui.Style())`, `getmetatable(ui.Span("x"))` and
---- `getmetatable(ui.Line {})` are all `false` and all equal to each other --
---- a check written on the metatable waves a Span through as a colour. `patch`
---- is a `Style` method and nothing else here has one: on the same 26.9.1,
---- `style:patch(ui.Style())` succeeds where the Span and the Line both raise.
---- The harness's stand-in answers it too, which is what keeps one test a test
---- of this branch.
+--- Telling a style from anything else is `is_style` above, which carries the
+--- measurement behind it.
 ---@param value any nil, a colour string, a style table, or a ui.Style
 ---@param where string
 ---@return unknown a ui.Style
@@ -441,10 +455,9 @@ function M.style(value, where)
 		return ui.Style()
 	elseif type(value) == "string" then
 		return styled(value) or refuse(value, where)
-	-- Before the table branch, and not merely first by habit: the harness's
-	-- stand-in for a `Style` is a Lua table, so a check on `type` would send it
-	-- to `from_table` and refuse the very value Yazi hands a themed column.
-	elseif pcall(function() return value:patch(ui.Style()) end) then
+	-- Before the table branch, and not merely first by habit: `is_style` says
+	-- why, and the value Yazi hands a themed column is what turns on it.
+	elseif is_style(value) then
 		return value
 	elseif type(value) == "table" then
 		return from_table(value, where)
@@ -485,7 +498,7 @@ function M.attrs(value, where)
 	-- Before the `type` test, for the reason `M.style` puts the same probe
 	-- there: the harness's stand-in for a `Style` is a Lua table, so a check on
 	-- `type` alone would refuse it here and take it in the suite.
-	if value ~= nil and pcall(function() return value:patch(ui.Style()) end) then
+	if is_style(value) then
 		error(
 			string.format(
 				"supaline: %s is a `ui.Style`. `attrs` takes the table spelling -- "
