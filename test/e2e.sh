@@ -809,13 +809,15 @@ else
 fi
 
 # `permissions` is the only column that paints its own cell, so a bold written
-# for it reaches the characters some other way than inside their own styles:
-# as the Line's style, which Yazi puts under every span. This is where that is
-# seen on screen. The pattern asks for both halves at once: the bold opening a
+# for it reaches the characters without replacing the colours they already
+# have: `perm_spans` patches the column's style into each character's own, and
+# that style carries no colour of its own to overwrite them with. This is where
+# that is seen on screen. The pattern asks for both halves at once: the bold
+# opening a
 # run, and two characters after it in *different* colours of their own. A cell
 # that had stepped aside for the attribute would draw in one colour and fail
 # the second half while passing the first.
-check "c_bold: the bold reaches the characters permissions paints, under their colours" \
+check "c_bold: the bold reaches the characters permissions paints, colours kept" \
 	"$ESC\[1m$ESC\[[0-9]*m.$ESC\[[0-9]*m." "$DIR/color-c_bold.txt"
 
 # `c_theme`'s `mtime` writes `{ bold = true }` in the spec over a ramp the
