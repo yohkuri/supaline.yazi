@@ -1,14 +1,19 @@
 --- @since 26.9.1
 --- Column registry, spec normalisation, and cell layout.
 ---
---- A column is written in one of four shapes, all of which collapse to the same
+--- A column is written in one of five shapes, all of which collapse to the same
 --- runtime object, so a built-in column and a user-written one are
 --- indistinguishable to the renderer:
 ---
 ---   "size"                                  a registered column, by name
 ---   { "size", width = 9 }                   ... with its options overridden
----   function(file, ctx) return "..." end    render-only shorthand
----   { render = fn, stats = fn, width = 6 }  an inline definition
+---   function(file, ctx) return "..." end    an inline definition, render only
+---   { fn, name = "mine", width = 6 }        ... with options beside it
+---   { render = fn, stats = fn, width = 6 }  the same, with the render named
+---
+--- `[1]` is what tells them apart, and it is the value there rather than the
+--- index: a string names a column registered elsewhere, and a function is that
+--- column's own `render`, which makes the table around it a definition.
 ---
 --- `render(file, ctx)` runs for every visible row on every frame and must stay
 --- O(1). Anything that needs to look at the whole folder belongs in
@@ -231,10 +236,9 @@ local colour = require(".colour")
 ---@class supaline.ColumnDef : supaline.ColumnOpts
 ---@field render supaline.Render
 
---- A spec entry written as a table: the second of the four shapes, the fourth,
---- and the third when it carries options beside the function. `[1]` is the
---- registered name or the inline `render`; everything else is that column's
---- options.
+--- A spec entry written as a table: the second of the five shapes, the fourth
+--- and the fifth. `[1]` is the registered name or the definition's own
+--- `render`; everything else is that column's options.
 ---
 --- `[1]` constrains the value and not the index: `{ 42, width = 3 }` in a spec
 --- is refused, `spec[2]` is not. Reading an index a class does not declare
@@ -242,12 +246,12 @@ local colour = require(".colour")
 ---@class supaline.ColumnEntry : supaline.ColumnOpts
 ---@field [1] string|supaline.Render|nil
 
---- One entry of a linemode spec, in whichever of the four shapes it was
+--- One entry of a linemode spec, in whichever of the five shapes it was
 --- written. `normalize` is where they collapse, and it decides between them by
 --- `type`, which is what lets this union narrow at each branch.
 ---@alias supaline.ColumnSpec string|supaline.Render|supaline.ColumnEntry
 
---- A normalised column: what the four spec shapes above all collapse to, and
+--- A normalised column: what the five spec shapes above all collapse to, and
 --- the only shape the renderer ever sees.
 ---@class supaline.Column
 ---@field name string? nil for an inline definition, which has no name to give
@@ -312,12 +316,11 @@ local COLUMN_KEYS = {
 	width = true,
 }
 
--- And the two a definition may write that a use of it may not. `options` is
--- read off the definition alone, and `name` only in the shape where a spec is
--- its own definition, so both are drawn from the table the column was defined
--- in and neither is read off the table it was used from. Claimed by the
--- predicate below when the table being swept *is* the definition, which is
--- what the two shapes have in common and what tells them apart.
+-- And the two a definition may write that a use of it may not. Which
+-- definitions may write which of them is `ROLES` below -- `register` names the
+-- column it is handed, so `name` is not that one's to write either. What this
+-- set is for is `check_options`, where declaring either as an option declares
+-- a name the column has already.
 local DEFINITION_KEYS = { name = true, options = true }
 
 -- Stands in for a list nobody wrote, so a loop over one allocates nothing.
@@ -337,46 +340,91 @@ do
 	COLUMN_KEY_LIST = colour.key_list(names)
 end
 
--- What every column claims wherever it is written: the shared keys, and `[1]`,
--- which is an index rather than an option and is named separately in the
--- message.
-local function claims_shared(key) return key == 1 or COLUMN_KEYS[key] end
+--- The part a table of column keys plays, which is what says which of the keys
+--- only some of them read it is entitled to. Four, over the five shapes a
+--- column is written in and the definition `register` is handed: a name and a
+--- name with options beside it are both uses of a column defined elsewhere,
+--- and a bare render and a render with options beside it are both definitions
+--- with their render at `[1]`.
+---
+--- Written down rather than derived from table identity. `t == def` looks
+--- exact and answers three of the four: it took a definition handed to
+--- `register` for an inline one, so a `name` beside the render and an entry at
+--- `[1]` were both accepted there and read by nobody; and it took
+--- `{ fn, ... }` for a use site, because `normalize` builds a definition of
+--- its own around that function and a fresh table is not the spec -- so
+--- `options` was refused at the one place it belonged.
+---@alias supaline.Role "registered"|"inline"|"listed"|"use"
 
---- What one table is entitled to: the shared keys, the two only a definition
---- may write when this table is one, and the options that definition declares.
+--- What each of them claims beyond `COLUMN_KEYS`, and what its message calls
+--- the thing that says what to draw.
+---
+--- `[1]` is in here rather than in `COLUMN_KEYS` because its meaning is the
+--- whole difference between the four: a spec names its column there, a
+--- definition written as a list puts its `render` there, and a definition that
+--- writes `render` -- inline or registered -- has nothing there for anyone to
+--- read.
+---@class supaline.RoleKeys
+---@field keys table<any, true>
+---@field draws string
+---@field claims fun(key: any): boolean? the two above, for a column declaring no options
+
+--- One role. `claims` is built here rather than assigned over the table below,
+--- so nothing can add a role and forget it.
+---@param keys table<any, true>
+---@param draws string
+---@return supaline.RoleKeys
+local function role_keys(keys, draws)
+	-- The answer for a column that declares no options, which is most of them:
+	-- one closure per role, built once, so the common case allocates nothing.
+	return { keys = keys, draws = draws, claims = function(key) return COLUMN_KEYS[key] or keys[key] end }
+end
+
+local DRAWS_RENDER = "the `render` that says what it draws"
+
+---@type table<supaline.Role, supaline.RoleKeys>
+local ROLES = {
+	-- `register("size", { render = fn })`. The call names it.
+	registered = role_keys({ options = true }, DRAWS_RENDER),
+	-- `{ render = fn, name = "size" }`: the definition and the only use of it
+	-- are one table, so both keys a definition writes are read right here.
+	inline = role_keys({ name = true, options = true }, DRAWS_RENDER),
+	-- `{ fn, name = "size" }`: the same definition with its render at `[1]`.
+	listed = role_keys({ [1] = true, name = true, options = true }, "the `render` at `[1]` that says what it draws"),
+	-- `{ "size", width = 8 }`: a use of a definition written elsewhere, naming
+	-- it at `[1]`. `name` and `options` are that definition's.
+	use = role_keys({ [1] = true }, "the name at `[1]` that says which column it is"),
+}
+
+--- What one table is entitled to: the shared keys, whichever of the rest its
+--- role reads, and the options the definition behind it declares.
 ---
 --- A column may read options of its own off `ctx.opts` -- `mtime` takes a
 --- `format` -- so the set is not one list for every column, and a closed one
 --- would refuse `format` on the column that reads it. `options` is how a
 --- definition says which keys those are, and saying so is what lets `fromat`
 --- be refused on the same column.
----
---- `t == def` is the whole of the role test, and it is exact rather than a
---- flag a caller could pass wrongly: a registered definition is swept as
---- itself, a spec that writes `render` inline *is* its own definition, and a
---- spec that names a registered column is a different table from the one it
---- names. So a use site is told that `options` is not its to write, while the
---- definition that declares one keeps it.
----@param t table the table being swept
+---@param role supaline.Role how this table was written
 ---@param def supaline.ColumnOpts whose `options` say what this column also takes
 ---@return fun(key: any): boolean?
-local function claims_of(t, def)
+local function claims_of(role, def)
+	local this = ROLES[role]
 	local own = def.options
-	if own == nil and t ~= def then
-		return claims_shared
+	if own == nil then
+		return this.claims
 	end
 	local set = {}
-	for _, key in ipairs(own or EMPTY) do
+	for _, key in ipairs(own) do
 		set[key] = true
 	end
-	local defining = t == def
-	return function(key) return claims_shared(key) or set[key] or (defining and DEFINITION_KEYS[key]) end
+	return function(key) return COLUMN_KEYS[key] or this.keys[key] or set[key] end
 end
 
--- What a key that is none of them most likely meant. Two of the three are
--- keys this plugin really has, written where they are not read rather than
+-- What a key that is none of them most likely meant. Three of the four are
+-- names this plugin really reads, written where they are not read rather than
 -- misspelled, so a message that only said "not a column key" would be true
--- and useless.
+-- and useless. `1` is one of them under the spelling `unknown` gives it, since
+-- what a key is called in a message is whatever `tostring` makes of it.
 local COLUMN_MEANT = {
 	fetch = "`fetch` is supaline's own rather than a column's: a column that needs "
 		.. "asynchronous state has to be built into supaline itself, because a `ya.sync` "
@@ -385,13 +433,19 @@ local COLUMN_MEANT = {
 	options = "`options` goes on the definition, which is where a column says what it "
 		.. "reads; a use of that column can write one of the names it declared, and cannot "
 		.. "add to them",
-	name = "a column is named by the definition that declares it, or by the `[1]` a spec "
-		.. "names it with; `name` beside that one is read by nobody",
+	["1"] = "`[1]` is where a spec names the column it uses, and where a definition may put "
+		.. "its `render` instead of writing one under that name; beside a written `render` it "
+		.. "is read by nobody",
+	name = "a column is named by the `register` call that declares it, by the `[1]` a spec "
+		.. "names it with, or by a `name` written beside an inline `render`; anywhere else it "
+		.. "is read by nobody",
 }
 
-local COLUMN_UNKNOWN = "supaline: column `%s`: %s. A column takes %s, beside the name or "
-	.. 'the `render` at `[1]` that says what it draws -- `{ "size", width = 8, style = '
-	.. '"cyan" }`%s%s'
+-- `%4$s` is the role's own `draws`: refusing `1` on a definition that writes
+-- `render`, under a sentence saying a column takes a `render` at `[1]`, is a
+-- message arguing with itself.
+local COLUMN_UNKNOWN = "supaline: column `%s`: %s. A column takes %s, beside %s -- "
+	.. '`{ "size", width = 8, style = "cyan" }`%s%s'
 
 local COLUMN_OPTIONS = "supaline: column `%s` declares `options` as %s. It is the list of "
 	.. 'names that column reads off `ctx.opts`, as `options = { "format" }`, and is what '
@@ -473,11 +527,12 @@ end
 ---@param t table the table that was written
 ---@param name string?
 ---@param def supaline.ColumnOpts whose `options` say what this column also takes
-local function refuse_unknown(t, name, def)
-	-- Only a definition's own `options` are this table's to answer for. A spec
-	-- that names a registered column is a different table, and that column's
-	-- were checked when it was registered.
-	if t == def then
+---@param role supaline.Role how `t` was written
+local function refuse_unknown(t, name, def, role)
+	-- Only a definition's own `options` are this table's to answer for. A use
+	-- site is a different table, and that column's were checked when the
+	-- definition it names was read.
+	if role ~= "use" then
 		check_options(def, name)
 	end
 	-- The two shapes that carry no table of their own leave `normalize` with an
@@ -486,7 +541,7 @@ local function refuse_unknown(t, name, def)
 		return
 	end
 
-	local unknown, _, subject, hints = colour.unknown(t, claims_of(t, def), "column", COLUMN_MEANT)
+	local unknown, _, subject, hints = colour.unknown(t, claims_of(role, def), "column", COLUMN_MEANT)
 	if not unknown then
 		return
 	end
@@ -500,6 +555,7 @@ local function refuse_unknown(t, name, def)
 			name or "?",
 			subject,
 			COLUMN_KEY_LIST,
+			ROLES[role].draws,
 			own and string.format(". That column also takes `%s`", table.concat(own, "`, `")) or "",
 			hints
 		)
@@ -521,7 +577,7 @@ function M.register(name, def)
 	-- with it: an inline `{ render = ... }` never reaches this function, so a
 	-- branch here would have covered one of the two ways a column is written
 	-- and left the other silent.
-	refuse_unknown(def, name, def)
+	refuse_unknown(def, name, def, "registered")
 	M._registry[name] = def
 end
 
@@ -796,12 +852,12 @@ end
 ---@param cfg supaline.Cfg
 ---@return supaline.Column
 function M.normalize(spec, cfg)
-	local name, opts, def
+	local name, opts, def, role
 
 	if type(spec) == "function" then
-		name, opts, def = nil, {}, { render = spec }
+		name, opts, def, role = nil, {}, { render = spec }, "listed"
 	elseif type(spec) == "string" then
-		name, opts = spec, {}
+		name, opts, role = spec, {}, "use"
 		def = M._registry[spec] or error(string.format("supaline: unknown column `%s`", spec))
 	elseif type(spec) ~= "table" then
 		error("supaline: a column must be a name, a function, or a table with `render`")
@@ -817,12 +873,24 @@ function M.normalize(spec, cfg)
 		-- trap -- but the fix is to keep the lines apart, not to disable it.
 		name = spec[1] --[[@as string]]
 		opts = spec
+		role = "use"
 		def = M._registry[name] or error(string.format("supaline: unknown column `%s`", name))
 	elseif type(spec[1]) == "function" then
+		-- A definition with its render at `[1]` rather than under `render`, and
+		-- the same thing `{ render = fn, ... }` is: the two keys a definition
+		-- writes are read here as they are there. The def below is built rather
+		-- than being the spec because nothing past this branch looks at `[1]`
+		-- for a render -- but it carries what a definition answers for, so the
+		-- sweep and `ctx.opts` read this table's own `options` and not nothing.
 		local fn = spec[1] --[[@as supaline.Render]]
-		name, opts, def = nil, spec, { render = fn }
+		name, opts, role = spec.name, spec, "listed"
+		def = { render = fn, name = spec.name, options = spec.options }
 	elseif type(spec.render) == "function" then
-		name, opts, def = spec.name, spec, spec --[[@as supaline.ColumnDef]]
+		name, opts, def, role =
+			spec.name,
+			spec,
+			spec, --[[@as supaline.ColumnDef]]
+			"inline"
 	else
 		error("supaline: a column must be a name, a function, or a table with `render`")
 	end
@@ -833,7 +901,7 @@ function M.normalize(spec, cfg)
 	-- `opts`, so they pass through here without a test of their own. The
 	-- definition says what this column takes beyond the shared keys, and a
 	-- registered one was swept by `register` when it arrived.
-	refuse_unknown(opts, name, def)
+	refuse_unknown(opts, name, def, role)
 
 	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:
 	-- that idiom collapses a `def` value of `false` to nil, and `false` is the
@@ -845,7 +913,7 @@ function M.normalize(spec, cfg)
 	-- from here reaches `cap`.
 	---@return any
 	local pick = function(key)
-		local v = opts[key]
+		local v = opts[key] ---@type any
 		if v == nil then
 			v = def[key]
 		end
