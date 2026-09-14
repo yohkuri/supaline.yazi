@@ -200,6 +200,11 @@ Any option below can be set on the definition or overridden per use.
 | `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](#colours). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
+| `options`   | `nil`        | A definition's own: the names of the extra keys it reads off `ctx.opts`. See [Writing a column](#writing-a-column). |
+
+Any other key is refused by name, on a definition and on a spec alike. Nothing
+else would say so: a misspelled `max_widht` is read by nobody, and the column
+draws at its natural width without a word about why.
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated
@@ -220,7 +225,7 @@ about the folder is what changed.
 | -------------- | ----------------------------------------------------------- |
 | `ctx.base`     | What to draw a row with no value in: the gradient's low end, or the flat style. |
 | `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
-| `ctx.opts`     | The options written in the spec, verbatim.                   |
+| `ctx.opts`     | The options written in the spec, verbatim. A column reading one of its own declares it in `options`. |
 | `ctx.fg_from`  | Which of the three writers put the `fg` there, `false` included: `"spec"`, `"theme"`, `"definition"`, or `nil` when none did. Only a column that paints its own characters needs it; see [How the three combine](#how-the-three-combine). |
 | `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
 | `ctx.style(r)` | The style for that position on the column's gradient; `ctx.base` when there is none, and for `nil`. |
@@ -340,6 +345,21 @@ Rounding is yours, not `extremes`'s: whatever `get` hands back is what the
 range is measured in, so if `render` rounds a value before `ctx.ratio` sees it,
 `get` has to round it the same way or the two disagree about which step a row
 is on.
+
+A column that takes an option of its own reads it off `ctx.opts` and names it
+in `options`, which is what lets a misspelling of it be refused rather than
+ignored. The built-in timestamp columns do exactly this for `format`:
+
+```lua
+supaline.column("initials", {
+  width = 3,
+  options = { "separator" },
+  render = function(file, ctx)
+    local sep = ctx.opts.separator or "."
+    return file.name:sub(1, 1) .. sep, ctx.base
+  end,
+})
+```
 
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
