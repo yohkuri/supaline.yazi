@@ -201,9 +201,21 @@ local MEANT = {
 	reset = '`reset` is a colour rather than an attribute -- write `fg = "reset"`',
 }
 
--- "`a`, `b` and `c`", built rather than written out, so a key added above
--- cannot be missing from the message that lists them.
-local KEY_LIST = string.format("`%s` and `%s`", table.concat(ATTRS, "`, `", 1, #ATTRS - 1), ATTRS[#ATTRS])
+--- "`a`, `b` and `c`" out of a list of names, for a message that has to say
+--- what a table does take.
+---
+--- Here because two allow-lists want it and the third would have written a
+--- third copy. Each of them builds the list rather than spelling the sentence
+--- out, so a key added to one cannot be missing from the message that lists
+--- them; what that costs without this is the same `table.concat` expression,
+--- with the same off-by-one in the range, in as many files as have keys.
+---@param names string[] at least two
+---@return string
+function M.key_list(names)
+	return string.format("`%s` and `%s`", table.concat(names, "`, `", 1, #names - 1), names[#names])
+end
+
+local KEY_LIST = M.key_list(ATTRS)
 
 ---@param value string
 ---@param where string
@@ -252,6 +264,11 @@ end
 --- misspellings makes the same mistake report differently from one run to the
 --- next, and costs a second run to find the other half of it.
 ---
+--- What each caller has to say differs; what does not is the quoting, the
+--- `is` or `are` that follows it, and the hint each name earns. Those three
+--- drifted apart once already and are built here now, so a fourth allow-list
+--- is a key set and a noun rather than a message assembled by hand.
+---
 --- Here because here is the only place all three callers can reach. This file
 --- sits at the bottom of the require chain and knows nothing about a linemode
 --- spec or a separator; `column.lua` and `main.lua` both require it, and
@@ -261,9 +278,13 @@ end
 --- copy would have continued.
 ---@param t table
 ---@param claims fun(key: any): boolean? whether the table is entitled to that key
+---@param noun string? what one of this table's keys is called, for `subject`
+---@param meant table<string, string>? what a given misspelling most likely meant
 ---@return string[]? names sorted, for a caller that has something to say about each
 ---@return string? quoted the same names, backquoted and comma-joined
-function M.unknown(t, claims)
+---@return string? subject the same names, and whether they is or are not a `noun` key
+---@return string? hints what each of them probably meant, joined, or ""
+function M.unknown(t, claims, noun, meant)
 	local names = {}
 	for k in pairs(t) do
 		if not claims(k) then
@@ -274,7 +295,15 @@ function M.unknown(t, claims)
 		return nil
 	end
 	table.sort(names)
-	return names, "`" .. table.concat(names, "`, `") .. "`"
+
+	local quoted = "`" .. table.concat(names, "`, `") .. "`"
+	local subject = noun
+		and string.format("%s %s", quoted, #names == 1 and "is not a " .. noun .. " key" or "are not " .. noun .. " keys")
+	local hints = {}
+	for _, k in ipairs(names) do
+		hints[#hints + 1] = meant and meant[k]
+	end
+	return names, quoted, subject, #hints > 0 and ". " .. table.concat(hints, "; ") or ""
 end
 
 -- What a style table is entitled to: the two colours, and an attribute under
@@ -466,22 +495,17 @@ function M.layer(value, where, band)
 		t = value
 	end
 
-	local unknown, quoted = M.unknown(t, claims_style)
+	local unknown, _, subject, hints = M.unknown(t, claims_style, "style", MEANT)
 	if unknown then
-		local hints = {}
-		for _, k in ipairs(unknown) do
-			hints[#hints + 1] = MEANT[k]
-		end
 		error(
 			string.format(
-				"supaline: %s: %s %s. A style table takes `fg` and `bg`, "
+				"supaline: %s: %s. A style table takes `fg` and `bg`, "
 					.. "plus %s -- the spelling `theme.toml` uses, so a style is written the "
 					.. "same way in both files%s",
 				where,
-				quoted,
-				#unknown == 1 and "is not a style key" or "are not style keys",
+				subject,
 				KEY_LIST,
-				#hints > 0 and ". " .. table.concat(hints, "; ") or ""
+				hints
 			)
 		)
 	end

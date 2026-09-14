@@ -57,6 +57,17 @@ test("normalize: a value that is not a spec is refused", function()
 	throws(function() column.normalize({}, CFG) end, "must be a name, a function, or a table")
 end)
 
+--- A column that declares an option, for the tests that write one at a use
+--- site. `extra` goes on the definition, which is where a default lives.
+---@param extra table?
+local function timed(extra)
+	local def = { width = 4, options = { "format" }, render = function() return "ab" end }
+	for k, v in pairs(extra or {}) do
+		def[k] = v
+	end
+	column.register("timed", def)
+end
+
 test("normalize: a key nobody claimed is refused by name", function()
 	-- A misspelled key is drawn nowhere and mentioned nowhere: `pick` asks for
 	-- the names it knows and never asks what else is there, and a table
@@ -95,7 +106,6 @@ test("normalize: every key a column takes passes the sweep", function()
 	column.register("wide", { width = 4, render = function() return "ab" end })
 	local col = column.normalize({
 		"wide",
-		name = "wide",
 		align = "left",
 		overflow = "clip",
 		max_width = 6,
@@ -115,15 +125,52 @@ test("normalize: a column's own options are claimed, and only that column's", fu
 	-- `format` -- so one closed list for every column would refuse the option
 	-- on the column that reads it. The definition declares them, which is what
 	-- lets a misspelling of one be refused rather than ignored.
-	column.register("timed", { width = 4, options = { "format" }, render = function() return "ab" end })
+	timed()
 	eq(column.normalize({ "timed", format = "%c" }, CFG).name, "timed")
 	throws(function() column.normalize({ "timed", fromat = "%c" }, CFG) end, "`fromat` is not a column key")
 	-- And the message says what that column takes beyond the shared keys.
 	throws(function() column.normalize({ "timed", fromat = "%c" }, CFG) end, "also takes `format`")
 
 	-- Declared by one column, so it is not a key on the next.
-	column.register("plain", { width = 4, render = function() return "ab" end })
-	throws(function() column.normalize({ "plain", format = "%c" }, CFG) end, "`format` is not a column key")
+	column.register("bare", { width = 4, render = function() return "ab" end })
+	throws(function() column.normalize({ "bare", format = "%c" }, CFG) end, "`format` is not a column key")
+end)
+
+test("normalize: `options` and `name` are the definition's to write", function()
+	-- Both are read off the definition alone, so writing one at a use site is
+	-- a key nobody reads. `options` is the worse of the two: it looks like it
+	-- declares something, and what it declared was refused on the next line
+	-- as a key the column does not take.
+	column.register("plainer", { width = 4, render = function() return "ab" end })
+	throws(function() column.normalize({ "plainer", options = { "pad" } }, CFG) end, "`options` goes on the definition")
+	throws(function() column.normalize({ "plainer", name = "other" }, CFG) end, "read by nobody")
+
+	-- The same two keys on the table that *is* the definition are its own.
+	-- `normalize` reads `spec.name` in that shape, and nowhere else.
+	local col = column.normalize({
+		name = "inline",
+		options = { "pad" },
+		pad = 2,
+		render = function() return "ab" end,
+	}, CFG)
+	eq(col.name, "inline")
+	eq(col.ctx.opts.pad, 2)
+end)
+
+test("register: an inline definition's `options` is checked too", function()
+	-- The check started in `register`, which one of the two writers never
+	-- reaches: a spec that writes `render` inline is its own definition, and
+	-- its `options` were taken on trust. `options = "format"` was accepted
+	-- there and read as nothing, which is the silence the sweep exists to end,
+	-- left standing on the key the sweep introduced.
+	throws(function()
+		local options = "format" ---@type any
+		column.normalize({ render = function() return "x" end, options = options }, CFG)
+	end, "declares `options` as a string")
+	throws(function()
+		local options = { "width" } ---@type any
+		column.normalize({ render = function() return "x" end, options = options }, CFG)
+	end, "which every column takes")
 end)
 
 test("normalize: `ctx.opts` holds the declared options and nothing else", function()
@@ -131,7 +178,7 @@ test("normalize: `ctx.opts` holds the declared options and nothing else", functi
 	-- one layer its use site wrote rather than the three merged, and
 	-- `opts.width` the stated width rather than the effective one `ctx.width`
 	-- already carries. Both are a different thing wearing the same name.
-	column.register("timed", { width = 4, options = { "format" }, render = function() return "ab" end })
+	timed()
 	local ctx = column.normalize({ "timed", format = "%c", width = 9, style = "cyan" }, CFG).ctx
 	eq(ctx.opts.format, "%c")
 	eq(ctx.opts.width, nil, "the effective width is `ctx.width`")
@@ -140,20 +187,14 @@ test("normalize: `ctx.opts` holds the declared options and nothing else", functi
 
 	-- A column that declared none gets a table rather than nil, so a
 	-- third-party `ctx.opts.anything` reads as nothing written.
-	column.register("plain", { width = 4, render = function() return "ab" end })
-	eq(next(column.normalize("plain", CFG).ctx.opts), nil)
+	column.register("bare", { width = 4, render = function() return "ab" end })
+	eq(next(column.normalize("bare", CFG).ctx.opts), nil)
 end)
 
 test("normalize: a definition may default an option it declares", function()
 	-- What narrowing `ctx.opts` buys. It used to be the spec verbatim, so a
 	-- default written on the definition was read by nobody.
-	column.register("timed", {
-		width = 4,
-		options = { "format", "pad" },
-		format = "%F",
-		pad = false,
-		render = function() return "ab" end,
-	})
+	timed { options = { "format", "pad" }, format = "%F", pad = false }
 	eq(column.normalize("timed", CFG).ctx.opts.format, "%F", "the definition's, with no spec over it")
 	eq(column.normalize({ "timed", format = "%c" }, CFG).ctx.opts.format, "%c", "and the use site still wins")
 
@@ -169,17 +210,6 @@ test("register: a definition is swept the same way, and `options` is checked", f
 	throws(function()
 		column.register("bad", { render = function() return "x" end, algin = "left" })
 	end, "`algin` is not a column key")
-
-	-- `fetch` is a real key of a definition rather than a misspelling, and the
-	-- reason it cannot be a user's is the one `register` already gives.
-	throws(function()
-		column.register("async", { render = function() return "x" end, fetch = function() end })
-	end, "cannot define `fetch`")
-	-- An inline definition never goes through `register`, so the sweep is
-	-- where its `fetch` is met, and it carries the same reason.
-	throws(function()
-		column.normalize({ render = function() return "x" end, fetch = function() end }, CFG)
-	end, "has to be built into supaline itself")
 
 	throws(function()
 		-- The wrong value is the test. Bound through an `any` rather than
@@ -221,9 +251,15 @@ end)
 test("register: a column may not own asynchronous state", function()
 	-- `ya.sync` blocks are matched by position between the two interpreters, so
 	-- one registered from init.lua would never be replayed on the async side.
+	-- Refused by the key sweep rather than by a branch of its own, which is
+	-- what reaches the other way a column is written: an inline definition
+	-- never goes through `register`, and used to keep its `fetch` in silence.
 	throws(function()
 		column.register("async", { render = function() return "" end, fetch = function() end })
-	end, "cannot define `fetch`")
+	end, "has to be built into supaline itself")
+	throws(function()
+		column.normalize({ render = function() return "x" end, fetch = function() end }, CFG)
+	end, "has to be built into supaline itself")
 end)
 
 -- --- separators ------------------------------------------------------------
