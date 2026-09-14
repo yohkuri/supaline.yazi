@@ -374,6 +374,11 @@ column's effective width is `ctx.width` rather than `ctx.opts.width`, and the
 style it draws in is `ctx.style` rather than `ctx.opts.style`, which would be
 the one layer the use site wrote rather than the three merged.
 
+`options` names the keys the column reads, not the keys supaline reads: one
+that is a column key already is refused, and so is one supaline answers for
+itself — declaring `fetch` would buy the column an option nobody needs and
+turn off the refusal below.
+
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
 your `init.lua` is never replayed on the async side, so a third-party column
