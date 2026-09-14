@@ -322,7 +322,7 @@ test("setup: a column may declare a refresh hook, built-in or not", function()
 	local ran = 0
 	main.column("ticking", {
 		width = 2,
-		render = function(_, ctx) return "ok", ctx.base end,
+		render = function(_, ctx) return "ok", ctx.style end,
 		refresh = function() ran = ran + 1 end,
 	})
 
@@ -443,7 +443,7 @@ test("panes: one list handed to two panes is compiled once", function()
 	local ran = 0
 	main.column("ticking_panes", {
 		width = 2,
-		render = function(_, ctx) return "ok", ctx.base end,
+		render = function(_, ctx) return "ok", ctx.style end,
 		refresh = function() ran = ran + 1 end,
 	})
 

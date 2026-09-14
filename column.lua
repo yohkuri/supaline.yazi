@@ -110,19 +110,30 @@ local colour = require(".colour")
 --- names starting `_`; they are declared on `supaline.Scaled` below rather
 --- than here, because a column that reaches for them is reaching past `ratio`.
 ---@class supaline.Ctx
----@field base unknown what to draw a row with no value in: the ramp's low end, or the flat style
---- Which of the three writers put the `fg` there, `false` included, and nil
---- when none of them did. The one question a column that paints its own
---- characters has to ask: `permissions` colours each out of the theme's
---- `[status]` styles and steps aside for a colour written for the column --
---- while a `bold` or a `bg` written for it arrives in `base` and goes under
---- the characters without asking anything.
----@field fg_from "spec"|"theme"|"definition"|nil
----@field opts table the options the column was specified with
+--- What the column is drawn in when there is no value to place: the
+--- gradient's low end, or the flat style. Named for the key that produced it,
+--- so a column reads back what its writer wrote.
+---@field style unknown a ui.Style
+--- Whether any of the three writers put an `fg` there, `false` included. The
+--- one question a column that paints its own characters has to ask:
+--- `permissions` colours each out of the theme's `[status]` styles and steps
+--- aside for a colour written for the column -- while a `bold` or a `bg`
+--- written for it arrives in `style` and goes under the characters without
+--- asking anything.
+---
+--- Which of the three wrote it is not here. That answer names a file to go
+--- and edit, which is what a refusal is for; `render` is running, and there
+--- is nothing it could do with the name.
+---@field fg_written boolean
+--- The options this column declared in `options`, taken from the spec and
+--- falling back to the definition. Not the spec itself: a column reading
+--- `opts.style` off that would get the one layer its use site wrote rather
+--- than the three merged, which is a different thing wearing the same name.
+---@field opts table<string, any>
 ---@field stats any whatever this column's `stats` returned for the folder
 ---@field width integer? the effective width, `max_width` already applied
 ---@field ratio fun(value: number?): number? where a value sits, 0 to 1
----@field style fun(ratio: number?): unknown a ui.Style for that position
+---@field style_at fun(ratio: number?): unknown a ui.Style for that position
 
 --- The same table, as `bind` and `ratio` see it: the extremes `ratio`
 --- normalises against, and whether the scale is logarithmic. `bind` is the
@@ -702,6 +713,43 @@ local function layers_of(name, opts, def, band)
 	}
 end
 
+--- What a column reads off `ctx.opts`: the options it declared, and nothing
+--- else that happens to be written beside them.
+---
+--- Not the spec table itself, which is what this used to hand back. A column
+--- reading `opts.style` off that would get the one layer its use site wrote
+--- rather than the three `layers_of` merges, and a column reading `opts.width`
+--- would get the stated one rather than the effective one `ctx.width` already
+--- carries. Both are a different thing wearing the same name, which is the
+--- kind of wrong answer nothing else here would correct.
+---
+--- Narrowing it is also what lets a definition supply a default: the two
+--- layers are read the way `pick` reads the shared keys, spec first and then
+--- the definition, with an explicit nil test so a declared option whose
+--- meaningful value is `false` survives.
+---
+--- A column that declared none gets an empty table rather than nil, so a
+--- `ctx.opts.anything` in a third-party column reads as nothing written
+--- instead of raising. One table per column, built once per build.
+---@param opts supaline.ColumnOpts
+---@param def supaline.ColumnOpts
+---@return table<string, any>
+local function options_of(opts, def)
+	local out = {}
+	local declared = def.options
+	if declared == nil then
+		return out
+	end
+	for _, key in ipairs(declared) do
+		local v = opts[key]
+		if v == nil then
+			v = def[key]
+		end
+		out[key] = v
+	end
+	return out
+end
+
 --- Turn one entry of a linemode spec into a runtime column.
 ---@param spec supaline.ColumnSpec
 ---@param cfg supaline.Cfg
@@ -844,16 +892,16 @@ function M.normalize(spec, cfg)
 	-- carry no colour of its own at all, so falling back to it would leave a
 	-- directory in `size` uncoloured beside files that are not.
 	--
-	-- `fg_from` is the layer that wrote `fg`, `false` included: a spec that
-	-- turned the colour off has said something about it, and a column that
-	-- paints its own characters -- `permissions` -- steps aside for that as it
-	-- does for a colour. What was written beside the `fg` needs no field of its
-	-- own: it is in `base` and in every step, and `cell` puts a Line's style
-	-- under its spans.
+	-- `fg_written` is whether any layer put an `fg` there, `false` included: a
+	-- spec that turned the colour off has said something about it, and a column
+	-- that paints its own characters -- `permissions` -- steps aside for that
+	-- as it does for a colour. What was written beside the `fg` needs no field
+	-- of its own: it is in `style` and in every step, and `cell` puts a Line's
+	-- style under its spans.
 	local ctx = {
-		base = steps and steps[1] or ground,
-		fg_from = from.fg and SOURCES[from.fg] or nil,
-		opts = opts,
+		style = steps and steps[1] or ground,
+		fg_written = from.fg ~= nil,
+		opts = options_of(opts, def),
 		stats = nil,
 		width = col.fixed,
 	}
@@ -861,7 +909,7 @@ function M.normalize(spec, cfg)
 
 	--- Where `value` sits between the extremes of the current listing, 0 to 1.
 	--- Returns nil when there is nothing to normalise against, which makes
-	--- `ctx.style` fall back to the flat base colour.
+	--- `ctx.style_at` fall back to the column's own style.
 	function ctx.ratio(value)
 		local lo, hi = ctx._lo, ctx._hi
 		if not value or not lo then
@@ -875,8 +923,8 @@ function M.normalize(spec, cfg)
 		return r < 0 and 0 or r > 1 and 1 or r
 	end
 
-	--- The style for a position on the column's ramp, or the flat base when
-	--- there is no ramp and when there is nothing to place.
+	--- The style for a position on the column's ramp, or the column's own
+	--- style when there is no ramp and when there is nothing to place.
 	---
 	--- Two closures rather than one branch inside one, because this runs for
 	--- every visible row on every frame and most columns have no ramp at all.
@@ -885,11 +933,11 @@ function M.normalize(spec, cfg)
 	if steps then
 		local n = #steps
 		local last = n - 1
-		function ctx.style(r)
+		function ctx.style_at(r)
 			if r == nil then
-				return ctx.base
+				return ctx.style
 			end
-			-- `ratio` clamps, but `style` is public and a column may hand it
+			-- `ratio` clamps, but `style_at` is public and a column may hand it
 			-- anything; an index off the end would return nil and draw the cell
 			-- with no colour at all, which looks like a theme that did not load.
 			--
@@ -907,7 +955,7 @@ function M.normalize(spec, cfg)
 			return steps[i]
 		end
 	else
-		function ctx.style(_) return ctx.base end
+		function ctx.style_at(_) return ctx.style end
 	end
 
 	return col

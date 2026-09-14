@@ -126,6 +126,43 @@ test("normalize: a column's own options are claimed, and only that column's", fu
 	throws(function() column.normalize({ "plain", format = "%c" }, CFG) end, "`format` is not a column key")
 end)
 
+test("normalize: `ctx.opts` holds the declared options and nothing else", function()
+	-- Not the spec table. A column reading `opts.style` off that would get the
+	-- one layer its use site wrote rather than the three merged, and
+	-- `opts.width` the stated width rather than the effective one `ctx.width`
+	-- already carries. Both are a different thing wearing the same name.
+	column.register("timed", { width = 4, options = { "format" }, render = function() return "ab" end })
+	local ctx = column.normalize({ "timed", format = "%c", width = 9, style = "cyan" }, CFG).ctx
+	eq(ctx.opts.format, "%c")
+	eq(ctx.opts.width, nil, "the effective width is `ctx.width`")
+	eq(ctx.opts.style, nil, "and the merged style is `ctx.style`")
+	eq(ctx.width, 9, "which is the one the spec asked for, capped")
+
+	-- A column that declared none gets a table rather than nil, so a
+	-- third-party `ctx.opts.anything` reads as nothing written.
+	column.register("plain", { width = 4, render = function() return "ab" end })
+	eq(next(column.normalize("plain", CFG).ctx.opts), nil)
+end)
+
+test("normalize: a definition may default an option it declares", function()
+	-- What narrowing `ctx.opts` buys. It used to be the spec verbatim, so a
+	-- default written on the definition was read by nobody.
+	column.register("timed", {
+		width = 4,
+		options = { "format", "pad" },
+		format = "%F",
+		pad = false,
+		render = function() return "ab" end,
+	})
+	eq(column.normalize("timed", CFG).ctx.opts.format, "%F", "the definition's, with no spec over it")
+	eq(column.normalize({ "timed", format = "%c" }, CFG).ctx.opts.format, "%c", "and the use site still wins")
+
+	-- Read with an explicit nil test, the way `pick` reads the shared keys, so
+	-- a declared option whose meaningful value is `false` is not collapsed.
+	eq(column.normalize("timed", CFG).ctx.opts.pad, false)
+	eq(column.normalize({ "timed", pad = true }, CFG).ctx.opts.pad, true)
+end)
+
 test("register: a definition is swept the same way, and `options` is checked", function()
 	-- Worse than a spec's, because it is read again for every spec that names
 	-- the column.
@@ -504,11 +541,11 @@ end
 
 test("style: a gradient's endpoints sit at the ends of the range", function()
 	local ctx = coloured { style = BLUES }
-	eq(ctx.style(0).fg, "#0b3d91")
-	eq(ctx.style(1).fg, "#7fd4ff")
+	eq(ctx.style_at(0).fg, "#0b3d91")
+	eq(ctx.style_at(1).fg, "#7fd4ff")
 	-- The bucket arithmetic, not just the ends: 64 steps put the halfway
 	-- ratio on the 33rd, and `colour_spec.lua` pins what that colour is.
-	eq(ctx.style(0.5).fg, "#4288c9")
+	eq(ctx.style_at(0.5).fg, "#4288c9")
 end)
 
 test("style: a row with no value draws the gradient's low end", function()
@@ -516,8 +553,8 @@ test("style: a row with no value draws the gradient's low end", function()
 	-- no colour at all, which would leave an unevaluated directory in `size`
 	-- the one uncoloured cell in the column.
 	local ctx = coloured { style = BLUES }
-	eq(ctx.style(nil).fg, "#0b3d91")
-	eq(ctx.base.fg, "#0b3d91")
+	eq(ctx.style_at(nil).fg, "#0b3d91")
+	eq(ctx.style.fg, "#0b3d91")
 end)
 
 test("style: a ratio off the end is clamped, not left unstyled", function()
@@ -525,8 +562,8 @@ test("style: a ratio off the end is clamped, not left unstyled", function()
 	-- An index past the end would return nil, and a nil style draws a cell with
 	-- no colour -- which reads as a theme that failed to load.
 	local ctx = coloured { style = BLUES }
-	eq(ctx.style(-1).fg, "#0b3d91")
-	eq(ctx.style(2).fg, "#7fd4ff")
+	eq(ctx.style_at(-1).fg, "#0b3d91")
+	eq(ctx.style_at(2).fg, "#7fd4ff")
 end)
 
 test("style: a NaN ratio is clamped too, where a comparison would let it past", function()
@@ -536,7 +573,7 @@ test("style: a NaN ratio is clamped too, where a comparison would let it past", 
 	-- `scale = "log"` column whose extremes reach -1 or below, where `math.log`
 	-- of a non-positive number is a NaN in `_lo`.
 	local ctx = coloured { style = BLUES }
-	eq(ctx.style(0 / 0).fg, "#0b3d91")
+	eq(ctx.style_at(0 / 0).fg, "#0b3d91")
 
 	local col = column.normalize({
 		render = function() return "" end,
@@ -547,7 +584,7 @@ test("style: a NaN ratio is clamped too, where a comparison would let it past", 
 	column.bind(col, { stats = { min = -10, max = 100 } })
 	local r = col.ctx.ratio(5)
 	assert(r ~= r, "a log scale over a negative minimum is where the NaN comes from")
-	eq(col.ctx.style(r).fg, "#0b3d91", "and the cell is still coloured")
+	eq(col.ctx.style_at(r).fg, "#0b3d91", "and the cell is still coloured")
 end)
 
 test("style: `false` turns the style off, whatever the layers beneath say", function()
@@ -559,51 +596,51 @@ test("style: `false` turns the style off, whatever the layers beneath say", func
 		stats = function() return nil end,
 		style = { fg = BLUES, bold = true },
 	})
-	eq(column.normalize("hue3", CFG).ctx.base.fg, "#0b3d91", "the definition's gradient, without it")
+	eq(column.normalize("hue3", CFG).ctx.style.fg, "#0b3d91", "the definition's gradient, without it")
 
 	local ctx = column.normalize({ "hue3", style = false }, CFG).ctx
-	eq(ctx.style(1), ctx.base, "no gradient left to index")
+	eq(ctx.style_at(1), ctx.style, "no gradient left to index")
 	-- `rawget`, because reading `.fg` off a style that has none hands back the
 	-- setter rather than nil -- on a real Yazi as here.
-	eq(rawget(ctx.base, "fg"), nil, "and no colour left either")
-	eq(rawget(ctx.base, "bold"), nil, "nor the attribute")
-	eq(ctx.fg_from, "spec", "and the spec is on record as having said so")
+	eq(rawget(ctx.style, "fg"), nil, "and no colour left either")
+	eq(rawget(ctx.style, "bold"), nil, "nor the attribute")
+	eq(ctx.fg_written, true, "and a colour is on record as having been written")
 end)
 
 test("style: one key can be turned off on its own, and the rest is kept", function()
 	column.register("hue3b", { render = function() return "" end, style = { fg = "red", bg = "blue", bold = true } })
 	local ctx = column.normalize({ "hue3b", style = { fg = false } }, CFG).ctx
-	eq(rawget(ctx.base, "fg"), nil, "the colour is gone")
-	eq(ctx.base.bg, "blue", "and the rest of the definition's is kept")
-	eq(ctx.base.bold, true)
-	eq(ctx.fg_from, "spec")
+	eq(rawget(ctx.style, "fg"), nil, "the colour is gone")
+	eq(ctx.style.bg, "blue", "and the rest of the definition's is kept")
+	eq(ctx.style.bold, true)
+	eq(ctx.fg_written, true)
 
 	eq(
-		rawget(column.normalize({ "hue3b", style = { bold = false } }, CFG).ctx.base, "bold"),
+		rawget(column.normalize({ "hue3b", style = { bold = false } }, CFG).ctx.style, "bold"),
 		false,
 		"an attribute off is a removal"
 	)
 	eq(
-		column.normalize("hue3b", CFG).ctx.fg_from,
-		"definition",
-		"and with nothing written over it, the definition wrote the colour"
+		column.normalize("hue3b", CFG).ctx.fg_written,
+		true,
+		"and with nothing written over it, the definition's colour is still a colour written"
 	)
 end)
 
 test("style: the rest of the style is the ground a gradient is drawn on", function()
 	local ctx = coloured { style = { fg = BLUES, bold = true, bg = "#1e1e2e" } }
-	local style = ctx.style(1)
+	local style = ctx.style_at(1)
 	eq(style.fg, "#7fd4ff", "the gradient decides the colour")
 	eq(style.bold, true, "and everything else is kept")
-	eq(ctx.style(0).bg, "#1e1e2e")
+	eq(ctx.style_at(0).bg, "#1e1e2e")
 end)
 
 test("style: a gradient may sit under `bg`, and needs extremes as one under `fg` does", function()
 	local ctx = coloured { style = { bg = BLUES, fg = "#ffffff" } }
-	eq(ctx.style(0).bg, "#0b3d91")
-	eq(ctx.style(1).bg, "#7fd4ff")
-	eq(ctx.style(1).fg, "#ffffff")
-	eq(ctx.fg_from, "spec")
+	eq(ctx.style_at(0).bg, "#0b3d91")
+	eq(ctx.style_at(1).bg, "#7fd4ff")
+	eq(ctx.style_at(1).fg, "#ffffff")
+	eq(ctx.fg_written, true)
 
 	throws(function()
 		column.normalize({ render = function() return "" end, style = { bg = BLUES } }, CFG)
@@ -637,8 +674,8 @@ test("style: a table is the theme's spelling, and anything else is refused", fun
 	-- the two files unchanged. `colour_spec.lua` pins the keys; this is the
 	-- spec's own path to them.
 	local ctx = coloured { style = { fg = "#ff8800", bold = true } }
-	eq(ctx.base.fg, "#ff8800")
-	eq(ctx.base.bold, true)
+	eq(ctx.style.fg, "#ff8800")
+	eq(ctx.style.bold, true)
 
 	-- Still an allow-list: what is not a colour, a style table, a `ui.Style`
 	-- or `false` survives `setup` and then empties the screen, because
@@ -653,23 +690,23 @@ test("style: a function is called for its style, and called again on the next bu
 	-- `theme` event but never evaluated again. A function is evaluated again.
 	local answer = "#112233"
 	local spec = { style = function() return answer end }
-	eq(coloured(spec).base.fg, "#112233")
+	eq(coloured(spec).style.fg, "#112233")
 
 	answer = "#445566"
-	eq(coloured(spec).base.fg, "#445566", "the next build asks again")
+	eq(coloured(spec).style.fg, "#445566", "the next build asks again")
 
 	-- And a `ui.Style` comes back through it, which is what the field this was
 	-- written for holds.
 	local ctx = coloured { style = function() return ui.Style():fg("#778899"):bold() end }
-	eq(ctx.base.fg, "#778899")
-	eq(ctx.base.bold, true)
+	eq(ctx.style.fg, "#778899")
+	eq(ctx.style.bold, true)
 
 	-- Nil is how a function says "nothing", which is what lets one be written
 	-- conditionally; `false` from one turns the style off as writing it does.
-	eq(coloured({ style = function() return nil end }).fg_from, nil)
+	eq(coloured({ style = function() return nil end }).fg_written, false)
 	local off = coloured { style = function() return false end }
-	eq(rawget(off.base, "fg"), nil)
-	eq(off.fg_from, "spec")
+	eq(rawget(off.style, "fg"), nil)
+	eq(off.fg_written, true, "`false` is a colour written, not a colour unwritten")
 end)
 
 test("style: `ui.Style` with the call forgotten is refused, not called", function()
@@ -690,13 +727,13 @@ test("style: the spec is the nearest layer, key by key", function()
 	column.register("hue4", { render = function() return "" end, style = { bg = "#101010", italic = true } })
 	with(stub.th, "supaline", { hue4 = ui.Style():fg("#00ccff"):bold() }, function()
 		local ctx = column.normalize({ "hue4", style = function() return "#ff8800" end }, CFG).ctx
-		eq(ctx.base.fg, "#ff8800", "the spec's colour")
-		eq(ctx.base.bold, true, "the theme's bold")
-		eq(ctx.base.bg, "#101010", "the definition's ground")
-		eq(ctx.base.italic, true)
-		eq(ctx.fg_from, "spec", "which is also what tells `permissions` to stop colouring itself")
+		eq(ctx.style.fg, "#ff8800", "the spec's colour")
+		eq(ctx.style.bold, true, "the theme's bold")
+		eq(ctx.style.bg, "#101010", "the definition's ground")
+		eq(ctx.style.italic, true)
+		eq(ctx.fg_written, true, "which is also what tells `permissions` to stop colouring itself")
 
-		eq(column.normalize("hue4", CFG).ctx.fg_from, "theme", "and with no spec, the theme wrote it")
+		eq(column.normalize("hue4", CFG).ctx.fg_written, true, "and with no spec, the theme wrote one")
 	end)
 end)
 
@@ -708,11 +745,11 @@ test("style: a theme's gradient keeps its colour under a spec's attribute", func
 	column.register("att1", { render = function() return "" end, stats = function() return { min = 1, max = 9 } end })
 	with(stub.th, "supaline", { att1 = BLUES }, function()
 		local ctx = column.normalize({ "att1", style = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
-		eq(ctx.fg_from, "theme", "the colour is still the theme's, which is the whole point")
-		eq(ctx.style(0).fg, "#0b3d91")
-		eq(ctx.style(1).fg, "#7fd4ff")
-		eq(ctx.style(0).bold, true)
-		eq(ctx.style(1).bg, "#1e1e2e")
+		eq(ctx.fg_written, true, "and the colour that was written is the theme's, which is the whole point")
+		eq(ctx.style_at(0).fg, "#0b3d91")
+		eq(ctx.style_at(1).fg, "#7fd4ff")
+		eq(ctx.style_at(0).bold, true)
+		eq(ctx.style_at(1).bg, "#1e1e2e")
 	end)
 end)
 
@@ -723,9 +760,9 @@ test("style: a theme's attribute reaches a column with no colour claimed", funct
 	column.register("att2", { render = function() return "" end })
 	with(stub.th, "supaline", { att2 = ui.Style():bold() }, function()
 		local ctx = column.normalize("att2", CFG).ctx
-		eq(ctx.base.bold, true)
-		eq(rawget(ctx.base, "fg"), nil)
-		eq(ctx.fg_from, nil, "nobody wrote a colour, so a column that paints its own goes on doing so")
+		eq(ctx.style.bold, true)
+		eq(rawget(ctx.style, "fg"), nil)
+		eq(ctx.fg_written, false, "nobody wrote a colour, so a column that paints its own goes on doing so")
 	end)
 end)
 
@@ -738,8 +775,8 @@ test("style: a nearer `true` wins over a farther `false`, and the other way roun
 	-- flag 26.9.1's takes, and the flag is what this line plants.
 	---@diagnostic disable-next-line: redundant-parameter
 	with(stub.th, "supaline", { att3 = ui.Style():bold(true) }, function()
-		eq(rawget(column.normalize("att3", CFG).ctx.base, "bold"), false, "the theme strips the definition's")
-		eq(column.normalize({ "att3", style = { bold = true } }, CFG).ctx.base.bold, true, "and the spec puts it back")
+		eq(rawget(column.normalize("att3", CFG).ctx.style, "bold"), false, "the theme strips the definition's")
+		eq(column.normalize({ "att3", style = { bold = true } }, CFG).ctx.style.bold, true, "and the spec puts it back")
 	end)
 end)
 
