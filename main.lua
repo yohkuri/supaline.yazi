@@ -569,6 +569,10 @@ end
 --- Turn a set of specs into runtime linemodes. Pure, and the only place that
 --- validates a spec: `column.normalize` and `panes_of` both raise, so a
 --- configuration that does not compile never reaches module state.
+---
+--- One refusal is this function's own rather than either of theirs -- a `sep`
+--- on the first column of a pane's list -- because it is the only one that
+--- needs a column's position among its neighbours, which neither of them has.
 ---@param from table<string, supaline.LinemodeSpec>
 ---@param with supaline.Cfg
 ---@return table<string, supaline.Mode> modes, function[] hooks, boolean outer whether any mode leaves the current pane
@@ -604,21 +608,22 @@ local function compile(from, with)
 			local list = sets[pane]
 			local made = list and built[list]
 			if list and not made then
+				-- Against the spec alone, and not through `normalize`. `pick`
+				-- reads `sep` off the definition as well, so refusing what a
+				-- definition wrote would forbid a registered column from ever
+				-- heading a linemode: one typo's cost, paid by every reuse of
+				-- the column. What the user wrote here is what nobody draws.
+				--
+				-- `false` is falsy and passes, which is the one spelling that
+				-- agrees with the outcome: it asks for nothing, and nothing is
+				-- what index 1 gets. A list with no index 1 passes too -- a
+				-- gap there is `panes_of`'s to refuse, and it does.
+				local first = list[1]
+				if type(first) == "table" and first.sep then
+					error(string.format(FIRST_SEP, pane, name))
+				end
 				made = {}
 				for i, entry in ipairs(list) do
-					-- Against the spec alone, and not through `normalize`.
-					-- `pick` reads `sep` off the definition as well, so
-					-- refusing what a definition wrote would forbid a
-					-- registered column from ever heading a linemode: one
-					-- typo's cost, paid by every reuse of the column. What the
-					-- user wrote here is what nobody draws.
-					--
-					-- `false` is falsy and passes, which is the one spelling
-					-- that agrees with the outcome: it asks for nothing, and
-					-- nothing is what index 1 gets.
-					if i == 1 and type(entry) == "table" and entry.sep then
-						error(string.format(FIRST_SEP, pane, name))
-					end
 					local col = column.normalize(entry, with)
 					made[i] = col
 					if col.refresh then
