@@ -166,7 +166,7 @@ done
 # The two directories are the other rule, and they are a pair because the pair
 # is what makes it legible. `size` has nothing to place for either of them:
 # `file:size()` is nil for a directory, so the count is drawn as *text* and
-# `ctx.base` -- the ramp's low end -- as its colour, and the ratio never hears
+# `ctx.style` -- the ramp's low end -- as its colour, and the ratio never hears
 # about it. `unlisted-a` is listed the moment the preview reads it, so it shows
 # a count; `unlisted-b` is one row further down and never is, so it shows `-`.
 # Three entries each, to put that count in the same shape as the `3B` beside
@@ -504,7 +504,7 @@ supaline.column("ext", {
 	width = 5,
 	align = "left",
 	style = "magenta",
-	render = function(file, ctx) return file.url.ext or "", ctx.base end,
+	render = function(file, ctx) return file.url.ext or "", ctx.style end,
 })
 
 -- A one-cell marker. Every built-in is 5 to 12 cells wide and the parent pane
@@ -514,14 +514,14 @@ supaline.column("mark", {
 	width = 1,
 	align = "left",
 	style = "green",
-	render = function(file, ctx) return file.cha.is_dir and "d" or "f", ctx.base end,
+	render = function(file, ctx) return file.cha.is_dir and "d" or "f", ctx.style end,
 })
 
 -- Names vary in length, which is what makes the overflow modes legible.
 supaline.column("name", {
 	width = 12,
 	align = "left",
-	render = function(file, ctx) return file.name, ctx.base end,
+	render = function(file, ctx) return file.name, ctx.style end,
 })
 
 -- Where a row sits on the ramp, as a number, so a reader can name a row
@@ -557,7 +557,7 @@ supaline.column("ratio", {
 	stats = supaline.extremes(mtime_of),
 	render = function(file, ctx)
 		local r = ctx.ratio(mtime_of(file))
-		return r and string.format("%.2f", r) or "-", ctx.style(r)
+		return r and string.format("%.2f", r) or "-", ctx.style_at(r)
 	end,
 })
 
@@ -567,7 +567,7 @@ supaline.column("ratio", {
 supaline.column("name_line", {
 	width = 12,
 	align = "left",
-	render = function(file, ctx) return ui.Line { ui.Span(file.name) }, ctx.base end,
+	render = function(file, ctx) return ui.Line { ui.Span(file.name) }, ctx.style end,
 })
 
 -- One list, handed to two panes below.
@@ -638,7 +638,7 @@ supaline:setup({
 		custom = {
 			{ "ext" },
 			{ "name", width = 8, overflow = "clip" },
-			function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.base end,
+			function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end,
 		},
 
 		-- The colour cases, `c r` to `c t`. Each is meant to be read in one of

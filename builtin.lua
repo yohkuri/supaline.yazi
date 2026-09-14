@@ -71,10 +71,10 @@ column.register("size", {
 	render = function(file, ctx)
 		local size = file:size()
 		if size then
-			return ya.readable_size(size), ctx.style(ctx.ratio(size))
+			return ya.readable_size(size), ctx.style_at(ctx.ratio(size))
 		end
 		-- An unevaluated directory, exactly as the preset `size` linemode does.
-		return entries(file), ctx.base
+		return entries(file), ctx.style
 	end,
 })
 
@@ -130,12 +130,12 @@ local function register_time(field)
 		render = function(file, ctx)
 			local time = get(file)
 			if not time or time == 0 then
-				return "", ctx.base
+				return "", ctx.style
 			end
 
 			local fmt = ctx.opts.format
 			local text = (not fmt or fmt == "smart") and smart(time) or os.date(fmt, time)
-			return text, ctx.style(ctx.ratio(time))
+			return text, ctx.style_at(ctx.ratio(time))
 		end,
 	})
 end
@@ -209,7 +209,7 @@ end
 --- `refresh` hook is for; only the spans are rebuilt.
 ---
 --- Nothing else goes on a span. A `bold` or a `bg` written for the column
---- arrives in `ctx.base`, `render` hands that back beside the Line, and
+--- arrives in `ctx.style`, `render` hands that back beside the Line, and
 --- `column.cell` sets it as the Line's own style -- which Yazi puts *under*
 --- each span's, so the characters keep their colours and gain the rest. Read
 --- off `yazi-binding/src/elements/line.rs` at 26.9.1, where a Line taken into
@@ -238,7 +238,7 @@ end
 -- in the spec's `style` or in the `[supaline] permissions` field of the theme
 -- is a flat colour for the whole cell -- `false` included, which is a colour
 -- turned off -- and painting the characters over it would leave the written
--- colour visible nowhere and say nothing about why. `ctx.fg_from` is that
+-- colour visible nowhere and say nothing about why. `ctx.fg_written` is that
 -- question and nothing else.
 --
 -- A `bold` or a `bg` is not a colour, so it does not make the column step
@@ -251,10 +251,10 @@ column.register("permissions", {
 	---@type supaline.Render
 	render = function(file, ctx)
 		local perm = file.cha:perm() or ""
-		if perm == "" or ctx.fg_from then
-			return perm, ctx.base
+		if perm == "" or ctx.fg_written then
+			return perm, ctx.style
 		end
-		return ui.Line(perm_spans(perm)), ctx.base
+		return ui.Line(perm_spans(perm)), ctx.style
 	end,
 })
 
@@ -333,7 +333,7 @@ local function register_half(name, field, lookup)
 		width = 8,
 		align = "left",
 		---@type supaline.Render
-		render = function(file, ctx) return of(file) or "", ctx.base end,
+		render = function(file, ctx) return of(file) or "", ctx.style end,
 	})
 	return of
 end
@@ -352,11 +352,11 @@ column.register("owner", {
 	render = function(file, ctx)
 		local user = user_of(file)
 		if not user then
-			return "", ctx.base
+			return "", ctx.style
 		end
 		-- No second guard: both halves ask the same platform the same question,
 		-- so a build that answered one of them answers the other.
-		return string.format("%s:%s", user, group_of(file)), ctx.base
+		return string.format("%s:%s", user, group_of(file)), ctx.style
 	end,
 })
 
@@ -366,9 +366,9 @@ column.register("count", {
 	---@type supaline.Render
 	render = function(file, ctx)
 		if not file.cha.is_dir then
-			return "", ctx.base
+			return "", ctx.style
 		end
-		return entries(file), ctx.base
+		return entries(file), ctx.style
 	end,
 })
 
