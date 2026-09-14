@@ -350,6 +350,15 @@ test("permissions: a column's own keys beat the theme's, which is why they go ov
 	-- sitting behind it where nothing would ever see it.
 	eq(read_style({ style = { bg = "#1e1e2e" } }).bg, "#1e1e2e")
 
+	-- And `false` on it does not, which is where the attribute and the colour
+	-- part company. `ui.Style` has a removal flag for every attribute and none
+	-- for either colour, so `false` on a colour is only ever "nothing written
+	-- here": it drops what a nearer layer of supaline's own wrote, and has no
+	-- way to reach a `[status]` style, which is not one of those layers.
+	-- Pinned rather than left to be discovered, because the two `false`s read
+	-- alike and do not behave alike.
+	eq(read_style({ style = { bg = false } }).bg, "#330000")
+
 	-- And the colours are still the theme's through all of it: the style going
 	-- over carries no `fg`, because a layer that wrote one would have sent this
 	-- column down the flat path instead.

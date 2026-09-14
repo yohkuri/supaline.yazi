@@ -286,7 +286,10 @@ that off rather than layering over it: `style = "cyan"` in the spec or
 the characters stop being coloured apart. A `bold` or a `bg` is not a colour,
 and goes over the characters, whose own colours survive it -- the style going
 over them has none, because a colour written for the column would have turned
-the per-character painting off in the first place.
+the per-character painting off in the first place. What it cannot do is take
+one of those `[status]` colours *away*: `style = { bg = false }` is a
+background this column does not write rather than one it removes, for the
+reason [`style`](#style) gives.
 
 `user` and `group` are the two halves of `owner`, each drawn on its own, for a
 listing where only one of them is worth the cells. Eight cells is the
@@ -446,6 +449,18 @@ which is what the same line means in a theme: a field holds three states —
 absent, on, and off — and off strips a `bold` the row beneath already carries.
 Write only the keys you mean. Every other key is left to whoever else wrote
 one, which [How the three combine](#how-the-three-combine) is about.
+
+The asymmetry between the two is the platform's rather than a choice.
+`ui.Style` carries a removal flag for every attribute and nothing of the kind
+for either colour — `fg` and `bg` are set or they are absent — so `false` on a
+colour can only ever mean *nothing written here*. Inside supaline's own three
+layers that is enough, because they are merged before a style is built: a
+spec's `bg = false` does drop the `bg` a theme or a definition wrote. It
+reaches no further. A colour the **row** already carries — a `[filetype]` rule,
+the hover indicator, the `[status]` styles the `permissions` characters are
+drawn in — sits under the cell rather than in it, and `false` has no way to
+take one of those off. An attribute does: `bold = false` strips a bold from
+wherever it came.
 
 A `ui.Style` says what the table says — supaline reads its keys back out of
 it, in Yazi's own spelling of the colours — so `ui.Style():fg("cyan"):bold()`
