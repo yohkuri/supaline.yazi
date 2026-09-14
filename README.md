@@ -186,7 +186,9 @@ function(file, ctx) return "..." end    -- render-only shorthand
 { render = fn, stats = fn, width = 6 }  -- an inline definition
 ```
 
-Any option below can be set on the definition or overridden per use.
+Every option below but the last can be set on the definition or overridden per
+use. `options` is the definition's alone, as is `name` where a definition is
+written inline.
 
 | Option      | Default      | Meaning                                                  |
 | ----------- | ------------ | -------------------------------------------------------- |
@@ -200,11 +202,12 @@ Any option below can be set on the definition or overridden per use.
 | `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](#colours). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
-| `options`   | `nil`        | A definition's own: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
+| `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
 
-Any other key is refused by name, on a definition and on a spec alike. Nothing
-else would say so: a misspelled `max_widht` is read by nobody, and the column
-draws at its natural width without a word about why.
+Any other key is refused by name, on a definition and on a spec alike, and so
+is one of those two written where it is not read. Nothing else would say so: a
+misspelled `max_widht` is read by nobody, and the column draws at its natural
+width without a word about why.
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated
