@@ -641,10 +641,12 @@ ramp_faults() { # <rows> <monotone>
 # ramp that stopped drawing, and no terminal this runs in shows fewer.
 RAMP_FLOOR=24
 
-check_ramp() { # <label> <capture> <monotone>
-	rows=$(ramp_rows "$2")
-	count=$(printf '%s\n' "$rows" | grep -c '[^ ]' || true)
-	faults=$(ramp_faults "$rows" "$3")
+# The three questions, asked of rows already read: enough of them, and no
+# fault in the sequence. Split from `check_ramp` because the background ramp
+# below reads its rows another way and asks exactly these three of them.
+check_rows() { # <label> <rows> <monotone>
+	count=$(printf '%s\n' "$2" | grep -c '[^ ]' || true)
+	faults=$(ramp_faults "$2" "$3")
 	if [ "$count" -lt "$RAMP_FLOOR" ]; then
 		fail "$1: only $count row(s) carried a ramp colour, wanted $RAMP_FLOOR"
 	elif [ -n "$faults" ]; then
@@ -652,6 +654,10 @@ check_ramp() { # <label> <capture> <monotone>
 	else
 		echo "  $1 ($count consecutive steps)"
 	fi
+}
+
+check_ramp() { # <label> <capture> <monotone>
+	check_rows "$1" "$(ramp_rows "$2")" "$3"
 }
 
 # One file per step, so consecutive rows are consecutive steps and this is the
@@ -735,10 +741,10 @@ fi
 
 # The third column of `c_bg` carries the ramp under `bg` rather than `fg`, and
 # nothing sets a foreground on the cell, so it is the background escape and
-# then the ratio. The three questions `check_ramp` asks of a foreground ramp,
-# asked of the background one: a step per row, none repeated, climbing in every
-# channel. Printed in the shape `ramp_rows` prints, the colour twice, so
-# `ramp_faults` reads it unchanged.
+# then the ratio. Printed in the shape `ramp_rows` prints, the colour twice, so
+# `ramp_faults` and `check_rows` read it unchanged and the background ramp is
+# asked the same three questions as the foreground one: a step per row, none
+# repeated, climbing in every channel.
 bg_rows() { # <label>
 	awk -F"$BAR" '
 		BEGIN { E = "48;2;[0-9]+;[0-9]+;[0-9]+m" }
@@ -754,16 +760,7 @@ bg_rows() { # <label>
 		}
 	' "$DIR/color-$1.txt"
 }
-rows=$(bg_rows c_bg)
-count=$(printf '%s\n' "$rows" | grep -c '[^ ]' || true)
-faults=$(ramp_faults "$rows" 1)
-if [ "$count" -lt "$RAMP_FLOOR" ]; then
-	fail "c_bg: only $count row(s) carried the ramp as a background, wanted $RAMP_FLOOR"
-elif [ -n "$faults" ]; then
-	fail "c_bg: $(printf '%s' "$faults" | head -3 | tr '\n' ';')"
-else
-	echo "  c_bg: a ramp under \`bg\` climbs a step per row ($count consecutive steps)"
-fi
+check_rows "c_bg: a ramp under \`bg\` climbs a step per row" "$(bg_rows c_bg)" 1
 
 # `c_bold` draws the same ratio twice on the same ramp, the left one carrying
 # `bold = true` beside the gradient. What the layers claim is that one column

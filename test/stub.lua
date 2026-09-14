@@ -950,10 +950,11 @@ function M.install(root)
 		Span = M.Span,
 		-- A callable table rather than a function, because that is what Yazi
 		-- has: measured on 26.9.1, `type(ui.Style)` is `table` and only
-		-- `ui.Style()` is userdata. It matters now that `base` branches on
-		-- `type`: written as a plain function here, a `base = ui.Style` with
-		-- the call forgotten would be called for its colour and come back an
-		-- empty style, where Yazi refuses the table outright.
+		-- `ui.Style()` is userdata. It matters now that `colour.layer`
+		-- branches on `type`: written as a plain function here, a
+		-- `style = ui.Style` with the call forgotten would be called for its
+		-- colour and come back an empty style, where Yazi refuses the table
+		-- outright.
 		Style = setmetatable({}, { __call = function() return new_style {} end }),
 		truncate = truncate,
 		width = function(x) return str_width(text_of(x)) end,

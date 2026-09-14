@@ -129,7 +129,7 @@ end)
 
 test("separator: a style written as a function is called", function()
 	-- Called inside `normalize`, which runs inside `build`, so it follows a
-	-- theme reload the way a column's `base` function does. That it is called
+	-- theme reload the way a column's `style` function does. That it is called
 	-- again on the next build is `main_spec.lua`'s to say, since only `setup`
 	-- has a build to run twice.
 	eq(separator({ "|", style = function() return "#ff8800" end }).style.fg, "#ff8800")
@@ -155,8 +155,8 @@ test("separator: what a separator is refused for", function()
 	refuses_sep({ "|", styel = { fg = "cyan" } }, "`styel`")
 	refuses_sep({ "", style = { fg = "cyan" } }, 'draws "" in a colour')
 
-	-- `style = false` reads like a column's `base = false`, which drops a
-	-- colour the theme or the definition would otherwise supply. A separator
+	-- `style = false` on a column turns off a colour the theme or the
+	-- definition would otherwise supply. A separator
 	-- has neither behind it, so the value has nothing to mean.
 	refuses_sep({ "|", style = false }, "nothing there to turn off")
 end)
@@ -164,8 +164,8 @@ end)
 test("separator: every key nobody claimed, in an order two runs agree on", function()
 	-- `pairs` walks a table in whatever order the hash gives, so naming
 	-- whichever came up first would hide the second misspelling until the first
-	-- was fixed. The same sentence `panes_of` and `from_table` are both written
-	-- under.
+	-- was fixed. The same sentence `panes_of` and `colour.layer` are both
+	-- written under.
 	refuses_sep({ "|", styel = 1, colour = 2 }, "`colour`, `styel`")
 end)
 
