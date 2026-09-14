@@ -379,6 +379,10 @@ that is a column key already is refused, and so is one supaline answers for
 itself — declaring `fetch` would buy the column an option nobody needs and
 turn off the refusal below.
 
+It is a plain list, and is checked as one. A gap in it, or a name written as a
+key rather than as an entry, is refused rather than read as far as the gap and
+ignored past it.
+
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
 your `init.lua` is never replayed on the async side, so a third-party column
