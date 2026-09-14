@@ -663,16 +663,23 @@ too. Nothing else writes attributes — a `[supaline]` field is the colour, not
 this — so on a column whose definition wrote none it is simply the same as
 leaving it out.
 
-It takes a **function returning a table**, called wherever the colours are
-built, so it follows a theme reload the way [`base`](#one-colour) does:
+It takes a **function returning a table**, called each time the linemode is
+built, which is what lets a condition decide:
 
 ```lua
-{ "size", attrs = function() return th.supaline.emphasis end }
+local emphasis = false   -- your own flag, flipped wherever you like
+
+{ "size", attrs = function() return emphasis and { bold = true } or nil end }
 ```
 
-Returning `nil` from one is how it says "none", which is what lets a condition
-decide; `false` from one says it too, and drops a definition's as writing
-`false` does.
+Unlike [`base`](#one-colour), that is not a way to borrow from your theme, and
+nothing else is either. A `[supaline]` field written as a style table reaches
+Lua as a `ui.Style`, which is the spelling refused above, so a themed
+attribute has nowhere to arrive from. The attributes are yours to write here;
+the theme keeps the colour.
+
+Returning `nil` from one is how it says "none"; `false` from one says it too,
+and drops a definition's as writing `false` does.
 
 An ordinary option otherwise: written on a definition and again in the spec,
 the spec's replaces it whole, the way `align` and `width` do.
