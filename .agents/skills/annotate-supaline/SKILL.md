@@ -8,8 +8,8 @@ description: >-
   needs nothing from here, not for a spec or a stub, which `verify-supaline`
   covers, and not for a rename or a format string. Covers what carries a type
   and what does not, why a wrong value in a configuration table is refused
-  where a misspelled key is not, the seven places `types.yazi` disagrees with
-  Yazi 26.9.1 -- six where it declares less than Yazi has and one where it
+  where a misspelled key is not, the eight places `types.yazi` disagrees with
+  Yazi 26.9.1 -- seven where it declares less than Yazi has and one where it
   declares more -- and why a difference is declared by inheriting from Yazi's
   class rather than re-opening it. The collision that makes `supaline.Main`
   necessary is summarised here and measured in
@@ -78,12 +78,15 @@ to read it off.
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
 neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
 string where 26.9.1 has a method, declares `ui.truncate` but nothing for
-`Line:truncate`, which 26.9.1 has, and describes no `Tab:history`, which
-`builtin.lua` asks a directory for its entry count — so `column.lua` declares
-the difference itself, with the evidence written beside the classes: a probe
-for the four read off `cx`, and `test/truncate_spec.lua` for the method, which
-pins what it does. A newer Yazi is a reason to run those again and correct them
-there, never to work around them at the call site.
+`Line:truncate`, which 26.9.1 has, describes no `Tab:history`, which
+`builtin.lua` asks a directory for its entry count, and no `Style:raw`, which
+`colour.lua` reads every `ui.Style` it is handed through — so `column.lua` and
+`colour.lua` declare the difference themselves, with the evidence written
+beside the classes: a probe for the four read off `cx`,
+`test/truncate_spec.lua` for the one method, which pins what it does, and
+`colour_spec.lua` against `yazi-platform-traps/references/probes.md` for the
+other. A newer Yazi is a reason to run those again and correct them there,
+never to work around them at the call site.
 
 Declaring the fifth is what keeps the call checked, and the difference is
 worth planting once: with `cut` taking its line as `unknown`, `line:truncatee`
@@ -113,7 +116,7 @@ The cast is the price of the subclass and it is worth paying: re-opening
 and, in one arrangement, silently stopped refusing a misspelling — a check that
 quietly does nothing is the failure mode this whole job exists to avoid.
 
-All six of those are `types.yazi` describing **less** than Yazi has, and the
+All seven of those are `types.yazi` describing **less** than Yazi has, and the
 difference runs the other way too — which is the worse direction, because the
 check blesses the call and the screen refuses it. `ui.Style:reset()` is one:
 declared on the `ui.Style` class the annotations mark `(exact)`, and

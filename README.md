@@ -197,9 +197,7 @@ Any option below can be set on the definition or overridden per use.
 | `max_width` | `nil`        | Caps the column's width, however it was derived.          |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
-| `base`      | `nil`        | One colour, a `ui.Style`, or a function returning one. See [Colours](#colours). |
-| `ramp`      | `nil`        | Gradient endpoints: `{ "#a", "#b" }` or `"#a -> #b"`.    |
-| `attrs`     | `nil`        | Style keys to put over the colour, whoever supplied it; `false` drops a definition's. See [`attrs`](#attrs). |
+| `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](#colours). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 
@@ -220,13 +218,12 @@ about the folder is what changed.
 
 | Field          | Meaning                                                     |
 | -------------- | ----------------------------------------------------------- |
-| `ctx.base`     | What to draw a row with no value in: the ramp's low end, or the flat colour. |
+| `ctx.base`     | What to draw a row with no value in: the gradient's low end, or the flat style. |
 | `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
 | `ctx.opts`     | The options written in the spec, verbatim.                   |
-| `ctx.source`   | Which of the three said what `base` is: `"spec"`, `"theme"` or `"definition"`. |
-| `ctx.attrs`    | The style [`attrs`](#attrs) asked for, or `nil`. Already in `ctx.base` and in every step of a ramp; only a column that paints its own spans needs it. |
+| `ctx.fg_from`  | Which of the three writers put the `fg` there, `false` included: `"spec"`, `"theme"`, `"definition"`, or `nil` when none did. Only a column that paints its own characters needs it; see [How the three combine](#how-the-three-combine). |
 | `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
-| `ctx.style(r)` | The style for that position on the column's ramp; `ctx.base` when there is no ramp, and for `nil`. |
+| `ctx.style(r)` | The style for that position on the column's gradient; `ctx.base` when there is none, and for `nil`. |
 
 `render` may return one renderable, or a value and a style. Returning
 `text, style` skips building an intermediate line, and is what the built-in
@@ -252,18 +249,19 @@ only.
 
 None of them names a colour. A built-in column leaves its cell unstyled, so it
 is drawn in whatever colour your flavor already gives the file row -- the same
-as Yazi's own linemodes. Write a `base` in the spec or a field in `[supaline]`
-to say otherwise.
+as Yazi's own linemodes. Write a `style` in the spec or a field in
+`[supaline]` to say otherwise.
 
 `permissions` is the one built-in that colours its own cell, and it takes those
 colours from your theme. Each character is drawn in the `[status]` style
 Yazi's own status bar would give it -- `perm_type` for the `d` or the `l`,
 `perm_read`, `perm_write`, `perm_exec`, and `perm_sep` for every bit that is
 off -- so a flavor that already says what a write bit looks like says it in the
-linemode too, with nothing to set up. Writing a colour for the column turns
-that off rather than layering over it: a `base` in the spec or a
-`[supaline] permissions` field in your theme is a flat colour for the whole
-cell, and the characters stop being coloured apart.
+linemode too, with nothing to set up. Writing an `fg` for the column turns
+that off rather than layering over it: `style = "cyan"` in the spec or
+`permissions = "cyan"` in your theme is a flat colour for the whole cell, and
+the characters stop being coloured apart. A `bold` or a `bg` is not a colour,
+and goes under the characters with their own colours still on top.
 
 `user` and `group` are the two halves of `owner`, each drawn on its own, for a
 listing where only one of them is worth the cells. Eight cells is the
@@ -302,7 +300,7 @@ local supaline = require("supaline")
 supaline.column("ext", {
   width = 6,
   align = "left",
-  base  = "magenta",
+  style = "magenta",
   render = function(file, ctx) return file.url.ext or "", ctx.base end,
 })
 
@@ -317,8 +315,8 @@ supaline:setup {
 allocate as little as possible. Anything that has to look at the whole folder
 belongs in `stats`, which runs once per folder and is cached.
 
-A column that wants a `ramp` needs a `stats` returning `{ min, max }`, which is
-almost always the extremes of one value across the listing.
+A column that wants a gradient needs a `stats` returning `{ min, max }`, which
+is almost always the extremes of one value across the listing.
 `supaline.extremes(get)` is that loop — the same one the built-in columns
 use — so you write the accessor and nothing else. Values that are `nil` or at
 or below zero stay out of the range, so an unevaluated directory cannot drag
@@ -329,7 +327,7 @@ local function name_length(file) return #file.name end
 
 supaline.column("namelen", {
   width = 4,
-  ramp  = "#0b3d91 -> #7fd4ff",
+  style = "#0b3d91 -> #7fd4ff",
   stats = supaline.extremes(name_length),
   render = function(file, ctx)
     local n = name_length(file)
@@ -351,95 +349,115 @@ supaline itself.
 
 ## Colours
 
-A column draws in one colour, or on a gradient across the values in the folder.
-Both are written the same way in the spec and in your theme.
+A column draws in one colour, or on a gradient across the values in the folder,
+and may be bold, or on a background, beside either. All of it is one key,
+`style`, written the same way in the spec and in your theme.
 
-### One colour
+### `style`
 
-`base` takes anything Yazi's own parser takes — `"#rrggbb"`, one of the sixteen
-names, a 256-colour index written as a string, `"reset"` — or a whole style,
-for bold or a background. A style is written either as the table
-`theme.toml` uses or as a `ui.Style`, and the two mean the same thing:
+`style` takes a colour string, a table of style keys, a `ui.Style`, `false`, or
+a function returning one of those:
 
 ```lua
-{ "size", base = "#ff8800" }
-{ "size", base = "lightcyan" }
-{ "size", base = "129" }
-{ "size", base = { fg = "cyan", bold = true } }
-{ "size", base = ui.Style():fg("cyan"):bold() }
+{ "size", style = "#ff8800" }
+{ "size", style = "lightcyan" }
+{ "size", style = "129" }
+{ "size", style = { fg = "cyan", bold = true } }
+{ "size", style = ui.Style():fg("cyan"):bold() }
+{ "size", style = function() return th.status.perm_read end }
+{ "size", style = false }
 ```
+
+A string is the `fg` alone, and takes anything Yazi's own parser takes:
+`"#rrggbb"`, one of the sixteen names, a 256-colour index written as a string,
+`"reset"`.
 
 The table takes the keys [a theme's does](#from-the-theme), in the same
 spelling — `reversed`, not `reverse` — and here a key that is none of them is
 **refused by name**, which is the one thing a theme cannot do for you:
 
 ```text
-supaline: the colour of column `size`: `strikethrough` is not a style key.
+supaline: the `style` of column `size`: `strikethrough` is not a style key.
 A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
 `blink`, `blink_rapid`, `reversed`, `hidden` and `crossed` -- the spelling
 `theme.toml` uses, so a style is written the same way in both files.
 `crossed` is the spelling
 ```
 
-`bold = false` is the attribute **taken off** rather than an error, which is
-what the same line means in a theme: a field holds three states — absent, on,
-and off — and off strips a `bold` the row beneath already carries. `ui.Style`
-without the call, and a table with nothing in it, are both refused: neither is
-a style, and both would otherwise draw the column in no colour at all. So is a
-**list** of colours, which is a gradient written one key too far in: that one
-is answered by name too, and the name is [`ramp`](#a-gradient).
+`fg` and `bg` take a colour, [a gradient](#a-gradient), or `false` for no
+colour. An attribute takes `true`, or `false` for the attribute **taken off**,
+which is what the same line means in a theme: a field holds three states —
+absent, on, and off — and off strips a `bold` the row beneath already carries.
+Write only the keys you mean. Every other key is left to whoever else wrote
+one, which [How the three combine](#how-the-three-combine) is about.
 
-It also takes a **function returning one**, which is how you borrow a colour
-from the rest of your theme:
+A `ui.Style` says what the table says — supaline reads its keys back out of
+it, in Yazi's own spelling of the colours — so `ui.Style():fg("cyan"):bold()`
+and `{ fg = "cyan", bold = true }` are one style. Mind that its attribute
+methods take a removal flag rather than the value: `bold()` adds, and
+`bold(true)` takes off. `ui.Style` without the call, and a table with nothing
+in it, are both refused, because neither says anything; a list of colours is
+refused as a table of keys nobody claims, because a gradient is
+[one string](#a-gradient).
+
+`false` is nothing at all: no colour of the column's own, and nothing from the
+theme or from the column's definition either. The cell is drawn in whatever
+style the row already carries.
+
+A **function** is called each time the linemode is built — at startup, on the
+event the flavor arrives with, and on every reload — and what it returns is
+read as any of the above; `nil` from one is nothing written. Once per column
+each time, never per row. It is how you borrow a colour from the rest of your
+theme:
 
 ```lua
-{ "permissions", base = function() return th.status.perm_read end }
+{ "permissions", style = function() return th.status.perm_read end }
 ```
 
 Write that one as a value and it comes out wrong, in a way nothing reports.
 Yazi merges a flavor *after* your `init.lua` has run, so `th.status.perm_read`
 read there is Yazi's preset rather than your flavor's colour — and it stays
 the preset, because a spec is re-read on `app:theme` and never evaluated
-again. A function is called again each time the linemode is built: at startup,
-on the event the flavor arrives with, and on every reload. Once per column
-each time, never per row.
-
-`ramp` takes no function, where `base` does. Its endpoints are parsed into
-channels when the linemode is built, and nothing yet supplies them any later
-than that: write them out, in the spec or in the theme.
+again.
 
 ### A gradient
 
-`ramp` takes two or more `#rrggbb` endpoints, as a list or as one string:
+A gradient is two or more `#rrggbb` endpoints with an arrow between each pair,
+written under `fg` or under `bg`. A string on its own is the `fg`:
 
 ```lua
-{ "size",  ramp = { "#0b3d91", "#7fd4ff" } }
-{ "size",  ramp = "#0b3d91 -> #7fd4ff" }
-{ "mtime", ramp = "#0b3d91 -> #ffffff -> #7fd4ff" }
+{ "size",  style = "#0b3d91 -> #7fd4ff" }
+{ "mtime", style = "#0b3d91 -> #ffffff -> #7fd4ff" }
+{ "size",  style = { fg = "#0b3d91 -> #7fd4ff", bold = true } }
+{ "size",  style = { bg = "#0b3d91 -> #7fd4ff", fg = "#ffffff" } }
 ```
 
-Where a file lands on the ramp is `ctx.ratio`: its position between the
-smallest and largest value in the folder, on the column's `scale`. The colours
-between the endpoints are interpolated in Oklab and quantised into 64 styles
-when the linemode is built, so a row costs an array index and no colour
-arithmetic at all.
+Where a file lands on it is `ctx.ratio`: its position between the smallest and
+largest value in the folder, on the column's `scale`. The colours between the
+endpoints are interpolated in Oklab and quantised into 64 styles when the
+linemode is built, so a row costs an array index and no colour arithmetic at
+all. Everything written beside the gradient — a `bold`, a `bg` under an `fg`
+gradient, an `fg` over a `bg` one — is on every one of the 64 steps, and two
+gradients on one column land on the same step at the same ratio.
 
-A row with no value to place draws the ramp's **low** end — a directory in
+A row with no value to place draws the gradient's **low** end — a directory in
 `size`, a file with no mtime.
 
 A folder whose values are all the same has no range to divide by, and every
-row in it draws the ramp's **high** end. One file on its own is that folder
-too. Both ends of a ramp turn up in a listing that has no spread at all, then:
-the files at the top of it, and any row with nothing to place at the bottom.
+row in it draws the **high** end. One file on its own is that folder too. Both
+ends turn up in a listing that has no spread at all, then: the files at the top
+of it, and any row with nothing to place at the bottom.
 
 A column that declares no `stats` has no extremes to place a value between, so
-a `ramp` on one could only ever draw that low end. It is refused rather than
-drawn flat.
+a gradient on one could only ever draw that low end. It is refused rather than
+drawn flat, and the refusal names the file the gradient was written in.
 
 **Endpoints have to be `#rrggbb`.** A name and a 256-colour index are whatever
-your terminal's palette makes them, and supaline has no way to ask; a ramp
+your terminal's palette makes them, and supaline has no way to ask; a gradient
 interpolated from a guess would not meet either end. They stay perfectly good
-flat colours.
+flat colours. **And a gradient is one string**, in the spec as in the theme:
+`{ "#0b3d91", "#7fd4ff" }` is a table of keys nobody claims, and is refused as
+one.
 
 ### A band around one colour
 
@@ -447,8 +465,8 @@ One colour is a gradient too. `<->` spreads it across a fixed band of
 lightness — 0.35 to 0.88 in Oklab by default, dark end first:
 
 ```lua
-{ "size", ramp = "#7fd4ff <->" }
-{ "size", ramp = "#7fd4ff" }        -- the same thing; `ramp` already said so
+{ "size", style = "#7fd4ff <->" }
+{ "size", style = { bg = "#7fd4ff <->" } }
 ```
 
 ```toml
@@ -456,9 +474,8 @@ lightness — 0.35 to 0.88 in Oklab by default, dark end first:
 size = "#7fd4ff <->"
 ```
 
-The marker is there for the theme, where a field holds one value and
-`size = "#7fd4ff"` has to go on meaning a flat colour. A spec needs none of it,
-because the key says `ramp` already.
+The marker is always there. `"#7fd4ff"` on its own is a flat colour, in a spec
+and in a theme alike, and the marker is what says otherwise.
 
 **The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
 axis as the colour you wrote, so every step between them does too. As far as
@@ -526,9 +543,9 @@ lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
 
 Both numbers are Oklab lightnesses, above 0 and at most 1. Nothing checks them
 against each other: two ends at one lightness draw sixty-four steps of one
-colour, which is what `base` already is, and supaline takes it rather than
-guessing you did not mean it — a pair a hair apart draws the same column and no
-comparison of two numbers tells them apart.
+colour, which is what a flat colour already is, and supaline takes it rather
+than guessing you did not mean it — a pair a hair apart draws the same column
+and no comparison of two numbers tells them apart.
 
 ### `scale`
 
@@ -568,21 +585,21 @@ mtime = "#a6e3a1 <->"
 owner = { fg = "green", bold = true }
 ```
 
-A string is a colour or a ramp; a table is a style. **A theme cannot hold a
-list** — Yazi refuses an array in a custom section and takes the whole file with
-it — which is why a ramp is written with arrows.
+A string is a colour or a gradient; a table is a style, with the keys
+[`style`](#style) takes, and it says what the same table says in a spec:
+`{ bold = true }` draws the column bold in whatever colour it already has,
+from the row, the spec or the column's definition. What a table here cannot
+hold is a **gradient**. Yazi parses the table's `fg` as a colour, and
+`size = { fg = "#0b3d91 -> #7fd4ff" }` takes the whole `theme.toml` down with
+`Failed to parse config` — measured on 26.9.1. A gradient is the string form,
+and a bold over a themed gradient is written in the spec, which
+[the next section](#how-the-three-combine) allows. A theme cannot hold a list
+either: an array in a custom section is refused the same way, which is why a
+gradient is written with arrows in both files.
 
 Field names may hold lowercase letters, digits and underscores only. `my-col`
 and `MyCol` are refused, and the refusal costs the whole `theme.toml`, so a
 column you want themed needs a name of that shape.
-
-A style table takes the keys Yazi's own theme fields take: `fg`, `bg`, `bold`,
-`dim`, `italic`, `underline`, `blink`, `blink_rapid`, `reversed`, `hidden` and
-`crossed`. Any of them stands alone — `{ bold = true }` draws the column bold
-in whatever colour the row already carries — and `fg` takes everything `base`
-does. [A `base` takes the same table](#one-colour). A table is never a ramp,
-so a gradient with a background or a bold on it is a `base` in the spec rather
-than anything a theme can say.
 
 Two spellings are worth getting right, because neither is refused. It is
 `reversed`, where the `ui.Style` method of the same effect is `reverse()`; and
@@ -592,103 +609,39 @@ attribute at all, the rest of the table applied, and nothing was said anywhere
 — where a *colour* Yazi cannot parse takes the whole `theme.toml` down with a
 message. `reset` is not a key either; write `fg = "reset"`.
 
-### Which one wins
+### How the three combine
 
-One source decides the whole colour: the spec if it says anything about colour,
-then the theme, then the column's own default.
-
-Within one source the two combine. `base` is the ground `ramp` is patched onto,
-so a background, bold, italic and the rest survive a gradient that knows nothing
-about them:
-
-```lua
-{ "size", base = ui.Style():bold(), ramp = "#0b3d91 -> #7fd4ff" }
-```
-
-A function counts as the spec saying something, whatever it goes on to return
-— `false` included, which turns the colour off exactly as writing `false` does.
-
-`false` is how a spec says "neither" — the same spelling `sep` uses. It counts
-as the spec saying something, so it takes the whole source with it: not the
-ramp alone, but the theme's colour and the column's default along with it. Both
-of these leave the column with no colour at all, and the cell is drawn in
-whatever style the row already carries:
+Three places may write a column's style: its definition, the `[supaline]`
+field named after it, and the spec. They are read in that order, and **each
+key goes to the nearest one that wrote it**. A spec that writes `fg` alone
+keeps the theme's `bold` and the definition's `bg`; a theme that writes
+`{ bold = true }` alone keeps the colour the definition gave.
 
 ```lua
-{ "size", ramp = false }
-{ "size", base = false, ramp = false }   -- the same thing, said twice
+-- with `size = "#0b3d91 -> #7fd4ff"` in your theme:
+{ "size", style = { bold = true } }     -- the theme's gradient, bold
+{ "size", style = "#ff8800" }           -- flat orange; the gradient is gone
+{ "size", style = { fg = false } }      -- no colour at all, the row's own
 ```
 
-There is no spelling for "the theme's colour, drawn flat". A ramp in the theme
-is a ramp, and a spec that wants a flat colour instead has to name one:
+`false` under a key is written, and wins like any value: `fg = false` is no
+colour whatever the theme said, and `bold = false` is the attribute taken off
+whatever the theme or the row put on. `style = false` is the whole style off
+— neither a colour of the column's own nor anything the theme or the
+definition wrote — and is not the same as eleven `false`s: an attribute
+written `false` strips the row's own, where `style = false` leaves the row as
+it is.
 
-```lua
-{ "size", base = "cyan" }
-```
+A function counts as the spec saying whatever it returns, `false` included;
+`nil` from one is nothing written.
 
-### `attrs`
-
-Everything above is one auction with one winner. `attrs` does not enter it: it
-is what goes **over** the colour, whoever supplied it.
-
-```lua
-{ "size", attrs = { bold = true } }
-```
-
-With `size = "#0b3d91 -> #7fd4ff"` in your theme, that draws the theme's
-gradient, bold. Writing `base = { bold = true }` instead would not: `base` is
-one of the three sources, so saying anything in it takes the whole colour from
-the theme and leaves the column bold in no colour at all. The only way to a
-themed gradient with a bold on it used to be copying the endpoints into
-`init.lua`, where they stop following the theme.
-
-It takes the same keys a [style table](#one-colour) takes, with one exception:
-
-| | |
-| --- | --- |
-| `bg` and the nine attributes | yours to write |
-| `fg` | **refused by name** — a flat colour is `base`, a gradient is `ramp` |
-
-`fg` is refused rather than ignored because it is the one key that would make
-this a fourth source, and a spec that wrote one meant a colour: it would
-otherwise get a colour nowhere and the theme would go on drawing underneath.
-
-A `ui.Style` is refused too, where `base` takes one. Its keys sit where nothing
-here reads them, so an `fg` inside one could not be refused — and a refusal
-that cannot be made is a colour taken over in silence. Write the table.
-
-`false` is how a use site drops the `attrs` a column definition wrote, the
-spelling `sep` and `base` already use. A function returning `false` says it
-too. Nothing else writes attributes — a `[supaline]` field is the colour, not
-this — so on a column whose definition wrote none it is simply the same as
-leaving it out.
-
-It takes a **function returning a table**, called each time the linemode is
-built, which is what lets a condition decide:
-
-```lua
-local emphasis = false   -- your own flag, flipped wherever you like
-
-{ "size", attrs = function() return emphasis and { bold = true } or nil end }
-```
-
-Unlike [`base`](#one-colour), that is not a way to borrow from your theme, and
-nothing else is either. A `[supaline]` field written as a style table reaches
-Lua as a `ui.Style`, which is the spelling refused above, so a themed
-attribute has nowhere to arrive from. The attributes are yours to write here;
-the theme keeps the colour.
-
-Returning `nil` from one is how it says "none"; `false` from one says it too,
-and drops a definition's as writing `false` does.
-
-An ordinary option otherwise: written on a definition and again in the spec,
-the spec's replaces it whole, the way `align` and `width` do.
-
-`permissions` is worth naming, because it is the exception everywhere else.
-It colours each character out of your theme's `[status]` section and steps
-aside the moment you say anything about the colour — but `attrs` is not a
-colour, so it does not step aside. The reds and greens stay and the attribute
-goes over all ten of them.
+`ctx.fg_from` is the one piece of this a column can ask about: which of the
+three wrote `fg`, `false` included, or `nil` when none did. `permissions` is
+the column that does. It colours each character out of your theme's `[status]`
+section and steps aside the moment an `fg` is written for it, wherever it was
+written — a flat colour for the whole cell, or no colour — while a `bold` or a
+`bg` written for it goes under the ten characters with the reds and greens
+still on top.
 
 ### A coloured separator
 
@@ -701,9 +654,9 @@ separator = { " │ ", style = { fg = "#585b70" } }
 
 The first element is what to draw and `style` is what to draw it in — a colour
 string, a style table, a `ui.Style`, or a function returning one, which is
-what [`base`](#one-colour) takes. All three places that take a separator take
-the table: `separator` in `setup`, `separator` on a linemode, and a column's
-own `sep`.
+what a column's [`style`](#style) takes. All three places that take a
+separator take the table: `separator` in `setup`, `separator` on a linemode,
+and a column's own `sep`.
 
 ```lua
 require("supaline"):setup {
@@ -724,14 +677,16 @@ reload the way a column's does:
 sep = { " │ ", style = function() return th.status.perm_sep end }
 ```
 
-There is no `ramp`. A separator is drawn between two columns rather than on a
-file, so it has no value to place between the extremes of the listing.
+There is no gradient. A separator is drawn between two columns rather than on
+a file, so it has no value to place between the extremes of the listing, and
+one written under its `style` is refused by name.
 
 Whichever level writes a separator supplies both halves of it. A bare string
 on a column draws uncoloured even under a linemode that wrote a colour: the
-nearer one replaces the farther one whole, the way a spec's `base` replaces
-the theme's. `sep = false` still drops the separator before a column, and `""`
-still draws nothing between two of them.
+nearer one replaces the farther one whole, which is the one place a nearer
+writer takes everything rather than the keys it wrote. `sep = false` still
+drops the separator before a column, and `""` still draws nothing between two
+of them.
 
 Written wrong it says so, while `setup` runs rather than a session later: a
 table with nothing to draw, a key that is neither the text nor `style`, and a
