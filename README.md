@@ -343,12 +343,12 @@ supaline:setup {
 allocate as little as possible. Anything that has to look at the whole folder
 belongs in `stats`, which runs once per folder and is cached.
 
-A column that wants a gradient needs a `stats` returning `{ min, max }`, which
-is almost always the extremes of one value across the listing.
-`supaline.extremes(get)` is that loop — the same one the built-in columns
-use — so you write the accessor and nothing else. Values that are `nil` or at
-or below zero stay out of the range, so an unevaluated directory cannot drag
-the minimum down:
+A column that wants a gradient needs a `stats` returning
+`{ min = ..., max = ... }`, which is almost always the extremes of one value
+across the listing. `supaline.extremes(get)` is that loop — the same one the
+built-in columns use — so you write the accessor and nothing else. Values that
+are `nil` or at or below zero stay out of the range, so an unevaluated
+directory cannot drag the minimum down:
 
 ```lua
 local function name_length(file) return #file.name end
@@ -368,6 +368,13 @@ Rounding is yours, not `extremes`'s: whatever `get` hands back is what the
 range is measured in, so if `render` rounds a value before `ctx.ratio` sees it,
 `get` has to round it the same way or the two disagree about which step a row
 is on.
+
+**Both keys are named ones**, and a `stats` of your own that writes the pair
+as a list is the one mistake here that says nothing at all: `{ lo, hi }` has
+no `min` and no `max`, so the extremes stay unset, `ctx.ratio` answers `nil`
+for every row, and the column draws flat at its gradient's low end. The
+refusal a gradient gets for a column with no `stats` does not fire either —
+this column has one.
 
 A column that takes an option of its own reads it off `ctx.opts` and names it
 in `options`, which is what lets a misspelling of it be refused rather than
