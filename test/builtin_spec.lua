@@ -264,11 +264,12 @@ test("permissions: a colour written for the column takes the theme's place", fun
 	eq(perm_fgs(file, { style = { fg = false } }), "-")
 end)
 
-test("permissions: an attribute or a background goes under the characters, not over their colours", function()
+test("permissions: an attribute or a background reaches the characters, and their colours survive it", function()
 	-- The one column in the plugin that paints its own cell, so the one place
 	-- the rest of a style has to reach the characters some other way than
-	-- through `ctx.style` alone. It does: the column hands `ctx.style` back
-	-- beside its Line, and a Line's style sits under its spans.
+	-- through `ctx.style` alone. It does: `perm_spans` patches it over each
+	-- character, and the colours survive because this path is reached only
+	-- when no layer wrote an `fg`.
 	local file = stub.file { perm = "drwxr-xr-x" }
 
 	-- Held against the column drawn plain rather than against a second copy of
@@ -298,6 +299,61 @@ test("permissions: an attribute or a background goes under the characters, not o
 	for i, style in ipairs(perm_styles(file)) do
 		eq(rawget(assert(style), "bold"), nil, "character " .. i .. " gained an attribute nobody wrote")
 	end
+end)
+
+--- The same five styles as `STATUS`, with a `bold` and a `bg` of their own on
+--- the two a column is most likely to want to argue with. Yazi's preset writes
+--- an `fg` and nothing else, and so does every flavor to hand -- but the theme
+--- schema allows the rest, and a flavor that takes it up is the only case in
+--- which the layering below is visible at all.
+local LOUD = {
+	perm_type = ui.Style():fg("#000011"):bold(),
+	perm_read = ui.Style():fg("#000022"):bold():bg("#330000"),
+	perm_write = ui.Style():fg("#000033"),
+	perm_exec = ui.Style():fg("#000044"),
+	perm_sep = ui.Style():fg("#000055"),
+}
+
+test("permissions: a column's own keys beat the theme's, which is why they go over", function()
+	-- The rest of the plugin promises that the nearest layer to write a key
+	-- wins, and here the `[status]` styles are not a layer at all -- they are
+	-- what the column paints with. Under them, a flavor that writes `bold` on
+	-- `perm_read` takes `style = { bold = false }` away from the user who wrote
+	-- it, in the one column where a written key cannot be seen to have failed.
+	local file = stub.file { perm = "drwxr-xr-x" }
+
+	--- The style the `r` is drawn in, which is the character `LOUD` loads.
+	---@param opts table?
+	---@return table
+	local function read_style(opts)
+		local spec = { "permissions" }
+		for k, v in pairs(opts or {}) do
+			spec[k] = v
+		end
+		local col = column.normalize(spec, CFG)
+		local out = with(stub.th, "status", LOUD, function()
+			col.refresh()
+			return column.cell(col, file)
+		end)
+		return assert(stub.drawn_styles(out)[2], "the `r` lost its style")
+	end
+
+	-- Untouched, so the failures below are about the column and not about the
+	-- theme arriving wrong.
+	eq(read_style().bold, true)
+	eq(read_style().bg, "#330000")
+
+	-- `false` is the attribute taken off, and it has to reach a character that
+	-- the theme turned on -- that is the whole of what `false` is for.
+	eq(read_style({ style = { bold = false } }).bold, false)
+	-- A background written for the column replaces the theme's rather than
+	-- sitting behind it where nothing would ever see it.
+	eq(read_style({ style = { bg = "#1e1e2e" } }).bg, "#1e1e2e")
+
+	-- And the colours are still the theme's through all of it: the style going
+	-- over carries no `fg`, because a layer that wrote one would have sent this
+	-- column down the flat path instead.
+	eq(read_style({ style = { bold = false, bg = "#1e1e2e" } }).fg, "#000022")
 end)
 
 test("permissions: `refresh` is what follows a theme that moved", function()
