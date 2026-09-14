@@ -205,6 +205,10 @@ local colour = require(".colour")
 ---@field sep string|supaline.SepSpec|false|nil a separator of this column's own, `false` for none
 ---@field width number|"auto"|(fun(stats: any): number?)|nil a number is floored
 ---@field scale "linear"|"log"|nil
+--- The names of the options this column reads off `ctx.opts` beyond the keys
+--- every column takes. A definition writes it; a spec is checked against it,
+--- which is the whole of what it is for.
+---@field options string[]?
 
 --- A registered column, as `register` stores it: the options above, with the
 --- one field a column cannot do without.
@@ -275,6 +279,119 @@ local colour = require(".colour")
 ---@class supaline.ColumnModule
 local M = { _registry = {} }
 
+-- The keys every column claims, whatever it draws. `[1]` is the registered
+-- name or the `render` and is claimed by the predicate below rather than
+-- written in here, because it is an index rather than an option and the
+-- message names it separately.
+--
+-- Nothing else refuses one of these misspelled. A key in a table constructor
+-- is past what `lua-language-server` checks against a class -- `(exact)` was
+-- measured not to change that -- so `algin` and `max_widht` reach this or they
+-- reach nobody, and a column whose cap was written `max_widht` draws at its
+-- natural width and says nothing about why.
+local COLUMN_KEYS = {
+	align = true,
+	max_width = true,
+	name = true,
+	options = true,
+	overflow = true,
+	refresh = true,
+	render = true,
+	scale = true,
+	sep = true,
+	stats = true,
+	style = true,
+	width = true,
+}
+
+-- "`a`, `b` and `c`", built rather than written out so a key added above
+-- cannot be missing from the message that lists them. Sorted, because `pairs`
+-- gives the set in whatever order the hash does, and a message that reorders
+-- itself between runs reads as a different message.
+local COLUMN_KEY_LIST
+do
+	local names = {}
+	for key in pairs(COLUMN_KEYS) do
+		names[#names + 1] = key
+	end
+	table.sort(names)
+	COLUMN_KEY_LIST = string.format("`%s` and `%s`", table.concat(names, "`, `", 1, #names - 1), names[#names])
+end
+
+--- What one column claims: the keys above, and the options its own definition
+--- declares.
+---
+--- A column may read options of its own off `ctx.opts` -- `mtime` takes a
+--- `format` -- so the set is not one list for every column, and a closed one
+--- would refuse `format` on the column that reads it. `options` is how a
+--- definition says which keys those are, and saying so is what lets `fromat`
+--- be refused on the same column. A definition that declares none takes the
+--- shared keys and nothing else.
+---@param def supaline.ColumnOpts
+---@return fun(key: any): boolean?
+local function claims_of(def)
+	local own = def.options
+	if own == nil then
+		return function(key) return key == 1 or COLUMN_KEYS[key] == true end
+	end
+	local set = {}
+	for _, key in ipairs(own) do
+		set[key] = true
+	end
+	return function(key) return key == 1 or COLUMN_KEYS[key] == true or set[key] == true end
+end
+
+-- What a key that is none of them most likely meant. `fetch` is the one worth
+-- a sentence: it is a real key of a definition rather than a misspelling, and
+-- `register` refuses it with the reason -- but an inline `{ render = ... }`
+-- never goes through `register`, so without this its `fetch` would be read by
+-- nobody and mentioned by nobody.
+local COLUMN_MEANT = {
+	fetch = "`fetch` is supaline's own: a column that needs asynchronous state has to be "
+		.. "built into supaline itself, because a `ya.sync` block written anywhere else "
+		.. "binds to a different state table and then fails silently",
+}
+
+local COLUMN_UNKNOWN = "supaline: %s: %s %s. A column takes %s, beside the name or the "
+	.. '`render` at `[1]` that says what it draws -- `{ "size", width = 8, style = "cyan" }`%s%s'
+
+local COLUMN_OPTIONS = "supaline: column `%s` declares `options` as %s. It is the list of "
+	.. 'names that column reads off `ctx.opts`, as `options = { "format" }`, and is what '
+	.. "lets one of them be refused when it is misspelled"
+
+--- Refuse every key a column is not entitled to, naming all of them at once.
+---
+--- Both writers of a column come through here: the spec a user puts in a
+--- linemode, and the definition a third party hands `register`. They are one
+--- table in the shape that writes `render` inline, and a definition's
+--- misspelling is the worse of the two -- it is read again for every spec that
+--- names the column.
+---@param t table
+---@param where string
+---@param def supaline.ColumnOpts whose `options` say what this column also takes
+local function refuse_unknown(t, where, def)
+	local unknown, quoted = colour.unknown(t, claims_of(def))
+	if not unknown then
+		return
+	end
+	local hints = {}
+	for _, key in ipairs(unknown) do
+		hints[#hints + 1] = COLUMN_MEANT[key]
+	end
+	local own = def.options
+	error(
+		string.format(
+			COLUMN_UNKNOWN,
+			where,
+			quoted,
+			#unknown == 1 and "is not a column key" or "are not column keys",
+			COLUMN_KEY_LIST,
+			own and #own > 0 and string.format(". That column also takes `%s`", table.concat(own, "`, `")) or "",
+			#hints > 0 and ". " .. table.concat(hints, "; ") or ""
+		)
+	)
+end
+
 --- Register a reusable column under `name`, so a linemode can refer to it as
 --- `"name"` or `{ "name", ... }`.
 ---@param name string
@@ -298,6 +415,24 @@ function M.register(name, def)
 			)
 		)
 	end
+
+	local own = def.options
+	if own ~= nil then
+		if type(own) ~= "table" or #own == 0 then
+			error(string.format(COLUMN_OPTIONS, name, type(own) == "table" and "an empty list" or "a " .. type(own)))
+		end
+		for _, key in ipairs(own) do
+			if type(key) ~= "string" then
+				error(string.format(COLUMN_OPTIONS, name, "a list holding a " .. type(key)))
+			elseif COLUMN_KEYS[key] then
+				-- Declaring one changes nothing -- every column claims it
+				-- already -- and reads as though this column had taken it over.
+				error(string.format(COLUMN_OPTIONS, name, string.format("a list naming `%s`, which every column takes", key)))
+			end
+		end
+	end
+
+	refuse_unknown(def, string.format("column `%s`", name), def)
 	M._registry[name] = def
 end
 
@@ -602,6 +737,14 @@ function M.normalize(spec, cfg)
 	else
 		error("supaline: a column must be a name, a function, or a table with `render`")
 	end
+
+	-- Every shape that carries options is a table the user typed, and this is
+	-- the first line that has one of them. The two shapes that carry none -- a
+	-- bare name and a bare function -- leave the branch above with an empty
+	-- `opts`, so they pass through here without a test of their own. The
+	-- definition says what this column takes beyond the shared keys, and a
+	-- registered one was swept by `register` when it arrived.
+	refuse_unknown(opts, string.format("column `%s`", name or "?"), def)
 
 	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:
 	-- that idiom collapses a `def` value of `false` to nil, and `false` is the

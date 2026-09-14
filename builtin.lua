@@ -121,6 +121,9 @@ local function register_time(field)
 	column.register(field, {
 		width = 11,
 		align = "right",
+		-- The one option any built-in reads off `ctx.opts`, and declaring it is
+		-- what lets `fromat` be refused on a column that takes a `format`.
+		options = { "format" },
 		stats = extremes(get),
 		refresh = refresh_year,
 		---@type supaline.Render
