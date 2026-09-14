@@ -204,8 +204,8 @@ local MEANT = {
 --- "`a`, `b` and `c`" out of a list of names, for a message that has to say
 --- what a table does take.
 ---
---- Here because two allow-lists want it and the third would have written a
---- third copy. Each of them builds the list rather than spelling the sentence
+--- Here because three allow-lists want it and a fourth would have written a
+--- fourth copy. Each of them builds the list rather than spelling the sentence
 --- out, so a key added to one cannot be missing from the message that lists
 --- them; what that costs without this is the same `table.concat` expression,
 --- with the same off-by-one in the range, in as many files as have keys.
@@ -266,14 +266,14 @@ end
 ---
 --- What each caller has to say differs; what does not is the quoting, the
 --- `is` or `are` that follows it, and the hint each name earns. Those three
---- drifted apart once already and are built here now, so a fourth allow-list
+--- drifted apart once already and are built here now, so a fifth allow-list
 --- is a key set and a noun rather than a message assembled by hand.
 ---
---- Here because here is the only place all three callers can reach. This file
---- sits at the bottom of the require chain and knows nothing about a linemode
---- spec or a separator; `column.lua` and `main.lua` both require it, and
---- neither requires the other in the direction that would do. The three had
---- already drifted in where the quoting happens -- `panes_of` quoted each name
+--- Here because here is the only place all five callers can reach. This file
+--- sits at the bottom of the require chain and knows nothing about `setup`'s
+--- own options, a linemode spec or a separator; `column.lua` and `main.lua`
+--- both require it, and neither requires the other in the direction that would
+--- do. The first three had already drifted in where the quoting happens -- `panes_of` quoted each name
 --- as it collected it, `M.layer` at the join -- which is the drift a fourth
 --- copy would have continued.
 ---@param t table
