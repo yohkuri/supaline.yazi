@@ -485,7 +485,7 @@ In `g 5`. Every value in the folder is the same.
   row with a value draws the ramp's **high** end. Not its low one, and not the
   flat ground underneath it.
 - Both directories draw the **low** end, including the one showing a count. A
-  directory has no size, so the count is drawn as text and `ctx.base` as its
+  directory has no size, so the count is drawn as text and `ctx.style` as its
   colour; the ratio never hears about it. `3` and `3B` read almost the same and
   are coloured from opposite ends, which is the whole reason the pair is there.
 - `unlisted-b` shows `-` only because it is a row further down: Yazi lists a

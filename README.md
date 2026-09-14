@@ -136,7 +136,7 @@ what the width note below is about; three lines register one that narrow:
 supaline.column("mark", {
   width  = 1,
   render = function(file, ctx)
-    return file.cha.is_dir and "d" or "f", ctx.base
+    return file.cha.is_dir and "d" or "f", ctx.style
   end,
 })
 ```
@@ -200,7 +200,7 @@ Any option below can be set on the definition or overridden per use.
 | `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](#colours). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
-| `options`   | `nil`        | A definition's own: the names of the extra keys it reads off `ctx.opts`. See [Writing a column](#writing-a-column). |
+| `options`   | `nil`        | A definition's own: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
 
 Any other key is refused by name, on a definition and on a spec alike. Nothing
 else would say so: a misspelled `max_widht` is read by nobody, and the column
@@ -223,12 +223,13 @@ about the folder is what changed.
 
 | Field          | Meaning                                                     |
 | -------------- | ----------------------------------------------------------- |
-| `ctx.base`     | What to draw a row with no value in: the gradient's low end, or the flat style. |
-| `ctx.stats`    | Whatever `stats(files)` returned for the folder being drawn. |
-| `ctx.opts`     | The options written in the spec, verbatim. A column reading one of its own declares it in `options`. |
-| `ctx.fg_from`  | Which of the three writers put the `fg` there, `false` included: `"spec"`, `"theme"`, `"definition"`, or `nil` when none did. Only a column that paints its own characters needs it; see [How the three combine](#how-the-three-combine). |
-| `ctx.ratio(v)` | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
-| `ctx.style(r)` | The style for that position on the column's gradient; `ctx.base` when there is none, and for `nil`. |
+| `ctx.style`       | What the column is drawn in when there is no value to place: the gradient's low end, or the flat style. |
+| `ctx.style_at(r)` | The style for that position on the column's gradient; `ctx.style` when there is none, and for `nil`. |
+| `ctx.ratio(v)`    | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
+| `ctx.stats`       | Whatever `stats(files)` returned for the folder being drawn. |
+| `ctx.width`       | The width this cell is laid out in, `max_width` already applied, or `nil` for a column that states none. |
+| `ctx.opts`        | The options this column declared in `options`, taken from the spec and falling back to the definition. Nothing else the spec carries. |
+| `ctx.fg_written`  | Whether any of the three writers put an `fg` there, `false` included. Only a column that paints its own characters needs it; see [How the three combine](#how-the-three-combine). |
 
 `render` may return one renderable, or a value and a style. Returning
 `text, style` skips building an intermediate line, and is what the built-in
@@ -306,7 +307,7 @@ supaline.column("ext", {
   width = 6,
   align = "left",
   style = "magenta",
-  render = function(file, ctx) return file.url.ext or "", ctx.base end,
+  render = function(file, ctx) return file.url.ext or "", ctx.style end,
 })
 
 supaline:setup {
@@ -336,7 +337,7 @@ supaline.column("namelen", {
   stats = supaline.extremes(name_length),
   render = function(file, ctx)
     local n = name_length(file)
-    return tostring(n), ctx.style(ctx.ratio(n))
+    return tostring(n), ctx.style_at(ctx.ratio(n))
   end,
 })
 ```
@@ -348,18 +349,25 @@ is on.
 
 A column that takes an option of its own reads it off `ctx.opts` and names it
 in `options`, which is what lets a misspelling of it be refused rather than
-ignored. The built-in timestamp columns do exactly this for `format`:
+ignored. The built-in timestamp columns do exactly this for `format`. A
+declared option may be defaulted on the definition and overridden per use, the
+way every other key is:
 
 ```lua
 supaline.column("initials", {
   width = 3,
   options = { "separator" },
+  separator = ".",
   render = function(file, ctx)
-    local sep = ctx.opts.separator or "."
-    return file.name:sub(1, 1) .. sep, ctx.base
+    return file.name:sub(1, 1) .. ctx.opts.separator, ctx.style
   end,
 })
 ```
+
+`ctx.opts` holds those names and nothing else the spec was written with. A
+column's effective width is `ctx.width` rather than `ctx.opts.width`, and the
+style it draws in is `ctx.style` rather than `ctx.opts.style`, which would be
+the one layer the use site wrote rather than the three merged.
 
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
@@ -655,13 +663,14 @@ it is.
 A function counts as the spec saying whatever it returns, `false` included;
 `nil` from one is nothing written.
 
-`ctx.fg_from` is the one piece of this a column can ask about: which of the
-three wrote `fg`, `false` included, or `nil` when none did. `permissions` is
-the column that does. It colours each character out of your theme's `[status]`
-section and steps aside the moment an `fg` is written for it, wherever it was
-written — a flat colour for the whole cell, or no colour — while a `bold` or a
-`bg` written for it goes under the ten characters with the reds and greens
-still on top.
+`ctx.fg_written` is the one piece of this a column can ask about: whether any
+of the three wrote `fg`, `false` included. Which of them wrote it is not there,
+because that answer names a file to go and edit and `render` has nothing to do
+with one. `permissions` is the column that asks. It colours each character out
+of your theme's `[status]` section and steps aside the moment an `fg` is
+written for it, wherever it was written — a flat colour for the whole cell, or
+no colour — while a `bold` or a `bg` written for it goes under the ten
+characters with the reds and greens still on top.
 
 ### A coloured separator
 

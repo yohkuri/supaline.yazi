@@ -28,7 +28,7 @@ What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
 declared classes, so a misspelled field or a wrong arity on one is refused, and
 `column.lua` declares `supaline.File` and `supaline.Ctx` for the two values a
 `render` is handed, so the columns are read too — `file.cha.is_dirr` and
-`ctx.basee` are both refused, in a built-in column and in a spec alike. The
+`ctx.stlye` are both refused, in a built-in column and in a spec alike. The
 records the plugin passes around carry classes as well: a linemode, a column, a
 folder and a bound entry. So does the configuration `setup` is given — the
 plugin-wide options, a linemode spec, and the four shapes a column may be
