@@ -183,18 +183,24 @@ leave the built-ins to the pane with the room for them.
 
 ### Column specs
 
-A column is written in one of four shapes:
+A column is written in one of these shapes:
 
 ```lua
 "size"                                  -- a registered column, by name
 { "size", width = 9, scale = "log" }    -- ... with its options overridden
-function(file, ctx) return "..." end    -- render-only shorthand
-{ render = fn, stats = fn, width = 6 }  -- an inline definition
+function(file, ctx) return "..." end    -- an inline definition, render only
+{ fn, name = "mine", width = 6 }        -- ... with options beside it
+{ render = fn, stats = fn, width = 6 }  -- the same, with the render named
 ```
 
+`[1]` is what tells them apart: a **string** there names a column registered
+elsewhere, and a **function** there is that column's `render`, which makes the
+table around it a definition rather than a use of one.
+
 Every option below but the last can be set on the definition or overridden per
-use. `options` is the definition's alone, as is `name` where a definition is
-written inline.
+use. `options` is the definition's alone, and so is `name` — a definition
+written inline may give itself one, and a definition handed to `register` is
+named by that call instead.
 
 | Option      | Default      | Meaning                                                  |
 | ----------- | ------------ | -------------------------------------------------------- |
@@ -211,9 +217,11 @@ written inline.
 | `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
 
 Any other key is refused by name, on a definition and on a spec alike, and so
-is one of those two written where it is not read. Nothing else would say so: a
-misspelled `max_widht` is read by nobody, and the column draws at its natural
-width without a word about why.
+is one of those two written where it is not read — `options` at a use site,
+`name` on a definition `register` has already named, an entry at `[1]` beside a
+`render` written under its own name. Nothing else would say so: a misspelled
+`max_widht` is read by nobody, and the column draws at its natural width
+without a word about why.
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated

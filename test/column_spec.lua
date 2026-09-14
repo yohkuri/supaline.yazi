@@ -277,6 +277,63 @@ test("register: a definition is swept the same way, and `options` is checked", f
 	end, "which every column takes")
 end)
 
+test("register: `register` names the column, so `name` beside it is not read", function()
+	-- Both of these were accepted and then ignored. `register` names the
+	-- column; `[1]` is where a *spec* names one, or where a definition written
+	-- as a list puts its `render`. A definition handed to `register` has
+	-- neither, so a `name` in it renamed nothing and an entry at `[1]` drew
+	-- nothing -- the silence the sweep exists to end, left standing in the one
+	-- table that is read again for every spec naming the column.
+	throws(function()
+		column.register("real", { render = function() return "x" end, name = "alias" })
+	end, "read by nobody")
+	eq(column.get("alias"), nil, "and nothing was ever registered under it")
+
+	throws(function()
+		local entry = { "alias", render = function() return "x" end } ---@type any
+		column.register("listed", entry)
+	end, "`1` is not a column key")
+	-- And the hint says where `[1]` *is* read, because "not a column key" is
+	-- true of it in one shape and false of it in two others.
+	throws(function()
+		local entry = { "alias", render = function() return "x" end } ---@type any
+		column.register("listed", entry)
+	end, "where a spec names the column it uses")
+end)
+
+test("normalize: `{ fn, ... }` is a definition written as a list", function()
+	-- `[1]` holds the render, so the table around it is the definition, and
+	-- the two keys only a definition writes are read right here as they are in
+	-- `{ render = fn, ... }`. Table identity said otherwise: `normalize` built
+	-- a definition of its own around the function, which is a different table,
+	-- so `options` was refused at the one place it belonged -- and refused
+	-- with a message sending the writer to the definition they were standing
+	-- in.
+	local col = column.normalize({
+		function() return "ab" end,
+		name = "listed",
+		options = { "pad" },
+		pad = 2,
+	}, CFG)
+	eq(col.name, "listed", "and the name is the one the theme is looked up under")
+	eq(col.ctx.opts.pad, 2)
+
+	-- What it declared is still all it may read.
+	throws(function()
+		column.normalize({ function() return "ab" end, options = { "pad" }, pda = 2 }, CFG)
+	end, "`pda` is not a column key")
+end)
+
+test("normalize: `[1]` beside an inline `render` is read by nobody", function()
+	-- A string at `[1]` names a registered column and a function there is the
+	-- render, so what reaches this branch is neither -- and is read by nothing
+	-- once it does.
+	throws(function()
+		local entry = { [1] = true, render = function() return "x" end } ---@type any
+		column.normalize(entry, CFG)
+	end, "`1` is not a column key")
+end)
+
 test("normalize: an unusable width is refused", function()
 	throws(function()
 		---@diagnostic disable-next-line: assign-type-mismatch
