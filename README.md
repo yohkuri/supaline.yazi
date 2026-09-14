@@ -653,6 +653,12 @@ and a bold over a themed gradient is written in the spec, which
 either: an array in a custom section is refused the same way, which is why a
 gradient is written with arrows in both files.
 
+An **empty string** is nothing written: `size = ""` leaves the column exactly
+as it was, so a field can be cleared rather than deleted — which is what you
+want in a file a flavor also writes. That spelling is the theme's alone. In a
+spec `style = ""` is a colour Yazi does not accept and is refused as one, since
+a spec that wants no colour has `false` and has leaving the key out.
+
 Field names may hold lowercase letters, digits and underscores only. `my-col`
 and `MyCol` are refused, and the refusal costs the whole `theme.toml`, so a
 column you want themed needs a name of that shape.

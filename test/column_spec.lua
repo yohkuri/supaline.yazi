@@ -903,6 +903,25 @@ test("style: a theme's attribute reaches a column with no colour claimed", funct
 	end)
 end)
 
+test("style: an empty string in the theme is nothing written", function()
+	-- A field cleared rather than deleted, which is how a value goes away in a
+	-- file someone else's flavor also writes. Read as nothing written, so the
+	-- definition beneath it stands.
+	column.register("blank", { render = function() return "" end, style = { fg = "cyan", bold = true } })
+	with(stub.th, "supaline", { blank = "" }, function()
+		local ctx = column.normalize("blank", CFG).ctx
+		eq(ctx.style.fg, "cyan", "the definition's colour survives it")
+		eq(ctx.style.bold, true)
+		eq(ctx.fg_written, true, "written by the definition, since the theme wrote nothing")
+	end)
+
+	-- The theme's alone, and deliberately: everywhere else `""` is a colour
+	-- Yazi does not accept, and a spec that wants no colour has `false` and
+	-- has leaving the key out. Pinned on both sides, because an allowance that
+	-- spreads to the other layers is one nobody would notice spreading.
+	throws(function() column.normalize({ "blank", style = "" }, CFG) end, "is not a colour Yazi accepts")
+end)
+
 test("style: a nearer `true` wins over a farther `false`, and the other way round", function()
 	-- A theme that says `bold = false` is a theme stripping a bold off whatever
 	-- is beneath; a spec that then asks for one is the nearer writer, and wins,
