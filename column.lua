@@ -619,19 +619,27 @@ function M.extremes(get)
 	end
 end
 
---- The three writers of a column's style, farthest first: the definition's
---- own, the `[supaline]` theme field named after the column, and the spec's.
---- `colour.merge` takes them in this order and gives each key to the nearest
---- one that wrote it.
-local SOURCES = { "definition", "theme", "spec" }
+--- Who wrote one layer of a column's style, as the three tables below key it.
+--- Three layers and four names: see `WHERE`.
+---@alias supaline.StyleWriter "definition"|"inline"|"theme"|"spec"
 
 --- What to call each writer's style in an error, in terms of the file it was
 --- written in. A theme has no `style` key to name, so a message that spoke of
 --- one would be describing a spec the reader never wrote.
+---
+--- Four rows for three layers, because the layer a definition writes is
+--- written by two different-looking things. `register` states a default every
+--- use of that column starts from, and saying so points the reader at the call
+--- that declared it. A column written inline in a linemode has no default to
+--- be: its style is written once, in the list the reader is already looking
+--- at, which is where a spec's is written -- so it gets the spec's words while
+--- occupying the definition's layer. Keyed rather than decided by a condition,
+--- for the reason `NO_STATS` gives below.
 local WHERE = {
 	spec = "the `style` of column `%s`",
 	theme = "the `[supaline] %s` field in your theme",
 	definition = "the default `style` of column `%s`",
+	inline = "the `style` of column `%s`",
 }
 
 --- And what to call one written as a function, since a message naming
@@ -641,6 +649,7 @@ local WHERE = {
 local FN_WHERE = {
 	spec = "the `style` function of column `%s`",
 	definition = "the default `style` function of column `%s`",
+	inline = "the `style` function of column `%s`",
 }
 
 --- What to do about a gradient on a column with no extremes, per writer.
@@ -652,6 +661,7 @@ local FN_WHERE = {
 local NO_STATS = {
 	spec = "Give the column a `stats` function, or write a flat colour there instead",
 	definition = "Give the column a `stats` function, or write a flat colour there instead",
+	inline = "Give the column a `stats` function, or write a flat colour there instead",
 	theme = "Write a flat colour there instead",
 }
 
@@ -801,7 +811,7 @@ end
 --- and follows every reload after it. Once per column per build, never per
 --- row.
 ---@param value any what that writer wrote, if anything
----@param source "spec"|"theme"|"definition"
+---@param source supaline.StyleWriter
 ---@param name string?
 ---@param band supaline.Band?
 ---@return supaline.Layer|false
@@ -816,7 +826,13 @@ local function layer_of(value, source, name, band)
 	return colour.layer(value, where, band)
 end
 
---- The three layers of a column's style, in the order `SOURCES` names them.
+--- The three layers of a column's style, farthest first: the definition's own,
+--- the `[supaline]` theme field named after the column, and the spec's.
+--- `colour.merge` takes them in this order and gives each key to the nearest
+--- one that wrote it. What to call each is handed back beside them rather than
+--- kept in a constant, because the first one's name depends on which shape
+--- wrote it and a second copy of that decision is a second thing to keep in
+--- step.
 ---
 --- The theme section holds a string or a style table and nothing else -- an
 --- array is refused by Yazi, taking the whole file with it -- and a table
@@ -833,18 +849,44 @@ end
 ---@param opts supaline.ColumnOpts
 ---@param def supaline.ColumnOpts
 ---@param band supaline.Band?
+---@param role supaline.Role which part the table the column was written in plays
 ---@return (supaline.Layer|false)[]
-local function layers_of(name, opts, def, band)
+---@return supaline.StyleWriter[] what to call each layer, in the same order
+local function layers_of(name, opts, def, band, role)
 	local section = name and th.supaline
 	local themed = section and section[name]
 	if themed == "" then
 		themed = nil
 	end
+
+	-- Only a use of a column defined elsewhere has a spec to read. The other
+	-- two shapes that reach here are one table playing both parts, and reading
+	-- that table as both wrote its style into two of the three layers at once.
+	-- Two things came of it, and the second is the worse: a `style` function
+	-- ran twice per build, against what `layer_of` promises a paragraph above,
+	-- so one that answered differently the second time built a style out of two
+	-- answers no single call had returned; and the table sat at the near end of
+	-- the merge as well as the far one, where it beat the theme -- the one
+	-- layer that exists so a flavor can reach a colour a definition chose.
+	--
+	-- An inline table carries a `render`, which is what a definition is, so it
+	-- writes the definition's layer and the spec's stays empty. `{ fn, ... }`
+	-- is that same definition with its render at `[1]`, and `normalize` hands
+	-- the style to the definition it builds for it, so the two answer alike.
+	--
+	-- An `and`/`or` would drop a `style = false` on the way past, which is the
+	-- one spelling that means something and is falsy.
+	local written
+	if role == "use" then
+		written = opts.style
+	end
+
+	local mine = role == "use" and "definition" or "inline"
 	return {
-		layer_of(def.style, "definition", name, band),
+		layer_of(def.style, mine, name, band),
 		layer_of(themed, "theme", name, band),
-		layer_of(opts.style, "spec", name, band),
-	}
+		layer_of(written, "spec", name, band),
+	}, { mine, "theme", "spec" }
 end
 
 --- Turn one entry of a linemode spec into a runtime column.
@@ -881,10 +923,12 @@ function M.normalize(spec, cfg)
 		-- writes are read here as they are there. The def below is built rather
 		-- than being the spec because nothing past this branch looks at `[1]`
 		-- for a render -- but it carries what a definition answers for, so the
-		-- sweep and `ctx.opts` read this table's own `options` and not nothing.
+		-- sweep and `ctx.opts` read this table's own `options` and not nothing,
+		-- and `layers_of` finds its `style` where a definition's is rather than
+		-- where a use site's would be.
 		local fn = spec[1] --[[@as supaline.Render]]
 		name, opts, role = spec.name, spec, "listed"
-		def = { render = fn, name = spec.name, options = spec.options }
+		def = { render = fn, name = spec.name, options = spec.options, style = spec.style }
 	elseif type(spec.render) == "function" then
 		name, opts, def, role =
 			spec.name,
@@ -968,7 +1012,8 @@ function M.normalize(spec, cfg)
 	-- nothing to read, and says nothing about it.
 	col.needs_pass = col.stats ~= nil or col.auto or col.width_of ~= nil
 
-	local resolved, from = colour.merge(layers_of(name, opts, def, cfg.band))
+	local layers, sources = layers_of(name, opts, def, cfg.band, role)
+	local resolved, from = colour.merge(layers)
 
 	-- A gradient needs extremes to place a value between, and only a column
 	-- that declares `stats` ever gets any: without one `ctx.ratio` is nil for
@@ -979,7 +1024,7 @@ function M.normalize(spec, cfg)
 	-- wrote the rest of the style.
 	local gradient = col.stats == nil and colour.gradient_in(resolved)
 	if gradient then
-		local source = SOURCES[from[gradient]]
+		local source = sources[from[gradient]]
 		error(
 			string.format(
 				"supaline: %s: `%s` is a gradient, but that column has no `stats`, so there are "

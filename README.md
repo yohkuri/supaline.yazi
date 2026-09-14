@@ -694,6 +694,13 @@ key goes to the nearest one that wrote it**. A spec that writes `fg` alone
 keeps the theme's `bold` and the definition's `bg`; a theme that writes
 `{ bold = true }` alone keeps the colour the definition gave.
 
+A column written inline **is** its own definition, so its style is the
+farthest of the three and a `[supaline]` field named after it reaches the
+colour it chose, exactly as one reaches a column `register` declared. That
+covers both spellings — `{ render = fn, name = "x", style = ... }` and
+`{ fn, name = "x", style = ... }`. Only a use of a column defined elsewhere,
+`"size"` or `{ "size", ... }`, writes the nearest layer.
+
 ```lua
 -- with `size = "#0b3d91 -> #7fd4ff"` in your theme:
 { "size", style = { bold = true } }     -- the theme's gradient, bold
@@ -709,8 +716,10 @@ definition wrote — and is not the same as eleven `false`s: an attribute
 written `false` strips the row's own, where `style = false` leaves the row as
 it is.
 
-A function counts as the spec saying whatever it returns, `false` included;
-`nil` from one is nothing written.
+A function counts as whichever of the three wrote it saying whatever it
+returns, `false` included; `nil` from one is nothing written. It is called
+once per column each time the styles are built — at `setup`, and again on
+every theme reload — never per row.
 
 `ctx.fg_written` is the one piece of this a column can ask about: whether any
 of the three wrote `fg`, `false` included. Which of them wrote it is not there,

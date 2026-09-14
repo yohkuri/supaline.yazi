@@ -846,6 +846,47 @@ test("style: a function is called for its style, and called again on the next bu
 	eq(off.fg_written, true, "`false` is a colour written, not a colour unwritten")
 end)
 
+test("style: an inline column is one writer, read once and read as the definition", function()
+	-- `{ render = fn, style = ... }` is one table playing both parts, and the
+	-- layers read a definition and a spec separately. Read as both, it wrote
+	-- its style into two of the three layers: a `style` function ran twice per
+	-- build, against what `layer_of` promises, so one that answered differently
+	-- the second time built a style out of two answers that no single call ever
+	-- returned -- and the table beat the theme, which is the one layer written
+	-- to reach a definition.
+	local calls, answers = 0, { { bg = "#112233" }, { fg = "#445566" } }
+	local ctx = column.normalize({
+		render = function() return "" end,
+		name = "inline1",
+		style = function()
+			calls = calls + 1
+			return answers[calls] or answers[#answers]
+		end,
+	}, CFG).ctx
+	eq(calls, 1, "once per column per build, which is what `layer_of` promises")
+	eq(rawget(ctx.style, "fg"), nil, "and the style is the one answer, not two merged")
+
+	-- So the theme reaches it, the way it reaches any other definition's style.
+	-- Both spellings of an inline definition answer alike: `{ fn, ... }` is the
+	-- same table with its render at `[1]`.
+	with(stub.th, "supaline", { inline2 = "red" }, function()
+		local named = { render = function() return "" end, name = "inline2", style = "cyan" }
+		eq(column.normalize(named, CFG).ctx.style.fg, "red", "the theme is nearer than a definition")
+		local listed = { function() return "" end, name = "inline2", style = "cyan" }
+		eq(column.normalize(listed, CFG).ctx.style.fg, "red", "and `{ fn, ... }` is that definition too")
+	end)
+
+	-- A use of a column defined elsewhere still writes the spec's layer, which
+	-- is the half that has to go on beating the theme.
+	column.register("inline3", { render = function() return "" end })
+	with(stub.th, "supaline", { inline3 = "red" }, function()
+		eq(column.normalize({ "inline3", style = "cyan" }, CFG).ctx.style.fg, "cyan", "the spec is nearer")
+		local off = column.normalize({ "inline3", style = false }, CFG).ctx
+		eq(rawget(off.style, "fg"), nil, "and a spec's `false` still reaches the layer it turns off")
+		eq(off.fg_written, true)
+	end)
+end)
+
 test("style: `ui.Style` with the call forgotten is refused, not called", function()
 	-- Measured on 26.9.1: `type(ui.Style)` is `table` and only `ui.Style()` is
 	-- userdata. A table is a style, so the bare name would be read as one --
