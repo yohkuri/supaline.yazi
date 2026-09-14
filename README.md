@@ -270,7 +270,9 @@ linemode too, with nothing to set up. Writing an `fg` for the column turns
 that off rather than layering over it: `style = "cyan"` in the spec or
 `permissions = "cyan"` in your theme is a flat colour for the whole cell, and
 the characters stop being coloured apart. A `bold` or a `bg` is not a colour,
-and goes under the characters with their own colours still on top.
+and goes over the characters, whose own colours survive it -- the style going
+over them has none, because a colour written for the column would have turned
+the per-character painting off in the first place.
 
 `user` and `group` are the two halves of `owner`, each drawn on its own, for a
 listing where only one of them is worth the cells. Eight cells is the
@@ -672,8 +674,11 @@ because that answer names a file to go and edit and `render` has nothing to do
 with one. `permissions` is the column that asks. It colours each character out
 of your theme's `[status]` section and steps aside the moment an `fg` is
 written for it, wherever it was written — a flat colour for the whole cell, or
-no colour — while a `bold` or a `bg` written for it goes under the ten
-characters with the reds and greens still on top.
+no colour — while a `bold` or a `bg` written for it goes over the ten
+characters, which keep the reds and greens because the style going over them
+carries no colour at all. Over rather than under, so that the key you wrote
+wins the way it does everywhere else: a flavor that writes `bold` on
+`perm_read` would otherwise take a `style = { bold = false }` back off you.
 
 ### A coloured separator
 
