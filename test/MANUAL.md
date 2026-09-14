@@ -260,8 +260,8 @@ coloured**, which is the linemode or the theme.
 | `c r` | a ramp climbing in every channel     | `g 3`      |
 | `c b` | a band derived from one colour       | `g 3`      |
 | `c h` | a ramp that turns in hue             | `g 3`      |
-| `c g` | a ramp over a background             | `g 3`      |
-| `c a` | `attrs` over a colour it did not pick | `g 3`     |
+| `c g` | a ramp over a background, and as one | `g 3`      |
+| `c a` | a bold over a colour it did not pick | `g 3`      |
 | `c s` | the same size, log then linear       | `g 4`      |
 | `c e` | a ramp with nothing to spread over   | `g 5`      |
 | `c t` | whatever `[supaline]` says           | `g 1`      |
@@ -279,7 +279,7 @@ pressed one after the other differ in exactly one thing, which is what makes
 them worth putting side by side.
 
 Only `c t` reads the theme. The other six write their colours in the spec,
-where a `base` or a `ramp` wins over `[supaline]`, so they hold still while
+where a colour written wins over `[supaline]`'s, so they hold still while
 `c 1` to `c 3` swap the file underneath them.
 
 ### Before Yazi opens
@@ -383,12 +383,13 @@ ordering test reaches on any ramp.
 - Both ends still have to be legible, and so does the middle, which is the
   part a two-ended check never looks at.
 
-### `c g` — a ramp over a background
+### `c g` — a ramp over a background, and as one
 
-In `g 3`. The same date twice, on the same ramp. The right one is patched onto
-a ground carrying `bg = "#8b0045"`, which `patch` is field-wise so that it
+In `g 3`. The same date twice, on the same ramp. The right one is set on a
+ground carrying `bg = "#8b0045"`, which every step is built on so that it
 survives under 64 colours that know nothing about it; the left one has no
-ground at all and is there to be held against it.
+ground at all and is there to be held against it. A third column carries the
+same ramp under `bg` instead, with the row's own text over it.
 
 The second column is what makes the first answerable. A single band can only be
 compared against the terminal's own ground, which is the reader's and unknown
@@ -410,25 +411,32 @@ instead of guessing it, and `setup.sh` says against what.
   read against that ground rather than against the terminal's, so a step that
   was fine in the strip before Yazi opened can be wrong here.
 
-`e2e.sh` reads the first two off the capture — that a band is there, that it is
-14 cells rather than 11, and that the column beside it did not pick one up. The
-third is a reader's, and is why this is a manual case at all.
+- The third column is the same question the other way up: the ramp is the
+  ground, the text is the row's, and whether the text still reads at the dark
+  end and the light end is what nothing here measures. A `bg` gradient takes
+  the two endpoints you write, so the answer is yours to move.
 
-### `c a` — an attribute over someone else's colour
+`e2e.sh` reads the first two off the capture — that a band is there, that it is
+14 cells rather than 11, and that the column beside it did not pick one up —
+and that the third column's background climbs a step per row. Legibility is a
+reader's, twice over, and is why this is a manual case at all.
+
+### `c a` — a bold over someone else's colour
 
 In `g 3`. The same ratio twice on the same ramp, the left one carrying
-`attrs = { bold = true }`, and `permissions` beside them with the same thing
-written on it. `attrs` is the key that does not enter the colour auction: it
-says what goes over whichever source won, so the columns here are meant to
-differ in exactly one way.
+`bold = true` beside the gradient in its `style`, and `permissions` beside
+them with `style = { bold = true }`. A style is merged key by key, so a bold
+written next to a colour, or with no colour at all, changes nothing about the
+colour: the columns here are meant to differ in exactly one way.
 
 - The two ratio columns have to be the **same colour on every row** and differ
-  only in weight. A pair that disagrees on the colour is `attrs` having got
-  into the ramp rather than sitting over it.
+  only in weight. A pair that disagrees on the colour is the bold having got
+  into the ramp rather than sitting beside it.
 - `permissions` has to keep its reds and greens. It is the only column that
-  paints its own cell, and the only one where the attribute is carried by hand
-  rather than arriving inside `ctx.base` — a cell that came back in one flat
-  colour is the column having stepped aside for something that is not a colour.
+  paints its own cell, so a bold written for it reaches the characters as the
+  Line's style under their own rather than inside any of them — a cell that
+  came back in one flat colour is the column having stepped aside for
+  something that is not a colour.
 - Whether bold is **legible** here is the reader's question and the reason this
   is a manual case. A terminal that draws bold as a brighter colour rather than
   a heavier face turns one column of the pair into a different step of the
@@ -490,7 +498,9 @@ In `g 5`. Every value in the folder is the same.
 
 In `g 1`. Nothing is coloured in the spec, so `size`, `mtime`, `owner` and
 `ext` all take whatever `[supaline]` says. This is the only mode the theme keys
-move.
+move. `mtime` alone carries `style = { bold = true }`: the colour is the
+theme's ramp and the weight is the spec's, on the same cell, which is the case
+a spec could not write while one writer took the whole colour.
 
 Those colours should be on screen the moment Yazi opens, without pressing
 anything: 26.9.1 applies the user's theme before any plugin code runs.
@@ -498,7 +508,8 @@ anything: 26.9.1 applies the user's theme before any plugin code runs.
 - `T` re-reads the file without changing it, and nothing should move.
 - `c 1` to `c 3` change it and reload. Every column built from that section has
   to take the new colour **at once**, a ramp along with a flat one. A colour
-  that stays put is the failure this is looking for.
+  that stays put is the failure this is looking for. `mtime` keeps its bold
+  through every one of them.
 - `c 3` is where the theme grammar runs out, and it is worth seeing rather than
   reading about: `size` and `owner` arrive with backgrounds and `mtime` does
   not. A ramp has to be written as a string — Yazi refuses an array in a custom

@@ -138,7 +138,7 @@ colour_shot 3 r c_ramp
 colour_shot 3 b c_band
 colour_shot 3 h c_hue
 colour_shot 3 g c_bg
-colour_shot 3 a c_attrs
+colour_shot 3 a c_bold
 colour_shot 4 s c_scale
 colour_shot 5 e c_edge
 colour_shot 1 t c_theme
@@ -293,7 +293,7 @@ have_rows "m0 to m9 and me all have rows" m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 me
 # the key, or the `cd` behind it, as the linemode. Which of the three it was is
 # not worth telling apart: nothing else in this run visits those folders, so
 # without this the first person to find out would be a human at `manual.sh`.
-have_rows "the eight colour modes all have rows" c_ramp c_band c_hue c_bg c_attrs c_scale c_edge c_theme
+have_rows "the eight colour modes all have rows" c_ramp c_band c_hue c_bg c_bold c_scale c_edge c_theme
 
 echo "== columns =="
 # `A && B || C` would run C when B fails, and shellcheck is right to say so.
@@ -670,12 +670,14 @@ check_ramp "a band climbs too, on endpoints nobody wrote" c_band 1
 check_ramp "a ramp that turns still draws a step per row" c_hue 0
 
 # `c_bg` draws the same ramp twice: over a ground carrying `bg = #8b0045`, and
-# over nothing. Three things have to hold, and a reader can check none of them
-# against their own terminal's ground -- that ground is the very thing the band
-# has to be told apart from, and until this fixture was measured the background
-# it used was 0.02 away from a common one in Oklab.
+# over nothing -- and a third time as the background itself, which the block
+# after this one reads. Three things have to hold of the first two, and a
+# reader can check none of them against their own terminal's ground -- that
+# ground is the very thing the band has to be told apart from, and until this
+# fixture was measured the background it used was 0.02 away from a common one
+# in Oklab.
 #
-#   - the `bg` survived `patch` under all sixty-four foregrounds
+#   - the `bg` is there under all sixty-four foregrounds
 #   - it covers the cells the stated width pads with, rather than stopping at
 #     the text, which is what `fit` padding before the style is applied is for
 #   - the ungrounded column beside it did not pick one up
@@ -691,7 +693,7 @@ ESC=$(printf '\033')
 # quietly. Widen `c_bg`'s columns there for a reason to do with the manual case
 # and, spelled as a literal, this would report it as `fit` padding in the wrong
 # order -- the fixture moved, not the plugin.
-BAND_CELLS=$(sed -n 's/.*base = ui\.Style():bg(GROUND).*width = \([0-9][0-9]*\).*/\1/p' "$DIR/config/init.lua")
+BAND_CELLS=$(sed -n 's/.*bg = GROUND.*width = \([0-9][0-9]*\).*/\1/p' "$DIR/config/init.lua")
 # Splitting on the opening escape leaves one piece per band; a band runs to the
 # next escape of any kind, which `sub` takes off the end of the piece. All three
 # numbers come out of the one pass, so none of them is a count of lines that a
@@ -731,11 +733,43 @@ else
 	echo "  a background survives the ramp, padding included ($banded rows)"
 fi
 
-# `c_attrs` draws the same ratio twice on the same ramp, the left one carrying
-# `attrs = { bold = true }`. What the key claims is that one column differs from
-# the other in exactly one way, so the pair is read off one row rather than
-# grepped for separately: two independent checks would pass a build that had
-# lost the ramp on both sides and bolded both.
+# The third column of `c_bg` carries the ramp under `bg` rather than `fg`, and
+# nothing sets a foreground on the cell, so it is the background escape and
+# then the ratio. The three questions `check_ramp` asks of a foreground ramp,
+# asked of the background one: a step per row, none repeated, climbing in every
+# channel. Printed in the shape `ramp_rows` prints, the colour twice, so
+# `ramp_faults` reads it unchanged.
+bg_rows() { # <label>
+	awk -F"$BAR" '
+		BEGIN { E = "48;2;[0-9]+;[0-9]+;[0-9]+m" }
+		{
+			if (match($2, E " *[01]\\.[0-9][0-9]")) {
+				cell = substr($2, RSTART, RLENGTH)
+				p = index(cell, "m")
+				colour = substr(cell, 6, p - 6)
+				text = substr(cell, p + 1)
+				gsub(/ /, "", text)
+				print colour, colour, text
+			}
+		}
+	' "$DIR/color-$1.txt"
+}
+rows=$(bg_rows c_bg)
+count=$(printf '%s\n' "$rows" | grep -c '[^ ]' || true)
+faults=$(ramp_faults "$rows" 1)
+if [ "$count" -lt "$RAMP_FLOOR" ]; then
+	fail "c_bg: only $count row(s) carried the ramp as a background, wanted $RAMP_FLOOR"
+elif [ -n "$faults" ]; then
+	fail "c_bg: $(printf '%s' "$faults" | head -3 | tr '\n' ';')"
+else
+	echo "  c_bg: a ramp under \`bg\` climbs a step per row ($count consecutive steps)"
+fi
+
+# `c_bold` draws the same ratio twice on the same ramp, the left one carrying
+# `bold = true` beside the gradient. What the layers claim is that one column
+# differs from the other in exactly one way, so the pair is read off one row
+# rather than grepped for separately: two independent checks would pass a build
+# that had lost the ramp on both sides and bolded both.
 #
 # Bold is read as the escape immediately before the colour, which is where tmux
 # puts it and where a `patch` that landed in the wrong order would not. The
@@ -765,26 +799,34 @@ counts=$(awk -v esc="$ESC" -F"$BAR" '
 		}
 	}
 	END { print ok + 0, bad + 0 }
-' "$DIR/color-c_attrs.txt")
+' "$DIR/color-c_bold.txt")
 IFS=' ' read -r rows wrong <<EOF
 $counts
 EOF
 if [ "$rows" -lt "$RAMP_FLOOR" ]; then
-	fail "c_attrs: only $rows row(s) had a bold cell beside an unbold one of the same colour, wanted $RAMP_FLOOR"
+	fail "c_bold: only $rows row(s) had a bold cell beside an unbold one of the same colour, wanted $RAMP_FLOOR"
 elif [ "$wrong" -gt 0 ]; then
-	fail "c_attrs: $wrong row(s) disagreed -- a colour that moved, or a bold on the wrong side"
+	fail "c_bold: $wrong row(s) disagreed -- a colour that moved, or a bold on the wrong side"
 else
-	echo "  c_attrs: bold on one column, the ramp's colour on both ($rows rows)"
+	echo "  c_bold: bold on one column, the ramp's colour on both ($rows rows)"
 fi
 
-# `permissions` is the only column that paints its own cell, so it is the one
-# place `attrs` is carried by hand rather than arriving inside `ctx.base`. The
-# pattern asks for both halves at once: the bold opening a run, and two
-# characters after it in *different* colours of their own. A cell that had
-# stepped aside for the attribute would draw in one colour and fail the second
-# half while passing the first.
-check "c_attrs: the attribute reaches the characters permissions paints" \
-	"$ESC\[1m$ESC\[[0-9]*m.$ESC\[[0-9]*m." "$DIR/color-c_attrs.txt"
+# `permissions` is the only column that paints its own cell, so a bold written
+# for it reaches the characters some other way than inside their own styles:
+# as the Line's style, which Yazi puts under every span. This is where that is
+# seen on screen. The pattern asks for both halves at once: the bold opening a
+# run, and two characters after it in *different* colours of their own. A cell
+# that had stepped aside for the attribute would draw in one colour and fail
+# the second half while passing the first.
+check "c_bold: the bold reaches the characters permissions paints, under their colours" \
+	"$ESC\[1m$ESC\[[0-9]*m.$ESC\[[0-9]*m." "$DIR/color-c_bold.txt"
+
+# `c_theme`'s `mtime` writes `{ bold = true }` in the spec over a ramp the
+# theme wrote: the colour is the theme's and the weight the spec's, on one
+# cell, which is the case the layers exist for. Read as the bold immediately
+# before a ramp colour that opens a date.
+check "c_theme: a spec's bold over the theme's ramp" \
+	"$ESC\[1m$ESC\[38;2;[0-9]*;[0-9]*;[0-9]*m[0-9][0-9]/" "$DIR/color-c_theme.txt"
 
 echo "== theme =="
 # `[supaline] size` starts at #ff8800 and the reload above made it #00ccff.
