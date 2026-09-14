@@ -18,8 +18,10 @@ detached tmux, with a probe plugin and `ya.dbg`.
 
 - What is merged before any plugin code runs, and what is not
 - A colour read back out of a style
+- A theme table cannot hold a gradient
+- A Line's style sits under its spans
 - How Yazi colours a permission string
-- What a cell with no `base` is drawn in
+- What a cell with no `style` is drawn in
 - What the two theme pins discriminate
 - A fetcher that returns a boolean
 - What pins the parent-pane child
@@ -137,21 +139,60 @@ Three things fall out of it.
 **A flavor can supply a gradient endpoint.** It writes every colour as
 `#rrggbb`, so `raw().fg` off one is a value `colour.stops` would take. Yazi's
 own preset does not: `Yellow` is a name, and a name cannot anchor a ramp. So a
-`ramp` that took a function would refuse a flavorless user's colour, and
-refuse it from inside a `theme` handler rather than while `setup` ran — which
-is the part to design before the part that works.
+gradient anchored on a colour a function returned would refuse a flavorless
+user's, and refuse it from inside a `theme` handler rather than while `setup`
+ran — which is the part to design before the part that works. `colour.lua`
+does not do it yet.
 
 **The flavor timing is measured a second way here.** The two columns disagree
 for exactly the fields a flavor supplies, which is what the section above
 established by drawing three columns on a screen and reading the escapes back.
 Two lines of `ya.dbg` reach it now, and a check could.
 
-**Nothing in the plugin calls it, and taking it costs three things.**
-`types.yazi` declares no `raw` on `ui.Style`, which it marks `(exact)`, so a
-caller needs a class of its own the way `supaline.Line` does; `test/stub.lua`
-models none either, and would have to reproduce the uppercasing to be worth
-having; and a method the annotations do not carry is a CalVer surface with
-nothing watching it.
+**`colour.lua` reads every `ui.Style` it is handed through it**, which is what
+lets a themed table field be merged key by key with the spec's, and taking it
+cost three things. `types.yazi` declares no `raw` on `ui.Style`, which it
+marks `(exact)`, so `supaline.Style` declares it and a caller casts to that
+where the value arrives, the way `supaline.Line` does for `truncate`;
+`test/stub.lua` models it, spelling the colours the way the table above shows
+and the rest of the names the way ratatui's `Display` does, and
+`colour_spec.lua` pins that; and a method the annotations do not carry is a
+CalVer surface, though not one with nothing watching it — Yazi's own
+`entity.lua` reads `raw().reversed` in `Entity:style_rev`, since v25.12.29,
+so a rename would land in Yazi's preset first. Losing it fails loudly: the
+call raises inside `build`, and `ya.notify` puts the message on screen.
+
+## A theme table cannot hold a gradient
+
+A `[supaline]` field written as a table is parsed by Yazi as a style before
+the plugin sees it — `CustomField` in `yazi-config/src/theme/custom_field.rs`
+at 26.9.1 is an untagged enum of `StyleFlat` and `String`, tried in that
+order — so an arrow inside its `fg` is a colour Yazi's parser does not take.
+Measured on 26.9.1 with a `theme.toml` holding
+`[supaline] size = { fg = "#0b3d91 -> #7fd4ff" }` and nothing else: Yazi
+printed `Failed to parse config`, then
+`data did not match any variant of untagged enum CustomField`, then
+`Press any key to continue with preset settings...`, and drew nothing until a
+key was pressed. What `th.supaline` held after that key was not read. So a
+gradient in a theme is the string form and only the string form, and a bold
+over a themed gradient is written in the spec, where the layers put it over
+the theme's colour.
+
+## A Line's style sits under its spans
+
+A style handed back beside a `ui.Line` becomes the Line's own, and Yazi puts it
+*under* each span's: a span's `fg` wins, and a `bold` the Line carries reaches
+every span that did not say otherwise. Read off two places at 26.9.1.
+`yazi-binding/src/elements/line.rs`, in `TryFrom<Table> for Line`, sets
+`line.style.patch(s.style)` on every span of a Line taken into another; and
+ratatui's `Cell::set_style` in `ratatui-core/src/buffer/cell.rs` replaces a
+cell's colours only where the span's style sets them and inserts the span's
+modifiers over what the line put there. Seen on screen by `test/e2e.sh`, in
+the `c_bold` check on `permissions`: a bold written for the column, which the
+plugin hands back beside the Line and patches into no span, opens a run of
+characters drawn in colours of their own. That is what lets `permissions` keep
+painting its characters out of `[status]` while a `bold` or a `bg` written for
+it lands on all ten.
 
 ## How Yazi colours a permission string
 
@@ -192,7 +233,7 @@ this probe. A dummy row is not exotic: Yazi builds one for any listed entry it
 cannot stat, and `Status:perm()` in `yazi-plugin/preset/components/status.lua`
 tests `c == "-" or c == "?"` in one branch.
 
-## What a cell with no `base` is drawn in
+## What a cell with no `style` is drawn in
 
 Four columns side by side, over a `theme.toml` holding nothing but
 `[flavor] dark = "catppuccin-mocha"`, read off one screen out of
@@ -200,10 +241,10 @@ Four columns side by side, over a `theme.toml` holding nothing but
 
 | column | how it was written | on a directory row | on a file row |
 | ------ | ------------------ | ------------------ | ------------- |
-| `size` | `base = "cyan"` | `[36m` | `[36m` |
-| `mtime` | `base = "blue"` | `[34m` | `[34m` |
-| `user` | no `base` | `#89b4fa` | `#cdd6f4` |
-| `count` | no `base` | `#89b4fa` | `#cdd6f4` |
+| `size` | `style = "cyan"` | `[36m` | `[36m` |
+| `mtime` | `style = "blue"` | `[34m` | `[34m` |
+| `user` | no `style` | `#89b4fa` | `#cdd6f4` |
+| `count` | no `style` | `#89b4fa` | `#cdd6f4` |
 
 The bottom two rows move with the row and the top two do not. A cell with no
 style of its own is drawn in the colour the flavor gave the file itself --
@@ -213,9 +254,11 @@ never reaches. `colour.lua` says the same thing from the other end:
 `colour.colour("cyan")` is `nil`, because there are no channels behind a name
 to interpolate between.
 
-What produces the first behaviour is `colour.style(nil)` returning an empty
-`ui.Style()` rather than refusing, so "no base" arrives at the screen as "no
-style" rather than as a default of the plugin's own.
+What produces the first behaviour is `colour.layer(nil)` reading as a layer
+that says nothing, so that `colour.build` hands back an empty `ui.Style()`
+rather than refusing: "no style" arrives at the screen as no style rather
+than as a default of the plugin's own. Measured before the layers existed,
+against `colour.style(nil)`, which answered the same empty style.
 
 **There is no theme field a size or a timestamp could borrow instead.** Read
 off `yazi-config/preset/theme-dark.toml` at v26.9.1: no section means either

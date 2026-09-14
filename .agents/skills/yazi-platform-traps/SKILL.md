@@ -46,7 +46,7 @@ fires a few milliseconds later, unasked. So "resolve it at setup and it is the
 user's" is true of `theme.toml` and false of a flavor, and the two are
 indistinguishable from Lua: both arrive as `th.<section>.<key>`.
 
-That is also why `base` takes a function. A spec that reads `th` at load time
+That is also why `style` takes a function. A spec that reads `th` at load time
 freezes what it read and holds it through every reload -- the stored spec is
 re-read on each `theme` event, never evaluated again -- so a user borrowing a
 colour from their own theme has no correct way to write it as a value. A
@@ -56,7 +56,7 @@ for itself.
 **The reload bites too.** `app:theme` re-reads `theme.toml` from disk
 mid-run, and a plugin that resolved its colours once at `setup` goes on drawing
 the old ones — no error, just a stale colour, because a `Style` out of `th` is
-a value frozen when it was read rather than a handle. So: resolve base colours
+a value frozen when it was read rather than a handle. So: resolve the colours
 and build styles inside `ps.sub("theme", ...)`, and run that same builder once
 at setup so the plugin has something to draw with before the first event. One
 subscription answers both halves — the unasked event corrects the flavor, a
