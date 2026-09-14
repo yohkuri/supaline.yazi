@@ -62,15 +62,17 @@ taken while `init.lua` ran is holding it. The middle column is what keeps the
 plugin working — the unasked `theme` event of the third bullet above lands
 after the flavor does, and `main.lua` rebuilds on it.
 
-The same timing, read from a spec rather than from the plugin, is what `base`
+The same timing, read from a spec rather than from the plugin, is what `style`
 takes a function for. Two probe columns over the same field, one capturing it
 in `init.lua` and one wrapping it in a function, against catppuccin-mocha and
-then a `theme.toml` that overrode `[status] perm_read` mid-run:
+then a `theme.toml` that overrode `[status] perm_read` mid-run. The probe was
+written while the key was spelled `base`; the key is `style` now and the
+timing is the same:
 
 | how the spec wrote it | at startup | after `app:theme` |
 | --------------------- | ---------- | ----------------- |
-| `base = th.status.perm_read` | `[33m`, the preset | `[33m`, unchanged |
-| `base = function() return th.status.perm_read end` | `#f9e2af` | `#ff00ff` |
+| `style = th.status.perm_read` | `[33m`, the preset | `[33m`, unchanged |
+| `style = function() return th.status.perm_read end` | `#f9e2af` | `#ff00ff` |
 
 The captured one never moves: a spec is re-read on each `theme` event and never
 evaluated again. Two things the run cost an hour to learn and neither is
