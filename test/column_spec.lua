@@ -57,6 +57,115 @@ test("normalize: a value that is not a spec is refused", function()
 	throws(function() column.normalize({}, CFG) end, "must be a name, a function, or a table")
 end)
 
+test("normalize: a key nobody claimed is refused by name", function()
+	-- A misspelled key is drawn nowhere and mentioned nowhere: `pick` asks for
+	-- the names it knows and never asks what else is there, and a table
+	-- constructor is past what the checker reads against a class. So a column
+	-- whose cap was written `max_widht` draws at its natural width, and this
+	-- is the only thing that says so.
+	column.register("fixed", { width = 4, render = function() return "ab" end })
+	throws(function() column.normalize({ "fixed", max_widht = 2 }, CFG) end, "`max_widht` is not a column key")
+	-- The message carries what to write instead, because the right spelling is
+	-- not guessable from the wrong one.
+	throws(function() column.normalize({ "fixed", max_widht = 2 }, CFG) end, "`max_width`")
+
+	-- Every key at once, sorted: `pairs` gives them in whatever order the hash
+	-- does, so naming the first found reports the same mistake differently
+	-- from one run to the next and costs a second run to find the rest.
+	throws(
+		function() column.normalize({ "fixed", algin = 1, widht = 2 }, CFG) end,
+		"`algin`, `widht` are not column keys"
+	)
+
+	-- An inline definition is the same table as its own spec, so it is swept
+	-- the same way.
+	throws(function()
+		column.normalize({ render = function() return "x" end, overflw = "clip" }, CFG)
+	end, "`overflw` is not a column key")
+
+	-- A second element is a column written where no second column is read.
+	throws(function() column.normalize({ "fixed", "mtime" }, CFG) end, "`2` is not a column key")
+end)
+
+test("normalize: every key a column takes passes the sweep", function()
+	-- The other half of the refusal above, and the half that catches a key
+	-- left out of the allow-list: a spelling that works is refused by nothing
+	-- else here, so without this the sweep could quietly turn a real option
+	-- into an error and every test above would still pass.
+	column.register("wide", { width = 4, render = function() return "ab" end })
+	local col = column.normalize({
+		"wide",
+		name = "wide",
+		align = "left",
+		overflow = "clip",
+		max_width = 6,
+		sep = "|",
+		stats = function() return {} end,
+		refresh = function() end,
+		style = { bold = true },
+		width = 5,
+		scale = "log",
+	}, CFG)
+	eq(col.align, "left")
+	eq(col.scale, "log")
+end)
+
+test("normalize: a column's own options are claimed, and only that column's", function()
+	-- A column may read options of its own off `ctx.opts` -- `mtime` takes a
+	-- `format` -- so one closed list for every column would refuse the option
+	-- on the column that reads it. The definition declares them, which is what
+	-- lets a misspelling of one be refused rather than ignored.
+	column.register("timed", { width = 4, options = { "format" }, render = function() return "ab" end })
+	eq(column.normalize({ "timed", format = "%c" }, CFG).name, "timed")
+	throws(function() column.normalize({ "timed", fromat = "%c" }, CFG) end, "`fromat` is not a column key")
+	-- And the message says what that column takes beyond the shared keys.
+	throws(function() column.normalize({ "timed", fromat = "%c" }, CFG) end, "also takes `format`")
+
+	-- Declared by one column, so it is not a key on the next.
+	column.register("plain", { width = 4, render = function() return "ab" end })
+	throws(function() column.normalize({ "plain", format = "%c" }, CFG) end, "`format` is not a column key")
+end)
+
+test("register: a definition is swept the same way, and `options` is checked", function()
+	-- Worse than a spec's, because it is read again for every spec that names
+	-- the column.
+	throws(function()
+		column.register("bad", { render = function() return "x" end, algin = "left" })
+	end, "`algin` is not a column key")
+
+	-- `fetch` is a real key of a definition rather than a misspelling, and the
+	-- reason it cannot be a user's is the one `register` already gives.
+	throws(function()
+		column.register("async", { render = function() return "x" end, fetch = function() end })
+	end, "cannot define `fetch`")
+	-- An inline definition never goes through `register`, so the sweep is
+	-- where its `fetch` is met, and it carries the same reason.
+	throws(function()
+		column.normalize({ render = function() return "x" end, fetch = function() end }, CFG)
+	end, "has to be built into supaline itself")
+
+	throws(function()
+		-- The wrong value is the test. Bound through an `any` rather than
+		-- written into the table, because a suppression on a line stylua may
+		-- reflow is a suppression that stops covering what it was put there
+		-- for -- and this one would then fail the type check, not the suite.
+		local options = "format" ---@type any
+		column.register("odd", { render = function() return "x" end, options = options })
+	end, "declares `options` as a string")
+	throws(function()
+		column.register("odd", { render = function() return "x" end, options = {} })
+	end, "as an empty list")
+	throws(function()
+		local options = { 42 } ---@type any
+		column.register("odd", { render = function() return "x" end, options = options })
+	end, "a list holding a number")
+	-- Declaring one changes nothing and reads as though the column had taken
+	-- it over.
+	throws(function()
+		column.register("odd", { render = function() return "x" end, options = { "width" } })
+	end, "which every column takes")
+end)
+
 test("normalize: an unusable width is refused", function()
 	throws(function()
 		---@diagnostic disable-next-line: assign-type-mismatch
