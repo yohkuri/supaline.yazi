@@ -105,7 +105,7 @@ test("setup: a nearer separator replaces a farther one whole, colour and all", f
 	-- The one rule the table form exists to keep: whichever level wrote a
 	-- separator supplies both halves of it. A bare string at the nearer level
 	-- therefore draws uncoloured rather than borrowing the colour above it,
-	-- which is what `base` does to a theme one level down.
+	-- which is what a column's `style` does to a theme one level down.
 	setup({
 		detail = { plain("a"), { plain("b"), sep = "-" } },
 	}, { separator = { " | ", style = { fg = "#585b70" } } })
@@ -503,27 +503,28 @@ test("theme: a reload replaces a colour already resolved", function()
 	end)
 end)
 
-test("theme: a column's `attrs` function is read again on a reload", function()
-	-- The level test, not the key test. `attrs` can be written in exactly one
-	-- place, so one of these covers the feature -- which is the thing the
-	-- plugin-wide separator got wrong by having a second level nobody checked.
+test("theme: a column's `style` function is read again on a reload", function()
+	-- The level test, not the key test. A column's `style` can be written in
+	-- exactly one place, so one of these covers the feature -- which is the
+	-- thing the plugin-wide separator got wrong by having a second level nobody
+	-- checked.
 	--
 	-- Written as the flavor case because that is how it bites: a field only the
 	-- flavor supplies is nil while `setup` runs and arrives a few milliseconds
-	-- later with the `theme` event, so a frozen `attrs` is not a stale
-	-- attribute, it is no attribute at all for the rest of the session.
+	-- later with the `theme` event, so a frozen function is not a stale style,
+	-- it is no style at all for the rest of the session.
 	with_theme({}, function()
-		setup { detail = { { "size", width = 3, attrs = function() return th.supaline.over end } } }
+		setup { detail = { { "size", width = 3, style = function() return th.supaline.over end } } }
 		eq(rawget(assert(style_in("detail")), "bold"), nil, "nothing to put over it yet")
 
-		stub.th.supaline = { over = { bold = true } }
+		stub.th.supaline = { over = ui.Style():bold() }
 		stub.fire("theme")
 		eq(assert(style_in("detail")).bold, true, "the attribute the flavor brought with the event")
 	end)
 end)
 
 test("theme: a linemode's separator style function is read again on a reload", function()
-	-- The same repair a column's `base` gets and for the same reason: a spec is
+	-- The same repair a column's `style` gets and for the same reason: a spec is
 	-- re-read on every build and never evaluated, so a style written as a value
 	-- freezes whatever the theme held while `init.lua` ran. A function is
 	-- called inside the build, where the flavor has landed and every `app:theme`
@@ -581,7 +582,9 @@ test("theme: a style table works as well as a colour string", function()
 		-- Asserted rather than indexed straight: an unstyled cell here is a real
 		-- failure, and "attempt to index a nil value" names the harness for it.
 		local style = assert(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }), "the cell came back unstyled")
-		eq(style.fg, "#00ff00")
+		-- In Yazi's own spelling: a table field arrives as the `Style` Yazi
+		-- parsed and is read back through `raw()`, which uppercases a hex.
+		eq(style.fg, "#00FF00")
 		eq(style.bold, true)
 	end)
 end)
@@ -674,26 +677,33 @@ test("setup: a band that is not two lightnesses is refused, and changes nothing"
 	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
 end)
 
-test("theme: a colour in the spec replaces a themed ramp outright", function()
-	-- One source decides the whole colour. Half of it from the spec and half
-	-- from the theme would be a rule nobody could hold in their head, and it is
-	-- the same rule as before: what the spec says wins.
+test("theme: a colour in the spec replaces a themed gradient, and keeps the rest of the theme's", function()
+	-- Each key goes to the nearest writer, so a spec's `fg` is a flat colour on
+	-- every row where the theme had a gradient -- and a `bg` the theme wrote
+	-- beside a colour is still there under the spec's.
 	with_theme({ size = "#0b3d91 -> #7fd4ff" }, function()
-		setup { detail = { { "size", width = 4, base = "#ff8800" } } }
+		setup { detail = { { "size", width = 4, style = "#ff8800" } } }
 
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#ff8800", "every row, flat")
 	end)
+
+	with_theme({ size = ui.Style():fg("#0b3d91"):bg("#101010") }, function()
+		setup { detail = { { "size", width = 4, style = "#ff8800" } } }
+		local style = assert(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }), "the cell came back unstyled")
+		eq(style.fg, "#ff8800", "the spec's colour")
+		eq(style.bg, "#101010", "over the theme's ground")
+	end)
 end)
 
 test("theme: a ramp on a column with no extremes says which file to fix", function()
-	-- `theme.toml` has no `stats` to give and no `base` field to move the colour
+	-- `theme.toml` has no `stats` to give and no `style` key to move the colour
 	-- to, so the spec-side advice would be advice nobody could take. The error
 	-- has to name the theme, and offer the one move that file allows.
 	with_theme({ owner = "#0b3d91 -> #7fd4ff" }, function()
 		local err = select(2, pcall(setup, { detail = { "owner" } }))
 		local text = tostring(err)
-		assert(text:find("`[supaline] owner` colour in your theme", 1, true), text)
+		assert(text:find("`[supaline] owner` field in your theme", 1, true), text)
 		assert(text:find("Write a flat colour there instead", 1, true), text)
 	end)
 end)
@@ -727,7 +737,7 @@ test("theme: a reload the theme breaks keeps the old colours and says so", funct
 		local said = stub.notified[#stub.notified].content
 		eq(
 			said,
-			"supaline: the `[supaline] size` colour in your theme: `nosuchcolour` is not a colour Yazi "
+			"supaline: the `[supaline] size` field in your theme: `nosuchcolour` is not a colour Yazi "
 				.. "accepts. Write `#rrggbb`, a name such as `cyan`, a 256-colour index as a string such "
 				.. "as `129`, or `reset`",
 			"the message, and nothing Lua or Yazi wrapped around it"

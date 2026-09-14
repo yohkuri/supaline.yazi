@@ -464,6 +464,44 @@ M.text_of = text_of
 ---@return table?
 function M.style_of(x) return getmetatable(x) == Span and x._style or nil end
 
+--- The style each leaf of a renderable is drawn in, in order -- a Span's own
+--- patched over every Line's around it, `false` where nothing styles it.
+---
+--- The order is Yazi's: a Line's style sits *under* its spans, so a span's
+--- `fg` wins and a `bold` the Line carries reaches every span that did not
+--- say otherwise. Read off `yazi-binding/src/elements/line.rs` at 26.9.1,
+--- where a Line taken into another has `line.style.patch(s.style)` set on
+--- each of its spans, and off ratatui's `Cell::set_style`, which patches a
+--- span's style over what the line put in the cell. `test/e2e.sh` sees it on
+--- screen: a bold written for `permissions` opens a run of characters in
+--- colours of their own.
+---@param x any
+---@return table[]
+function M.drawn_styles(x)
+	local out = {}
+	local function walk(part, under)
+		if getmetatable(part) == Line then
+			local base = under
+			if part._style then
+				base = base and base:patch(part._style) or part._style
+			end
+			for _, sub in ipairs(part._parts) do
+				walk(sub, base)
+			end
+		elseif getmetatable(part) == Span then
+			local own = part._style
+			if under then
+				own = own and under:patch(own) or under
+			end
+			out[#out + 1] = own or false
+		else
+			out[#out + 1] = under or false
+		end
+	end
+	walk(x, nil)
+	return out
+end
+
 --- The first style found anywhere inside a renderable, for asserting on what a
 --- linemode came back with without unpicking its structure.
 ---@param x any

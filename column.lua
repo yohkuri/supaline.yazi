@@ -110,13 +110,14 @@ local colour = require(".colour")
 --- names starting `_`; they are declared on `supaline.Scaled` below rather
 --- than here, because a column that reaches for them is reaching past `ratio`.
 ---@class supaline.Ctx
----@field base unknown what to draw a row with no value in: the ramp's low end, or the flat colour
----@field source "spec"|"theme"|"definition" which of the three said what `base` is
---- Already patched into `base` and into every step of a ramp, so a column that
---- draws with either needs nothing from this. It is here for the one that
---- paints its own spans: `permissions` colours each character out of the
---- theme's `[status]` styles, and those pass through neither.
----@field attrs unknown? the style `attrs` asked for, nil when the column has none
+---@field base unknown what to draw a row with no value in: the ramp's low end, or the flat style
+--- Which of the three writers put the `fg` there, `false` included, and nil
+--- when none of them did. The one question a column that paints its own
+--- characters has to ask: `permissions` colours each out of the theme's
+--- `[status]` styles and steps aside for a colour written for the column --
+--- while a `bold` or a `bg` written for it arrives in `base` and goes under
+--- the characters without asking anything.
+---@field fg_from "spec"|"theme"|"definition"|nil
 ---@field opts table the options the column was specified with
 ---@field stats any whatever this column's `stats` returned for the folder
 ---@field width integer? the effective width, `max_width` already applied
@@ -138,17 +139,13 @@ local colour = require(".colour")
 ---@alias supaline.Render fun(file: supaline.File, ctx: supaline.Ctx): any, any?
 
 --- A separator as it is written: the text first, the style beside it. A column
---- spec's own shape, so `{ " | ", style = ... }` reads the way
---- `{ "size", base = ... }` does.
----
---- `style` rather than `base` because `base` is a column's colour *source* --
---- the thing `ramp` competes with, the thing a function borrows from the theme,
---- the thing `colours_of` arbitrates between three writers of. A separator is
---- drawn between two columns rather than on a file, so it has no value to place
---- between the extremes of a listing and no source to choose: it has one style.
+--- spec's own shape under the same key, so `{ " | ", style = ... }` reads the
+--- way `{ "size", style = ... }` does and takes the same spellings -- all but
+--- a gradient, which `colour.flat` refuses: a separator is drawn between two
+--- columns rather than on a file, so it has no value to place on one.
 ---@class supaline.SepSpec
 ---@field [1] string what to draw
----@field style unknown? a colour string, a style table, a `ui.Style`, or a function returning one
+---@field style supaline.StyleSpec?
 
 --- A separator once `M.separator` has read it. The text and the style travel as
 --- one value, which is what lets the three places a separator may be written --
@@ -197,13 +194,11 @@ local colour = require(".colour")
 ---@field render supaline.Render?
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
----@field base unknown? a colour string, a style table, a ui.Style, or a function returning one
----@field ramp string|string[]|false|nil `#rrggbb` endpoints, `"#a -> #b"`, or `false` for none
---- Not a fourth colour source: it never enters `colours_of`, and it is patched
---- over whatever came out of it. An ordinary option otherwise, read through
---- `pick` like `align` and `width`, so a spec's replaces a definition's whole
---- and `false` drops one the definition wrote.
----@field attrs table|(fun(): table|false)|false|nil style keys over the colour, `fg` excepted
+--- Not read through `pick`: a definition's and a spec's are two of the three
+--- layers `layers_of` stacks, with the theme between them, and each key is
+--- taken from the nearest layer that wrote it rather than the whole table
+--- from the nearest that wrote any.
+---@field style supaline.StyleSpec?
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
@@ -344,80 +339,36 @@ function M.extremes(get)
 	end
 end
 
---- Resolve a column's colour: the spec first, then the `[supaline]` theme
---- section, then the definition's own default.
----
---- One source decides both halves. A spec that says anything about colour --
---- `base`, `ramp`, or both -- replaces the theme outright rather than half of
---- it, which is what "a `base` written in the spec wins over the theme" has
---- always meant and is the only rule that stays sayable in one sentence now
---- that there are two fields.
----
---- Within one source the two combine: `base` is the ground the ramp is patched
---- onto, so a theme's `bold` survives a gradient it knows nothing about.
----
---- `false` is how a spec says "neither" -- the spelling `sep` already uses, and
---- the only way to drop a colour the definition or the theme would otherwise
---- supply. It still counts as the spec saying something, so it takes the
---- source with it.
----
---- The theme section holds a string or a style table and nothing else -- an
---- array is refused by Yazi, taking the whole file with it -- so a themed ramp
---- arrives as a string, and `is_ramp` is what tells the two apart.
----
---- This runs inside `build()` rather than once at setup, and `build` is what
---- the `theme` event calls. Both halves of the timing need that. 26.9.1 has
---- `theme.toml` merged before any plugin code runs but **not the flavor**, so
---- a field the flavor supplies still holds Yazi's preset while `init.lua` is
---- running; and `app:theme` re-reads both mid-run, so a colour resolved once
---- is the old one from then on.
----@param name string?
----@param opts supaline.ColumnOpts
----@param def supaline.ColumnOpts
----@return unknown? base, unknown? ramp, "spec"|"theme"|"definition" source
-local function colours_of(name, opts, def)
-	if opts.base ~= nil or opts.ramp ~= nil then
-		return opts.base or nil, opts.ramp or nil, "spec"
-	end
+--- The three writers of a column's style, farthest first: the definition's
+--- own, the `[supaline]` theme field named after the column, and the spec's.
+--- `colour.merge` takes them in this order and gives each key to the nearest
+--- one that wrote it.
+local SOURCES = { "definition", "theme", "spec" }
 
-	local section = name and th.supaline
-	local themed = section and section[name]
-	if themed ~= nil and themed ~= "" then
-		if colour.is_ramp(themed) then
-			return nil, themed, "theme"
-		end
-		return themed, nil, "theme"
-	end
-	return def.base or nil, def.ramp or nil, "definition"
-end
-
---- What to call a column's colour in an error, in terms of the file it was
---- written in. A theme has no `base` field and no `ramp` field to name, so a
---- message that spoke of either would be describing a spec the reader never
---- wrote -- and "the colour of column `size`" says nothing about which of the
---- two files to open.
+--- What to call each writer's style in an error, in terms of the file it was
+--- written in. A theme has no `style` key to name, so a message that spoke of
+--- one would be describing a spec the reader never wrote.
 local WHERE = {
-	spec = "the colour of column `%s`",
-	theme = "the `[supaline] %s` colour in your theme",
-	definition = "the default colour of column `%s`",
+	spec = "the `style` of column `%s`",
+	theme = "the `[supaline] %s` field in your theme",
+	definition = "the default `style` of column `%s`",
 }
 
---- What to do about a ramp on a column with no extremes, likewise. `stats` is
---- a spec's to give and `base` a spec's to write, so a spec and a definition
---- get the same advice; a `theme.toml` has neither, and the only move left
---- there is a flat colour.
-local NO_STATS = "Give the column a `stats` function, or write that colour as `base`"
-local NO_STATS_THEMED = "Write a flat colour there instead"
-
---- What to call a `base` that was written as a function -- the job `WHERE`
---- does for a colour, in terms of the file the function was written in, since
---- a message naming `base` would send the reader to a line that is not the one
---- to change. A table of its own because there is no theme row to write: a
---- theme field holds a string or a style table and never a function.
+--- And what to call one written as a function, since a message naming
+--- `style` would send the reader to a line that is not the one to change. No
+--- theme row: a theme field holds a string or a style table and never a
+--- function.
 local FN_WHERE = {
-	spec = "the `base` function of column `%s`",
-	definition = "the default `base` function of column `%s`",
+	spec = "the `style` function of column `%s`",
+	definition = "the default `style` function of column `%s`",
 }
+
+--- What to do about a gradient on a column with no extremes. `stats` is a
+--- definition's to give and a flat colour a spec's to write, so those two get
+--- the same advice; a `theme.toml` has neither, and the only move left there
+--- is the flat colour.
+local NO_STATS = "Give the column a `stats` function, or write a flat colour there instead"
+local NO_STATS_THEMED = "Write a flat colour there instead"
 
 --- Apply a column's `max_width`, if it has one. Every width a column can end
 --- up with passes through here exactly once -- the stated one when the spec is
@@ -459,15 +410,15 @@ local SEP_EMPTY = 'supaline: %s draws "" in a colour, which draws nothing: a spa
 	.. "give the separator something to draw"
 
 local SEP_FALSE = "supaline: %s has `style = false`, and there is nothing there to turn off. "
-	.. "A column's `base = false` drops a colour its theme or its definition would otherwise "
+	.. "A column's `style = false` drops what its theme or its definition would otherwise "
 	.. "supply; a separator has neither behind it, so leaving `style` out is how one goes "
 	.. "uncoloured"
 
 --- Call a function a spec wrote where a value would go, and name it if it
 --- raises.
 ---
---- Two keys take one, for one reason: a column's `base` and a separator's
---- `style`. A spec is re-read on every build and never evaluated again, so a
+--- Two keys take one, for one reason: a column's `style` and a separator's
+--- own. A spec is re-read on every build and never evaluated again, so a
 --- value freezes whatever the theme held while `init.lua` ran; a function is
 --- called inside `build`, where the flavor has landed, and again on every
 --- `app:theme` after it.
@@ -477,8 +428,8 @@ local SEP_FALSE = "supaline: %s has `style = false`, and there is nothing there 
 --- `attempt to index a nil value`, and that reaches the user as `build`'s
 --- notification -- where a message carrying no name says nothing about which
 --- line to open. So `what` is the caller's to supply, and the two spell it
---- differently: a `base` names the file it was written in, a separator's
---- style names the separator.
+--- differently: a column's names the file it was written in, a separator's
+--- names the separator.
 ---@param fn function
 ---@param what string what to call the function in a message
 ---@return any
@@ -532,7 +483,7 @@ function M.separator(value, where)
 
 	local style = value.style
 	if type(style) == "function" then
-		-- The same repair a column's `base` gets, through the same helper: a
+		-- The same repair a column's `style` gets, through the same helper: a
 		-- separator written in a theme's colour has to follow that theme.
 		style = called(style, string.format("the style function under %s", where))
 	end
@@ -553,7 +504,62 @@ function M.separator(value, where)
 	if text == "" then
 		error(string.format(SEP_EMPTY, where))
 	end
-	return { text = text, style = colour.style(style, string.format("the style under %s", where)) }
+	return { text = text, style = colour.flat(style, string.format("the style under %s", where)) }
+end
+
+--- One writer's style, read into a layer.
+---
+--- A function is called here, and here is the whole of what it buys:
+--- `normalize` runs inside `build`, which is what the `theme` event calls, and
+--- a spec is re-read on every one of those passes but never evaluated again. A
+--- function is, so it sees the flavor that was not there while `init.lua` ran
+--- and follows every reload after it. Once per column per build, never per
+--- row.
+---@param value any what that writer wrote, if anything
+---@param source "spec"|"theme"|"definition"
+---@param name string?
+---@param band supaline.Band?
+---@return supaline.Layer|false
+local function layer_of(value, source, name, band)
+	local where = string.format(WHERE[source], name or "?")
+	if type(value) == "function" then
+		-- Named for the file it was written in rather than for `style`, because
+		-- a definition's function is not on a line the reader has.
+		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
+		value, where = called(value, fn), "what " .. fn .. " returned"
+	end
+	return colour.layer(value, where, band)
+end
+
+--- The three layers of a column's style, in the order `SOURCES` names them.
+---
+--- The theme section holds a string or a style table and nothing else -- an
+--- array is refused by Yazi, taking the whole file with it -- and a table
+--- arrives as the `ui.Style` Yazi parsed, which `colour.layer` reads back
+--- through `raw()`. An empty string there is read as nothing written.
+---
+--- This runs inside `build()` rather than once at setup, and `build` is what
+--- the `theme` event calls. Both halves of the timing need that. 26.9.1 has
+--- `theme.toml` merged before any plugin code runs but **not the flavor**, so
+--- a field the flavor supplies still holds Yazi's preset while `init.lua` is
+--- running; and `app:theme` re-reads both mid-run, so a colour resolved once
+--- is the old one from then on.
+---@param name string?
+---@param opts supaline.ColumnOpts
+---@param def supaline.ColumnOpts
+---@param band supaline.Band?
+---@return (supaline.Layer|false)[]
+local function layers_of(name, opts, def, band)
+	local section = name and th.supaline
+	local themed = section and section[name]
+	if themed == "" then
+		themed = nil
+	end
+	return {
+		layer_of(def.style, "definition", name, band),
+		layer_of(themed, "theme", name, band),
+		layer_of(opts.style, "spec", name, band),
+	}
 end
 
 --- Turn one entry of a linemode spec into a runtime column.
@@ -657,96 +663,55 @@ function M.normalize(spec, cfg)
 	-- nothing to read, and says nothing about it.
 	col.needs_pass = col.stats ~= nil or col.auto or col.width_of ~= nil
 
-	local base, wanted, source = colours_of(name, opts, def)
-	local where = string.format(WHERE[source], name or "?")
+	local resolved, from = colour.merge(layers_of(name, opts, def, cfg.band))
 
-	-- A `base` written as a function is called here, and here is the whole of
-	-- what it buys: `colours_of` above says why this runs inside `build` rather
-	-- than once at setup, and a spec is re-read on every one of those passes
-	-- but never evaluated again. A function is, so it sees the flavor that was
-	-- not there while `init.lua` ran and follows every reload after it.
-	--
-	-- Once per column per build, never per row. `ramp` takes none, and that is
-	-- a feature nobody has written rather than one the platform refuses: a
-	-- colour does come back out of a style, through the `raw()` `colour.lua`'s
-	-- header measures, so a function there could reach a flavor's `#rrggbb`
-	-- after all. What it would cost is written down beside the measurement.
-	local base_where = where
-	if type(base) == "function" then
-		-- Named for the file it was written in rather than for `base`, because
-		-- a definition's function is not on a line the reader has.
-		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
-		-- `or nil` for the reason `colours_of` writes it: `false` is how a spec
-		-- says "no colour at all", and a function that hands one back is saying
-		-- that rather than handing back a value Yazi would refuse.
-		base, base_where = called(base, fn) or nil, "what " .. fn .. " returned"
+	-- A gradient needs extremes to place a value between, and only a column
+	-- that declares `stats` ever gets any: without one `ctx.ratio` is nil for
+	-- every row and the ramp can only ever draw its low end. Refused here
+	-- rather than drawn flat, because a gradient that silently is not one is
+	-- exactly the kind of failure this plugin has no other way to report.
+	-- Named for the writer that put it there, which need not be the one that
+	-- wrote the rest of the style.
+	if col.stats == nil then
+		for _, k in ipairs { "fg", "bg" } do
+			if type(resolved[k]) == "table" then
+				local source = SOURCES[from[k]]
+				error(
+					string.format(
+						"supaline: %s: `%s` is a gradient, but that column has no `stats`, so there are "
+							.. "no extremes to place a value between and the ramp could only ever draw "
+							.. "its low end. %s",
+						string.format(WHERE[source], name or "?"),
+						k,
+						source == "theme" and NO_STATS_THEMED or NO_STATS
+					)
+				)
+			end
+		end
 	end
-	local ground = colour.style(base, base_where)
-
-	-- What a spec wanted *beside* the colour, rather than instead of it. Folded
-	-- into the ground here, which is the whole of the implementation: a ramp is
-	-- built by patching each step's `fg` onto this same ground, and `attrs` is
-	-- refused an `fg`, so the two never touch and every step comes out carrying
-	-- both. Against a flat colour it lands the same way round -- `attrs` over
-	-- the source rather than under it, which is how a spec beats a theme
-	-- everywhere else in this file, and the only order in which a theme's
-	-- `bold = false` does not silently eat an `attrs` that asked for one.
-	--
-	-- It does not go near `colours_of`, and that is the point of the key: a
-	-- column keeps the colour whichever of the three sources gave it, and
-	-- `ctx.source` does not move, so `permissions` goes on painting its own
-	-- characters rather than stepping aside for a bold.
-	local attrs, attrs_where = pick("attrs")
-	if type(attrs) == "function" then
-		local fn = string.format("the `attrs` function of column `%s`", name or "?")
-		attrs, attrs_where = called(attrs, fn), "what " .. fn .. " returned"
-	end
-	-- Truthiness, because `false` is a value here rather than a mistake: `pick`
-	-- reads the definition as well as the spec, so a column that ships `attrs`
-	-- needs a way for a use site to drop them, and `false` is the spelling
-	-- `sep` and `base` already give that. A function returning one says it too.
-	--
-	-- The `where` is built here rather than beside `pick`, because every column
-	-- goes past that line and almost none of them reaches this one.
-	local over
-	if attrs then
-		over = colour.attrs(attrs, attrs_where or string.format("`attrs` of column `%s`", name or "?"))
-		ground = ground:patch(over)
-	end
-
-	-- A ramp needs extremes to place a value between, and only a column that
-	-- declares `stats` ever gets any: without one `ctx.ratio` is nil for every
-	-- row and the ramp can only ever draw its low end. Refused here rather than
-	-- drawn flat, because a gradient that silently is not one is exactly the
-	-- kind of failure this plugin has no other way to report.
-	if wanted ~= nil and col.stats == nil then
-		error(
-			string.format(
-				"supaline: %s is a gradient, but that column has no `stats`, so there are no "
-					.. "extremes to place a value between and the ramp could only ever draw its "
-					.. "low end. %s",
-				where,
-				source == "theme" and NO_STATS_THEMED or NO_STATS
-			)
-		)
-	end
-	local ramp = wanted ~= nil and colour.styles(wanted, ground, where, cfg.band) or nil
+	local ground, steps = colour.build(resolved)
 
 	-- One context table per column, reused across rows. main.lua rebinds
 	-- `stats` and `width` whenever the folder being drawn changes, not per row.
 	--
 	-- A row with no value to place draws the ramp's low end rather than the
-	-- ground beneath it. The ground is where a themed `bold` or `bg` lives and
-	-- may carry no colour of its own at all, so falling back to it would leave
-	-- a directory in `size` uncoloured beside files that are not -- or worse,
-	-- in the column definition's own default, which the user has just replaced.
+	-- ground beneath it. The ground is where a `bold` or a `bg` lives and may
+	-- carry no colour of its own at all, so falling back to it would leave a
+	-- directory in `size` uncoloured beside files that are not.
 	--
-	-- `source` rather than a flag, because a render that wants to know is
-	-- asking which file to leave alone: `permissions` draws itself out of the
-	-- theme's own `[status]` styles and has to stop the moment a colour was
-	-- written for it, wherever it was written.
-	local ctx =
-		{ base = ramp and ramp[1] or ground, source = source, attrs = over, opts = opts, stats = nil, width = col.fixed }
+	-- `fg_from` is the layer that wrote `fg`, `false` included: a spec that
+	-- turned the colour off has said something about it, and a column that
+	-- paints its own characters -- `permissions` -- steps aside for that as it
+	-- does for a colour. What was written beside the `fg` needs no field of its
+	-- own: it is in `base` and in every step, and `cell` puts a Line's style
+	-- under its spans.
+	local ctx = {
+		base = steps and steps[1] or ground,
+		fg_from = from.fg and SOURCES[from.fg] or nil,
+		opts = opts,
+		stats = nil,
+		width = col.fixed,
+	}
 	col.ctx = ctx
 
 	--- Where `value` sits between the extremes of the current listing, 0 to 1.
@@ -770,10 +735,10 @@ function M.normalize(spec, cfg)
 	---
 	--- Two closures rather than one branch inside one, because this runs for
 	--- every visible row on every frame and most columns have no ramp at all.
-	--- The ramp itself is already a list of finished styles, so a row that does
+	--- The steps are already a list of finished styles, so a row that does
 	--- have one costs an arithmetic and an array index.
-	if ramp then
-		local n = #ramp
+	if steps then
+		local n = #steps
 		local last = n - 1
 		function ctx.style(r)
 			if r == nil then
@@ -794,7 +759,7 @@ function M.normalize(spec, cfg)
 			elseif i > n then
 				i = n
 			end
-			return ramp[i]
+			return steps[i]
 		end
 	else
 		function ctx.style(_) return ctx.base end
