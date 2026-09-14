@@ -244,8 +244,8 @@ EOF
 # ground of their own. `mtime` cannot be: a ramp has to be written as a string,
 # a string has no room for a second colour, and a themed ramp is patched onto an
 # empty ground -- so it comes out with no background at all while the columns
-# either side of it have one. A ramp over a background is a `base` in the spec,
-# which is what `c g` shows.
+# either side of it have one. A ramp over a background is a `style` in the
+# spec, which is what `c g` shows.
 cat >"$DIR/themes/bg.toml" <<'EOF'
 [supaline]
 size  = { fg = "#ffe9d6", bg = "#7a2d00" }
@@ -396,8 +396,8 @@ desc = "supaline: a ramp over a background"
 
 [[mgr.prepend_keymap]]
 on   = [ "c", "a" ]
-run  = "linemode c_attrs"
-desc = "supaline: attributes over a colour someone else chose"
+run  = "linemode c_bold"
+desc = "supaline: a bold over a colour the ramp chose"
 
 [[mgr.prepend_keymap]]
 on   = [ "c", "s" ]
@@ -503,7 +503,7 @@ local GROUND = "#8b0045"
 supaline.column("ext", {
 	width = 5,
 	align = "left",
-	base = "magenta",
+	style = "magenta",
 	render = function(file, ctx) return file.url.ext or "", ctx.base end,
 })
 
@@ -513,7 +513,7 @@ supaline.column("ext", {
 supaline.column("mark", {
 	width = 1,
 	align = "left",
-	base = "green",
+	style = "green",
 	render = function(file, ctx) return file.cha.is_dir and "d" or "f", ctx.base end,
 })
 
@@ -647,17 +647,18 @@ supaline:setup({
 		-- screen; `MANUAL.md` says which goes with which.
 		--
 		-- Five of the six write their colours here rather than taking them
-		-- from the theme, and that is the point: a spec's `base` or `ramp` wins
-		-- over `[supaline]`, so these hold still while `c 1` to `c 3` swap the
-		-- theme underneath them. `c_theme` colours nothing in the spec and is
-		-- the one that moves. Two code paths, told apart by pressing a key.
+		-- from the theme, and that is the point: a colour written in the spec
+		-- wins over `[supaline]`'s, so these hold still while `c 1` to `c 3`
+		-- swap the theme underneath them. `c_theme` colours nothing in the spec
+		-- and is the one that moves. Two code paths, told apart by pressing a
+		-- key.
 
 		-- c r, in `colour/ramp`: one row per ramp step. Both columns carry the
 		-- same ramp, so the number and the date are drawn in the same step and
 		-- a disagreement between them is visible rather than inferred.
 		c_ramp = {
-			{ "ratio", ramp = COOL },
-			{ "mtime", ramp = COOL },
+			{ "ratio", style = COOL },
+			{ "mtime", style = COOL },
 		},
 
 		-- c h, in `colour/ramp`: the same rows, on a ramp that turns in hue.
@@ -668,8 +669,8 @@ supaline:setup({
 		-- pointed at without going red on a correct gradient, and a reader is
 		-- the only instrument left.
 		c_hue = {
-			{ "ratio", ramp = HUE },
-			{ "mtime", ramp = HUE },
+			{ "ratio", style = HUE },
+			{ "mtime", style = HUE },
 		},
 
 		-- c b, in `colour/ramp`: the same rows again, on a ramp with no endpoints
@@ -678,15 +679,17 @@ supaline:setup({
 		-- spread by supaline rather than by hand, and the question a reader is
 		-- the only instrument for is whether what it chose is worth drawing.
 		c_band = {
-			{ "ratio", ramp = BAND },
-			{ "mtime", ramp = BAND },
+			{ "ratio", style = BAND },
+			{ "mtime", style = BAND },
 		},
 
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,
-		-- beside the same ramp over no ground at all. `colour.styles` patches
-		-- every step onto the ground and `patch` is field-wise, so the `bg` is
-		-- meant to survive under sixty-four colours that know nothing about it.
-		-- A theme cannot ask for this -- `themes/bg.toml` is where that runs
+		-- beside the same ramp over no ground at all -- and, third, the ramp
+		-- painted *as* the background, under the row's own text. `colour.build`
+		-- sets every step on the ground, so the `bg` is meant to survive under
+		-- sixty-four colours that know nothing about it; and `bg` takes a
+		-- gradient exactly as `fg` does, which is what the third column shows.
+		-- A theme cannot ask for either -- `themes/bg.toml` is where that runs
 		-- out.
 		--
 		-- Two columns rather than one because the question is whether the `bg`
@@ -700,28 +703,30 @@ supaline:setup({
 		-- row and that half of it could not be looked at: `mtime` is eleven
 		-- wide in both of the formats it picks between.
 		c_bg = {
-			{ "mtime", ramp = COOL, width = 14 },
-			{ "mtime", base = ui.Style():bg(GROUND), ramp = COOL, width = 14 },
+			{ "mtime", style = COOL, width = 14 },
+			{ "mtime", style = { fg = COOL, bg = GROUND }, width = 14 },
+			{ "ratio", style = { bg = COOL }, width = 6 },
 		},
 
-		-- c a, in `colour/ramp`: `attrs` over a colour it did not choose. The
-		-- same ratio twice on the same ramp, the left one bold, so the question
-		-- is whether one column differs from the other in exactly one way --
-		-- which is a thing a reader can answer and a capture cannot.
+		-- c a, in `colour/ramp`: a bold over a colour the ramp chose. The same
+		-- ratio twice on the same ramp, the left one bold, so the question is
+		-- whether one column differs from the other in exactly one way -- which
+		-- is a thing a reader can answer and a capture cannot.
 		--
 		-- `permissions` is the third because it is the only column that paints
 		-- its own cell: its ten characters take their colours from the theme's
-		-- `[status]` section and pass through neither `ctx.base` nor a ramp, so
-		-- it is the one place `attrs` is carried by hand. Bold there with the
-		-- theme's own reds and greens still under it is the whole claim.
+		-- `[status]` section, and a bold written for the column reaches them as
+		-- the Line's style under the spans rather than as part of any of them.
+		-- Bold there with the theme's own reds and greens still on top is the
+		-- whole claim.
 		--
 		-- `┊` for the same reason `c_scale` uses it: the two ratio columns hold
 		-- the same number and would read as one, and `e2e.sh` splits a capture
 		-- on `│` to find the current pane.
-		c_attrs = {
-			{ "ratio", ramp = COOL, attrs = { bold = true } },
-			{ "ratio", ramp = COOL, sep = "┊" },
-			{ "permissions", attrs = { bold = true } },
+		c_bold = {
+			{ "ratio", style = { fg = COOL, bold = true } },
+			{ "ratio", style = COOL, sep = "┊" },
+			{ "permissions", style = { bold = true } },
 		},
 
 		-- c s, in `colour/scale`: the same size twice, log then linear, on one
@@ -740,8 +745,8 @@ supaline:setup({
 		-- split with it, and the check would measure half a row without saying
 		-- so.
 		c_scale = {
-			{ "size", scale = "log", ramp = COOL },
-			{ "size", scale = "linear", ramp = COOL, sep = "┊" },
+			{ "size", scale = "log", style = COOL },
+			{ "size", scale = "linear", style = COOL, sep = "┊" },
 		},
 
 		-- c e, in `colour/edge`: a ramp with nothing to spread over. Every value
@@ -754,15 +759,21 @@ supaline:setup({
 		-- one. Both rules on one screen, and no step in between anywhere, which
 		-- is what the two of them look like when they are working.
 		c_edge = {
-			{ "size", ramp = COOL },
-			{ "ratio", ramp = COOL },
-			{ "mtime", ramp = COOL },
+			{ "size", style = COOL },
+			{ "ratio", style = COOL },
+			{ "mtime", style = COOL },
 		},
 
 		-- c t, in `data/`: nothing coloured in the spec, so all four take
 		-- whatever `[supaline]` says. This is the mode `T` and `c 1` to `c 3`
 		-- act on, and the only one that does.
-		c_theme = { "size", "mtime", "owner", "ext" },
+		--
+		-- `mtime` alone carries a bold, and no colour: the colour is the
+		-- theme's ramp and the weight is the spec's, on the same cell, which is
+		-- the case the layers exist for and the one a spec could not write
+		-- while one writer took the whole colour. The ramp moves under `c 1` to
+		-- `c 3`; the bold stays.
+		c_theme = { "size", { "mtime", style = { bold = true } }, "owner", "ext" },
 	},
 })
 EOF
