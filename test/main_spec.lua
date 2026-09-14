@@ -138,6 +138,31 @@ test("setup: an empty configuration is refused", function()
 	throws(function() main.setup({}, { linemodes = {} }) end, "`linemodes` is empty")
 end)
 
+test("setup: a key `setup` itself does not take is refused", function()
+	-- Nothing else refuses one. A key in a table constructor is past what the
+	-- checker reads off `supaline.Opts`, and `setup` takes what it wants by
+	-- name, so `scal = "log"` is a plugin-wide scale that is never applied and
+	-- never mentioned again.
+	local lm = { t = { "size" } }
+	throws(function() main.setup({}, { linemodes = lm, scal = "log" }) end, "`scal`")
+	throws(function() main.setup({}, { linemodes = lm, bnad = { from = 0.2, to = 0.9 } }) end, "`bnad`")
+	throws(function() main.setup({}, { linemodes = lm, seperator = "|" }) end, "`seperator`")
+
+	-- Both at once and sorted, so finding the second does not cost a second
+	-- run.
+	throws(function() main.setup({}, { linemodes = lm, scal = "log", bnad = { from = 0.2 } }) end, "`bnad`, `scal`")
+
+	-- The two that are real mistakes rather than misspellings earn a hint.
+	throws(function() main.setup({}, { linemodes = lm, linemode = lm }) end, "`linemodes` is the spelling")
+	throws(function() main.setup({}, { linemodes = lm, columns = { "size" } }) end, "columns go inside a linemode")
+
+	-- And the five it does take still go through.
+	setup(
+		{ t = { { "size", width = 3 } } },
+		{ separator = "|", order = 1400, scale = "log", band = { from = 0.2, to = 0.9 } }
+	)
+end)
+
 test("setup: names that are part of the Linemode component are refused", function()
 	-- Yazi keeps the component's machinery on the same table the linemodes are
 	-- looked up on. `linemodes.new` replaced the constructor and took every

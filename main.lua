@@ -102,6 +102,52 @@ local M = {}
 ---@field scale "linear"|"log"|nil
 ---@field band supaline.Band? the lightnesses a band runs between
 
+-- What `setup` itself takes, which is the only thing that refuses everything
+-- else. The same reason `OPTIONS` above has, one level up: a key in the table
+-- constructor `setup` is handed is past what `lua-language-server` checks
+-- against `supaline.Opts` -- `(exact)` was measured not to change that -- so
+-- `bnad`, `scal` and `seperator` reach this or they reach nobody, and a `band`
+-- written `bnad` leaves every band at its default with nothing said about why.
+--
+-- This is the outermost of the five tables a user writes. The other four -- a
+-- linemode spec, a separator, a style, and a column spec or definition -- are
+-- swept the same way, through `colour.unknown`.
+local SETUP_KEYS = {
+	band = true,
+	linemodes = true,
+	order = true,
+	scale = true,
+	separator = true,
+}
+
+local function claims_setup(key) return SETUP_KEYS[key] end
+
+-- The keys above, in the order the message lists them. Sorted for the reason
+-- `column.lua` sorts its own: `pairs` gives a set back in whatever order the
+-- hash does, and a message that reorders itself between runs reads as a
+-- different message.
+local SETUP_KEY_LIST
+do
+	local names = {}
+	for key in pairs(SETUP_KEYS) do
+		names[#names + 1] = key
+	end
+	table.sort(names)
+	SETUP_KEY_LIST = colour.key_list(names)
+end
+
+-- What a key that is none of them most likely meant. Both are mistakes about
+-- where a thing goes rather than misspellings: one linemode written where the
+-- table of them goes, and a linemode's columns written beside the table
+-- instead of inside a linemode in it.
+local SETUP_MEANT = {
+	linemode = "`linemodes` is the spelling, and it is a table of them keyed by the name " .. "each one is switched to",
+	columns = 'columns go inside a linemode -- `linemodes = { detail = { "size", "mtime" } }` '
+		.. "-- rather than beside the table of them",
+}
+
+local SETUP_UNKNOWN = "supaline: %s. `setup` takes %s%s"
+
 local cfg = DEFAULTS
 local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemode definitions
 
@@ -716,6 +762,15 @@ function M.setup(_st, opts)
 		opts = _st --[[@as supaline.Opts]]
 	end
 	opts = opts or {}
+
+	-- Before a single key is read off it, and before anything is committed. A
+	-- key this function does not know is not a value it would ever object to;
+	-- it is a key nothing reads, which is the whole of what stands between
+	-- `scal = "log"` and a plugin that quietly scales nothing.
+	local _, _, subject, hints = colour.unknown(opts, claims_setup, "`setup`", SETUP_MEANT)
+	if subject then
+		error(string.format(SETUP_UNKNOWN, subject, SETUP_KEY_LIST, hints))
+	end
 
 	-- Kept as the user wrote it rather than read into a record here. `compile`
 	-- below is what reads it, on this pass and on every later one, so a

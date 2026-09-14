@@ -76,6 +76,12 @@ desc = "Linemode: size and mtime"
 | `band`      | `{ from = 0.35, to = 0.88 }` | The two Oklab lightnesses a one-colour band runs between, `from` at ratio 0. Write it backwards for a light terminal; see [`band`](#band). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
+Those five are the whole of it: a key that is none of them — `scal`, `bnad`,
+`seperator` — is refused by name rather than quietly ignored, as one is inside
+a linemode, a column, or a style. Nothing else would say so; a plugin-wide
+`scale` written `scal` is read by nobody and every column goes on scaling the
+way it did.
+
 A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
 own machinery on the table the linemodes are looked up on, so any name already
 on that table is refused — `new`, `redraw`, `padding`, `children_add`,
