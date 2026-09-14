@@ -208,23 +208,35 @@ end
 --- and a linemode that raises stops drawing the pane. The styles are what the
 --- `refresh` hook is for; only the spans are rebuilt.
 ---
---- Nothing else goes on a span. A `bold` or a `bg` written for the column
---- arrives in `ctx.style`, `render` hands that back beside the Line, and
---- `column.cell` sets it as the Line's own style -- which Yazi puts *under*
---- each span's, so the characters keep their colours and gain the rest. Read
---- off `yazi-binding/src/elements/line.rs` at 26.9.1, where a Line taken into
---- another has its style patched under every span, and off ratatui's
---- `Cell::set_style`, which patches a span's style over whatever the line put
---- there; seen on screen by `test/e2e.sh`, where a bold on `permissions` opens
---- a run of characters in colours of their own.
+--- `over` is the column's own `ctx.style`, and it goes *over* each character
+--- rather than under the lot of them, which is the only layering that keeps
+--- the promise the rest of the plugin makes: the nearest layer that wrote a
+--- key wins. Under, a `[status]` style that writes the same key wins instead,
+--- so a flavor with `perm_read = { fg = ..., bold = true }` takes
+--- `style = { bold = false }` away from the user who wrote it. Measured both
+--- ways on the stub, against a `[status]` carrying a `bold` and a `bg`.
+---
+--- It cannot take the colours with it. This branch is reached only when
+--- `ctx.fg_written` is false, and that is exactly the case where no layer
+--- wrote an `fg` -- so the style being patched over has none to overwrite,
+--- and a gradient never arrives either, since `permissions` declares no
+--- `stats` and a gradient without one is refused where it is written.
+---
+--- Ten patches per row per frame, and no test against nil to skip them with:
+--- `ctx.style` is a style whether or not anybody wrote one, so the guard the
+--- old `attrs` had is gone. Buying it back means a second question on the
+--- `ctx` beside `fg_written`, which is a documented field for every column to
+--- carry so that one of them can skip ten merges beside the ten `ui.Span`
+--- allocations above -- and those are the floor here anyway.
 ---@param perm string
+---@param over unknown a ui.Style to put over each character's own
 ---@return table[] spans
-local function perm_spans(perm)
+local function perm_spans(perm, over)
 	local spans = {}
 	for i = 1, #perm do
 		local c = perm:sub(i, i)
 		local style = PERM[c] or PERM_TYPE
-		spans[i] = style and ui.Span(c):style(style) or ui.Span(c)
+		spans[i] = ui.Span(c):style(style and style:patch(over) or over)
 	end
 	return spans
 end
@@ -242,8 +254,9 @@ end
 -- question and nothing else.
 --
 -- A `bold` or a `bg` is not a colour, so it does not make the column step
--- aside: it goes under the ten characters, with the theme's own reds and
--- greens still on top of it. `perm_spans` says how.
+-- aside: it goes over the ten characters, which keep the theme's own reds and
+-- greens because the style going over them carries no colour at all.
+-- `perm_spans` says how.
 column.register("permissions", {
 	width = 10,
 	align = "left",
@@ -254,7 +267,7 @@ column.register("permissions", {
 		if perm == "" or ctx.fg_written then
 			return perm, ctx.style
 		end
-		return ui.Line(perm_spans(perm)), ctx.style
+		return ui.Line(perm_spans(perm, ctx.style))
 	end,
 })
 
