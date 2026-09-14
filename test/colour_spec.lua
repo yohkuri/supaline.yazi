@@ -263,6 +263,55 @@ test("attrs: a colour string is refused, since `fg` is what it would mean", func
 	throws(function() colour.attrs(false, "x") end, "is a boolean")
 end)
 
+-- --- what a style answers `raw()` with ------------------------------------
+
+--- `raw()` off a style, cast the way `colour.lua` casts: `types.yazi` marks
+--- `ui.Style` `(exact)` and declares no `raw`, so `supaline.Style` is what the
+--- call is checked against.
+---@param style unknown
+---@return table
+local function raw(style)
+	return (style --[[@as supaline.Style]]):raw()
+end
+
+test("raw: a style answers with its keys, in Yazi's own spelling", function()
+	-- The stub's `raw()` against a run of 26.9.1 -- `probes.md`, "A colour
+	-- read back out of a style". A name comes back capitalised the way
+	-- ratatui's `Display` writes it, a hex uppercased, an index as it was, and
+	-- each attribute under the theme's key. `colour.lua` reads every
+	-- `ui.Style` it is handed through this, and a themed field arrives as one,
+	-- so a stub that answered any other way would let the theme specs prove
+	-- nothing about the theme.
+	eq(raw(ui.Style():fg("#ff8800")).fg, "#FF8800")
+	eq(raw(ui.Style():fg("cyan")).fg, "Cyan")
+	eq(raw(ui.Style():fg("129")).fg, "129")
+	eq(raw(ui.Style():fg("reset")).fg, "Reset")
+	eq(raw(ui.Style():fg("bright-red")).fg, "LightRed")
+	eq(raw(ui.Style():fg("darkgray")).fg, "DarkGray")
+	eq(raw(ui.Style():fg("bright-black")).fg, "DarkGray", "folded on the way in, so `Display` never sees it")
+	eq(raw(ui.Style():fg("bright-white")).fg, "White")
+	eq(raw(ui.Style():bg("light-blue")).bg, "LightBlue")
+
+	local got = raw(ui.Style():bg("#112233"):bold():reverse())
+	eq(got.bg, "#112233")
+	eq(got.bold, true)
+	eq(got.reversed, true, "the theme's key, not the method's name")
+	eq(got.reverse, nil)
+	eq(got.fg, nil, "nothing for a key nobody set")
+
+	-- Suppressed on the line: `types.yazi` declares `bold` without the removal
+	-- flag 26.9.1's takes, and the flag is what this line is about.
+	---@diagnostic disable-next-line: redundant-parameter
+	eq(raw(ui.Style():bold(true)).bold, false, "a removal is `false`, the shape a theme's `bold = false` arrives in")
+	eq(next(raw(ui.Style())), nil, "an empty style answers an empty table")
+
+	-- And what comes back goes back in: every spelling `raw()` writes is one
+	-- `fg()` takes, on a real Yazi and here.
+	for _, name in ipairs { "Reset", "LightRed", "DarkGray", "Cyan", "#FF8800" } do
+		eq(raw(ui.Style():fg(name)).fg, name)
+	end
+end)
+
 -- --- telling a ramp from a flat colour -------------------------------------
 
 test("is_ramp: the arrow is what a flat colour can never contain", function()
