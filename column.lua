@@ -412,11 +412,32 @@ local function check_options(def, name)
 	local own = def.options
 	if own == nil then
 		return
-	elseif type(own) ~= "table" or #own == 0 then
-		error(string.format(COLUMN_OPTIONS, name or "?", type(own) == "table" and "an empty list" or "a " .. type(own)))
+	elseif type(own) ~= "table" then
+		error(string.format(COLUMN_OPTIONS, name or "?", "a " .. type(own)))
 	end
-	for _, key in ipairs(own) do
-		if type(key) ~= "string" then
+
+	-- Counted through `pairs` and then read back by index, rather than walked
+	-- with `ipairs`: a gap or a key of its own stops `ipairs` where it is, and
+	-- every name past that point would be declared here, ignored, and refused
+	-- at the use site as a key the column does not take. That is the silence
+	-- this check exists to end, standing in the table that writes it -- and
+	-- `#` cannot see it either, since the length of a table with a gap is
+	-- whichever border Lua happens to find.
+	local n = 0
+	for _ in pairs(own) do
+		n = n + 1
+	end
+	if n == 0 then
+		error(string.format(COLUMN_OPTIONS, name or "?", "an empty list"))
+	end
+
+	for i = 1, n do
+		local key = own[i]
+		if key == nil then
+			-- `n` entries with `1 .. n` all filled is the whole of what a list
+			-- is, so one missing index means the rest are somewhere else.
+			error(string.format(COLUMN_OPTIONS, name or "?", "a table with a gap in it, or with keys of its own"))
+		elseif type(key) ~= "string" then
 			error(string.format(COLUMN_OPTIONS, name or "?", "a list holding a " .. type(key)))
 		elseif COLUMN_KEYS[key] or DEFINITION_KEYS[key] then
 			-- Declaring one changes nothing -- every column claims it already

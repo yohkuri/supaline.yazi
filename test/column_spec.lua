@@ -191,6 +191,32 @@ test("register: a name supaline answers for is not a column's to declare", funct
 	end, "which supaline answers for itself")
 end)
 
+test("register: `options` is a list, gaps and keys of its own included", function()
+	-- `ipairs` stops at the first gap, so every name past one would be declared
+	-- here, read by nothing, and refused at the use site as a key the column
+	-- does not take -- the silence the sweep exists to end, in the table that
+	-- writes it. `#` cannot see the gap either: the length of a table with one
+	-- is whichever border Lua happens to find.
+	throws(function()
+		local options = { [1] = "a", [3] = "b" } ---@type any
+		column.register("holed", { options = options, render = function() return "x" end })
+	end, "a table with a gap in it")
+
+	-- A name written as a key rather than as an entry is the same mistake
+	-- wearing the other spelling, and `pairs` counts it where `ipairs` walks
+	-- straight past.
+	throws(function()
+		local options = { "a", extra = "b" } ---@type any
+		column.register("keyed", { options = options, render = function() return "x" end })
+	end, "or with keys of its own")
+
+	-- And a list with neither is what a column declares, so the check has to
+	-- let it through: a refusal that caught this would refuse every column
+	-- that reads an option at all.
+	column.register("padded", { options = { "pad", "trim" }, render = function() return "x" end })
+	eq(column.normalize({ "padded", pad = 2, trim = true }, CFG).ctx.opts.trim, true)
+end)
+
 test("normalize: `ctx.opts` holds the declared options and nothing else", function()
 	-- Not the spec table. A column reading `opts.style` off that would get the
 	-- one layer its use site wrote rather than the three merged, and
