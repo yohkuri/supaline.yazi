@@ -424,6 +424,20 @@ local function check_options(def, name)
 			error(
 				string.format(COLUMN_OPTIONS, name or "?", string.format("a list naming `%s`, which every column takes", key))
 			)
+		elseif COLUMN_MEANT[key] then
+			-- A name the sweep has a reason for is not a column's to take over,
+			-- and taking one over switches that reason off: `options = { "fetch" }`
+			-- is the whole of what it costs to have a `fetch` accepted, and the
+			-- refusal it walks past is the only place the plugin says why a column
+			-- cannot own one. Read off `COLUMN_MEANT`, so a fourth name worth
+			-- explaining is reserved by being explained.
+			error(
+				string.format(
+					COLUMN_OPTIONS,
+					name or "?",
+					string.format("a list naming `%s`, which supaline answers for itself", key)
+				)
+			)
 		end
 	end
 end

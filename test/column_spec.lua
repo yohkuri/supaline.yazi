@@ -173,6 +173,24 @@ test("register: an inline definition's `options` is checked too", function()
 	end, "which every column takes")
 end)
 
+test("register: a name supaline answers for is not a column's to declare", function()
+	-- `fetch` is refused by the sweep with the reason it is refused for, and
+	-- declaring it as an option is the whole of what it takes to walk past
+	-- that: the column would be handed its own `fetch` in `ctx.opts` and the
+	-- one place the plugin says why a column cannot own a fetcher would never
+	-- be reached.
+	throws(function()
+		column.register("async", { options = { "fetch" }, render = function() return "x" end })
+	end, "`fetch`, which supaline answers for itself")
+
+	-- Read off the same table the hints are: a fourth name worth explaining is
+	-- reserved by being explained, rather than by a second list to keep level.
+	throws(function()
+		local options = { "fetch" } ---@type any
+		column.normalize({ render = function() return "x" end, options = options }, CFG)
+	end, "which supaline answers for itself")
+end)
+
 test("normalize: `ctx.opts` holds the declared options and nothing else", function()
 	-- Not the spec table. A column reading `opts.style` off that would get the
 	-- one layer its use site wrote rather than the three merged, and
