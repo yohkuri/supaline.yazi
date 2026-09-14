@@ -734,9 +734,10 @@ supaline:setup({
 		--
 		-- The separator is there because the two columns hold the same number
 		-- and would otherwise read as one. It goes on the *second* of them: a
-		-- `sep` is drawn before its own column, so one on the first is a
-		-- separator with nothing on its left and is dropped -- which is what
-		-- this linemode did until the screen was read rather than assumed.
+		-- `sep` is drawn before its own column, so one on the first would be a
+		-- separator with nothing on its left. `setup` refuses one there now;
+		-- until it did, this linemode wrote one and drew none, which is what
+		-- reading the screen rather than assuming it found.
 		--
 		-- `┊` rather than the `│` that `m 5` uses, because `e2e.sh` splits a
 		-- capture line on U+2502 to find the current pane. Nothing reads this
