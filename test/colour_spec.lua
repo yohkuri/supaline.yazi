@@ -59,6 +59,26 @@ test("colour: a value that is not a string is refused", function()
 	throws(function() colour.colour(true, "x") end, "got a boolean")
 end)
 
+--- The nine attributes, each under the `ui.Style` method that drives it.
+---
+--- The names are written out in three places -- `colour.lua`'s allow-list, the
+--- stub's methods, and here -- because neither of the other two can read the
+--- other: the stub stands in for Yazi and must not require the plugin. This
+--- table is what holds the three together, read on the way in by the `layer`
+--- test and on the way out by the `build` one, so the pair is one list rather
+--- than two that can drift.
+local ATTRS = {
+	bold = "bold",
+	dim = "dim",
+	italic = "italic",
+	underline = "underline",
+	blink = "blink",
+	blink_rapid = "blink_rapid",
+	reversed = "reverse",
+	hidden = "hidden",
+	crossed = "crossed",
+}
+
 -- --- one writer's layer ----------------------------------------------------
 
 --- A layer read from `value`, for the tests that go on to read a key off it.
@@ -126,12 +146,8 @@ test("layer: a table is the theme's spelling, read key by key", function()
 end)
 
 test("layer: every attribute a theme can write is read under its own name", function()
-	-- The nine keys are written out in three places -- `colour.lua`'s allow-list,
-	-- the stub's methods, and here -- because neither of the other two can read
-	-- the other: the stub stands in for Yazi and must not require the plugin.
-	-- This loop is what holds the three together, on the way in here and on
-	-- the way out in `build` below.
-	for _, key in ipairs { "bold", "dim", "italic", "underline", "blink", "blink_rapid", "reversed", "hidden", "crossed" } do
+	-- The way in. `build` below is the way out, off the same table.
+	for key in pairs(ATTRS) do
 		eq(layer({ [key] = true })[key], true, key)
 		eq(layer({ [key] = false })[key], false, key .. " = false")
 	end
@@ -301,17 +317,7 @@ test("build: every attribute reaches its method, added or taken off", function()
 	-- The other half of the loop in the `layer` spec above: Yazi's `bold(true)`
 	-- takes bold off, so a `false` in the layer has to arrive as `bold(true)`
 	-- and not as a second `bold()`.
-	for key, method in pairs {
-		bold = "bold",
-		dim = "dim",
-		italic = "italic",
-		underline = "underline",
-		blink = "blink",
-		blink_rapid = "blink_rapid",
-		reversed = "reverse",
-		hidden = "hidden",
-		crossed = "crossed",
-	} do
+	for key, method in pairs(ATTRS) do
 		eq(rawget(colour.build { [key] = true }, method), true, key)
 		eq(rawget(colour.build { [key] = false }, method), false, key .. " = false")
 	end
@@ -603,7 +609,7 @@ test("bounds: two ends at one lightness are taken rather than refused", function
 	local band = colour.bounds({ from = 0.6, to = 0.6 }, "x")
 	eq(band.from, 0.6)
 	eq(band.to, 0.6)
-	-- Why they are taken: sixty-four steps of one colour is what a flat `base`
+	-- Why they are taken: sixty-four steps of one colour is what a flat colour
 	-- already is, so an equality test reads like the right refusal -- and it
 	-- would catch this spelling and not the one beside it, which draws the
 	-- identical column. Where flat stops being flat is a judgement, and the two
