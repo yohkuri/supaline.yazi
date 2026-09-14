@@ -252,6 +252,20 @@ local OPTIONS = { separator = true }
 local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `parent`, "
 	.. "`preview` and `separator`; got %s"
 
+-- A separator is drawn before its column, so the first column of a pane's
+-- list has nothing before it and `render` skips the separator there. Written
+-- on that column anyway, a `sep` is drawn nowhere and says nothing -- the
+-- silence every other refusal in this file exists for.
+--
+-- The message names the pane, because a list is the pane's rather than the
+-- linemode's: two panes of one linemode each have a first column, and only a
+-- list written under both is the same one twice.
+local FIRST_SEP = "supaline: the first column of `%s` on linemode `%s` was given a `sep`, "
+	.. "which is drawn by nobody: a separator goes before its column, and the first "
+	.. "column has nothing before it. Write it on the column it should precede, or "
+	.. "drop it -- `sep = false` is accepted there, since it asks for nothing and gets "
+	.. "nothing"
+
 -- `PANES` as a set, so a key can be classified without walking it. Derived
 -- rather than written out, because a list and a set of the same three names
 -- are two things to keep in step.
@@ -592,6 +606,19 @@ local function compile(from, with)
 			if list and not made then
 				made = {}
 				for i, entry in ipairs(list) do
+					-- Against the spec alone, and not through `normalize`.
+					-- `pick` reads `sep` off the definition as well, so
+					-- refusing what a definition wrote would forbid a
+					-- registered column from ever heading a linemode: one
+					-- typo's cost, paid by every reuse of the column. What the
+					-- user wrote here is what nobody draws.
+					--
+					-- `false` is falsy and passes, which is the one spelling
+					-- that agrees with the outcome: it asks for nothing, and
+					-- nothing is what index 1 gets.
+					if i == 1 and type(entry) == "table" and entry.sep then
+						error(string.format(FIRST_SEP, pane, name))
+					end
 					local col = column.normalize(entry, with)
 					made[i] = col
 					if col.refresh then

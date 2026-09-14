@@ -783,6 +783,15 @@ table with nothing to draw, a key that is neither the text nor `style`, and a
 `style` on `""` — which would colour no cells at all — are each refused by
 name.
 
+A separator is drawn *before* its column, so the first column of a pane has
+nothing before it and is drawn without one. A `sep` written there is refused
+rather than dropped in silence, and each pane has its own first column: a
+column written first under `parent` is refused for that, wherever it sits in
+the current pane's list. `sep = false` is accepted there — it asks for
+nothing, which is what index 1 gets either way — and a column *registered*
+with a `sep` of its own may still head a linemode, since only what a linemode
+spec writes is refused.
+
 What none of this reaches is the cell at the very start of the row. That space
 is Yazi's own, added before the linemode is asked for anything, so a
 background running from one edge of the linemode to the other still begins one

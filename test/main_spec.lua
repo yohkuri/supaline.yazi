@@ -81,6 +81,51 @@ test("setup: `sep = false` drops the separator before a column", function()
 	eq(draw("detail", CURRENT.files[1]), " 1B 1B")
 end)
 
+test("setup: a `sep` on a pane's first column is refused", function()
+	-- `render` guards the separator with `i > 1`, so this one is drawn
+	-- nowhere. Refused rather than ignored, and refused while `setup` runs
+	-- rather than a session later.
+	throws(
+		function() main.setup({}, { linemodes = { t = { { "size", sep = "|" }, "size" } } }) end,
+		"the first column of `current` on linemode `t`"
+	)
+
+	-- The pane, not the linemode, is what has a first column: this one is
+	-- second in the current pane and first in the parent, and it is the
+	-- parent the message names.
+	throws(
+		function()
+			main.setup({}, {
+				linemodes = {
+					t = { current = { "size", { "size", sep = "|" } }, parent = { { "size", sep = "|" } } },
+				},
+			})
+		end,
+		"the first column of `parent` on linemode `t`"
+	)
+end)
+
+test("setup: `sep = false` on a pane's first column is accepted", function()
+	-- It asks for nothing and gets nothing, which is the one spelling that
+	-- agrees with what index 1 draws.
+	setup { detail = { { "size", width = 3, sep = false }, { "size", width = 3 } } }
+	eq(draw("detail", CURRENT.files[1]), " 1B  1B")
+end)
+
+test("setup: a registered column's own `sep` may head a linemode", function()
+	-- The refusal is spec-only for this: `sep` on a definition is read at
+	-- every use of it, so refusing one here would stop a registered column
+	-- being written first in any linemode -- one typo's cost paid by every
+	-- reuse. What the column wrote is simply not drawn at index 1.
+	main.column("septic", {
+		sep = "|",
+		width = 3,
+		render = function() return "x" end,
+	})
+	setup { detail = { "septic", "septic" } }
+	eq(draw("detail", CURRENT.files[1]), "  x|  x")
+end)
+
 --- A column that draws `text` and asks for no colour, so the only thing in a
 --- row built out of these that can carry a style is the separator between
 --- them.
