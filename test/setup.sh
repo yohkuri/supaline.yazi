@@ -715,10 +715,9 @@ supaline:setup({
 		--
 		-- `permissions` is the third because it is the only column that paints
 		-- its own cell: its ten characters take their colours from the theme's
-		-- `[status]` section, and a bold written for the column reaches them as
-		-- the Line's style under the spans rather than as part of any of them.
-		-- Bold there with the theme's own reds and greens still on top is the
-		-- whole claim.
+		-- `[status]` section, and a bold written for the column is patched into
+		-- each of those styles rather than replacing any of them. Bold there
+		-- with the theme's own reds and greens still on it is the whole claim.
 		--
 		-- `┊` for the same reason `c_scale` uses it: the two ratio columns hold
 		-- the same number and would read as one, and `e2e.sh` splits a capture

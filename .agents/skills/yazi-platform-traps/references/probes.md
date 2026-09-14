@@ -189,12 +189,27 @@ every span that did not say otherwise. Read off two places at 26.9.1.
 `line.style.patch(s.style)` on every span of a Line taken into another; and
 ratatui's `Cell::set_style` in `ratatui-core/src/buffer/cell.rs` replaces a
 cell's colours only where the span's style sets them and inserts the span's
-modifiers over what the line put there. Seen on screen by `test/e2e.sh`, in
-the `c_bold` check on `permissions`: a bold written for the column, which the
-plugin hands back beside the Line and patches into no span, opens a run of
-characters drawn in colours of their own. That is what lets `permissions` keep
-painting its characters out of `[status]` while a `bold` or a `bg` written for
-it lands on all ten.
+modifiers over what the line put there.
+
+**Source-read, and not seen on screen here.** `column.cell` is what relies on
+it: a `render` handing back `renderable, style` has that style put on the Line,
+so a column that styled its own spans keeps them. One column in the tree takes
+that path — the fixture's `name_line`, which exists for the truncation a
+renderable forces and carries no colour worth reading back — so nothing in
+`test/e2e.sh` witnesses the merge. Taking the measurement means giving a
+Line-and-style column a colour of its own in the fixture and reading the run
+back out of a capture.
+
+`permissions` is **not** an instance of this, and was written up here as one.
+Its `render` returns a bare `ui.Line` and no style beside it, and `perm_spans`
+patches the column's style into each character's own with `Style:patch` before
+the Line is built — so what `e2e.sh`'s `c_bold` check sees, a bold opening a
+run of characters in colours of their own, is that patch rather than this
+merge. The check is right about what reaches the screen; only its account of
+how was wrong. `builtin.lua` says why the column patches instead of layering:
+over each character rather than under all ten is the only arrangement that
+keeps the nearest written key winning, so a flavor's `perm_read = { bold =
+true }` cannot take a `style = { bold = false }` back off the user.
 
 ## How Yazi colours a permission string
 
