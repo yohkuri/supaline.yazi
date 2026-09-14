@@ -333,7 +333,7 @@ end
 -- `true` for the attribute added, `false` for it removed. A stub that stored
 -- the argument itself would read `bold(true)` as bold and let a plugin
 -- building a removal pass while a real Yazi stripped the attribute instead.
-for _, key in ipairs {
+local ATTRS = {
 	"bold",
 	"dim",
 	"italic",
@@ -343,12 +343,83 @@ for _, key in ipairs {
 	"reverse",
 	"hidden",
 	"crossed",
-} do
+}
+for _, key in ipairs(ATTRS) do
 	Style[key] = function(self, remove)
 		local s = new_style(self)
 		s[key] = not remove
 		return s
 	end
+end
+
+-- How Yazi spells a colour it hands back. `raw()` serialises the colour
+-- through ratatui's `Display`, which capitalises a name and uppercases a hex,
+-- and `fg()` parses it back through `FromStr`, which lowercases, strips
+-- spaces, hyphens and underscores, and folds `bright` into `light`, `grey`
+-- into `gray`, `light black` into `dark gray` and `light white` into `white`
+-- -- so every spelling that goes in comes out as one of these, and every one
+-- of these goes back in. Measured on 26.9.1 for `reset`, `cyan`, `bright-red`,
+-- `darkgray`, `bright-black`, `bright-white` and `light-blue`, the hex
+-- `#ff8800` and the index `129`; the rest of the table is read off
+-- `ratatui-core/src/style/color.rs` at the revision Yazi 26.9.1 builds
+-- against. `probes.md` holds the run.
+local DISPLAY = {
+	reset = "Reset",
+	black = "Black",
+	red = "Red",
+	green = "Green",
+	yellow = "Yellow",
+	blue = "Blue",
+	magenta = "Magenta",
+	cyan = "Cyan",
+	gray = "Gray",
+	darkgray = "DarkGray",
+	lightred = "LightRed",
+	lightgreen = "LightGreen",
+	lightyellow = "LightYellow",
+	lightblue = "LightBlue",
+	lightmagenta = "LightMagenta",
+	lightcyan = "LightCyan",
+	white = "White",
+}
+
+---@param colour string as it was handed to `fg` or `bg`
+---@return string as `raw()` hands it back
+local function display_of(colour)
+	if colour:find("^#") then
+		return colour:upper()
+	elseif colour:find("^%d+$") then
+		return colour
+	end
+	local key = colour:lower():gsub("[ %-_]", ""):gsub("bright", "light"):gsub("grey", "gray")
+	key = key:gsub("^lightblack$", "darkgray"):gsub("^lightwhite$", "white"):gsub("^lightgray$", "white")
+	return DISPLAY[key] or error("stub: no Display spelling for the colour " .. colour)
+end
+
+--- The plain table Yazi's `raw()` answers with: `fg` and `bg` as the strings
+--- above, each attribute under the *theme's* key -- `reversed`, where the
+--- method is `reverse` -- as the boolean the field holds, and nothing at all
+--- for a key nobody set. `ui.Style()` answers `{}`. Measured on 26.9.1 and
+--- pinned by `colour_spec.lua`, because `colour.lua` reads a themed style
+--- through this and nothing else could tell it what the keys are.
+---@return table
+function Style:raw()
+	local out = {}
+	-- `rawget`: `Style.fg` is the setter, so a style holding no colour answers
+	-- `self.fg` with a function.
+	for _, key in ipairs { "fg", "bg" } do
+		local v = rawget(self, key)
+		if v ~= nil then
+			out[key] = display_of(v)
+		end
+	end
+	for _, key in ipairs(ATTRS) do
+		local v = rawget(self, key)
+		if v ~= nil then
+			out[key == "reverse" and "reversed" or key] = v
+		end
+	end
+	return out
 end
 
 local Span = {}

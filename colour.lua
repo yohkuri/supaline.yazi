@@ -34,6 +34,19 @@
 ---@class supaline.ColourModule
 local M = {}
 
+--- `ui.Style` as 26.9.1 has it, where `types.yazi` declares less. `raw()`
+--- answers with the style as a plain table: `fg` and `bg` as strings, each
+--- attribute under the theme's key as the boolean it holds, and nothing at all
+--- for a key nobody set. It answers for a style Yazi built as readily as for
+--- one built here, and Yazi's own `entity.lua` reads `raw().reversed` off one,
+--- since v25.12.29. The annotations mark the class `(exact)` and declare no
+--- `raw`, so a caller casts to this where the value arrives -- the same
+--- arrangement `supaline.Line` makes for `truncate` -- and `test/stub.lua`
+--- models the method, pinned by `colour_spec.lua` against the run in
+--- `yazi-platform-traps/references/probes.md`.
+---@class supaline.Style : ui.Style
+---@field raw fun(self: self): table
+
 -- How many styles a ramp is quantised into.
 --
 -- Not an option, because it costs nothing to be generous: the styles are built

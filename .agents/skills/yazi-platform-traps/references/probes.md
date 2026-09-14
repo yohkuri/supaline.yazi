@@ -78,11 +78,16 @@ config that does not carry one silently has no flavor at all and no unasked
 `expected struct StyleFlat` -- a theme field wants `{ fg = "..." }`.
 
 The probe reads the field back through supaline rather than out of `th`,
-because `fg` and `bg` are setters that raise when called with no argument and
-`getmetatable` on one returns `false`. What it did not reach for is `raw()`,
-which answers with the colour — the section below is that measurement, taken
-afterwards and against what this one had concluded from the two spellings it
-tried.
+because `getmetatable` on a style returns `false` and the two spellings it
+tried read nothing. What it did not reach for is `raw()`, which answers with
+the colour — the section below is that measurement, taken afterwards and
+against what this one had concluded. `fg()` and `bg()` called with no
+argument are getters as well, measured later still: each hands back the
+colour as a `Color` userdata, or nil where none is set, and `fg(true)` on a
+reversed style hands back the background. The userdata has no methods, so it
+can be fed back into `fg()` and nothing can be read off it; a colour as text
+comes out of `raw()` alone. Read off `yazi-binding/src/style/style.rs` at
+26.9.1 and measured in the same run as the table below.
 
 ## A colour read back out of a style
 
@@ -96,12 +101,24 @@ into the debug log.
 | `ui.Style():fg("#ff8800")` | `{ fg = "#FF8800" }` |
 | `ui.Style():fg("cyan")` | `{ fg = "Cyan" }` |
 | `ui.Style():fg("129")` | `{ fg = "129" }` |
+| `ui.Style():fg("reset")` | `{ fg = "Reset" }` |
+| `ui.Style():fg("bright-red")` | `{ fg = "LightRed" }` |
+| `ui.Style():fg("darkgray")` | `{ fg = "DarkGray" }` |
+| `ui.Style():fg("bright-black")` | `{ fg = "DarkGray" }` |
+| `ui.Style():fg("bright-white")` | `{ fg = "White" }` |
+| `ui.Style():bg("light-blue")` | `{ bg = "LightBlue" }` |
+| `ui.Style():reverse()` | `{ reversed = true }` |
 | `ui.Style():bg("#112233"):bold()` | `{ bg = "#112233", bold = true }` |
 | `ui.Style():bold(true)` | `{ bold = false }` |
 | `ui.Style()` | `{}` |
 
-A hex comes back uppercased and a name capitalised. `colour.lua`'s `HEX`
-pattern takes either case, and what comes back goes straight back into `fg()`.
+A hex comes back uppercased and a name in the spelling ratatui's `Display`
+gives it, after `FromStr` has folded what went in: `bright` to `light`, `grey`
+to `gray`, `bright-black` to `DarkGray`, `bright-white` to `White`. Every one
+of those goes straight back into `fg()`, `Reset` included, and `colour.lua`'s
+`HEX` pattern takes either case. The folding is read off
+`ratatui-core/src/style/color.rs` at the revision 26.9.1 builds against; the
+rows above are measured, and `test/stub.lua` spells its `raw()` from both.
 
 It answers for a style **Yazi** built as readily as for one built here, which
 is the half that matters. The same probe over a `theme.toml` holding
