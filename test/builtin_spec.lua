@@ -159,8 +159,11 @@ local STATUS = {
 --- hook -- which is what main.lua runs on install and on `cd`, and the only
 --- thing that ever reads the theme for this column.
 ---
---- Returns the style of each character in order, `false` where one carries
---- none, so that a caller can ask about any field of it.
+--- Returns the style each character is drawn in, in order, `false` where one
+--- carries none, so that a caller can ask about any field of it. Drawn rather
+--- than carried: what the column hands back beside the Line goes under the
+--- characters' own styles, which is where a `bold` written for the column
+--- reaches them.
 ---@param file table
 ---@param opts table?
 ---@return table[]
@@ -176,21 +179,7 @@ local function perm_styles(file, opts)
 		return column.cell(col, file)
 	end)
 
-	-- Walked rather than read off `_parts` directly: `column.cell` puts what a
-	-- render hands back through a `ui.Line` of its own, which Yazi answers with
-	-- a new Line wrapping it, so the spans sit a level below the cell.
-	local styles = {}
-	local function walk(x)
-		if type(x) == "table" and x._parts then
-			for _, part in ipairs(x._parts) do
-				walk(part)
-			end
-			return
-		end
-		styles[#styles + 1] = stub.style_of(x) or false
-	end
-	walk(out)
-	return styles
+	return stub.drawn_styles(out)
 end
 
 --- The foreground of each character in order, so an assertion names the string
@@ -201,7 +190,8 @@ end
 local function perm_fgs(file, opts)
 	local fgs = {}
 	for _, style in ipairs(perm_styles(file, opts)) do
-		fgs[#fgs + 1] = style and style.fg or "-"
+		-- `rawget`: a style carrying no colour answers `.fg` with the setter.
+		fgs[#fgs + 1] = style and rawget(style, "fg") or "-"
 	end
 	return table.concat(fgs, " ")
 end
@@ -261,35 +251,47 @@ test(
 
 test("permissions: a colour written for the column takes the theme's place", function()
 	-- Flat, for the whole cell: painting the characters over a colour the user
-	-- wrote would leave it visible nowhere.
-	eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }, { base = "#00ccff" }), "#00ccff")
+	-- wrote would leave it visible nowhere. `ctx.fg_from` is the question, so
+	-- it is the `fg` that does it, from whichever file wrote one.
+	local file = stub.file { perm = "drwxr-xr-x" }
+	eq(perm_fgs(file, { style = "#00ccff" }), "#00ccff")
+	eq(perm_fgs(file, { style = { fg = "#00ccff", bold = true } }), "#00ccff")
 
-	with(
-		stub.th,
-		"supaline",
-		{ permissions = "#00ccff" },
-		function() eq(perm_fgs(stub.file { perm = "drwxr-xr-x" }), "#00ccff") end
-	)
+	with(stub.th, "supaline", { permissions = "#00ccff" }, function() eq(perm_fgs(file), "#00ccff") end)
+
+	-- `false` is a colour turned off, and the column steps aside for that too:
+	-- one span in no colour of its own, which is the row's.
+	eq(perm_fgs(file, { style = { fg = false } }), "-")
 end)
 
-test("permissions: `attrs` decorates the characters rather than replacing them", function()
-	-- The one column in the plugin that paints its own cell, and so the one
-	-- place a column's `attrs` has to be carried by hand: these ten styles come
-	-- out of `[status]` and pass through neither `ctx.base` nor a ramp. Without
-	-- `ctx.attrs` reaching `perm_spans`, a bold written here would do nothing
-	-- and say nothing.
+test("permissions: an attribute or a background goes under the characters, not over their colours", function()
+	-- The one column in the plugin that paints its own cell, so the one place
+	-- the rest of a style has to reach the characters some other way than
+	-- through `ctx.base` alone. It does: the column hands `ctx.base` back
+	-- beside its Line, and a Line's style sits under its spans.
 	local file = stub.file { perm = "drwxr-xr-x" }
 
-	-- Held against the column drawn without `attrs` rather than against a
-	-- second copy of the ten-colour literal the test above already pins. What
-	-- this asserts is "untouched", and that is what it should be spelled as.
-	eq(perm_fgs(file, { attrs = { bold = true } }), perm_fgs(file), "the colours are the theme's either way")
-
-	-- Which says `attrs` is not a colour: it does not move `ctx.source`, so the
-	-- column does not step aside the way a `base` makes it.
-	for i, style in ipairs(perm_styles(file, { attrs = { bold = true } })) do
+	-- Held against the column drawn plain rather than against a second copy of
+	-- the ten-colour literal the test above already pins. What this asserts is
+	-- "untouched", and that is what it should be spelled as.
+	eq(
+		perm_fgs(file, { style = { bold = true, bg = "#1e1e2e" } }),
+		perm_fgs(file),
+		"the colours are the theme's either way"
+	)
+	for i, style in ipairs(perm_styles(file, { style = { bold = true, bg = "#1e1e2e" } })) do
 		eq(assert(style, "character " .. i .. " lost its style").bold, true, "character " .. i)
+		eq(style.bg, "#1e1e2e", "character " .. i)
 	end
+
+	-- From the theme as well, which no field could say before: a
+	-- `[supaline] permissions = { bold = true }` used to take the colour with it.
+	with(stub.th, "supaline", { permissions = ui.Style():bold() }, function()
+		eq(perm_fgs(file), "#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044")
+		for i, style in ipairs(perm_styles(file)) do
+			eq(assert(style).bold, true, "character " .. i)
+		end
+	end)
 
 	-- And nothing is added when nobody asked, so the common path is the one it
 	-- has always been.
@@ -473,8 +475,7 @@ test("no built-in names a colour", function()
 	local seen = 0
 	for name, def in pairs(column._registry) do
 		seen = seen + 1
-		eq(def.base, nil, name .. ": a built-in leaves its cell unstyled, so the flavor's colour reaches it")
-		eq(def.ramp, nil, name .. ": a gradient is the user's to ask for, in the spec or in `[supaline]`")
+		eq(def.style, nil, name .. ": a built-in leaves its cell unstyled, so the flavor's colour reaches it")
 	end
 	-- A loop over an empty table passes, which is the one way this test could
 	-- exit green over nothing at all.

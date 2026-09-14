@@ -393,8 +393,8 @@ local function coloured(opts)
 	return column.normalize(opts, CFG).ctx
 end
 
-test("ramp: the endpoints sit at the ends of the range", function()
-	local ctx = coloured { ramp = BLUES }
+test("style: a gradient's endpoints sit at the ends of the range", function()
+	local ctx = coloured { style = BLUES }
 	eq(ctx.style(0).fg, "#0b3d91")
 	eq(ctx.style(1).fg, "#7fd4ff")
 	-- The bucket arithmetic, not just the ends: 64 steps put the halfway
@@ -402,43 +402,38 @@ test("ramp: the endpoints sit at the ends of the range", function()
 	eq(ctx.style(0.5).fg, "#4288c9")
 end)
 
-test(
-	"ramp: a list and a string say the same thing",
-	function() eq(coloured({ ramp = { "#0b3d91", "#7fd4ff" } }).style(0.5).fg, coloured({ ramp = BLUES }).style(0.5).fg) end
-)
-
-test("ramp: a row with no value draws the ramp's low end", function()
-	-- Not the ground beneath it: that is where a theme's `bold` lives and it
-	-- may carry no colour at all, which would leave an unevaluated directory
-	-- in `size` the one uncoloured cell in the column.
-	local ctx = coloured { ramp = BLUES }
+test("style: a row with no value draws the gradient's low end", function()
+	-- Not the ground beneath it: that is where a `bold` lives and it may carry
+	-- no colour at all, which would leave an unevaluated directory in `size`
+	-- the one uncoloured cell in the column.
+	local ctx = coloured { style = BLUES }
 	eq(ctx.style(nil).fg, "#0b3d91")
 	eq(ctx.base.fg, "#0b3d91")
 end)
 
-test("ramp: a ratio off the end is clamped, not left unstyled", function()
+test("style: a ratio off the end is clamped, not left unstyled", function()
 	-- `ratio` clamps, but `style` is public and a column may hand it anything.
 	-- An index past the end would return nil, and a nil style draws a cell with
 	-- no colour -- which reads as a theme that failed to load.
-	local ctx = coloured { ramp = BLUES }
+	local ctx = coloured { style = BLUES }
 	eq(ctx.style(-1).fg, "#0b3d91")
 	eq(ctx.style(2).fg, "#7fd4ff")
 end)
 
-test("ramp: a NaN ratio is clamped too, where a comparison would let it past", function()
+test("style: a NaN ratio is clamped too, where a comparison would let it past", function()
 	-- NaN answers false to `< 1` and to `> n` alike, so a clamp written as two
-	-- comparisons hands `ramp[nan]` back, which is nil -- and `cell` drops a nil
-	-- style without a word. Not hypothetical: `ratio` produces one for any
+	-- comparisons hands `steps[nan]` back, which is nil -- and `cell` drops a
+	-- nil style without a word. Not hypothetical: `ratio` produces one for any
 	-- `scale = "log"` column whose extremes reach -1 or below, where `math.log`
 	-- of a non-positive number is a NaN in `_lo`.
-	local ctx = coloured { ramp = BLUES }
+	local ctx = coloured { style = BLUES }
 	eq(ctx.style(0 / 0).fg, "#0b3d91")
 
 	local col = column.normalize({
 		render = function() return "" end,
 		stats = function() return { min = -10, max = 100 } end,
 		scale = "log",
-		ramp = BLUES,
+		style = BLUES,
 	}, CFG)
 	column.bind(col, { stats = { min = -10, max = 100 } })
 	local r = col.ctx.ratio(5)
@@ -446,64 +441,109 @@ test("ramp: a NaN ratio is clamped too, where a comparison would let it past", f
 	eq(col.ctx.style(r).fg, "#0b3d91", "and the cell is still coloured")
 end)
 
-test("ramp: `false` turns a colour off rather than being read as one", function()
-	-- The spelling `sep` already uses, and the only way to drop a colour the
-	-- definition or the theme would otherwise supply. Read as a value it would
-	-- reach `stops` and come back as "must be a list of colours", which says
-	-- nothing about what was actually asked for.
+test("style: `false` turns the style off, whatever the layers beneath say", function()
+	-- The spelling `sep` already uses, and the only way to drop a style the
+	-- definition or the theme would otherwise supply -- every key of it, not
+	-- the colour alone.
 	column.register("hue3", {
 		render = function() return "" end,
 		stats = function() return nil end,
-		base = "red",
-		ramp = BLUES,
+		style = { fg = BLUES, bold = true },
 	})
-	eq(column.normalize("hue3", CFG).ctx.base.fg, "#0b3d91", "the definition's ramp, without it")
+	eq(column.normalize("hue3", CFG).ctx.base.fg, "#0b3d91", "the definition's gradient, without it")
 
-	local ctx = column.normalize({ "hue3", base = false, ramp = false }, CFG).ctx
-	eq(ctx.style(1), ctx.base, "no ramp left to index")
+	local ctx = column.normalize({ "hue3", style = false }, CFG).ctx
+	eq(ctx.style(1), ctx.base, "no gradient left to index")
 	-- `rawget`, because reading `.fg` off a style that has none hands back the
-	-- setter rather than nil -- on a real Yazi as here, which is why nothing in
-	-- this plugin ever reads a colour back out of a style.
+	-- setter rather than nil -- on a real Yazi as here.
 	eq(rawget(ctx.base, "fg"), nil, "and no colour left either")
+	eq(rawget(ctx.base, "bold"), nil, "nor the attribute")
+	eq(ctx.fg_from, "spec", "and the spec is on record as having said so")
 end)
 
-test("ramp: the base is the ground it is patched onto", function()
-	local ctx = coloured { base = ui.Style():fg("red"):bold(), ramp = BLUES }
+test("style: one key can be turned off on its own, and the rest is kept", function()
+	column.register("hue3b", { render = function() return "" end, style = { fg = "red", bg = "blue", bold = true } })
+	local ctx = column.normalize({ "hue3b", style = { fg = false } }, CFG).ctx
+	eq(rawget(ctx.base, "fg"), nil, "the colour is gone")
+	eq(ctx.base.bg, "blue", "and the rest of the definition's is kept")
+	eq(ctx.base.bold, true)
+	eq(ctx.fg_from, "spec")
+
+	eq(
+		rawget(column.normalize({ "hue3b", style = { bold = false } }, CFG).ctx.base, "bold"),
+		false,
+		"an attribute off is a removal"
+	)
+	eq(
+		column.normalize("hue3b", CFG).ctx.fg_from,
+		"definition",
+		"and with nothing written over it, the definition wrote the colour"
+	)
+end)
+
+test("style: the rest of the style is the ground a gradient is drawn on", function()
+	local ctx = coloured { style = { fg = BLUES, bold = true, bg = "#1e1e2e" } }
 	local style = ctx.style(1)
-	eq(style.fg, "#7fd4ff", "the ramp decides the colour")
+	eq(style.fg, "#7fd4ff", "the gradient decides the colour")
 	eq(style.bold, true, "and everything else is kept")
+	eq(ctx.style(0).bg, "#1e1e2e")
 end)
 
-test("ramp: a column with no extremes to place a value between is refused", function()
-	-- Without `stats` the ratio is nil for every row, so the ramp could only
-	-- ever draw its low end. A gradient that silently is not one has nothing
-	-- else to report it, so `normalize` does.
+test("style: a gradient may sit under `bg`, and needs extremes as one under `fg` does", function()
+	local ctx = coloured { style = { bg = BLUES, fg = "#ffffff" } }
+	eq(ctx.style(0).bg, "#0b3d91")
+	eq(ctx.style(1).bg, "#7fd4ff")
+	eq(ctx.style(1).fg, "#ffffff")
+	eq(ctx.fg_from, "spec")
+
 	throws(function()
-		column.normalize({ render = function() return "" end, ramp = BLUES }, CFG)
-	end, "has no `stats`")
+		column.normalize({ render = function() return "" end, style = { bg = BLUES } }, CFG)
+	end, "`bg` is a gradient, but that column has no `stats`")
 end)
 
-test("base: a style table is built into a style, and anything else is refused", function()
+test("style: a column with no extremes to place a value between is refused", function()
+	-- Without `stats` the ratio is nil for every row, so the gradient could
+	-- only ever draw its low end. A gradient that silently is not one has
+	-- nothing else to report it, so `normalize` does -- and names the writer,
+	-- since a theme's gradient reaches a spec that wrote nothing of its own.
+	throws(function()
+		column.normalize({ render = function() return "" end, style = BLUES }, CFG)
+	end, "the `style` of column `?`: `fg` is a gradient, but that column has no `stats`")
+	throws(function()
+		column.normalize({ render = function() return "" end, style = BLUES }, CFG)
+	end, "Give the column a `stats` function, or write a flat colour")
+
+	column.register("hue2b", { render = function() return "" end })
+	with(stub.th, "supaline", { hue2b = BLUES }, function()
+		throws(
+			function() column.normalize("hue2b", CFG) end,
+			"the `[supaline] hue2b` field in your theme: `fg` is a gradient"
+		)
+		throws(function() column.normalize("hue2b", CFG) end, "Write a flat colour there instead")
+	end)
+end)
+
+test("style: a table is the theme's spelling, and anything else is refused", function()
 	-- The spelling `theme.toml` uses, taken here too, so a style moves between
 	-- the two files unchanged. `colour_spec.lua` pins the keys; this is the
 	-- spec's own path to them.
-	local ctx = coloured { base = { fg = "#ff8800", bold = true } }
+	local ctx = coloured { style = { fg = "#ff8800", bold = true } }
 	eq(ctx.base.fg, "#ff8800")
 	eq(ctx.base.bold, true)
 
-	-- Still an allow-list: what is not a colour, a style table or a `ui.Style`
-	-- survives `setup` and then empties the screen, because `Span:style` takes a
-	-- Style or nil and a number reaches Yazi as neither.
-	throws(function() coloured { base = 42 } end, "is a number")
+	-- Still an allow-list: what is not a colour, a style table, a `ui.Style`
+	-- or `false` survives `setup` and then empties the screen, because
+	-- `Span:style` takes a Style or nil and a number reaches Yazi as neither.
+	throws(function() coloured { style = 42 } end, "is a number")
 end)
 
-test("base: a function is called for its colour, and called again on the next build", function()
+test("style: a function is called for its style, and called again on the next build", function()
 	-- The one way a spec can reach a colour the theme does not have yet. 26.9.1
-	-- merges the flavor after `init.lua` has run, so `base = th.status.perm_read`
+	-- merges the flavor after `init.lua` has run, so `style = th.status.perm_read`
 	-- captures Yazi's preset and keeps it: the stored spec is re-read on every
 	-- `theme` event but never evaluated again. A function is evaluated again.
 	local answer = "#112233"
-	local spec = { base = function() return answer end }
+	local spec = { style = function() return answer end }
 	eq(coloured(spec).base.fg, "#112233")
 
 	answer = "#445566"
@@ -511,83 +551,55 @@ test("base: a function is called for its colour, and called again on the next bu
 
 	-- And a `ui.Style` comes back through it, which is what the field this was
 	-- written for holds.
-	local ctx = coloured { base = function() return ui.Style():fg("#778899"):bold() end }
+	local ctx = coloured { style = function() return ui.Style():fg("#778899"):bold() end }
 	eq(ctx.base.fg, "#778899")
 	eq(ctx.base.bold, true)
+
+	-- Nil is how a function says "nothing", which is what lets one be written
+	-- conditionally; `false` from one turns the style off as writing it does.
+	eq(coloured({ style = function() return nil end }).fg_from, nil)
+	local off = coloured { style = function() return false end }
+	eq(rawget(off.base, "fg"), nil)
+	eq(off.fg_from, "spec")
 end)
 
-test("base: a function that returns `false` drops the colour, as writing it does", function()
-	-- `false` is the only way to turn off a colour the theme or the definition
-	-- would otherwise supply, and handed to `colour.style` it would come back
-	-- refused as a boolean. The spec has still said something, so the theme
-	-- stays out of it.
-	local ctx = coloured { base = function() return false end }
-	eq(rawget(ctx.base, "fg"), nil)
-	eq(ctx.source, "spec")
-end)
-
-test("base: `ui.Style` with the call forgotten is refused, not called", function()
+test("style: `ui.Style` with the call forgotten is refused, not called", function()
 	-- Measured on 26.9.1: `type(ui.Style)` is `table` and only `ui.Style()` is
-	-- userdata. Now that a table is a style rather than a refusal, the bare name
-	-- would be read as one -- `pairs` finds nothing on it, so it would come back
-	-- an empty style, green and uncoloured. `colour.lua` tells the two apart by
-	-- the `__call` a constructor carries, and the stub's `ui.Style` has one for
-	-- the same reason Yazi's does.
+	-- userdata. A table is a style, so the bare name would be read as one --
+	-- `pairs` finds nothing on it, so it would come back a layer saying
+	-- nothing, green and uncoloured. `colour.lua` tells the two apart by the
+	-- `__call` a constructor carries, and the stub's `ui.Style` has one for the
+	-- same reason Yazi's does.
 	eq(type(ui.Style), "table")
-	throws(function() coloured { base = ui.Style } end, "is the constructor")
+	throws(function() coloured { style = ui.Style } end, "is the constructor")
 end)
 
-test("base: a function in the spec outranks the theme, the way a colour does", function()
-	-- Which is also what tells `permissions` to stop colouring itself.
-	column.register("hue4", { render = function() return "" end })
-	with(stub.th, "supaline", { hue4 = "#00ccff" }, function()
-		local col = column.normalize({ "hue4", base = function() return "#ff8800" end }, CFG)
-		eq(col.ctx.base.fg, "#ff8800")
-		eq(col.ctx.source, "spec")
+test("style: the spec is the nearest layer, key by key", function()
+	-- Each key goes to the nearest of the three that wrote it, so a spec that
+	-- writes a colour keeps the theme's attribute and the definition's ground.
+	-- A themed table field is planted as the `ui.Style` Yazi hands a plugin.
+	column.register("hue4", { render = function() return "" end, style = { bg = "#101010", italic = true } })
+	with(stub.th, "supaline", { hue4 = ui.Style():fg("#00ccff"):bold() }, function()
+		local ctx = column.normalize({ "hue4", style = function() return "#ff8800" end }, CFG).ctx
+		eq(ctx.base.fg, "#ff8800", "the spec's colour")
+		eq(ctx.base.bold, true, "the theme's bold")
+		eq(ctx.base.bg, "#101010", "the definition's ground")
+		eq(ctx.base.italic, true)
+		eq(ctx.fg_from, "spec", "which is also what tells `permissions` to stop colouring itself")
+
+		eq(column.normalize("hue4", CFG).ctx.fg_from, "theme", "and with no spec, the theme wrote it")
 	end)
 end)
 
-test("base: a function that fails is reported in terms of the file it was written in", function()
-	-- Two ways to fail and one mechanism for both. A value `colour.style` would
-	-- refuse is named for the function rather than for `base`, because the line
-	-- holding the function is not the line to change -- and a definition may
-	-- carry one, where the reader has no `base` of their own to look at.
-	column.register("hue5", { render = function() return "" end, base = function() return 42 end })
-	throws(function() column.normalize("hue5", CFG) end, "what the default `base` function of column `hue5` returned")
-
-	-- The call raising is the likelier half: a flavor with no such section, a
-	-- field that moved. Lua's own message for it carries no column at all.
-	throws(function()
-		column.normalize({ "hue5", base = function() return th.nosuch.field end }, CFG)
-	end, "the `base` function of column `hue5` raised")
-end)
-
-test("colour: a value Yazi would refuse says which column it was", function()
-	column.register("hue", { render = function() return "" end, base = "nosuchcolour" })
-	throws(function() column.normalize("hue", CFG) end, "column `hue`")
-
-	column.register("hue2", {
-		render = function() return "" end,
-		stats = function() return nil end,
-		ramp = "cyan -> #7fd4ff",
-	})
-	throws(function() column.normalize("hue2", CFG) end, "column `hue2`")
-end)
-
--- --- `attrs` ---------------------------------------------------------------
-
-test("attrs: a themed ramp keeps its colour and gains the attribute", function()
-	-- The case the key exists for. Before it, the only way to a themed ramp
-	-- with a bold on it was copying the endpoints into the spec, where they
-	-- stop following the theme -- and writing `base = { bold = true }` instead
-	-- took the source with it and left the column bold in no colour at all.
+test("style: a theme's gradient keeps its colour under a spec's attribute", function()
+	-- The case that used to take a key of its own. Before the layers, a spec
+	-- writing `{ bold = true }` took the whole colour from the theme and left
+	-- the column bold in no colour at all, and the only way to a themed
+	-- gradient with a bold on it was copying the endpoints into `init.lua`.
 	column.register("att1", { render = function() return "" end, stats = function() return { min = 1, max = 9 } end })
-	with(stub.th, "supaline", { att1 = "#0b3d91 -> #7fd4ff" }, function()
-		local ctx = column.normalize({ "att1", attrs = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
-		eq(ctx.source, "theme", "the colour is still the theme's, which is the whole point")
-		-- Both ends, because `attrs` is folded into the ground every step is
-		-- patched onto: one end carrying it would mean the fold had happened
-		-- somewhere that only sees one.
+	with(stub.th, "supaline", { att1 = BLUES }, function()
+		local ctx = column.normalize({ "att1", style = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
+		eq(ctx.fg_from, "theme", "the colour is still the theme's, which is the whole point")
 		eq(ctx.style(0).fg, "#0b3d91")
 		eq(ctx.style(1).fg, "#7fd4ff")
 		eq(ctx.style(0).bold, true)
@@ -595,83 +607,75 @@ test("attrs: a themed ramp keeps its colour and gains the attribute", function()
 	end)
 end)
 
-test("attrs: it goes over the source rather than under it", function()
-	-- A theme that says `bold = false` is a theme stripping a bold off whatever
-	-- is beneath; a spec that then asks for one is the nearer writer, and wins,
-	-- the way a spec's colour wins over a theme's everywhere else. Under, it
-	-- would lose and say nothing.
+test("style: a theme's attribute reaches a column with no colour claimed", function()
+	-- The other half of the same case: a theme may now say `{ bold = true }`
+	-- without forfeiting the colour, which the one-source rule made impossible
+	-- in the one file a flavor author writes.
 	column.register("att2", { render = function() return "" end })
-	with(stub.th, "supaline", { att2 = { fg = "green", bold = false } }, function()
-		local ctx = column.normalize({ "att2", attrs = { bold = true } }, CFG).ctx
-		eq(ctx.base.fg, "green")
+	with(stub.th, "supaline", { att2 = ui.Style():bold() }, function()
+		local ctx = column.normalize("att2", CFG).ctx
 		eq(ctx.base.bold, true)
+		eq(rawget(ctx.base, "fg"), nil)
+		eq(ctx.fg_from, nil, "nobody wrote a colour, so a column that paints its own goes on doing so")
 	end)
 end)
 
-test("attrs: it is not a colour source, so `base = false` still means none", function()
-	local ctx = coloured { base = false, attrs = { bold = true } }
-	eq(rawget(ctx.base, "fg"), nil, "no colour, and the attribute is still asked for")
-	eq(ctx.base.bold, true)
+test("style: a nearer `true` wins over a farther `false`, and the other way round", function()
+	-- A theme that says `bold = false` is a theme stripping a bold off whatever
+	-- is beneath; a spec that then asks for one is the nearer writer, and wins,
+	-- the way a spec's colour wins over a theme's everywhere else.
+	column.register("att3", { render = function() return "" end, style = { bold = true } })
+	-- Suppressed on the line: `types.yazi` declares `bold` without the removal
+	-- flag 26.9.1's takes, and the flag is what this line plants.
+	---@diagnostic disable-next-line: redundant-parameter
+	with(stub.th, "supaline", { att3 = ui.Style():bold(true) }, function()
+		eq(rawget(column.normalize("att3", CFG).ctx.base, "bold"), false, "the theme strips the definition's")
+		eq(column.normalize({ "att3", style = { bold = true } }, CFG).ctx.base.bold, true, "and the spec puts it back")
+	end)
 end)
 
-test("attrs: `ctx.attrs` is what a column painting its own cell reads", function()
-	-- The only reader, and it exists because `permissions` colours ten
-	-- characters out of the theme and none of them passes through `ctx.base`.
-	local ctx = coloured { attrs = { bold = true } }
-	eq(ctx.attrs.bold, true)
-	eq(coloured({}).attrs, nil, "nil when nobody wrote one, so the check is one comparison")
-end)
+test("style: a function that fails is reported in terms of the file it was written in", function()
+	-- Two ways to fail and one mechanism for both. A value `colour.layer` would
+	-- refuse is named for the function rather than for `style`, because the
+	-- line holding the function is not the line to change -- and a definition
+	-- may carry one, where the reader has no `style` of their own to look at.
+	-- Suppressed on the line: the class refuses this at check time, and the
+	-- refusal under test is the runtime one.
+	---@diagnostic disable-next-line: return-type-mismatch
+	column.register("hue5", { render = function() return "" end, style = function() return 42 end })
+	throws(function() column.normalize("hue5", CFG) end, "what the default `style` function of column `hue5` returned")
 
-test("attrs: a definition may carry one, and a spec replaces it whole", function()
-	-- `pick`, like `align` and `width`. There is no merging between the two
-	-- levels and no auction: `attrs` is an ordinary column option that happens
-	-- not to enter `colours_of`.
-	column.register("att3", { render = function() return "" end, attrs = { italic = true } })
-	eq(column.normalize("att3", CFG).ctx.attrs.italic, true)
-
-	local ctx = column.normalize({ "att3", attrs = { bold = true } }, CFG).ctx
-	eq(ctx.attrs.bold, true)
-	eq(rawget(ctx.attrs, "italic"), nil, "the spec's replaces it rather than adding to it")
-
-	-- And `false` drops it, which is the half `pick` makes necessary: a
-	-- definition can write `attrs`, so a use site needs a way to say none.
-	-- `sep` and `base` spell it the same.
-	eq(column.normalize({ "att3", attrs = false }, CFG).ctx.attrs, nil)
-	eq(column.normalize({ "att3", attrs = function() return false end }, CFG).ctx.attrs, nil, "a function says it too")
-end)
-
-test("attrs: a function is called, and named for the file it was written in", function()
-	-- One spec across both builds, the way the `base` version does it: a second
-	-- call with a fresh table and a fresh closure cannot tell "asked again"
-	-- from "asked for the first time", so the claim would be unearned.
-	local answer = { bold = true }
-	local spec = { attrs = function() return answer end }
-	eq(coloured(spec).base.bold, true)
-
-	answer = { italic = true }
-	eq(coloured(spec).base.italic, true, "the next build asks again")
-
-	-- Nil is how a function says "none", which is what lets one be written
-	-- conditionally. `false` is not, and `colour.attrs` says so by name.
-	eq(coloured({ attrs = function() return nil end }).attrs, nil)
-
-	column.register("att4", { render = function() return "" end })
+	-- The call raising is the likelier half: a flavor with no such section, a
+	-- field that moved. Lua's own message for it carries no column at all. On
+	-- a column of its own, because every layer is read: a definition's
+	-- function that fails is refused whatever the spec wrote over it.
+	column.register("hue5b", { render = function() return "" end })
 	throws(function()
-		column.normalize({ "att4", attrs = function() return th.nosuch.field end }, CFG)
-	end, "the `attrs` function of column `att4` raised")
-	throws(function()
-		column.normalize({ "att4", attrs = function() return { fg = "#ff8800" } end }, CFG)
-	end, "what the `attrs` function of column `att4` returned")
+		column.normalize({ "hue5b", style = function() return th.nosuch.field end }, CFG)
+	end, "the `style` function of column `hue5b` raised")
 end)
 
-test("attrs: written wrong it says which column, while `setup` runs", function()
+test("style: a value Yazi would refuse says which column it was", function()
+	column.register("hue", { render = function() return "" end, style = "nosuchcolour" })
+	throws(function() column.normalize("hue", CFG) end, "the default `style` of column `hue`")
+
+	column.register("hue2", {
+		render = function() return "" end,
+		stats = function() return nil end,
+		style = "cyan -> #7fd4ff",
+	})
+	throws(function() column.normalize("hue2", CFG) end, "column `hue2`")
+
 	column.register("att5", { render = function() return "" end })
-	throws(function() column.normalize({ "att5", attrs = { fg = "cyan" } }, CFG) end, "`attrs` of column `att5`")
+	throws(
+		function() column.normalize({ "att5", style = { fgg = "cyan" } }, CFG) end,
+		"the `style` of column `att5`: `fgg` is not a style key"
+	)
 	-- Suppressed on the line rather than at the top of the file: the class
 	-- refuses this at check time, and the refusal under test is the runtime one
 	-- -- the only one a user's `init.lua` ever meets, since no check reads it.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "att5", attrs = 42 }, CFG) end, "`attrs` of column `att5` is a number")
+	throws(function() column.normalize({ "att5", style = 42 }, CFG) end, "the `style` of column `att5` is a number")
 end)
 
 -- --- derived widths --------------------------------------------------------

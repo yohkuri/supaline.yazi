@@ -518,9 +518,10 @@ local function compile(from, with)
 	-- under it follow the theme. `cfg` is stored once and handed to every
 	-- later build, so a record resolved into it while `setup` ran would carry
 	-- the colour the flavor had not supplied yet and carry it through every
-	-- reload after -- the trap `base` takes a function to escape, reappearing
-	-- one level out. The linemode's and the column's were already read on this
-	-- pass; measured, those two followed a reload and this one did not.
+	-- reload after -- the trap a column's `style` takes a function to escape,
+	-- reappearing one level out. The linemode's and the column's were already
+	-- read on this pass; measured, those two followed a reload and this one
+	-- did not.
 	--
 	-- Once per compile rather than once per linemode: it is the same record
 	-- for all of them, and `render` only ever reads it.
@@ -602,7 +603,7 @@ end
 
 --- Rebuild every linemode from the stored specs. Subscribed to `theme` for
 --- two reasons, one of them at startup. `app:theme` re-reads `theme.toml`
---- from disk mid-run, so a base colour resolved once at setup is the old one
+--- from disk mid-run, so a colour resolved once at setup is the old one
 --- from then on and nothing says so -- and 26.9.1 merges the flavor *after*
 --- `init.lua` has run, announcing it with a `theme` event nobody asked for, so
 --- a colour the flavor supplies is a preset's until this handler has run once.

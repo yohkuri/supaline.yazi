@@ -9,23 +9,25 @@
 --- that message alone, the plugin never installs, and Yazi draws the
 --- linemode's *name* on every row.
 ---
---- A colour can be read back out, and this file does not do it. `ui.Style` is
---- userdata -- `pairs` refuses it, `==` is false between two styles built the
---- same way, and `style.fg` hands back the setter rather than the colour --
---- but it also answers `raw()`, with a plain table: `fg` and `bg` as strings,
---- the attributes as booleans, and nothing at all for a style holding nothing.
---- It answers for a style Yazi built as readily as for one built here.
---- Measured on 26.9.1 -- `ui.Style():fg("#ff8800"):raw()` comes back
---- `{ fg = "#FF8800" }`, uppercased, and a flavor's `th.status.perm_read`
---- comes back `{ fg = "#F9E2AF" }` once the `theme` event has landed.
+--- A style can be read back out, and this file does it for every `ui.Style`
+--- it is handed. `pairs` refuses the userdata, `==` is false between two
+--- styles built the same way, and `style.fg` hands back the setter rather
+--- than the colour -- but `raw()` answers with a plain table, `fg` and `bg` as
+--- strings and the attributes as booleans, for a style Yazi built as readily
+--- as for one built here. Measured on 26.9.1 -- `ui.Style():fg("#ff8800"):raw()`
+--- comes back `{ fg = "#FF8800" }`, uppercased, and a flavor's
+--- `th.status.perm_read` comes back `{ fg = "#F9E2AF" }` once the `theme`
+--- event has landed. That is what lets a theme's table field and a spec's
+--- `ui.Style` be read key by key, like a table written out, and take part in
+--- the merge below instead of replacing it whole. `supaline.Style` declares
+--- the method, and `.agents/skills/yazi-platform-traps/references/probes.md`
+--- holds the run.
 ---
---- So a ramp could be derived from a style, and a flavor could anchor one.
---- Neither is done: endpoints arrive as strings this file parses itself, and
---- `ramp` takes no function. What stops it is no longer that it cannot be
---- written -- `types.yazi` declares no `raw` on a class it marks `(exact)`,
---- and `test/stub.lua` models none, so the colours would rest on a method
---- neither the type check nor the harness can see.
---- `.agents/skills/yazi-platform-traps/references/probes.md` holds the run.
+--- What it also allows and this file does not yet do is anchor a gradient on
+--- a colour read out of a flavor: `raw().fg` off one is `#rrggbb`, which
+--- `M.stops` would take, where Yazi's own preset answers with a name and would
+--- have to be refused from inside a `theme` handler. Undesigned, not
+--- impossible.
 
 --- The module table. Declared for the same reason `supaline.ColumnModule` is:
 --- `require(".colour")` resolves to this tree and the signatures below are read
@@ -45,7 +47,7 @@ local M = {}
 --- models the method, pinned by `colour_spec.lua` against the run in
 --- `yazi-platform-traps/references/probes.md`.
 ---@class supaline.Style : ui.Style
----@field raw fun(self: self): table
+---@field raw fun(self: self): supaline.StyleTable
 
 -- How many styles a ramp is quantised into.
 --
@@ -145,18 +147,14 @@ local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 --- `reset`, and a decimal index from "0" to "255" -- and refuses `#rgb`,
 --- `#rrggbbaa`, `default`, an empty string and anything above 255.
 ---
---- Only ever called with a string. `fg(nil)` and `fg(true)` return nil instead
---- of raising, so a caller that let either through would be told the colour was
---- fine and then hand nil to `:bg()`.
----
---- The style it built on the way is handed back rather than thrown away: the
---- only way to find out whether Yazi takes a colour is to make one with it, and
---- `M.style` wants exactly that style.
+--- Only ever called with a string. `fg()` handed nil or a boolean is the
+--- getter rather than the setter -- it answers the colour the style holds, or
+--- nil, and raises for neither -- so a caller that let either through would
+--- be told the colour was fine.
 ---@param value string
----@return unknown? a ui.Style, or nil when the parser refused
-local function styled(value)
-	local ok, style = pcall(function() return ui.Style():fg(value) end)
-	return ok and style or nil
+---@return boolean
+local function accepted(value)
+	return (pcall(function() return ui.Style():fg(value) end))
 end
 
 -- The attribute keys a style table takes, in the order an error lists them,
@@ -230,7 +228,7 @@ function M.colour(value, where)
 	local r, g, b = value:match(HEX)
 	if r then
 		return { tonumber(r, 16), tonumber(g, 16), tonumber(b, 16) }
-	elseif not styled(value) then
+	elseif not accepted(value) then
 		refuse(value, where)
 	end
 	return nil
@@ -278,93 +276,184 @@ end
 -- step.
 local function claims_style(k) return k == "fg" or k == "bg" or METHOD[k] ~= nil end
 
---- The same keys `theme.toml` takes, and the same meanings. A theme field
---- holds three states rather than two: absent, `true`, and `false`, and the
---- last is the attribute *taken off* rather than one never written. Measured
---- on 26.9.1 through `Style:raw()`: `bold = false` under `[supaline]` reaches
---- a plugin as a style whose raw `bold` is `false`, which strips a `bold` the
---- row beneath it carries. `bold = false` here has to mean that too.
----
---- `fg` and `bg` go through `M.colour`, so a colour is one thing in this file
---- whichever key it arrived under. It parses both through Yazi's `fg`, which
---- is the same `AsColor` the background takes.
----@param t table
----@param where string
----@param no_fg boolean? refuse `fg`, for a table that is not the colour's
----@return unknown a ui.Style
-local function from_table(t, where, no_fg)
-	-- A table with a `__call` is a constructor rather than a style: `base =
-	-- ui.Style`, with the call forgotten. Measured on 26.9.1, `type(ui.Style)`
-	-- is `table` and `pairs` over it finds nothing, so without this it would
-	-- build an empty style and draw the column in no colour at all -- which is
-	-- the silence this whole branch exists to end. The harness's `ui.Style` is
-	-- the same shape, which is what keeps the test a test of this line.
-	local mt = getmetatable(t)
-	if type(mt) == "table" and mt.__call ~= nil then
-		error(
-			string.format(
-				"supaline: %s is a table you can call rather than a style. `ui.Style` is the "
-					.. 'constructor: write `ui.Style()` with the call, or `{ fg = "#ff8800", '
-					.. "bold = true }` to say the same thing as a table",
-				where
-			)
-		)
-	elseif next(t) == nil then
-		error(
-			string.format(
-				"supaline: %s is a style table with no keys in it, which says nothing at all. "
-					.. 'Write the keys you mean, as `{ fg = "#ff8800", bold = true }`, or `false` '
-					.. "to turn the colour off",
-				where
-			)
-		)
-	-- A list of colours, which is a gradient written where a flat style goes.
-	-- Caught by its shape and before the allow-list below, because the
-	-- allow-list answers it in the wrong vocabulary: `base = { "#aabbcc",
-	-- "#ff8800" }` comes back as "`1`, `2` are not style keys" followed by the
-	-- eleven keys a style table takes, and never names `ramp` -- which is the
-	-- one key that takes exactly the list the reader wrote.
-	--
-	-- One `[1]` is the whole test. `ramp = "#ff8800"` is a list of one, so
-	-- `{ "#aabbcc" }` is the same mistake and gets the same answer, and a table
-	-- carrying both a positional entry and a style key is a gradient half
-	-- rewritten rather than a style with a stray key.
-	--
-	-- The message names a *column's* `ramp` because that is the only place one
-	-- can be written. A separator's `style` reaches here too and has no
-	-- gradient to offer, so naming the column is what tells that reader the key
-	-- is not theirs to write. A theme never reaches here at all: Yazi refuses a
-	-- TOML array in a style field and takes the whole file with it, which is why
-	-- a themed ramp is the `#a -> #b` string the message ends on.
-	elseif t[1] ~= nil then
-		error(
-			string.format(
-				"supaline: %s is a list of colours rather than a style. A gradient between "
-					.. "colours is a column's `ramp`, beside `base` rather than inside it: write "
-					.. '`ramp = { "#aabbcc", "#ff8800" }` in a spec, or `"#aabbcc -> #ff8800"` in a '
-					.. 'theme. A style table takes named keys, as `{ fg = "#ff8800", bold = true }`',
-				where
-			)
-		)
-	end
+-- Every key a style holds, in the order an error lists them: the two colours
+-- and then the nine attributes. What `M.merge` walks.
+local KEYS = { "fg", "bg" }
+for _, k in ipairs(ATTRS) do
+	KEYS[#KEYS + 1] = k
+end
 
-	-- `fg` written where the colour is not this table's to give. After the
-	-- three shape tests above and before the allow-list below, and both halves
-	-- of that matter: `attrs = ui.Style` reads a `fg` off the constructor
-	-- table -- every method is a field there -- and has a better answer waiting
-	-- for it above, while the allow-list would take `fg` as the ordinary style
-	-- key it is everywhere else.
-	if no_fg and t.fg ~= nil then
+--- Whether `value` is a `ui.Style` rather than something that merely looks
+--- like one.
+---
+--- By what it answers to, not by what it is. `getmetatable` cannot do it:
+--- measured on 26.9.1, mlua gives every one of Yazi's userdata
+--- `__metatable = false`, so `getmetatable(ui.Style())`,
+--- `getmetatable(ui.Span("x"))` and `getmetatable(ui.Line {})` are all `false`
+--- and all equal to each other -- a check written on the metatable waves a
+--- Span through as a colour. `patch` is a `Style` method and nothing else here
+--- has one: on the same 26.9.1, `style:patch(ui.Style())` succeeds where the
+--- Span and the Line both raise. The harness's stand-in answers it too, which
+--- is what keeps one test a test of the branch that calls this.
+---
+--- Asked before the `type` test, and for a reason: the harness's stand-in for
+--- a `Style` is a Lua table, so a check on `type` alone would take it in the
+--- suite and refuse it in Yazi.
+---@param value any
+---@return boolean
+local function is_style(value)
+	return value ~= nil and pcall(function() return value:patch(ui.Style()) end)
+end
+
+--- A style as a user writes it in a spec: the keys `theme.toml` takes, in the
+--- spelling `theme.toml` uses. `fg` and `bg` hold a colour Yazi's parser
+--- takes, a gradient as `"#a -> #b"`, a band as `"#x <->"`, or `false` for
+--- none; each attribute holds `true`, or `false` for the attribute taken off
+--- whatever is beneath. A `ui.Style` answers `raw()` with the same shape, in
+--- Yazi's own spelling of the colours.
+---@class supaline.StyleTable
+---@field fg string|false|nil
+---@field bg string|false|nil
+---@field bold boolean?
+---@field dim boolean?
+---@field italic boolean?
+---@field underline boolean?
+---@field blink boolean?
+---@field blink_rapid boolean?
+---@field reversed boolean?
+---@field hidden boolean?
+---@field crossed boolean?
+
+--- What one writer may put under `style`: the table above, a colour string
+--- standing for its `fg`, a `ui.Style`, or `false` for nothing at all --
+--- neither a colour of its own nor whatever the writers beneath it said.
+---@alias supaline.StyleValue string|supaline.StyleTable|ui.Style|false
+
+--- ... or a function returning one of those, or nothing. Called each time
+--- the linemode is built, which is how a spec borrows a colour from a flavor
+--- that had not landed while `init.lua` ran.
+---@alias supaline.StyleSpec supaline.StyleValue|(fun(): supaline.StyleValue?)
+
+--- A colour as one layer holds it under `fg` or `bg`: a flat colour as the
+--- string it was written as, a gradient as its stops, `false` for none.
+---@alias supaline.Paint string|integer[][]|false
+
+--- One writer's say about a column's style, read into the shape every
+--- writer's is read into -- the definition's, the theme's and the spec's --
+--- so that `M.merge` can take each key from the nearest of them. A key nobody
+--- wrote is absent, which is what leaves it to the layer beneath.
+---
+--- `false` in place of a layer is the writer saying nothing at all: no
+--- colour, and nothing from beneath either. It is not a layer of eleven
+--- `false`s, because an attribute's `false` is the attribute *taken off* --
+--- the row's own bold along with a theme's -- where a colour's `false` is
+--- merely no colour. `M.merge` reads it as the two colours off and the
+--- attributes left unwritten.
+---@class supaline.Layer
+---@field fg supaline.Paint?
+---@field bg supaline.Paint?
+---@field bold boolean?
+---@field dim boolean?
+---@field italic boolean?
+---@field underline boolean?
+---@field blink boolean?
+---@field blink_rapid boolean?
+---@field reversed boolean?
+---@field hidden boolean?
+---@field crossed boolean?
+
+--- One colour or gradient under `fg` or `bg`, as the layer keeps it.
+---
+--- A gradient is told by the arrow, which is the one thing a flat colour can
+--- never contain, and parsed here rather than kept as written so that every
+--- refusal a style can earn is earned while the layer is read. Everything
+--- else goes through `M.colour`, which refuses what is not a string -- a
+--- table under `fg` included, and no more is said about one -- and what
+--- Yazi's parser would not take.
+---@param value any
+---@param where string
+---@param band supaline.Band? for a band, the default when omitted
+---@return supaline.Paint
+local function paint(value, where, band)
+	if M.is_ramp(value) then
+		return M.stops(value, where, band)
+	end
+	M.colour(value, where)
+	return value
+end
+
+--- Read what one writer put under `style` into a layer.
+---
+--- The whole "is this a style" decision lives here, in one allow-list, so
+--- there is one place to read and one message to keep right. A value that is
+--- none of them is refused *now*: `Span:style` takes a `Style` or nil and
+--- nothing else, and anything else fails while drawing -- measured on 26.9.1,
+--- a value that was neither survived `setup` and then emptied the screen, with
+--- `Failed to redraw the Root component` in the log and nothing on it.
+---
+--- A table is read key by key rather than built into a style: a layer has to
+--- know which keys were written, because a key nobody wrote is what leaves
+--- the one beneath showing. A `ui.Style` is read the same way, through
+--- `raw()`, which hands back exactly the keys it holds in the theme's own
+--- spelling -- so a themed table field, which arrives as the `Style` Yazi
+--- parsed, and a spec's `ui.Style():fg(...):bold()` are one shape by the time
+--- they are here. The shape tests are for a table the user typed: Yazi does
+--- not hand back a constructor, and a `ui.Style()` holding nothing is a layer
+--- that says nothing, which is allowed.
+---@param value any nil, `false`, a colour string, a style table, or a ui.Style
+---@param where string
+---@param band supaline.Band? the default when omitted
+---@return supaline.Layer|false
+function M.layer(value, where, band)
+	local t
+	if value == nil then
+		return {}
+	elseif value == false then
+		return false
+	elseif type(value) == "string" then
+		return { fg = paint(value, where, band) }
+	elseif is_style(value) then
+		t = (value --[[@as supaline.Style]]):raw()
+	elseif type(value) ~= "table" then
 		error(
 			string.format(
-				"supaline: %s: `fg` is the one key `attrs` does not take. A column's colour is "
-					.. "`base` for a flat one and `ramp` for a gradient, and `attrs` is what goes "
-					.. "over whichever of the two won -- so an `fg` here would be the spec taking "
-					.. "the colour back, which is what writing `base` is for. `bg` and the "
-					.. "attributes are yours to write",
-				where
+				"supaline: %s is a %s. A style is a colour string, a table of style keys, a "
+					.. "`ui.Style`, or `false`, and anything else reaches Yazi as none of them: the "
+					.. 'linemode stops drawing and the screen goes blank. Write `"#rrggbb"`, '
+					.. '`{ fg = "#ff8800", bold = true }`, or `ui.Style():fg(...):bold()`',
+				where,
+				type(value)
 			)
 		)
+	else
+		-- A table with a `__call` is a constructor rather than a style: `style
+		-- = ui.Style`, with the call forgotten. Measured on 26.9.1, `type(ui.Style)`
+		-- is `table` and `pairs` over it finds nothing, so without this it would
+		-- read as a layer saying nothing and draw the column in whatever was
+		-- beneath -- which is the silence this whole branch exists to end. The
+		-- harness's `ui.Style` is the same shape, which is what keeps the test a
+		-- test of this line.
+		local mt = getmetatable(value)
+		if type(mt) == "table" and mt.__call ~= nil then
+			error(
+				string.format(
+					"supaline: %s is a table you can call rather than a style. `ui.Style` is the "
+						.. 'constructor: write `ui.Style()` with the call, or `{ fg = "#ff8800", '
+						.. "bold = true }` to say the same thing as a table",
+					where
+				)
+			)
+		elseif next(value) == nil then
+			error(
+				string.format(
+					"supaline: %s is a style table with no keys in it, which says nothing at all. "
+						.. 'Write the keys you mean, as `{ fg = "#ff8800", bold = true }`, or `false` '
+						.. "to turn every key off",
+					where
+				)
+			)
+		end
+		t = value
 	end
 
 	local unknown, quoted = M.unknown(t, claims_style)
@@ -387,12 +476,13 @@ local function from_table(t, where, no_fg)
 		)
 	end
 
-	local style = ui.Style()
+	local layer = {}
 	for _, k in ipairs { "fg", "bg" } do
 		local v = t[k]
-		if v ~= nil then
-			M.colour(v, string.format("%s: `%s`", where, k))
-			style = style[k](style, v)
+		if v == false then
+			layer[k] = false
+		elseif v ~= nil then
+			layer[k] = paint(v, string.format("%s: `%s`", where, k), band)
 		end
 	end
 	for _, k in ipairs(ATTRS) do
@@ -407,135 +497,125 @@ local function from_table(t, where, no_fg)
 				)
 			)
 		elseif v ~= nil then
-			-- `not v`, and the inversion is Yazi's rather than a slip: the
-			-- argument these methods take is `remove`, so `bold()` and
-			-- `bold(false)` both *add* the attribute and only `bold(true)` takes
-			-- it off. Read off `yazi-binding/src/style/style.rs` at 26.9.1 and
-			-- measured through `Style:raw()` -- `ui.Style():bold(true)` comes back
-			-- `{ bold = false }`, the same shape a theme's `bold = false` arrives
-			-- in. Written as `style[METHOD[k]](style)` a `false` would have gone
-			-- in as a second `true`.
-			style = style[METHOD[k]](style, not v)
+			layer[k] = v
 		end
 	end
-	return style
+	return layer
 end
 
---- Whether `value` is a `ui.Style` rather than something that merely looks
---- like one.
+--- Stack the layers, farthest writer first, and give each key to the nearest
+--- one that wrote it.
 ---
---- By what it answers to, not by what it is. `getmetatable` cannot do it:
---- measured on 26.9.1, mlua gives every one of Yazi's userdata
---- `__metatable = false`, so `getmetatable(ui.Style())`,
---- `getmetatable(ui.Span("x"))` and `getmetatable(ui.Line {})` are all `false`
---- and all equal to each other -- a check written on the metatable waves a
---- Span through as a colour. `patch` is a `Style` method and nothing else here
---- has one: on the same 26.9.1, `style:patch(ui.Style())` succeeds where the
---- Span and the Line both raise. The harness's stand-in answers it too, which
---- is what keeps one test a test of the branch that calls this.
----
---- Both callers reach it before their own `type` test, and for the same
---- reason: the harness's stand-in for a `Style` is a Lua table, so a check on
---- `type` alone would take it in the suite and refuse it in Yazi.
----@param value any
----@return boolean
-local function is_style(value)
-	return value ~= nil and pcall(function() return value:patch(ui.Style()) end)
+--- `false` is written: a spec that turned a colour off has said something
+--- about it, and the layer beneath does not show through. A layer that is
+--- `false` whole starts the stack over with both colours off -- so a column
+--- that asks who wrote its `fg` is told, and steps aside -- and every
+--- attribute unwritten. The second value says which layer each key came
+--- from, for the message that has to name a file and for that one column.
+---@param layers (supaline.Layer|false)[]
+---@return supaline.Layer resolved
+---@return table<string, integer> from the index in `layers` of each key's writer
+function M.merge(layers)
+	local out, from = {}, {}
+	for i, layer in ipairs(layers) do
+		if layer == false then
+			out, from = { fg = false, bg = false }, { fg = i, bg = i }
+		else
+			for _, k in ipairs(KEYS) do
+				local v = layer[k]
+				if v ~= nil then
+					out[k], from[k] = v, i
+				end
+			end
+		end
+	end
+	return out, from
 end
 
---- The style a flat colour draws in, whichever way the user wrote it.
+--- Build what a row is drawn in out of the merged layer: one style, or
+--- `STEPS` of them when `fg` or `bg` holds a gradient.
 ---
---- The whole "is this a colour" decision lives here, in one allow-list, so
---- there is one place to read and one message to keep right. A value that is
---- none of them is refused *now*: `Span:style` takes a `Style` or nil and
---- nothing else, and anything else fails while drawing -- measured on 26.9.1,
---- a value that was neither survived `setup` and then emptied the screen, with
---- `Failed to redraw the Root component` in the log and nothing on it.
+--- The ground carries everything but a gradient -- the flat colours, and each
+--- attribute added or taken off through the method that does it. A gradient
+--- is then a colour set on that ground per step, so a `bold` or a `bg` beside
+--- it comes out on every step, and two gradients land on the same step at the
+--- same ratio. Per row there is then nothing left to do but index the result.
 ---
---- A table is built into a style rather than turned away. `{ fg = "#ff8800",
---- bold = true }` is what the same style is written as in `theme.toml`, and
---- for a while it was the one spelling that emptied the screen -- so the two
---- files now say a style the same way, and `from_table` above refuses by name
---- what a theme can only drop in silence.
----
---- Telling a style from anything else is `is_style` above, which carries the
---- measurement behind it.
----@param value any nil, a colour string, a style table, or a ui.Style
+--- The attribute methods take a removal flag rather than the value, so a
+--- `false` in the layer goes in as `true`: `bold()` and `bold(false)` both
+--- *add* the attribute and only `bold(true)` takes it off. Read off
+--- `yazi-binding/src/style/style.rs` at 26.9.1 and measured through
+--- `Style:raw()` -- `ui.Style():bold(true)` comes back `{ bold = false }`, the
+--- same shape a theme's `bold = false` arrives in.
+---@param resolved supaline.Layer
+---@return unknown ground a ui.Style holding every key but a gradient
+---@return unknown[]? steps `STEPS` styles, ratio 0 first, when there is a gradient
+function M.build(resolved)
+	local ground = ui.Style()
+	for _, k in ipairs(ATTRS) do
+		local v = resolved[k]
+		if v ~= nil then
+			ground = ground[METHOD[k]](ground, not v)
+		end
+	end
+	local ramps
+	for _, k in ipairs { "fg", "bg" } do
+		local v = resolved[k]
+		if type(v) == "string" then
+			ground = ground[k](ground, v)
+		elseif type(v) == "table" then
+			ramps = ramps or {}
+			ramps[k] = M.ramp(v)
+		end
+	end
+	if not ramps then
+		return ground, nil
+	end
+	local steps = {}
+	for i = 1, STEPS do
+		local step = ground
+		for k, hexes in pairs(ramps) do
+			step = step[k](step, hexes[i])
+		end
+		steps[i] = step
+	end
+	return ground, steps
+end
+
+--- One style on its own, for a separator: a layer read and built with no
+--- other writer to merge it with, and no value to place on a gradient.
+---@param value any what `M.layer` takes
 ---@param where string
 ---@return unknown a ui.Style
-function M.style(value, where)
-	if value == nil then
-		return ui.Style()
-	elseif type(value) == "string" then
-		return styled(value) or refuse(value, where)
-	-- Before the table branch, and not merely first by habit: `is_style` says
-	-- why, and the value Yazi hands a themed column is what turns on it.
-	elseif is_style(value) then
-		return value
-	elseif type(value) == "table" then
-		return from_table(value, where)
+function M.flat(value, where)
+	local layer = M.layer(value, where)
+	-- `false` is a separator's caller's to refuse, and it does, before this is
+	-- reached; here it would be a style saying nothing, which is what it is.
+	if layer == false then
+		layer = {}
 	end
-
-	error(
-		string.format(
-			"supaline: %s is a %s. A style is a colour string, a table of style keys or a "
-				.. "`ui.Style`, and anything else reaches Yazi as none of them: the linemode "
-				.. 'stops drawing and the screen goes blank. Write `"#rrggbb"`, '
-				.. '`{ fg = "#ff8800", bold = true }`, or `ui.Style():fg(...):bold()`',
-			where,
-			type(value)
-		)
-	)
+	for _, k in ipairs { "fg", "bg" } do
+		if type(layer[k]) == "table" then
+			error(
+				string.format(
+					"supaline: %s: `%s` is a gradient, and there is no value here to place on one. "
+						.. "A separator is drawn between two columns rather than on a file; write a "
+						.. "flat colour",
+					where,
+					k
+				)
+			)
+		end
+	end
+	return (M.build(layer))
 end
 
---- The style a column's `attrs` asks for: what goes *over* whichever source
---- won the colour, rather than a fourth source competing with the three.
+--- Whether a value asks for a gradient rather than a flat colour.
 ---
---- Only a table, and a function is unwrapped by the caller before it arrives.
---- `false` never reaches here either -- it is how a spec drops the `attrs` a
---- definition wrote, which is `normalize`'s to read, the way it reads a `sep`
---- of `false` before `column.separator` sees it.
----
---- The two spellings `M.style` also takes are refused, for one reason each. A
---- colour string would be an `fg` written without the key, and `fg` is the key
---- this one does not take. A `ui.Style` carries its keys where nothing here
---- reads them: `raw()` would, and `probes.md` holds the measurement, but
---- taking it would rest the refusal below on a method `types.yazi` does not
---- declare and `test/stub.lua` does not model -- and a refusal that cannot be
---- made is a colour quietly taken over.
----@param value any a table of style keys, or a function returning one
----@param where string
----@return unknown a ui.Style
-function M.attrs(value, where)
-	if is_style(value) then
-		error(
-			string.format(
-				"supaline: %s is a `ui.Style`. `attrs` takes the table spelling -- "
-					.. "`{ bold = true }` -- because it is the one this plugin reads the keys "
-					.. "out of, and `fg` is the key it has to refuse. A colour goes under `base`",
-				where
-			)
-		)
-	elseif type(value) ~= "table" then
-		error(
-			string.format(
-				"supaline: %s is a %s. `attrs` takes a table of style keys, as "
-					.. '`{ bold = true, bg = "#1e1e2e" }`, or a function returning one',
-				where,
-				type(value)
-			)
-		)
-	end
-	return from_table(value, where, true)
-end
-
---- Whether a theme value asks for a ramp rather than a flat colour.
----
---- Only a theme value is ever in doubt: a spec writes `ramp` under its own key.
---- A theme field holds a string or a style table, so the question is entirely
---- about the string, and the arrow is the one thing a flat colour can never
---- contain. A style table is not a ramp and answers false through the same
---- test, whether it arrives as Yazi's userdata or as the harness's stand-in.
+--- A colour is a string, a gradient is a string, and the arrow is the one
+--- thing a flat colour can never contain. A style table is not a ramp and
+--- answers false through the same test, whether it arrives as Yazi's userdata
+--- or as the harness's stand-in.
 ---@param value any
 ---@return boolean
 function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1, true) ~= nil end
@@ -555,7 +635,7 @@ function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1
 ---
 --- The type and the range are the whole of it: nothing here reads the pair as
 --- a pair. Equal ends draw sixty-four steps of one colour, which is what
---- `base` already is and is unlikely to be what the writer meant, and they are
+--- a flat colour already is and is unlikely to be what the writer meant, and they are
 --- taken anyway. An equality test catches one spelling of a thing with many --
 --- `{ from = 0.5, to = 0.501 }` draws the same single colour and passes any
 --- comparison of the two numbers -- and where flat stops being flat is a
@@ -613,8 +693,8 @@ end
 ---
 --- Only the marker is removed; what is left is a colour like any other, and
 --- goes on to be read as the one stop a band is built from. So there is one
---- path from written value to stops, and `<->` decides nothing but whether a
---- theme field is a ramp at all.
+--- path from written value to stops, and `<->` decides nothing but whether
+--- one colour is a band or a mistake.
 ---@param s string
 ---@return string body, boolean marked
 local function unmark(s)
@@ -641,42 +721,40 @@ local function split(s)
 	end
 end
 
---- The endpoints of a ramp, in order, as RGB.
+--- The endpoints of a gradient, in order, as RGB.
 ---
 --- Every one of them has to be `#rrggbb`: an interpolation needs numbers at
 --- both ends, and the numbers behind `cyan` are the terminal's rather than
 --- ours. Guessing them would put a ramp on screen whose ends did not meet the
 --- terminal's own cyan, which is worse than being told to write the colour out.
 ---
---- **One colour is a band**, and `M.band` derives both ends from it. That is
---- the whole of the difference between the two spellings: `<->` and a spec's
---- bare `ramp = "#ff8800"` both arrive here as a list of one, and everything
---- downstream -- the interpolation, the quantisation, the styles, the row
---- lookup -- is the same code as for endpoints written out.
----@param value string|string[]
+--- One string, in both files. `theme.toml`'s custom sections take a string or
+--- a style table and nothing else -- an array there is refused, and the whole
+--- file goes with it -- and a spec spells it the same way rather than a second
+--- way of its own. **A colour with `<->` beside it is a band**, and `M.band`
+--- derives both ends from it; a colour on its own is not a gradient at all and
+--- is refused here, because under `fg` a bare colour is a flat colour and has
+--- to go on meaning one.
+---@param value any a string like `#0b3d91 -> #7fd4ff`, or `#7fd4ff <->`
 ---@param where string
 ---@param band supaline.Band? the default when omitted
 ---@return integer[][]
 function M.stops(value, where, band)
-	local written
-	if type(value) == "string" then
-		local body, marked = unmark(value)
-		if marked and (body == "" or body:find("%s")) then
-			error(
-				string.format(
-					"supaline: %s: `%s` is not a band. `<->` spreads one colour both ways, "
-						.. "as `#ff8800 <->`; to choose the ends yourself, write them with `->`",
-					where,
-					value
-				)
-			)
-		end
-		written = marked and { body } or split(value)
-	elseif type(value) == "table" then
-		written = value
-	else
-		error(string.format("supaline: %s must be a list of colours or a string like `#0b3d91 -> #7fd4ff`", where))
+	if type(value) ~= "string" then
+		error(string.format("supaline: %s must be a string like `#0b3d91 -> #7fd4ff`, got a %s", where, type(value)))
 	end
+	local body, marked = unmark(value)
+	if marked and (body == "" or body:find("%s")) then
+		error(
+			string.format(
+				"supaline: %s: `%s` is not a band. `<->` spreads one colour both ways, "
+					.. "as `#ff8800 <->`; to choose the ends yourself, write them with `->`",
+				where,
+				value
+			)
+		)
+	end
+	local written = marked and { body } or split(value)
 
 	local stops = {}
 	for i, one in ipairs(written) do
@@ -696,13 +774,21 @@ function M.stops(value, where, band)
 		stops[i] = rgb
 	end
 
-	if #stops == 0 then
-		error(string.format("supaline: %s names no colour at all", where))
-	elseif #stops == 1 then
+	if marked then
 		-- Forward, through the table: the band is Oklab arithmetic and the
 		-- locals it runs on are declared below, where the rest of that
 		-- arithmetic lives. Reachable by the time anything calls this.
 		return M.band(stops[1], band)
+	elseif #stops < 2 then
+		error(
+			string.format(
+				"supaline: %s: `%s` is one colour, and a gradient needs two ends. Write "
+					.. "`#0b3d91 -> #7fd4ff`, or `%s <->` to spread the one colour into a band",
+				where,
+				value,
+				value
+			)
+		)
 	end
 	return stops
 end
@@ -946,33 +1032,6 @@ function M.ramp(stops)
 			"#%02x%02x%02x",
 			from_oklab(a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f)
 		)
-	end
-	return out
-end
-
---- The styles a ramp draws, ratio 0 first: the endpoints as the user wrote
---- them, resolved, quantised, and each step patched onto `ground`.
----
---- The whole way from what a user wrote to what a row is drawn in stays inside
---- this file, so nothing outside it has to know that a ramp is carried as
---- `#rrggbb` in between -- the one thing a caller would have had to copy in
---- order to build the styles itself.
----
---- `patch` is field-wise, so a `bold` or a `bg` on the ground survives under a
---- colour that knows nothing about it.
----
---- Called from `normalize`, which `build()` re-runs on every `theme` event, so
---- a ramp follows a theme reload the way a flat colour does. Per row there is
---- then nothing left to do but index the result.
----@param value string|string[] the endpoints, as written
----@param ground unknown the ui.Style each step is patched onto
----@param where string
----@param band supaline.Band? the default when omitted
----@return unknown[] `STEPS` styles, ratio 0 first
-function M.styles(value, ground, where, band)
-	local out = {}
-	for i, hex in ipairs(M.ramp(M.stops(value, where, band))) do
-		out[i] = ground:patch(ui.Style():fg(hex))
 	end
 	return out
 end

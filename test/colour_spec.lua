@@ -59,29 +59,152 @@ test("colour: a value that is not a string is refused", function()
 	throws(function() colour.colour(true, "x") end, "got a boolean")
 end)
 
--- --- the style a flat colour draws in --------------------------------------
+-- --- one writer's layer ----------------------------------------------------
 
-test("style: a colour string and a style both come back as a style", function()
-	eq(colour.style("#0b3d91", "x").fg, "#0b3d91")
-	eq(colour.style("cyan", "x").fg, "cyan", "a name is Yazi's to resolve, not ours")
+--- A layer read from `value`, for the tests that go on to read a key off it.
+--- Never `false` here: that is the one input `colour.layer` answers with
+--- itself, and the test that plants it asserts on the value directly.
+---@param value any
+---@return supaline.Layer
+local function layer(value)
+	local got = colour.layer(value, "x")
+	if not got then
+		error("a layer rather than `false`")
+	end
+	return got
+end
 
-	-- Handed back as it stands, so a theme's `bold` and `bg` survive. That it
-	-- goes down the `patch` branch rather than the table one below is
-	-- load-bearing: the harness's `Style` is a Lua table, so a branch on `type`
-	-- alone would read one as a table of style keys and refuse the very value a
-	-- themed column is handed.
-	local own = ui.Style():fg("red"):bold()
-	eq(colour.style(own, "x"), own)
+test("layer: nothing written is an empty layer, and `false` is the layer itself", function()
+	eq(next(layer(nil)), nil)
 
-	-- Nothing at all is still a style: the ground a ramp is patched onto, and
-	-- what a column with no colour of its own draws in. Asserted by handing it
-	-- back through the allow-list rather than by reading a field off it --
-	-- `style.fg` is the setter, not the colour, on a real Yazi and here.
-	local blank = colour.style(nil, "x")
-	eq(colour.style(blank, "x"), blank)
+	-- Not a layer of eleven `false`s. An attribute's `false` is the attribute
+	-- taken off -- the row's own bold along with a theme's -- where what
+	-- `style = false` asks for is a cell drawn in whatever the row already
+	-- carries. `merge` is what reads it, so it is handed on as it is.
+	eq(colour.layer(false, "x"), false)
 end)
 
-test("style: anything Yazi would not take as a style is refused", function()
+test("layer: a string is the `fg`, flat or a gradient", function()
+	eq(layer("#0b3d91").fg, "#0b3d91")
+	eq(layer("cyan").fg, "cyan", "a name is Yazi's to resolve, not ours")
+
+	-- A gradient is kept as its stops, parsed on the way in so that a bad
+	-- endpoint is refused while the layer is read rather than while it draws.
+	local ramp = layer("#0b3d91 -> #7fd4ff").fg
+	eq(type(ramp), "table")
+	eq(#ramp, 2)
+	eq(#layer("#7fd4ff <->").fg, 2, "a band derives both of its ends")
+
+	throws(function() layer("#gg0000") end, "is not a colour Yazi accepts")
+	throws(function() layer("cyan -> #7fd4ff") end, "cannot be a gradient endpoint")
+end)
+
+test("layer: a table is the theme's spelling, read key by key", function()
+	-- The same keys `theme.toml` takes, so one style is written one way in both
+	-- files. Read rather than built: a layer has to know which keys were
+	-- written, because a key nobody wrote is what leaves the one beneath
+	-- showing.
+	local got = layer { fg = "#ff8800", bg = "#7a2d00", bold = true, reversed = true }
+	eq(got.fg, "#ff8800")
+	eq(got.bg, "#7a2d00")
+	eq(got.bold, true)
+	eq(got.reversed, true, "`reversed`, the theme's key; `reverse()` is the method's business")
+	eq(got.italic, nil, "a key nobody wrote is not in the layer")
+
+	-- `bold = false` is the attribute taken off rather than an error or an
+	-- attribute never written, which is what the same line means in a theme: a
+	-- field holds three states, and `false` is the one that strips a `bold` off
+	-- the row beneath.
+	eq(layer({ fg = "cyan", bold = false }).bold, false)
+	eq(layer({ fg = "cyan" }).bold, nil, "nothing said is not the same as off")
+
+	-- And a colour may be off, a gradient, or a band, under either key.
+	eq(layer({ fg = false }).fg, false)
+	eq(layer({ bg = false }).bg, false)
+	eq(type(layer({ bg = "#0b3d91 -> #7fd4ff" }).bg), "table")
+	eq(type(layer({ bg = "#0b3d91 <->" }).bg), "table")
+end)
+
+test("layer: every attribute a theme can write is read under its own name", function()
+	-- The nine keys are written out in three places -- `colour.lua`'s allow-list,
+	-- the stub's methods, and here -- because neither of the other two can read
+	-- the other: the stub stands in for Yazi and must not require the plugin.
+	-- This loop is what holds the three together, on the way in here and on
+	-- the way out in `build` below.
+	for _, key in ipairs { "bold", "dim", "italic", "underline", "blink", "blink_rapid", "reversed", "hidden", "crossed" } do
+		eq(layer({ [key] = true })[key], true, key)
+		eq(layer({ [key] = false })[key], false, key .. " = false")
+	end
+end)
+
+test("layer: a `ui.Style` is read through `raw()`, so its keys are the same keys", function()
+	-- A themed table field arrives as the `Style` Yazi parsed, and a spec may
+	-- write one too. Both come through `raw()` in Yazi's own spelling of the
+	-- colours, which `fg()` takes back -- the `raw` spec above pins that -- so
+	-- the layer holds strings a style can be built from.
+	local got = layer(ui.Style():fg("#ff8800"):bg("cyan"):bold():reverse())
+	eq(got.fg, "#FF8800")
+	eq(got.bg, "Cyan")
+	eq(got.bold, true)
+	eq(got.reversed, true, "the theme's key, which is the layer's")
+	-- Suppressed on the line: `types.yazi` declares `bold` without the removal
+	-- flag 26.9.1's takes, and the flag is what this line is about.
+	---@diagnostic disable-next-line: redundant-parameter
+	eq(layer(ui.Style():bold(true)).bold, false, "a removal, the shape a theme's `bold = false` arrives in")
+
+	-- Nothing at all is a layer saying nothing, and is not refused: it is
+	-- what a `[supaline]` field holding an empty table arrives as, and there
+	-- is nothing wrong with it.
+	eq(next(layer(ui.Style())), nil)
+end)
+
+test("layer: a key Yazi would have dropped is refused by name", function()
+	-- The whole of what the table form buys over the theme's. Yazi hands a
+	-- plugin the `Style` it parsed and never the table behind it, so a key it
+	-- does not know is gone before `th.supaline` exists -- measured on 26.9.1,
+	-- `strikethrough = true` in `[supaline]` left the column with no attribute
+	-- and said nothing. Written in a spec it reaches this file verbatim.
+	throws(function() layer { fg = "cyan", strikethru = true } end, "`strikethru` is not a style key")
+
+	-- Every key nobody claimed, sorted, so the same mistake reports the same
+	-- way twice running.
+	throws(function() layer { zebra = true, apple = true } end, "`apple`, `zebra` are not style keys")
+
+	-- The three a reader arrives at honestly, each pointed at the spelling that
+	-- works rather than merely turned away.
+	throws(function() layer { reverse = true } end, "`reversed` is the spelling")
+	throws(function() layer { strikethrough = true } end, "`crossed` is the spelling")
+	throws(function() layer { reset = true } end, 'write `fg = "reset"`')
+
+	-- A list of colours is a table whose keys are `1` and `2`, and that is the
+	-- whole of the answer: the list spelling of a gradient is not taken, and
+	-- nothing here guesses that one was meant.
+	throws(function() layer { "#aabbcc", "#ff8800" } end, "`1`, `2` are not style keys")
+end)
+
+test("layer: a colour is a colour and an attribute a boolean", function()
+	-- `fg` and `bg` go through the same allow-list a bare string does, so there
+	-- is one answer to "is this a colour" however it was written -- and the
+	-- message says which key, since a table has two of them.
+	throws(function() layer { fg = "#gg0000" } end, "x: `fg`: `#gg0000` is not a colour Yazi accepts")
+	throws(function() layer { bg = 42 } end, "x: `bg` must be a colour string, got a number")
+
+	-- A table under a colour key is refused as a table and no more is said:
+	-- there is no list spelling of a gradient for it to have meant.
+	throws(function() layer { fg = { "#aabbcc", "#ff8800" } } end, "`fg` must be a colour string, got a table")
+
+	-- An attribute is not a colour, and a string there is the way that mistake
+	-- arrives.
+	throws(function() layer { bold = "yes" } end, "must be true or false")
+end)
+
+test("layer: what is not a style at all is refused", function()
+	-- `ui.Style` with the call forgotten. Measured on 26.9.1: `type(ui.Style)`
+	-- is `table` and `pairs` over it finds nothing, so it would otherwise read
+	-- as a layer saying nothing and leave the column in whatever was beneath.
+	throws(function() layer(ui.Style) end, "is the constructor")
+	throws(function() layer {} end, "no keys in it")
+
 	-- `Span:style` takes a Style or nil and nothing else. A value that is
 	-- neither survives `setup` and then empties the screen, so it is turned
 	-- away here instead -- and by what it answers to rather than by what it is.
@@ -92,47 +215,92 @@ test("style: anything Yazi would not take as a style is refused", function()
 	-- method a Span does not have, and a Span is what this asserts on for
 	-- exactly that reason -- the noun in the message is the only part that
 	-- differs from a real Yazi, where a Span is userdata rather than a table.
-	throws(function() colour.style(ui.Span("x"), "the colour of column `size`") end, "column `size`")
-	throws(function() colour.style(42, "x") end, "is a number")
-	throws(function() colour.style(true, "x") end, "is a boolean")
+	throws(function() colour.layer(ui.Span("x"), "the `style` of column `size`") end, "column `size`")
+	throws(function() layer(42) end, "is a number")
+	throws(function() layer(true) end, "is a boolean")
 
 	-- A renderable is refused here and on a real Yazi, and the two arrive at it
 	-- differently: theirs is userdata and falls to the message above, the
 	-- harness's is a Lua table and is read as a style table whose keys are
 	-- nothing of the sort. Both name `where` and neither draws. Asserted on the
 	-- key it found rather than on the noun, because the noun is the harness's.
-	throws(function() colour.style(ui.Line {}, "x") end, "`_parts` is not a style key")
+	throws(function() layer(ui.Line {}) end, "`_parts` is not a style key")
 end)
 
--- --- the style a table asks for --------------------------------------------
+-- --- the three layers, merged ----------------------------------------------
 
-test("style: a table is the theme's spelling, built into a style", function()
-	-- The same keys `theme.toml` takes, so one style is written one way in both
-	-- files. `reversed` is the theme's spelling of the `reverse()` method, which
-	-- is the one place the two names part company.
-	local st = colour.style({ fg = "#ff8800", bg = "#7a2d00", bold = true, reversed = true }, "x")
-	eq(st.fg, "#ff8800")
-	eq(st.bg, "#7a2d00")
-	eq(st.bold, true)
-	eq(st.reverse, true, "`reversed` in the table, `reverse()` on the style")
+test("merge: each key goes to the nearest layer that wrote it", function()
+	local resolved, from = colour.merge {
+		{ fg = "red", bg = "blue", bold = true },
+		{ fg = "green", italic = true },
+		{ bold = false },
+	}
+	eq(resolved.fg, "green")
+	eq(resolved.bg, "blue")
+	eq(resolved.bold, false)
+	eq(resolved.italic, true)
+	eq(resolved.dim, nil)
 
-	-- `bold = false` is the attribute taken off rather than an error or an
-	-- attribute never written, which is what the same line means in a theme: a
-	-- theme field holds three states, and `false` is the one that strips a
-	-- `bold` off the row beneath. `rawget`, because a style carrying nothing
-	-- under `bold` answers `Style.bold`, the method.
-	eq(rawget(colour.style({ fg = "cyan", bold = false }, "x"), "bold"), false)
-	eq(rawget(colour.style({ fg = "cyan" }, "x"), "bold"), nil, "nothing said is not the same as off")
+	-- And which layer each came from, for the message that has to name a file
+	-- and for the column that asks who wrote its `fg`.
+	eq(from.fg, 2)
+	eq(from.bg, 1)
+	eq(from.bold, 3)
+	eq(from.italic, 2)
+	eq(from.dim, nil)
 end)
 
-test("style: every attribute a theme can write reaches its method", function()
-	-- The nine keys are written out in three places -- `colour.lua`'s allow-list,
-	-- the stub's methods, and here -- because neither of the other two can read
-	-- the other: the stub stands in for Yazi and must not require the plugin.
-	-- This loop is what holds the three together. A key the allow-list stopped
-	-- taking is refused here by name, and a method the stub is missing is
-	-- `attempt to call a nil value`; the table's own spelling of it is the
-	-- theme's, and only `reversed` differs from the method it drives.
+test("merge: `false` is written, so the layer beneath does not show through", function()
+	local resolved, from = colour.merge { { fg = "red", bold = true }, { fg = false } }
+	eq(resolved.fg, false)
+	eq(from.fg, 2)
+	eq(resolved.bold, true, "and a key the nearer layer left alone is still the farther one's")
+
+	eq(next((colour.merge { {}, {}, {} })), nil, "three layers saying nothing say nothing")
+end)
+
+test("merge: a layer that is `false` whole starts the stack over", function()
+	-- Both colours off and on record as off, so the column that asks who wrote
+	-- its `fg` is told; every attribute unwritten rather than taken off, so
+	-- the row keeps its own.
+	local resolved, from = colour.merge { { fg = "red", bg = "blue", bold = true }, false }
+	eq(resolved.fg, false)
+	eq(resolved.bg, false)
+	eq(resolved.bold, nil)
+	eq(from.fg, 2)
+	eq(from.bold, nil)
+
+	-- And a layer above it writes over that as over anything.
+	local again = colour.merge { { bold = true }, false, { fg = "green" } }
+	eq(again.fg, "green")
+	eq(again.bg, false)
+	eq(again.bold, nil)
+end)
+
+-- --- what the merged layer builds -----------------------------------------
+
+test("build: a flat layer is one style, and `false` on a colour is no colour", function()
+	local ground, steps = colour.build { fg = "#ff8800", bg = "#7a2d00", bold = true, reversed = true, dim = false }
+	eq(ground.fg, "#ff8800")
+	eq(ground.bg, "#7a2d00")
+	eq(ground.bold, true)
+	eq(ground.reverse, true, "`reversed` in the layer, `reverse()` on the style")
+	-- `rawget`, because a style carrying nothing under `dim` answers `Style.dim`,
+	-- the method.
+	eq(rawget(ground, "dim"), false, "the removal, which the method's own argument inverts")
+	eq(steps, nil, "nothing to quantise")
+
+	local off = colour.build { fg = false, bold = true }
+	eq(rawget(off, "fg"), nil)
+	eq(off.bold, true)
+
+	eq(next(colour.build {}), nil, "nothing written builds an empty style")
+end)
+
+test("build: every attribute reaches its method, added or taken off", function()
+	-- The other half of the loop in the `layer` spec above: Yazi's `bold(true)`
+	-- takes bold off, so a `false` in the layer has to arrive as `bold(true)`
+	-- and not as a second `bold()`.
 	for key, method in pairs {
 		bold = "bold",
 		dim = "dim",
@@ -144,123 +312,58 @@ test("style: every attribute a theme can write reaches its method", function()
 		hidden = "hidden",
 		crossed = "crossed",
 	} do
-		eq(rawget(colour.style({ [key] = true }, "x"), method), true, key)
-		-- The removal, which is the half the method's own argument inverts:
-		-- Yazi's `bold(true)` takes bold off, so a `false` here has to arrive as
-		-- `bold(true)` and not as a second `bold()`.
-		eq(rawget(colour.style({ [key] = false }, "x"), method), false, key .. " = false")
+		eq(rawget(colour.build { [key] = true }, method), true, key)
+		eq(rawget(colour.build { [key] = false }, method), false, key .. " = false")
 	end
 end)
 
-test("style: a key Yazi would have dropped is refused by name", function()
-	-- The whole of what the table form buys over the theme's. Yazi hands a
-	-- plugin the `Style` it parsed and never the table behind it, so a key it
-	-- does not know is gone before `th.supaline` exists -- measured on 26.9.1,
-	-- `strikethrough = true` in `[supaline]` left the column with no attribute
-	-- and said nothing. Written in a spec it reaches this file verbatim.
-	throws(function() colour.style({ fg = "cyan", strikethru = true }, "x") end, "`strikethru` is not a style key")
-
-	-- Every key nobody claimed, sorted, so the same mistake reports the same
-	-- way twice running.
-	throws(function() colour.style({ zebra = true, apple = true }, "x") end, "`apple`, `zebra` are not style keys")
-
-	-- The three a reader arrives at honestly, each pointed at the spelling that
-	-- works rather than merely turned away.
-	throws(function() colour.style({ reverse = true }, "x") end, "`reversed` is the spelling")
-	throws(function() colour.style({ strikethrough = true }, "x") end, "`crossed` is the spelling")
-	throws(function() colour.style({ reset = true }, "x") end, 'write `fg = "reset"`')
+test("build: a gradient under `fg` is the quantisation's worth of styles, each on the ground", function()
+	local ground, steps = colour.build(layer { fg = "#0b3d91 -> #7fd4ff", bold = true, bg = "#1e1e2e" })
+	steps = assert(steps, "a gradient builds steps")
+	eq(#steps, 64)
+	eq(steps[1].fg, "#0b3d91")
+	eq(steps[64].fg, "#7fd4ff")
+	-- Both ends, because the ground is what every step is set on: one end
+	-- carrying the rest would mean the fold had happened somewhere that only
+	-- sees one.
+	eq(steps[1].bold, true)
+	eq(steps[64].bold, true)
+	eq(steps[1].bg, "#1e1e2e")
+	eq(steps[64].bg, "#1e1e2e")
+	eq(rawget(ground, "fg"), nil, "the ground carries everything but the gradient")
 end)
 
-test("style: a table says a colour with a colour and an attribute with a boolean", function()
-	-- `fg` and `bg` go through the same allow-list a bare string does, so there
-	-- is one answer to "is this a colour" however it was written.
-	throws(function() colour.style({ fg = "#gg0000" }, "x") end, "is not a colour Yazi accepts")
-	throws(function() colour.style({ bg = 42 }, "x") end, "must be a colour string")
+test("build: a gradient under `bg` paints the ground, and both keys may carry one", function()
+	local _, steps = colour.build(layer { bg = "#0b3d91 -> #7fd4ff", fg = "#ffffff" })
+	steps = assert(steps, "a gradient builds steps")
+	eq(steps[1].bg, "#0b3d91")
+	eq(steps[64].bg, "#7fd4ff")
+	eq(steps[32].fg, "#ffffff", "a flat colour beside it is on every step")
 
-	-- An attribute is not a colour, and a string there is the way that mistake
-	-- arrives.
-	throws(function() colour.style({ bold = "yes" }, "x") end, "must be true or false")
+	-- Two gradients land on the same step at the same ratio.
+	local _, both = colour.build(layer { fg = "#000000 -> #ffffff", bg = "#0b3d91 -> #7fd4ff" })
+	both = assert(both, "a gradient builds steps")
+	eq(both[1].fg, "#000000")
+	eq(both[1].bg, "#0b3d91")
+	eq(both[64].fg, "#ffffff")
+	eq(both[64].bg, "#7fd4ff")
 end)
 
-test("style: a table that is not a style at all is refused", function()
-	-- `ui.Style` with the call forgotten. Measured on 26.9.1: `type(ui.Style)`
-	-- is `table` and `pairs` over it finds nothing, so it would otherwise build
-	-- an empty style and leave the column in no colour at all.
-	throws(function() colour.style(ui.Style, "x") end, "is the constructor")
-	throws(function() colour.style({}, "x") end, "no keys in it")
-end)
+-- --- one style, for a separator ---------------------------------------------
 
-test("style: a list of colours is answered with `ramp`, not with `1` and `2`", function()
-	-- The vocabulary is the whole of what this branch buys. Without it the key
-	-- allow-list below it answers `{ "#aabbcc", "#ff8800" }` with "`1`, `2` are
-	-- not style keys" and the eleven keys a style table takes -- every word of it
-	-- true, and no use at all to someone who wrote two colours meaning a
-	-- gradient. So both halves are asserted: that the shape is what refuses it,
-	-- and that the answer names the key that takes exactly what was written.
-	throws(function() colour.style({ "#aabbcc", "#ff8800" }, "x") end, "is a list of colours")
-	-- A *column's* `ramp`, because a separator's `style` arrives here too and has
-	-- no ramp to write one under; naming the column is what says so.
-	throws(function() colour.style({ "#aabbcc", "#ff8800" }, "x") end, "a column's `ramp`")
+test("flat: a separator's style is one layer built on its own, and takes no gradient", function()
+	eq(colour.flat("#ff8800", "x").fg, "#ff8800")
+	eq(colour.flat({ bold = true }, "x").bold, true)
+	eq(colour.flat(ui.Style():fg("cyan"), "x").fg, "Cyan")
 
-	-- `ramp = "#ff8800"` is a list of one, so a list of one is the same mistake
-	-- written shorter and gets the same answer rather than the empty table's.
-	throws(function() colour.style({ "#aabbcc" }, "x") end, "is a list of colours")
-
-	-- A gradient half rewritten: the positional entries decide and the style key
-	-- beside them does not, because "`1` is not a style key" is precisely the
-	-- answer this branch exists to stop giving.
-	throws(function() colour.style({ "#aabbcc", "#ff8800", bold = true }, "x") end, "is a list of colours")
-end)
-
--- --- `attrs` -------------------------------------------------------------
-
-test("attrs: a table of style keys, `fg` excepted", function()
-	local st = colour.attrs({ bold = true, bg = "#1e1e2e" }, "x")
-	eq(st.bold, true)
-	eq(st.bg, "#1e1e2e")
-	eq(rawget(st, "fg"), nil, "nothing here ever says what the colour is")
-
-	-- The same three states a theme's attribute holds, because this goes
-	-- through the same reader: `false` is the attribute stripped off whatever
-	-- is underneath, which here is the colour the source won.
-	eq(rawget(colour.attrs({ bold = false }, "x"), "bold"), false)
-end)
-
-test("attrs: `fg` is refused by name, and sent to `base`", function()
-	-- The one key that would make this a fourth colour source. Refused rather
-	-- than dropped, because a spec that wrote it meant a colour and would
-	-- otherwise get one nowhere, with the theme still drawing underneath.
-	throws(function() colour.attrs({ fg = "#ff8800" }, "x") end, "`fg` is the one key")
-	throws(function() colour.attrs({ fg = "#ff8800" }, "x") end, "`base` for a flat one")
-	throws(function() colour.attrs({ fg = "#ff8800", bold = true }, "x") end, "`fg` is the one key")
-end)
-
-test("attrs: the shape tests answer before `fg` does", function()
-	-- `attrs = ui.Style`, the constructor with its call forgotten. Every method
-	-- on it is a field, so `t.fg` is not nil and the `fg` refusal would fire
-	-- first if it were written any earlier -- and answer a question nobody
-	-- asked.
-	throws(function() colour.attrs(ui.Style, "x") end, "is the constructor")
-	throws(function() colour.attrs({}, "x") end, "no keys in it")
-	throws(function() colour.attrs({ "#aabbcc", "#ff8800" }, "x") end, "is a list of colours")
-end)
-
-test("attrs: a `ui.Style` is refused, where `base` takes one", function()
-	-- Not a limitation being described: a style cannot be asked for its keys
-	-- without `raw()`, which this plugin does not use, so `fg` inside one could
-	-- not be refused and would take the colour over in silence.
-	throws(function() colour.attrs(ui.Style():bold(), "x") end, "is a `ui.Style`")
-	throws(function() colour.attrs(ui.Style():bold(), "x") end, "takes the table spelling")
-end)
-
-test("attrs: a colour string is refused, since `fg` is what it would mean", function()
-	throws(function() colour.attrs("#ff8800", "x") end, "is a string")
-	throws(function() colour.attrs(42, "x") end, "is a number")
-
-	-- `false` is `normalize`'s to read, not this function's -- it is how a spec
-	-- drops what a definition wrote. Reaching here it is a boolean like any
-	-- other, which is the backstop rather than the message anyone should see.
-	throws(function() colour.attrs(false, "x") end, "is a boolean")
+	-- A separator is drawn between two columns rather than on a file, so
+	-- there is no value to place on a gradient and one is refused by the key
+	-- it was written under.
+	throws(
+		function() colour.flat("#0b3d91 -> #7fd4ff", "x") end,
+		"`fg` is a gradient, and there is no value here to place"
+	)
+	throws(function() colour.flat({ bg = "#0b3d91 <->" }, "x") end, "`bg` is a gradient")
 end)
 
 -- --- what a style answers `raw()` with ------------------------------------
@@ -341,12 +444,6 @@ test("stops: a string splits on the arrow, whitespace and all", function()
 	eq(stops[3][1], 0x7f)
 end)
 
-test("stops: a list says the same thing", function()
-	local stops = colour.stops({ "#0b3d91", "#7fd4ff" }, "x")
-	eq(#stops, 2)
-	eq(stops[2][2], 0xd4)
-end)
-
 test("stops: a name cannot anchor a ramp", function()
 	-- A perfectly good flat colour, refused here alone: interpolating from it
 	-- means guessing what the terminal draws it as, and the ramp's own end
@@ -355,23 +452,16 @@ test("stops: a name cannot anchor a ramp", function()
 	throws(function() colour.stops("129 -> #7fd4ff", "x") end, "cannot be a gradient endpoint")
 end)
 
-test("stops: one colour is a band, however it was written", function()
-	-- Three spellings, one path: `<->` exists for the theme, where a field
-	-- holds one value and a flat colour has to go on meaning a flat colour; a
-	-- spec needs none of that, because the key already says `ramp`.
-	local marked = colour.stops("#0b3d91 <->", "x")
-	local bare = colour.stops("#0b3d91", "x")
-	local listed = colour.stops({ "#0b3d91" }, "x")
-	same_band(bare, marked, "written bare")
-	same_band(listed, marked, "written as a list of one")
-end)
+test("stops: one colour is a band with the marker, and a refusal without it", function()
+	-- Under `fg` a bare colour is a flat colour and has to go on meaning one,
+	-- so the marker is the only spelling of a band -- in a spec as in a theme.
+	-- Both ends come out of `band`, which the tests below pin.
+	same_band(colour.stops("#7fd4ff <->", "x"), colour.band { 0x7f, 0xd4, 0xff })
+	throws(function() colour.stops("#7fd4ff", "x") end, "is one colour, and a gradient needs two ends")
+	throws(function() colour.stops("#7fd4ff", "x") end, "`#7fd4ff <->` to spread the one colour")
 
-test("stops: an empty list names nothing to interpolate", function()
-	throws(function() colour.stops({}, "x") end, "names no colour")
-	-- The wrong value is the test, so the refusal is suppressed on the line
-	-- rather than at the top of the file.
-	---@diagnostic disable-next-line: param-type-mismatch
-	throws(function() colour.stops(42, "x") end, "must be a list of colours")
+	-- The list spelling is gone with it: what arrives here is a string.
+	throws(function() colour.stops({ "#0b3d91", "#7fd4ff" }, "x") end, "must be a string like")
 end)
 
 test("stops: `<->` spreads one colour and says so when handed two", function()
@@ -559,16 +649,6 @@ test("ramp: one stop is refused rather than indexed past the end", function()
 	-- that built its endpoints another way would otherwise get "attempt to
 	-- index a nil value" out of the interpolation instead of a refusal.
 	throws(function() colour.ramp { { 0, 0, 0 } } end, "at least two colours")
-end)
-
-test("styles: each step is patched onto the ground, which keeps the rest of it", function()
-	-- The whole way from what a user wrote to what a row draws in lives in this
-	-- module, so nothing outside it has to know a ramp is `#rrggbb` in between.
-	local styles = colour.styles("#0b3d91 -> #7fd4ff", ui.Style():fg("red"):bold(), "x")
-	eq(#styles, 64)
-	eq(styles[1].fg, "#0b3d91", "the ramp decides the colour")
-	eq(styles[#styles].fg, "#7fd4ff")
-	eq(styles[1].bold, true, "and everything else is kept")
 end)
 
 test("ramp: a third stop sits in the middle", function()

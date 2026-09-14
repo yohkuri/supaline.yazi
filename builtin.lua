@@ -9,21 +9,21 @@
 --- only when the user asks for it -- `width = "auto"` is available on any
 --- column, these included.
 ---
---- **None of them writes a `base`.** A cell with no style of its own is drawn
+--- **None of them writes a `style`.** A cell with no style of its own is drawn
 --- in whatever colour the file row already carries, which is the flavor's, and
 --- that is what Yazi's own linemodes do -- `preset/components/linemode.lua`
 --- returns bare strings. A colour named here would be the terminal palette's
 --- instead: measured on 26.9.1 under catppuccin-mocha, a column written
---- `base = "cyan"` emitted the 4-bit ANSI escape for cyan while the row around
+--- `style = "cyan"` emitted the 4-bit ANSI escape for cyan while the row around
 --- it was `#cdd6f4`, so the two columns that carried one were the only things
 --- on the screen the flavor did not reach. `permissions` is the exception and
 --- reads the theme, a character at a time, rather than a colour of its own.
 --- The rule is not left to this paragraph: `builtin_spec.lua`'s
---- `no built-in names a colour` walks the registry and refuses a `base` or a
---- `ramp` on any definition in it, including one added after this was written.
+--- `no built-in names a colour` walks the registry and refuses a `style` on
+--- any definition in it, including one added after this was written.
 ---
 --- What they do differ in is `stats`, and there the difference is
---- load-bearing: `column.lua` refuses a `ramp` on a column that declares none,
+--- load-bearing: `column.lua` refuses a gradient on a column that declares none,
 --- so declaring one is the whole of what lets a user write a gradient over
 --- that column. `size` and the three time columns do. `count` does not, and
 --- cannot honestly -- `entries` below answers `-` for a directory Yazi has
@@ -205,28 +205,22 @@ end
 --- and a linemode that raises stops drawing the pane. The styles are what the
 --- `refresh` hook is for; only the spans are rebuilt.
 ---
---- `over` is the column's `attrs`, and this is the only place in the plugin
---- that has to be handed it. Everywhere else a column's attributes arrive
---- already patched into `ctx.base` and into every step of a ramp; these ten
---- styles come out of the theme's own `[status]` section and pass through
---- neither, so without this a `bold` written on `permissions` would do nothing
---- and say nothing -- which is the failure this plugin has the least excuse
---- for.
----
---- Ten more patches per row when a column asks for one, and one comparison
---- against nil when it does not. The allocations above are the floor here
---- anyway, and a column nobody wrote an `attrs` on pays a test per character.
+--- Nothing else goes on a span. A `bold` or a `bg` written for the column
+--- arrives in `ctx.base`, `render` hands that back beside the Line, and
+--- `column.cell` sets it as the Line's own style -- which Yazi puts *under*
+--- each span's, so the characters keep their colours and gain the rest. Read
+--- off `yazi-binding/src/elements/line.rs` at 26.9.1, where a Line taken into
+--- another has its style patched under every span, and off ratatui's
+--- `Cell::set_style`, which patches a span's style over whatever the line put
+--- there; seen on screen by `test/e2e.sh`, where a bold on `permissions` opens
+--- a run of characters in colours of their own.
 ---@param perm string
----@param over unknown? a ui.Style to put over each character's own
 ---@return table[] spans
-local function perm_spans(perm, over)
+local function perm_spans(perm)
 	local spans = {}
 	for i = 1, #perm do
 		local c = perm:sub(i, i)
 		local style = PERM[c] or PERM_TYPE
-		if over then
-			style = style and style:patch(over) or over
-		end
 		spans[i] = style and ui.Span(c):style(style) or ui.Span(c)
 	end
 	return spans
@@ -237,15 +231,16 @@ end
 -- inventing a mapping: a user whose flavor already says what a write bit looks
 -- like sees the same thing in both places, with nothing to configure.
 --
--- Which is why it steps aside the moment the user says anything about colour.
--- A `base` in the spec or a `[supaline] permissions` field in the theme is a
--- flat colour for the whole cell, and painting the characters over it would
--- leave the written colour visible nowhere and say nothing about why.
+-- Which is why it steps aside the moment a colour is written for it. An `fg`
+-- in the spec's `style` or in the `[supaline] permissions` field of the theme
+-- is a flat colour for the whole cell -- `false` included, which is a colour
+-- turned off -- and painting the characters over it would leave the written
+-- colour visible nowhere and say nothing about why. `ctx.fg_from` is that
+-- question and nothing else.
 --
--- `attrs` is the one thing that does not make it step aside, because it is not
--- a colour: it says what goes over whichever colour won, and here that is ten
--- of them. A bold on this column is a bold on every character, with the
--- theme's own reds and greens underneath it still.
+-- A `bold` or a `bg` is not a colour, so it does not make the column step
+-- aside: it goes under the ten characters, with the theme's own reds and
+-- greens still on top of it. `perm_spans` says how.
 column.register("permissions", {
 	width = 10,
 	align = "left",
@@ -253,10 +248,10 @@ column.register("permissions", {
 	---@type supaline.Render
 	render = function(file, ctx)
 		local perm = file.cha:perm() or ""
-		if perm == "" or ctx.source ~= "definition" then
+		if perm == "" or ctx.fg_from then
 			return perm, ctx.base
 		end
-		return ui.Line(perm_spans(perm, ctx.attrs))
+		return ui.Line(perm_spans(perm)), ctx.base
 	end,
 })
 
