@@ -251,7 +251,7 @@ test(
 
 test("permissions: a colour written for the column takes the theme's place", function()
 	-- Flat, for the whole cell: painting the characters over a colour the user
-	-- wrote would leave it visible nowhere. `ctx.fg_from` is the question, so
+	-- wrote would leave it visible nowhere. `ctx.fg_written` is the question, so
 	-- it is the `fg` that does it, from whichever file wrote one.
 	local file = stub.file { perm = "drwxr-xr-x" }
 	eq(perm_fgs(file, { style = "#00ccff" }), "#00ccff")
@@ -267,7 +267,7 @@ end)
 test("permissions: an attribute or a background goes under the characters, not over their colours", function()
 	-- The one column in the plugin that paints its own cell, so the one place
 	-- the rest of a style has to reach the characters some other way than
-	-- through `ctx.base` alone. It does: the column hands `ctx.base` back
+	-- through `ctx.style` alone. It does: the column hands `ctx.style` back
 	-- beside its Line, and a Line's style sits under its spans.
 	local file = stub.file { perm = "drwxr-xr-x" }
 
