@@ -129,7 +129,7 @@ local colour = require(".colour")
 --- only writer and `ratio` the only reader.
 ---
 --- Not `supaline.Ramp`, which is what this was called before a column could
---- carry a `ramp` of its own: these are the ends of the *range*, and nothing
+--- carry a gradient of its own: these are the ends of the *range*, and nothing
 --- here knows a colour.
 ---@class supaline.Scaled : supaline.Ctx
 ---@field _lo number?
@@ -306,7 +306,7 @@ end
 function M.get(name) return M._registry[name] end
 
 --- A `stats` function over the extremes of the current listing, which is what
---- a `ramp` is stretched between and what `ctx.ratio` normalises against.
+--- a gradient is stretched between and what `ctx.ratio` normalises against.
 ---
 --- Here rather than in `builtin.lua` because it is not the built-ins' alone:
 --- every ranged column wants exactly this loop, and a user-written one had no
@@ -363,12 +363,17 @@ local FN_WHERE = {
 	definition = "the default `style` function of column `%s`",
 }
 
---- What to do about a gradient on a column with no extremes. `stats` is a
---- definition's to give and a flat colour a spec's to write, so those two get
---- the same advice; a `theme.toml` has neither, and the only move left there
---- is the flat colour.
-local NO_STATS = "Give the column a `stats` function, or write a flat colour there instead"
-local NO_STATS_THEMED = "Write a flat colour there instead"
+--- What to do about a gradient on a column with no extremes, per writer.
+--- `stats` is a definition's to give and a flat colour a spec's to write, so
+--- those two get the same advice; a `theme.toml` has neither, and the only
+--- move left there is the flat colour. Keyed the way `WHERE` and `FN_WHERE`
+--- are, so a fourth writer is a row in three tables rather than a row in two
+--- and a condition to find.
+local NO_STATS = {
+	spec = "Give the column a `stats` function, or write a flat colour there instead",
+	definition = "Give the column a `stats` function, or write a flat colour there instead",
+	theme = "Write a flat colour there instead",
+}
 
 --- Apply a column's `max_width`, if it has one. Every width a column can end
 --- up with passes through here exactly once -- the stated one when the spec is
@@ -672,22 +677,19 @@ function M.normalize(spec, cfg)
 	-- exactly the kind of failure this plugin has no other way to report.
 	-- Named for the writer that put it there, which need not be the one that
 	-- wrote the rest of the style.
-	if col.stats == nil then
-		for _, k in ipairs { "fg", "bg" } do
-			if type(resolved[k]) == "table" then
-				local source = SOURCES[from[k]]
-				error(
-					string.format(
-						"supaline: %s: `%s` is a gradient, but that column has no `stats`, so there are "
-							.. "no extremes to place a value between and the ramp could only ever draw "
-							.. "its low end. %s",
-						string.format(WHERE[source], name or "?"),
-						k,
-						source == "theme" and NO_STATS_THEMED or NO_STATS
-					)
-				)
-			end
-		end
+	local gradient = col.stats == nil and colour.gradient_in(resolved)
+	if gradient then
+		local source = SOURCES[from[gradient]]
+		error(
+			string.format(
+				"supaline: %s: `%s` is a gradient, but that column has no `stats`, so there are "
+					.. "no extremes to place a value between and the ramp could only ever draw "
+					.. "its low end. %s",
+				string.format(WHERE[source], name or "?"),
+				gradient,
+				NO_STATS[source]
+			)
+		)
 	end
 	local ground, steps = colour.build(resolved)
 

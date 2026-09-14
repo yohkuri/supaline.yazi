@@ -176,6 +176,13 @@ end
 -- spec reaches this file verbatim, so here a misspelling is refused by name.
 local ATTRS = { "bold", "dim", "italic", "underline", "blink", "blink_rapid", "reversed", "hidden", "crossed" }
 
+-- The two keys that hold a colour rather than an attribute, in the order an
+-- error lists them. Written once because three places walk the pair -- reading
+-- a layer, building one, and looking for a gradient in a merged one -- and a
+-- fourth spelling of it is how one of them would be left behind on the day
+-- Yazi grows a third.
+local COLOURS = { "fg", "bg" }
+
 -- The `ui.Style` method each of those keys drives, filled in for the eight
 -- that answer to their own name, so that one table is both the allow-list the
 -- refusal below reads and the lookup the style is built through.
@@ -250,7 +257,7 @@ end
 --- spec or a separator; `column.lua` and `main.lua` both require it, and
 --- neither requires the other in the direction that would do. The three had
 --- already drifted in where the quoting happens -- `panes_of` quoted each name
---- as it collected it, `from_table` at the join -- which is the drift a fourth
+--- as it collected it, `M.layer` at the join -- which is the drift a fourth
 --- copy would have continued.
 ---@param t table
 ---@param claims fun(key: any): boolean? whether the table is entitled to that key
@@ -278,7 +285,10 @@ local function claims_style(k) return k == "fg" or k == "bg" or METHOD[k] ~= nil
 
 -- Every key a style holds, in the order an error lists them: the two colours
 -- and then the nine attributes. What `M.merge` walks.
-local KEYS = { "fg", "bg" }
+local KEYS = {}
+for _, k in ipairs(COLOURS) do
+	KEYS[#KEYS + 1] = k
+end
 for _, k in ipairs(ATTRS) do
 	KEYS[#KEYS + 1] = k
 end
@@ -477,7 +487,7 @@ function M.layer(value, where, band)
 	end
 
 	local layer = {}
-	for _, k in ipairs { "fg", "bg" } do
+	for _, k in ipairs(COLOURS) do
 		local v = t[k]
 		if v == false then
 			layer[k] = false
@@ -532,6 +542,29 @@ function M.merge(layers)
 	return out, from
 end
 
+--- Which colour key of a merged layer holds a gradient, if either does.
+---
+--- A gradient is parsed while the layer is read, so by here it is a table of
+--- stops where a flat colour is a string, and `M.is_ramp`'s arrow is long
+--- gone. Asked here rather than by each caller because the answer is what
+--- `supaline.Paint` *is*, and two callers outside this file reading `type(v)
+--- == "table"` is that shape written down in a third place and a fourth.
+---
+--- Both callers have something to say about the key rather than a yes or a
+--- no, and both refuse the first one they find: a message about `fg` and a
+--- message about `bg` say the same thing twice, and the second is earned
+--- again as soon as the first is fixed.
+---@param resolved supaline.Layer
+---@return string? key `"fg"` or `"bg"`, nil when neither holds one
+function M.gradient_in(resolved)
+	for _, k in ipairs(COLOURS) do
+		if type(resolved[k]) == "table" then
+			return k
+		end
+	end
+	return nil
+end
+
 --- Build what a row is drawn in out of the merged layer: one style, or
 --- `STEPS` of them when `fg` or `bg` holds a gradient.
 ---
@@ -559,7 +592,7 @@ function M.build(resolved)
 		end
 	end
 	local ramps
-	for _, k in ipairs { "fg", "bg" } do
+	for _, k in ipairs(COLOURS) do
 		local v = resolved[k]
 		if type(v) == "string" then
 			ground = ground[k](ground, v)
@@ -588,24 +621,20 @@ end
 ---@param where string
 ---@return unknown a ui.Style
 function M.flat(value, where)
-	local layer = M.layer(value, where)
 	-- `false` is a separator's caller's to refuse, and it does, before this is
 	-- reached; here it would be a style saying nothing, which is what it is.
-	if layer == false then
-		layer = {}
-	end
-	for _, k in ipairs { "fg", "bg" } do
-		if type(layer[k]) == "table" then
-			error(
-				string.format(
-					"supaline: %s: `%s` is a gradient, and there is no value here to place on one. "
-						.. "A separator is drawn between two columns rather than on a file; write a "
-						.. "flat colour",
-					where,
-					k
-				)
+	local layer = M.layer(value, where) or {}
+	local key = M.gradient_in(layer)
+	if key then
+		error(
+			string.format(
+				"supaline: %s: `%s` is a gradient, and there is no value here to place on one. "
+					.. "A separator is drawn between two columns rather than on a file; write a "
+					.. "flat colour",
+				where,
+				key
 			)
-		end
+		)
 	end
 	return (M.build(layer))
 end
