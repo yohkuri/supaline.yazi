@@ -490,7 +490,7 @@ test("stats: extremes skip the values that are not there", function()
 	-- that was never registered and `stats` returns nil for a listing with
 	-- nothing to measure, so each assert names which one went missing instead
 	-- of failing as "attempt to index a nil value" two lines later.
-	local def = assert(column.get("size"), "the `size` column is not registered")
+	local def = assert(column._registry["size"], "the `size` column is not registered")
 	local st = assert(
 		def.stats {
 			stub.file { size = 100 },
@@ -505,7 +505,7 @@ test("stats: extremes skip the values that are not there", function()
 end)
 
 test("stats: a folder with nothing to measure has no extremes", function()
-	local def = assert(column.get("size"), "the `size` column is not registered")
+	local def = assert(column._registry["size"], "the `size` column is not registered")
 	eq(def.stats { stub.file { size = nil } }, nil)
 end)
 

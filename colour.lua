@@ -736,9 +736,11 @@ end
 ---@param where string
 ---@return unknown a ui.Style
 function M.flat(value, where)
-	-- `false` is a separator's caller's to refuse, and it does, before this is
-	-- reached; here it would be a style saying nothing, which is what it is.
-	local layer = M.layer(value, where, ANY_BAND) or {}
+	-- Never `false` and never nil: a separator's `style = false` is refused by
+	-- name in `column.lua`, and one with no style returns there before this is
+	-- called. So what arrives is a value `M.layer` reads into a layer, and the
+	-- cast says so where a fallback would stand in for a value that cannot come.
+	local layer = M.layer(value, where, ANY_BAND) --[[@as supaline.Layer]]
 	local key = M.gradient_in(layer)
 	if key then
 		error(
