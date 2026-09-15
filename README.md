@@ -251,7 +251,10 @@ about the folder is what changed.
 `render` may return one renderable, or a value and a style. Returning
 `text, style` skips building an intermediate line, and is what the built-in
 columns do; a style returned alongside a renderable is applied to it, so a
-column that styles its own spans can still set the ground under them.
+column that styles its own spans can still set the ground under them. That
+ground is the cell rather than the text: a renderable narrower than its column
+is padded inside the style, the way a string is, so a `bg` reaches the cells
+the padding added and not only the ones the text filled.
 
 ## Built-in columns
 
