@@ -921,14 +921,10 @@ end
 
 --- Split a value on its `<->`: the colour before it, the band's name after.
 ---
---- The two halves come back apart rather than rejoined. Joining was right
---- while the marker was the whole of what a band said -- what was left was a
---- colour like any other and went on to be read as one -- and a name after the
---- marker makes that tail a second thing rather than more of the first.
----
---- One refusal moves with it. `#a <-> #b` used to be caught by the joined body
---- having a space in it; what catches it now is that `#b` is not a band name,
---- which is the same mistake reported one step closer to it.
+--- The two halves come back apart rather than rejoined: a name after the
+--- marker is a second thing rather than more of the colour before it. That is
+--- also what refuses `#a <-> #b` -- `#b` is not a band name -- which reports
+--- the mistake where it is made.
 ---
 --- Nil rather than the string back when there is no marker, because the colour
 --- before a marker that is not there is not a colour this function found -- it
