@@ -581,10 +581,6 @@ function M.register(name, def)
 	M._registry[name] = def
 end
 
----@param name string
----@return supaline.ColumnDef?
-function M.get(name) return M._registry[name] end
-
 --- A `stats` function over the extremes of the current listing, which is what
 --- a gradient is stretched between and what `ctx.ratio` normalises against.
 ---
@@ -644,8 +640,9 @@ local WHERE = {
 
 --- And what to call one written as a function, since a message naming
 --- `style` would send the reader to a line that is not the one to change. No
---- theme row: a theme field holds a string or a style table and never a
---- function.
+--- theme row, and nothing stands in for the missing one: a theme field holds a
+--- string or a style table and never a function, so a theme's layer never asks
+--- this table for a name.
 local FN_WHERE = {
 	spec = "the `style` function of column `%s`",
 	definition = "the default `style` function of column `%s`",
@@ -821,7 +818,7 @@ local function layer_of(value, source, name, bands)
 	if type(value) == "function" then
 		-- Named for the file it was written in rather than for `style`, because
 		-- a definition's function is not on a line the reader has.
-		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
+		local fn = string.format(FN_WHERE[source], name or "?")
 		value, where = called(value, fn), "what " .. fn .. " returned"
 	end
 	return colour.layer(value, where, bands)
