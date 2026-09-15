@@ -144,9 +144,8 @@ local colour = require(".colour")
 --- normalises against, and whether the scale is logarithmic. `bind` is the
 --- only writer and `ratio` the only reader.
 ---
---- Not `supaline.Ramp`, which is what this was called before a column could
---- carry a gradient of its own: these are the ends of the *range*, and nothing
---- here knows a colour.
+--- These are the ends of the *range* rather than of a gradient: nothing here
+--- knows a colour.
 ---@class supaline.Scaled : supaline.Ctx
 ---@field _lo number?
 ---@field _hi number?

@@ -508,7 +508,7 @@ In `g 1`. Nothing is coloured in the spec, so `size`, `mtime`, `owner` and
 `ext` all take whatever `[supaline]` says. This is the only mode the theme keys
 move. `mtime` alone carries `style = { bold = true }`: the colour is the
 theme's ramp and the weight is the spec's, on the same cell, which is the case
-a spec could not write while one writer took the whole colour.
+the layers exist for.
 
 Those colours should be on screen the moment Yazi opens, without pressing
 anything: 26.9.1 applies the user's theme before any plugin code runs.

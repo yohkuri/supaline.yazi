@@ -794,9 +794,8 @@ supaline:setup({
 		--
 		-- `mtime` alone carries a bold, and no colour: the colour is the
 		-- theme's ramp and the weight is the spec's, on the same cell, which is
-		-- the case the layers exist for and the one a spec could not write
-		-- while one writer took the whole colour. The ramp moves under `c 1` to
-		-- `c 3`; the bold stays.
+		-- the case the layers exist for. The ramp moves under `c 1` to `c 3`;
+		-- the bold stays.
 		c_theme = { "size", { "mtime", style = { bold = true } }, "owner", "ext" },
 	},
 })

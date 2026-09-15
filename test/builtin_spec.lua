@@ -285,8 +285,8 @@ test("permissions: an attribute or a background reaches the characters, and thei
 		eq(style.bg, "#1e1e2e", "character " .. i)
 	end
 
-	-- From the theme as well, which no field could say before: a
-	-- `[supaline] permissions = { bold = true }` used to take the colour with it.
+	-- From the theme as well: `[supaline] permissions = { bold = true }` is a
+	-- weight with no colour, so the ten characters keep their own.
 	with(stub.th, "supaline", { permissions = ui.Style():bold() }, function()
 		eq(perm_fgs(file), "#000011 #000022 #000033 #000044 #000022 #000055 #000044 #000022 #000055 #000044")
 		for i, style in ipairs(perm_styles(file)) do

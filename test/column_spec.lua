@@ -916,10 +916,9 @@ test("style: the spec is the nearest layer, key by key", function()
 end)
 
 test("style: a theme's gradient keeps its colour under a spec's attribute", function()
-	-- The case that used to take a key of its own. Before the layers, a spec
-	-- writing `{ bold = true }` took the whole colour from the theme and left
-	-- the column bold in no colour at all, and the only way to a themed
-	-- gradient with a bold on it was copying the endpoints into `init.lua`.
+	-- The case the three layers exist for: the colour comes from the theme and
+	-- the weight from the spec, on one cell, so a flavor's gradient can be
+	-- given a bold without copying its endpoints into `init.lua`.
 	column.register("att1", { render = function() return "" end, stats = function() return { min = 1, max = 9 } end })
 	with(stub.th, "supaline", { att1 = BLUES }, function()
 		local ctx = column.normalize({ "att1", style = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
@@ -932,9 +931,8 @@ test("style: a theme's gradient keeps its colour under a spec's attribute", func
 end)
 
 test("style: a theme's attribute reaches a column with no colour claimed", function()
-	-- The other half of the same case: a theme may now say `{ bold = true }`
-	-- without forfeiting the colour, which the one-source rule made impossible
-	-- in the one file a flavor author writes.
+	-- The other half of the same case: a theme may say `{ bold = true }` and
+	-- keep the colour, in the one file a flavor author writes.
 	column.register("att2", { render = function() return "" end })
 	with(stub.th, "supaline", { att2 = ui.Style():bold() }, function()
 		local ctx = column.normalize("att2", CFG).ctx
