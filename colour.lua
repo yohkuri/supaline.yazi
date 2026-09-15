@@ -194,17 +194,6 @@ end
 ---@return string
 local function as_key(name) return KEYWORD[name] and string.format("[%q]", name) or name end
 
--- A band under every name, for the one caller that reads a value only in order
--- to refuse it. `M.flat` is handed a separator's style, and a separator has no
--- value to place on a ramp, so every gradient and every band it can hold is
--- turned away a line after it is parsed -- but it has to be parsed to be
--- recognised. Resolving those names against the user's `setup` instead would
--- put "nothing defines `dim`" in front of someone whose actual mistake is that
--- a separator cannot carry a band at all, and defining `dim` would not fix it.
---
--- Nothing drawn ever comes out of here: `M.flat` raises before it returns.
-local ANY_BAND = setmetatable({}, { __index = function() return RECOMMENDED end })
-
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 
 --- Whether Yazi's own colour parser takes `value`.
@@ -505,6 +494,26 @@ local function paint(value, where, bands, fallback)
 	return value
 end
 
+--- What `M.layer` calls for every colour it finds, so that what a gradient
+--- means belongs to the caller rather than to this function.
+---
+--- Two callers and two answers. A column has a value to place on a ramp, so
+--- its painter resolves one against the bands `setup` defined. A separator has
+--- none, so `M.flat`'s painter refuses a ramp at the point it is read, and the
+--- refusal is the same one whichever spelling reached it.
+---@alias supaline.Painter fun(value: any, where: string, fallback: string): supaline.Paint
+
+--- The painter a column's style is read with.
+---
+--- One per build rather than one per layer: `layers_of` reads three writers
+--- with the same bands behind all three, and `layer_of` promises a paragraph
+--- of its own that it runs once per column per build and never per row.
+---@param bands supaline.Bands every band `setup` defined
+---@return supaline.Painter
+function M.painter(bands)
+	return function(value, where, fallback) return paint(value, where, bands, fallback) end
+end
+
 --- Read what one writer put under `style` into a layer.
 ---
 --- The whole "is this a style" decision lives here, in one allow-list, so
@@ -532,16 +541,16 @@ end
 --- asks for `fg` too.
 ---@param value any nil, `false`, a colour string, a style table, or a ui.Style
 ---@param where string
----@param bands supaline.Bands every band `setup` defined
+---@param painter supaline.Painter what a colour, and a gradient, mean to the caller
 ---@return supaline.Layer|false
-function M.layer(value, where, bands)
+function M.layer(value, where, painter)
 	local t
 	if value == nil then
 		return {}
 	elseif value == false then
 		return false
 	elseif type(value) == "string" then
-		return { fg = paint(value, where, bands, "fg") }
+		return { fg = painter(value, where, "fg") }
 	elseif is_style(value) then
 		t = (value --[[@as supaline.Style]]):raw()
 	elseif type(value) ~= "table" then
@@ -607,7 +616,7 @@ function M.layer(value, where, bands)
 		if v == false then
 			layer[k] = false
 		elseif v ~= nil then
-			layer[k] = paint(v, string.format("%s: `%s`", where, k), bands, k)
+			layer[k] = painter(v, string.format("%s: `%s`", where, k), k)
 		end
 	end
 	for _, k in ipairs(ATTRS) do
@@ -740,19 +749,32 @@ function M.flat(value, where)
 	-- name in `column.lua`, and one with no style returns there before this is
 	-- called. So what arrives is a value `M.layer` reads into a layer, and the
 	-- cast says so where a fallback would stand in for a value that cannot come.
-	local layer = M.layer(value, where, ANY_BAND) --[[@as supaline.Layer]]
-	local key = M.gradient_in(layer)
-	if key then
-		error(
-			string.format(
-				"supaline: %s: `%s` is a gradient, and there is no value here to place on one. "
-					.. "A separator is drawn between two columns rather than on a file; write a "
-					.. "flat colour",
-				where,
-				key
+	--
+	-- The painter refuses rather than resolves, which is the whole of why this
+	-- is a painter at all. Read against the bands `setup` defined, the two
+	-- spellings of a gradient failed for two different reasons and only one of
+	-- them was this one: `#0b3d91 <-> nosuch` reached the undefined-band
+	-- refusal, while `cyan <->` reached the endpoint parser and came back with
+	-- `cyan` is not a colour Yazi accepts, write a name such as `cyan` -- advice
+	-- that refuses what it tells the reader to write, and that would still fail
+	-- if followed, because what is wrong is not the colour. Which of the two
+	-- fired was whichever of `M.stops`'s refusals came first, so it was
+	-- arbitrary from the reader's side.
+	local layer = M.layer(value, where, function(v, w)
+		if M.is_ramp(v) then
+			error(
+				string.format(
+					"supaline: %s: `%s` is a gradient, and there is no value here to place on one. "
+						.. "A separator is drawn between two columns rather than on a file; write a "
+						.. "flat colour",
+					w,
+					v
+				)
 			)
-		)
-	end
+		end
+		M.colour(v, w)
+		return v
+	end) --[[@as supaline.Layer]]
 	return (M.build(layer))
 end
 
