@@ -377,6 +377,38 @@ test("register: a name a theme field cannot hold is refused here", function()
 	end
 end)
 
+test("register: the same name rule reaches a definition that names itself", function()
+	-- `register` is not the only way a column gets a name. A definition written
+	-- inline names itself, under `name` beside its `render` or beside a render
+	-- at `[1]`, and `normalize` reads both straight off the spec -- so a check
+	-- on `register` alone left those two carrying the whole of the defect it
+	-- was written for. Pinned because that is exactly what happened: the first
+	-- version of this rule refused `register("my-col")` and normalised
+	-- `{ render = fn, name = "my-col" }` without a word.
+	--
+	-- The name is not decorative on either of them. It reaches
+	-- `th.supaline[name]` the way a registered one does, which the theme test
+	-- below shows, so an unthemeable name is as unthemeable written this way.
+	local r = function() return "" end
+	for _, name in ipairs { "my-col", "MyCol", ("a"):rep(21) } do
+		throws(function() column.normalize({ render = r, name = name }, CFG) end, "cannot be a column name")
+		throws(function() column.normalize({ r, name = name }, CFG) end, "cannot be a column name")
+	end
+
+	-- Nil is not a name and is not refused: an inline definition need not name
+	-- itself, and one that does not has no theme layer to reach.
+	eq(type(column.normalize({ render = r }, CFG)), "table")
+	eq(type(column.normalize({ r }, CFG)), "table")
+
+	-- What makes the refusal worth having, rather than a rule for its own sake.
+	with(
+		stub.th,
+		"supaline",
+		{ my_col = ui.Style():fg("#ff0000") },
+		function() eq(column.normalize({ render = r, name = "my_col" }, CFG).ctx.style.fg, "#FF0000") end
+	)
+end)
+
 test("register: a column may not own asynchronous state", function()
 	-- `ya.sync` blocks are matched by position between the two interpreters, so
 	-- one registered from init.lua would never be replayed on the async side.

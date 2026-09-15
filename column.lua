@@ -581,6 +581,47 @@ end
 local NAME = "^[a-z0-9_]+$"
 local NAME_MAX = 20
 
+--- Refuse a name no `[supaline]` field can be called, wherever it was written.
+---
+--- Every way of naming a column comes through here, and that is the whole
+--- reason it is a function. `register` is not the only one: a definition
+--- written inline names itself, under `name` beside its `render` or beside a
+--- render at `[1]`, and `normalize` reads those two straight off the spec. All
+--- three names reach `th.supaline[name]` alike, so a check on `register` alone
+--- refuses the one spelling and leaves the other two carrying exactly the
+--- defect it was written for.
+---
+--- Nil is not a name and is allowed: an inline definition need not name itself,
+--- and one that does not has no theme layer to reach.
+---@param name string?
+---@param where string how the name got here, for the message
+local function refuse_name(name, where)
+	if name == nil or (type(name) == "string" and name:find(NAME) and #name <= NAME_MAX) then
+		return
+	end
+
+	-- Refused here rather than left to the theme, because the theme refuses it
+	-- in the worst available way: `[supaline] my-col = ...` is a TOML parse
+	-- error, and Yazi answers one by discarding the *whole file* and falling
+	-- back to its preset -- so a name like this costs the reader every other
+	-- colour they wrote, not just this column's. And a reader who never tries
+	-- to theme the column is told nothing at all: the name takes, the column
+	-- draws, and the one layer a flavor could have reached is unreachable for
+	-- as long as it keeps that name.
+	error(
+		string.format(
+			"supaline: `%s` cannot be a column name, %s. A column's theme layer is the "
+				.. "`[supaline]` field called after it, and Yazi takes a field name of 1 to %d "
+				.. "characters from lowercase letters, digits and `_` -- a name it refuses takes "
+				.. "the whole of `theme.toml` down with it. Call the column something else and "
+				.. "name it that",
+			tostring(name),
+			where,
+			NAME_MAX
+		)
+	)
+end
+
 --- Register a reusable column under `name`, so a linemode can refer to it as
 --- `"name"` or `{ "name", ... }`.
 ---@param name string
@@ -588,27 +629,10 @@ local NAME_MAX = 20
 function M.register(name, def)
 	if type(name) ~= "string" or name == "" then
 		error("supaline: a column needs a non-empty name")
-	elseif not name:find(NAME) or #name > NAME_MAX then
-		-- Refused here rather than left to the theme, because the theme refuses
-		-- it in the worst available way: `[supaline] my-col = ...` is a TOML
-		-- parse error, and Yazi answers one by discarding the *whole file* and
-		-- falling back to its preset -- so a name like this costs the reader
-		-- every other colour they wrote, not just this column's. And a reader
-		-- who never tries to theme the column is told nothing at all: the name
-		-- registers, the column draws, and the one layer a flavor could have
-		-- reached is unreachable for as long as it keeps that name.
-		error(
-			string.format(
-				"supaline: `%s` cannot be a column name. A column's theme layer is the "
-					.. "`[supaline]` field called after it, and Yazi takes a field name of 1 to %d "
-					.. "characters from lowercase letters, digits and `_` -- a name it refuses "
-					.. "takes the whole of `theme.toml` down with it. Call the column something "
-					.. "else and name it that",
-				name,
-				NAME_MAX
-			)
-		)
-	elseif type(def) ~= "table" or type(def.render) ~= "function" then
+	end
+	refuse_name(name, "which is what `register` was given")
+
+	if type(def) ~= "table" or type(def.render) ~= "function" then
 		error(string.format("supaline: column `%s` needs a `render` function", name))
 	end
 
@@ -967,9 +991,11 @@ function M.normalize(spec, cfg)
 		-- and `layers_of` finds its `style` where a definition's is rather than
 		-- where a use site's would be.
 		local fn = spec[1] --[[@as supaline.Render]]
+		refuse_name(spec.name, "which is the `name` beside a render at `[1]`")
 		name, opts, role = spec.name, spec, "listed"
 		def = { render = fn, name = spec.name, options = spec.options, style = spec.style }
 	elseif type(spec.render) == "function" then
+		refuse_name(spec.name, "which is the `name` this definition gave itself")
 		name, opts, def, role =
 			spec.name,
 			spec,
