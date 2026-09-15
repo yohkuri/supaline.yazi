@@ -343,10 +343,9 @@ EOF
 # reason to spend them; `prepend_keymap` would win if they were.
 #
 # Absolute paths, so `cd` lands the same way wherever the key is pressed from.
-# That is the point of binding navigation at all: `e2e.sh` used to reach
-# `nested/` by going to the top of the listing and pressing `l`, which quietly
-# made every check that needed that folder depend on what else happened to sort
-# above it in `data/`.
+# That is the point of binding navigation at all: reaching `nested/` by going
+# to the top of the listing and pressing `l` quietly makes every check that
+# needs that folder depend on what else happens to sort above it in `data/`.
 cat >>"$DIR/config/keymap.toml" <<EOF
 
 [[mgr.prepend_keymap]]
@@ -544,11 +543,11 @@ supaline.column("name", {
 -- column next to it is doing. The two agree because the value and the scale
 -- are the same, not because anything passes between them.
 --
--- `supaline.extremes` rather than a loop written here, which is what this was
--- and which is the whole reason it is exported: `builtin.lua` is not a module
--- a user column can require, so before this the only way to get the min/max
--- over a listing was to write it again -- and this copy had already drifted
--- from the original over the flooring below.
+-- `supaline.extremes` rather than a loop written here, which is the whole
+-- reason it is exported: `builtin.lua` is not a module a user column can
+-- require, so without it the only way to get the min/max over a listing is to
+-- write it again -- and a second copy drifts from the original, over the
+-- flooring below.
 --
 -- The flooring stays the caller's, because both ends of it are: `builtin.lua`
 -- floors an mtime on the way into `extremes` and again before `ctx.ratio`, so
@@ -629,9 +628,8 @@ supaline:setup({
 
 		-- m5: the default separator, none at all, and one of your own -- the
 		-- last of them in a colour. That is the half no plain-text assertion
-		-- can see: a separator used to be a bare string in the row, so it took
-		-- whatever style the row had, and the only way to tell a span of its
-		-- own from a string that inherited one is to read the escapes.
+		-- can see: the only way to tell a span of its own from a string that
+		-- inherited the row's style is to read the escapes.
 		seps = {
 			{ "ext" },
 			{ "size", sep = false },
@@ -719,7 +717,7 @@ supaline:setup({
 		-- Two columns rather than one because the question is whether the `bg`
 		-- is still there, and against a single band the only reference a reader
 		-- has is their own terminal's ground. That is unknown from here, and
-		-- for the value this used to carry it was the same colour.
+		-- may be the very colour the `bg` carries.
 		--
 		-- The stated width is three cells wider than a date, and `fit` pads
 		-- before the style is applied, so the band has to cover cells that
@@ -759,9 +757,7 @@ supaline:setup({
 		-- The separator is there because the two columns hold the same number
 		-- and would otherwise read as one. It goes on the *second* of them: a
 		-- `sep` is drawn before its own column, so one on the first would be a
-		-- separator with nothing on its left. `setup` refuses one there now;
-		-- until it did, this linemode wrote one and drew none, which is what
-		-- reading the screen rather than assuming it found.
+		-- separator with nothing on its left, which `setup` refuses.
 		--
 		-- `┊` rather than the `│` that `m 5` uses, because `e2e.sh` splits a
 		-- capture line on U+2502 to find the current pane. Nothing reads this

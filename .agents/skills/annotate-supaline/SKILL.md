@@ -33,7 +33,7 @@ records the plugin passes around carry classes as well: a linemode, a column, a
 folder and a bound entry. So does the configuration `setup` is given — the
 plugin-wide options, a linemode spec, and the five shapes a column may be
 written in — so `cfg.orderr`, `opts.linemodess` and `spec.separatorr` are
-refused where they used to cost nothing.
+refused.
 
 That last one reaches only so far, and the limit is worth knowing before
 trusting it. A wrong **value** in a spec is refused: `separator = 42` on a

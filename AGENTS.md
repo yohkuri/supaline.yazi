@@ -44,8 +44,7 @@ Both ends of that band are **fixed lightnesses**, not derived from the colour.
 The colour supplies the hue and nothing else, so it need not appear in the band
 it names -- black and white give the identical grey band, and neither is
 refused. Say so wherever the band is described: "spread a colour both ways"
-reads as though the written colour were an endpoint, which it was until `band`
-landed and is not now.
+reads as though the written colour were an endpoint, which it is not.
 
 Where those two lightnesses come from is a **name**. `band` in `setup` holds
 bands by name; a `<->` takes the band called after the key it was written
@@ -261,9 +260,9 @@ that not getting them fails the job rather than weakening it.
 What the check reaches is what carries a type, and that is most of the plugin:
 Yazi's own `cx`, `ya` and `Url`, the two values a `render` is handed, the
 records passed around, and the configuration `setup` is given — so
-`cfg.orderr`, `opts.linemodess` and `spec.separatorr` are refused where they
-used to cost nothing. Where that reach stops, and the rules for declaring a
-class of this plugin's own, are in `annotate-supaline`.
+`cfg.orderr`, `opts.linemodess` and `spec.separatorr` are refused. Where that
+reach stops, and the rules for declaring a class of this plugin's own, are in
+`annotate-supaline`.
 
 `.github/scripts/skills.py` reads the skills under `.agents/skills` against the
 Agent Skills specification. `uv run` is the whole of what it needs and not a

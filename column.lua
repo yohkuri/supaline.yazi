@@ -278,8 +278,8 @@ local colour = require(".colour")
 
 --- The module table. `require(".column")` resolves to this file, so a call into
 --- it is read against the signatures below and `column.normalize(42, {})` is
---- refused. A name is not a signature, though: until this class existed
---- `column.normalizze({}, {})` cost nothing on the line above that refusal,
+--- refused. A name is not a signature, though: without this class
+--- `column.normalizze({}, {})` costs nothing on the line above that refusal,
 --- because a misspelled field bites only on a value carrying a declared class.
 ---
 --- Declared on the table rather than written out the way `supaline.Main` is.
@@ -738,19 +738,20 @@ end
 
 --- Read a separator, in whichever of the two shapes it was written. Every
 --- place that takes one comes through here: `separator` in `setup`,
---- `separator` on a linemode, and a column's own `sep`, which was refused
---- nowhere until this existed -- `sep = 42` reached Yazi and emptied the pane.
+--- `separator` on a linemode, and a column's own `sep`. Unrefused, `sep = 42`
+--- reaches Yazi and empties the pane.
 ---
 --- Nil is what "nothing was written" looks like and is handed back as it is,
 --- for the caller to fall back from.
 ---
 --- `false` is the value worth a check of its own, and it arrives here as the
 --- wrong type rather than as a shape. It reads like a column's `sep = false`
---- and it is falsy, so on a linemode it fell through to the separator it was
---- written to be rid of, and the linemode drew the very thing it asked to
---- drop. Nothing said so at the time: a separator is not read until a row is,
---- so a wrong one is a render-time failure with the cause a whole session
---- behind it. `normalize` takes a column's `false` before this is reached,
+--- and it is falsy, so unrefused on a linemode it falls through to the
+--- separator it was written to be rid of and the linemode draws the very
+--- thing it asked to drop -- in silence, because a separator is not read
+--- until a row is, so a wrong one is a render-time failure with the cause a
+--- whole session behind it. `normalize` takes a column's `false` before this
+--- is reached,
 --- which is why only the meaningless one gets here.
 ---@param value any
 ---@param where string names where it was written, for the message

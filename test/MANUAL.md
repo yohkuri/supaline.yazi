@@ -93,10 +93,10 @@ Every row ends with a size, right-aligned in seven cells.
   worth telling apart from a cell that lost its colours.
 - The owner column is twelve cells and holds your own `user:group`, so what to
   look for depends on its length: over twelve it ends in **exactly one** `…`,
-  and under twelve it pads with none. Two ellipses in a row was a real bug, and
-  `e2e.sh` counts them off the capture now — it reads the cell, holds it
-  against `id`, and refuses a second ellipsis or a cut that is not a prefix of
-  the name. So this one is covered rather than yours.
+  and under twelve it pads with none. Two ellipses in a row is what can go
+  wrong here, and `e2e.sh` counts them off the capture — it reads the cell,
+  holds it against `id`, and refuses a second ellipsis or a cut that is not a
+  prefix of the name. So this one is covered rather than yours.
 - `user` and `group` follow it, eight cells each, and hold the two halves of
   what `owner` just said — the three agree or one of them is wrong. They are
   cut on their own lengths rather than on the pair's, so on most machines the

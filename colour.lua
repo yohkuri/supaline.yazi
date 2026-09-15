@@ -358,9 +358,9 @@ end
 --- sits at the bottom of the require chain and knows nothing about `setup`'s
 --- own options, a linemode spec or a separator; `column.lua` and `main.lua`
 --- both require it, and neither requires the other in the direction that would
---- do. The first three had already drifted in where the quoting happens -- `panes_of` quoted each name
---- as it collected it, `M.layer` at the join -- which is the drift a fourth
---- copy would have continued.
+--- do. Spelled per caller it drifts in where the quoting happens -- one
+--- quoting each name as it collects it, another at the join -- and every
+--- further copy carries the drift on.
 ---@param t table
 ---@param claims fun(key: any): boolean? whether the table is entitled to that key
 ---@param noun string? what one of this table's keys is called, for `subject`
@@ -770,11 +770,10 @@ function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1
 --- only to this file, and because `test/ramp.lua` takes one on the command
 --- line and wants the refusals a user's `init.lua` gets.
 ---
---- Nil is refused along with everything else that is not a table. It used to
---- be the one value that meant something -- "the user wrote no band" -- and
---- what it returned was the pair above; nothing falls back to that pair now,
---- so nil arriving here is a caller that read a name nobody defined and did
---- not check, rather than a user who said nothing.
+--- Nil is refused along with everything else that is not a table. Nothing
+--- falls back to the pair above, so nil arriving here is a caller that read a
+--- name nobody defined and did not check, rather than a user who said
+--- nothing.
 ---
 --- A lightness of 0 is black whatever the hue, so an end there is one no
 --- colour reaches and a step most themes draw in their own background; `(0, 1]`
