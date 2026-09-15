@@ -116,12 +116,14 @@ local function stops(value, band) return colour.stops(value, "x", { fg = band or
 ---
 --- The bands are an argument because the tests about *which* band a key
 --- reaches have to vary them; everything else wants the one pair `BANDS`
---- holds and says so by leaving it out.
+--- holds and says so by leaving it out. They reach `colour.layer` as the
+--- painter built from them, which is what a column's style is read with --
+--- `colour.flat` is the other painter and has a block of its own.
 ---@param value any
 ---@param bands supaline.Bands? `BANDS` when omitted
 ---@return supaline.Layer
 local function layer(value, bands)
-	local got = colour.layer(value, "x", bands or BANDS)
+	local got = colour.layer(value, "x", colour.painter(bands or BANDS))
 	if not got then
 		error("a layer rather than `false`")
 	end
@@ -135,7 +137,7 @@ test("layer: nothing written is an empty layer, and `false` is the layer itself"
 	-- taken off -- the row's own bold along with a theme's -- where what
 	-- `style = false` asks for is a cell drawn in whatever the row already
 	-- carries. `merge` is what reads it, so it is handed on as it is.
-	eq(colour.layer(false, "x", BANDS), false)
+	eq(colour.layer(false, "x", colour.painter(BANDS)), false)
 end)
 
 test("layer: a string is the `fg`, flat or a gradient", function()
@@ -265,7 +267,10 @@ test("layer: what is not a style at all is refused", function()
 	-- method a Span does not have, and a Span is what this asserts on for
 	-- exactly that reason -- the noun in the message is the only part that
 	-- differs from a real Yazi, where a Span is userdata rather than a table.
-	throws(function() colour.layer(ui.Span("x"), "the `style` of column `size`", BANDS) end, "column `size`")
+	throws(
+		function() colour.layer(ui.Span("x"), "the `style` of column `size`", colour.painter(BANDS)) end,
+		"column `size`"
+	)
 	throws(function() layer(42) end, "is a number")
 	throws(function() layer(true) end, "is a boolean")
 
@@ -396,14 +401,30 @@ test("flat: a separator's style is one layer built on its own, and takes no grad
 	eq(colour.flat({ bold = true }, "x").bold, true)
 	eq(colour.flat(ui.Style():fg("cyan"), "x").fg, "Cyan")
 
-	-- A separator is drawn between two columns rather than on a file, so
-	-- there is no value to place on a gradient and one is refused by the key
-	-- it was written under.
-	throws(
-		function() colour.flat("#0b3d91 -> #7fd4ff", "x") end,
-		"`fg` is a gradient, and there is no value here to place"
-	)
-	throws(function() colour.flat({ bg = "#0b3d91 <->" }, "x") end, "`bg` is a gradient")
+	-- A separator is drawn between two columns rather than on a file, so there
+	-- is no value to place on a gradient and every spelling of one is refused
+	-- by the value that was written.
+	--
+	-- Every spelling is the point, and it is what the painter bought. Read
+	-- against a band table instead, these four took two different paths and
+	-- came back with two different messages: the two carrying a `#rrggbb`
+	-- reached this one, and `cyan <->` reached the endpoint parser, which
+	-- answered "`cyan` is not a colour Yazi accepts. Write `#rrggbb`, a name
+	-- such as `cyan`" -- refusing the very spelling it told the reader to
+	-- write, about a colour that is not what is wrong. Which of the two fired
+	-- was whichever of `M.stops`'s refusals came first. So the assertions below
+	-- are one message four times over, deliberately, and a fifth spelling that
+	-- found its way to a different one would be the same bug returning.
+	local SAME = "is a gradient, and there is no value here to place"
+	throws(function() colour.flat("#0b3d91 -> #7fd4ff", "x") end, "`#0b3d91 -> #7fd4ff` " .. SAME)
+	throws(function() colour.flat("#0b3d91 <->", "x") end, "`#0b3d91 <->` " .. SAME)
+	throws(function() colour.flat("#0b3d91 <-> nosuch", "x") end, "`#0b3d91 <-> nosuch` " .. SAME)
+	throws(function() colour.flat("cyan <->", "x") end, "`cyan <->` " .. SAME)
+
+	-- Under a key it is the value that is named, not the key: the bare-string
+	-- form above has no key to name, and one message reading two ways is what
+	-- put the reader in front of the wrong one to begin with.
+	throws(function() colour.flat({ bg = "#0b3d91 <->" }, "x") end, "x: `bg`: `#0b3d91 <->` " .. SAME)
 end)
 
 -- --- what a style answers `raw()` with ------------------------------------

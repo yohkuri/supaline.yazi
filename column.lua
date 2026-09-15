@@ -811,9 +811,9 @@ end
 ---@param value any what that writer wrote, if anything
 ---@param source supaline.StyleWriter
 ---@param name string?
----@param bands supaline.Bands
+---@param painter supaline.Painter
 ---@return supaline.Layer|false
-local function layer_of(value, source, name, bands)
+local function layer_of(value, source, name, painter)
 	local where = string.format(WHERE[source], name or "?")
 	if type(value) == "function" then
 		-- Named for the file it was written in rather than for `style`, because
@@ -821,7 +821,7 @@ local function layer_of(value, source, name, bands)
 		local fn = string.format(FN_WHERE[source], name or "?")
 		value, where = called(value, fn), "what " .. fn .. " returned"
 	end
-	return colour.layer(value, where, bands)
+	return colour.layer(value, where, painter)
 end
 
 --- The three layers of a column's style, farthest first: the definition's own,
@@ -879,11 +879,14 @@ local function layers_of(name, opts, def, bands, role)
 		written = opts.style
 	end
 
+	-- One painter behind all three writers: the bands are the same for each,
+	-- and `layer_of` runs once per column per build rather than per row.
+	local painter = colour.painter(bands)
 	local mine = role == "use" and "definition" or "inline"
 	return {
-		layer_of(def.style, mine, name, bands),
-		layer_of(themed, "theme", name, bands),
-		layer_of(written, "spec", name, bands),
+		layer_of(def.style, mine, name, painter),
+		layer_of(themed, "theme", name, painter),
+		layer_of(written, "spec", name, painter),
 	}, { mine, "theme", "spec" }
 end
 
