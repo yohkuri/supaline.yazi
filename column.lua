@@ -1370,7 +1370,18 @@ function M.cell(col, file)
 
 	if w < width then
 		local pad = string.rep(" ", width - w)
-		return col.align == "left" and ui.Line { line, pad } or ui.Line { pad, line }
+		local padded = col.align == "left" and ui.Line { line, pad } or ui.Line { pad, line }
+		-- Styled a second time, around the pad. The string path pads in `fit`
+		-- and styles what came back, so its spare cells are inside the style
+		-- for free; here the pad cannot be built until the line has been
+		-- measured, which is after `line` was styled. A Line's style sits
+		-- under its spans, so this reaches the bare pad and leaves both the
+		-- text and whatever the render styled its own spans with.
+		--
+		-- Applying one style twice is safe where applying one *span* twice is
+		-- not: `ctx.style` is reused on every row of every column already, by
+		-- the string path a few lines above.
+		return style and padded:style(style) or padded
 	end
 	return line
 end

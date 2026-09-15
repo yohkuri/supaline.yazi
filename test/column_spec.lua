@@ -579,6 +579,32 @@ test("cell: a truncated renderable is padded back to width", function()
 	end
 end)
 
+test("cell: a renderable's padding is inside the column's style", function()
+	-- The string path pads in `fit` and styles what came back, so a background
+	-- covers the whole cell. A renderable used to be padded *outside* the style
+	-- it had just been given, which left the spare cells bare: invisible under
+	-- an `fg`, and a hole in the ground under a `bg`. `test/MANUAL.md` names
+	-- that failure for the string path, where it cannot happen.
+	--
+	-- Both alignments, because the pad is built on either side of the line, and
+	-- every part rather than the first: `first_style` would stop at the text
+	-- and never reach the cells this is about.
+	for _, align in ipairs { "left", "right" } do
+		local col = column.normalize({
+			render = function(_, ctx) return ui.Line("ab"), ctx.style end,
+			width = 5,
+			align = align,
+			style = { bg = "#112233" },
+		}, CFG)
+
+		local parts = stub.drawn_styles(column.cell(col, stub.file {}))
+		eq(#parts, 2, align .. ": the text and the pad")
+		for i, style in ipairs(parts) do
+			eq(style and style.bg, "#112233", string.format("%s-aligned, part %d", align, i))
+		end
+	end
+end)
+
 test("cell: a renderable is truncated too, to the same width as a string", function()
 	local col = column.normalize({ render = function() return ui.Line("abcdefgh") end, width = 4 }, CFG)
 	eq(text_of(column.cell(col, stub.file {})), "abc…")
