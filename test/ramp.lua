@@ -4,11 +4,16 @@
 ---     lua test/ramp.lua "#111 -> #222" "#0b3d91 -> #ffd400 -> #7fd4ff"
 ---     lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
 ---
---- `--band` is `setup`'s own option, `from` first, and it is here because the
---- two numbers cannot be settled any other way: one end of the default pair
---- was measured against five terminal backgrounds and the other was chosen by
---- looking at exactly this output. A light terminal has to do the same, and
---- the alternative is editing `init.lua` and restarting Yazi per guess.
+--- `--band` is one band of `setup`'s own option, `from` first, and it is here
+--- because the two numbers cannot be settled any other way: one end of the
+--- recommended pair was measured against five terminal backgrounds and the
+--- other was chosen by looking at exactly this output. Every user has to do
+--- the same, since supaline applies that pair to nobody, and the alternative
+--- is editing `init.lua` and restarting Yazi per guess.
+---
+--- Omitting it draws the recommended pair, which is what the refusal a band
+--- with no definition earns tells the reader to paste -- so what they see here
+--- first is what they were just told to write.
 ---
 --- `manual.sh` runs this before it opens Yazi, over every ramp the fixture can
 --- draw, so the whole of each one is on screen at once and in the terminal the
@@ -79,9 +84,14 @@ end
 --- unreadable column. Counting in tens is what lets a reader say which step
 --- stopped being readable rather than "somewhere near the bottom".
 ---@param value string
----@param band supaline.Band?
+---@param band supaline.Band
 local function show(value, band)
-	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua", band))
+	-- One band under every name a `<->` here could ask for. This tool draws the
+	-- pair it was given, so which name a string happens to write is not a
+	-- question it has any business asking -- where a user's `setup` has exactly
+	-- the names they wrote and a `<->` naming another is the refusal they want.
+	local bands = setmetatable({}, { __index = function() return band end })
+	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua", bands, "fg"))
 	print("")
 	print(string.format("  %s    %d steps, %s to %s", value, #ramp, ramp[1], ramp[#ramp]))
 	print("  " .. strip(ramp, function() return "█" end))
@@ -95,7 +105,7 @@ end
 -- `colour.bounds` rather than being checked here, which is the point of that
 -- function living in `colour.lua`: what this prints for `--band 0,1` is what a
 -- user's `init.lua` would have said.
-local values, band = {}, nil
+local values, band = {}, colour.recommended()
 local i = 1
 while arg[i] do
 	if arg[i] == "--band" then

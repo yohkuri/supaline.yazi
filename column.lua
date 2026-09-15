@@ -191,11 +191,12 @@ local colour = require(".colour")
 ---@field separator string|supaline.SepSpec
 ---@field order integer
 ---@field scale? "linear"|"log" what the user wrote in `setup`, if anything
---- `band` is optional for the same shape of reason `scale` is, though not the
---- same reason: `DEFAULTS` carries none, because the pair it would carry is
---- `colour.lua`'s to justify. Nil here means the default, and `colour.stops`
---- is where that is applied.
----@field band? supaline.Band the lightnesses a band runs between
+--- Always present and never nil, unlike `scale` above: `colour.bands` answers
+--- an empty table for a `setup` that defined none, because "no band is
+--- defined" is a state a `<->` is refused against rather than one that falls
+--- back to anything. An empty table and a missing one would say the same thing
+--- and only one of them can be indexed.
+---@field band supaline.Bands the bands a `<->` may name, by name
 
 --- Every option a column accepts. One set rather than two, because
 --- `normalize` reads the spec and the definition behind it through a single
@@ -813,9 +814,9 @@ end
 ---@param value any what that writer wrote, if anything
 ---@param source supaline.StyleWriter
 ---@param name string?
----@param band supaline.Band?
+---@param bands supaline.Bands
 ---@return supaline.Layer|false
-local function layer_of(value, source, name, band)
+local function layer_of(value, source, name, bands)
 	local where = string.format(WHERE[source], name or "?")
 	if type(value) == "function" then
 		-- Named for the file it was written in rather than for `style`, because
@@ -823,7 +824,7 @@ local function layer_of(value, source, name, band)
 		local fn = string.format(FN_WHERE[source] or WHERE[source], name or "?")
 		value, where = called(value, fn), "what " .. fn .. " returned"
 	end
-	return colour.layer(value, where, band)
+	return colour.layer(value, where, bands)
 end
 
 --- The three layers of a column's style, farthest first: the definition's own,
@@ -848,11 +849,11 @@ end
 ---@param name string?
 ---@param opts supaline.ColumnOpts
 ---@param def supaline.ColumnOpts
----@param band supaline.Band?
+---@param bands supaline.Bands
 ---@param role supaline.Role which part the table the column was written in plays
 ---@return (supaline.Layer|false)[]
 ---@return supaline.StyleWriter[] what to call each layer, in the same order
-local function layers_of(name, opts, def, band, role)
+local function layers_of(name, opts, def, bands, role)
 	local section = name and th.supaline
 	local themed = section and section[name]
 	if themed == "" then
@@ -883,9 +884,9 @@ local function layers_of(name, opts, def, band, role)
 
 	local mine = role == "use" and "definition" or "inline"
 	return {
-		layer_of(def.style, mine, name, band),
-		layer_of(themed, "theme", name, band),
-		layer_of(written, "spec", name, band),
+		layer_of(def.style, mine, name, bands),
+		layer_of(themed, "theme", name, bands),
+		layer_of(written, "spec", name, bands),
 	}, { mine, "theme", "spec" }
 end
 
