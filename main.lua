@@ -21,11 +21,7 @@ local column = require(".column")
 -- `children_add` is called for all of them and has to decide for itself.
 local PANES = { "current", "parent", "preview" }
 
--- Not `supaline.Cfg`, which this is two keys short of and has to be. `scale`
--- and `band` are the two a default cannot be written for -- the comments below
--- say why each -- so claiming the class here would be claiming two fields that
--- are deliberately absent, and the checker is right to say so. `setup` builds
--- the record itself and that one is claimed.
+---@type supaline.Cfg
 local DEFAULTS = {
 	-- The string a user writes, not the record `render` reads. Every separator
 	-- in the plugin now becomes a record in the same place and on the same
@@ -46,12 +42,20 @@ local DEFAULTS = {
 	-- `setup`" and nothing else. `column.lua` resolves the three sources in
 	-- order and holds the fallback for a column that gets none of them.
 	--
-	-- No `band` either, and that one has no default anywhere rather than a
-	-- default kept elsewhere. A band's two ends are lightnesses the ground it
-	-- is drawn on decides; supaline cannot see that ground, so a pair written
-	-- here would be a guess applied to everyone who never asked. `colour.lua`
-	-- holds the pair it recommends, the refusals quote it, and a `<->` with no
-	-- band behind it is refused rather than drawn.
+	-- No band, and that one has no default anywhere rather than a default kept
+	-- elsewhere. A band's two ends are lightnesses the ground it is drawn on
+	-- decides; supaline cannot see that ground, so a pair written here would be
+	-- a guess applied to everyone who never asked. `colour.lua` holds the pair
+	-- it recommends, the refusals quote it, and a `<->` with no band behind it
+	-- is refused rather than drawn.
+	--
+	-- Empty rather than absent, unlike `scale`: this is the namespace itself,
+	-- not a band in it, and the field is what every `<->` is looked up in. It
+	-- is also exactly what `colour.bands` returns for a `setup` that wrote no
+	-- band, so the record before any `setup` and the record after an empty one
+	-- are the same record, and a `<->` reaching either is refused by the same
+	-- line.
+	band = {},
 }
 
 --- The module table, as a spec sees it.

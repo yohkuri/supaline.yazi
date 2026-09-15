@@ -166,8 +166,7 @@ local RECOMMENDED_AS_WRITTEN = string.format("{ from = %s, to = %s }", RECOMMEND
 -- What a band's name may hold. The shape `theme.toml` holds a custom section's
 -- field names to, rather than a second one of this plugin's own: a band name
 -- is read beside a column name often enough that two rules would be two things
--- to remember, and the traps skill still has an open question about what
--- Yazi's parser does to a field name that is not this shape.
+-- to remember.
 local NAME = "^[a-z][a-z0-9_]*$"
 
 -- And the two a band writes inside itself, which are therefore not names a
@@ -303,16 +302,32 @@ function M.colour(value, where)
 	return nil
 end
 
+--- `names` sorted and backquoted, ready to drop into a message, or nil when
+--- there are none.
+---
+--- Sorted because `pairs` walks a table in whatever order the hash gives, so a
+--- message that names a set reorders itself between runs and reads as a
+--- different message -- and, where the names are mistakes, costs a second run
+--- to find the other half of them. Sorted in place: a caller that goes on to
+--- read `names` gets the order the message used.
+---@param names string[]
+---@return string? quoted
+local function listed(names)
+	if #names == 0 then
+		return nil
+	end
+	table.sort(names)
+	return "`" .. table.concat(names, "`, `") .. "`"
+end
+
 --- The style a table written in a spec asks for.
 ---
 --- Every key of `t` that `claims` does not answer for, sorted, and the same
 --- names quoted and joined ready to drop into a message. Nil when every key
 --- was claimed.
 ---
---- Every one of them rather than the first one found, and sorted: `pairs`
---- walks a table in whatever order the hash gives, so naming one of two
---- misspellings makes the same mistake report differently from one run to the
---- next, and costs a second run to find the other half of it.
+--- Every one of them rather than the first one found, and sorted, for the
+--- reason `listed` gives.
 ---
 --- What each caller has to say differs; what does not is the quoting, the
 --- `is` or `are` that follows it, and the hint each name earns. Those three
@@ -341,12 +356,10 @@ function M.unknown(t, claims, noun, meant)
 			names[#names + 1] = tostring(k)
 		end
 	end
-	if #names == 0 then
+	local quoted = listed(names)
+	if not quoted then
 		return nil
 	end
-	table.sort(names)
-
-	local quoted = "`" .. table.concat(names, "`, `") .. "`"
 	local subject = noun
 		and string.format("%s %s", quoted, #names == 1 and "is not a " .. noun .. " key" or "are not " .. noun .. " keys")
 	local hints = {}
@@ -767,10 +780,11 @@ function M.bounds(value, where)
 	if type(value) ~= "table" then
 		error(
 			string.format(
-				"supaline: %s must be a table of two lightnesses, as "
-					.. "`{ from = 0.35, to = 0.88 }` -- `from` is what ratio 0 draws and `to` "
-					.. "what ratio 1 draws, so a light terminal writes the larger one first",
-				where
+				"supaline: %s must be a table of two lightnesses, as `%s` -- `from` is what "
+					.. "ratio 0 draws and `to` what ratio 1 draws, so a light terminal writes "
+					.. "the larger one first",
+				where,
+				RECOMMENDED_AS_WRITTEN
 			)
 		)
 	end
@@ -838,11 +852,15 @@ function M.bands(value, where)
 		)
 	end
 
-	-- The pair itself, written where a table of them goes. Told apart by the
-	-- type rather than by the key, so a band genuinely named `to` reaches the
-	-- name check below and is refused there for being a reserved word, rather
-	-- than being reported as this.
-	if type(value.from) == "number" or type(value.to) == "number" then
+	-- The pair itself, written where a table of them goes. Told apart by what
+	-- the key holds rather than by the key, so a band genuinely named `to`
+	-- reaches the name check below and is refused there for being a reserved
+	-- word, rather than being reported as this. Anything that is not a table is
+	-- this rather than that: `{ from = "0.35" }` is the same mistake as
+	-- `{ from = 0.35 }` and wants the same answer, where the number test sent
+	-- it to the reserved-word message and told it to rename a band it never
+	-- named.
+	if (value.from ~= nil and type(value.from) ~= "table") or (value.to ~= nil and type(value.to) ~= "table") then
 		error(
 			string.format(
 				"supaline: %s: `from` and `to` are a band's own keys, and `band` holds bands "
@@ -891,22 +909,24 @@ end
 --- One refusal moves with it. `#a <-> #b` used to be caught by the joined body
 --- having a space in it; what catches it now is that `#b` is not a band name,
 --- which is the same mistake reported one step closer to it.
+---
+--- Nil rather than the string back when there is no marker, because the colour
+--- before a marker that is not there is not a colour this function found -- it
+--- is the whole value, which the caller already has. Which makes the first
+--- return the answer to "was it marked" as well, and `#ff8800 <->` marked with
+--- an empty body still answers yes.
 ---@param s string
----@return string colour, string? name, boolean marked
+---@return string? colour, string? name
 local function unmark(s)
 	local a, b = s:find(BOTH, 1, true)
 	if not a then
-		return s, nil, false
+		return nil, nil
 	end
 	local name = s:sub(b + 1):match("^%s*(.-)%s*$")
-	return s:sub(1, a - 1):match("^%s*(.-)%s*$"), name ~= "" and name or nil, true
+	return s:sub(1, a - 1):match("^%s*(.-)%s*$"), name ~= "" and name or nil
 end
 
 --- The bands there are, for a refusal to list.
----
---- Sorted, for the reason every other key list here is: `pairs` gives a set
---- back in whatever order the hash does, and a message that reorders itself
---- between runs reads as a different message.
 ---@param bands supaline.Bands
 ---@return string
 local function defined_in(bands)
@@ -914,11 +934,8 @@ local function defined_in(bands)
 	for name in pairs(bands) do
 		names[#names + 1] = name
 	end
-	if #names == 0 then
-		return "No band is defined yet"
-	end
-	table.sort(names)
-	return string.format("Defined: `%s`", table.concat(names, "`, `"))
+	local quoted = listed(names)
+	return quoted and "Defined: " .. quoted or "No band is defined yet"
 end
 
 ---@param s string
@@ -935,6 +952,33 @@ local function split(s)
 		end
 		pos = b + 1
 	end
+end
+
+--- One end of a ramp, or a refusal saying why it is not one.
+---
+--- Both paths below want this and they want it a different number of times --
+--- a band reads one colour, a written gradient reads however many were
+--- written -- so it is here rather than in a loop the band path has to enter
+--- in order to leave.
+---@param one string
+---@param where string
+---@param i integer which stop, for the message
+---@return integer[]
+local function endpoint(one, where, i)
+	local rgb = M.colour(one, string.format("%s, stop %d", where, i))
+	if not rgb then
+		error(
+			string.format(
+				"supaline: %s: `%s` cannot be a gradient endpoint. A name and a "
+					.. "256-colour index are whatever the terminal's palette makes them, "
+					.. "and a ramp interpolated from a guess would not meet either end; "
+					.. "write `#rrggbb`",
+				where,
+				one
+			)
+		)
+	end
+	return rgb
 end
 
 --- The endpoints of a gradient, in order, as RGB.
@@ -960,9 +1004,8 @@ function M.stops(value, where, bands, fallback)
 	if type(value) ~= "string" then
 		error(string.format("supaline: %s must be a string like `#0b3d91 -> #7fd4ff`, got a %s", where, type(value)))
 	end
-	local body, name, marked = unmark(value)
-	local band
-	if marked then
+	local body, name = unmark(value)
+	if body then
 		if body == "" or body:find("%s") then
 			error(
 				string.format(
@@ -989,7 +1032,7 @@ function M.stops(value, where, bands, fallback)
 		-- name is read off the writing, and a string that wants another one
 		-- says so.
 		local wanted = name or fallback
-		band = bands[wanted]
+		local band = bands[wanted]
 		if not band then
 			error(
 				string.format(
@@ -1007,33 +1050,23 @@ function M.stops(value, where, bands, fallback)
 				)
 			)
 		end
-	end
-	local written = marked and { body } or split(value)
 
-	local stops = {}
-	for i, one in ipairs(written) do
-		local rgb = M.colour(one, string.format("%s, stop %d", where, i))
-		if not rgb then
-			error(
-				string.format(
-					"supaline: %s: `%s` cannot be a gradient endpoint. A name and a "
-						.. "256-colour index are whatever the terminal's palette makes them, "
-						.. "and a ramp interpolated from a guess would not meet either end; "
-						.. "write `#rrggbb`",
-					where,
-					one
-				)
-			)
-		end
-		stops[i] = rgb
-	end
-
-	if marked then
 		-- Forward, through the table: the band is Oklab arithmetic and the
 		-- locals it runs on are declared below, where the rest of that
 		-- arithmetic lives. Reachable by the time anything calls this.
-		return M.band(stops[1], band --[[@as supaline.Band]])
-	elseif #stops < 2 then
+		--
+		-- The colour is read last, after the band it is to be spread into has
+		-- resolved, so a `<->` naming nothing is told that before it is told
+		-- anything about its colour.
+		return M.band(endpoint(body, where, 1), band)
+	end
+
+	local stops = {}
+	for i, one in ipairs(split(value)) do
+		stops[i] = endpoint(one, where, i)
+	end
+
+	if #stops < 2 then
 		error(
 			string.format(
 				"supaline: %s: `%s` is one colour, and a gradient needs two ends. Write "
