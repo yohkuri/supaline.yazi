@@ -146,9 +146,9 @@ test("Line:width: the parts are measured one by one, not joined up", function()
 	-- Measured on Yazi 26.9.1. A heart is one cell and the variation selector
 	-- after it is none, so the two as separate parts come to one; the same two
 	-- characters inside a single part are the cluster `\u{2764}\u{FE0F}`, which
-	-- is two. The stub used to join the parts and measure the string, so a
-	-- column handing back several spans had its width and its padding checked
-	-- against a number the screen never shows.
+	-- is two. A stub that joined the parts and measured the string would check
+	-- a column handing back several spans against a number the screen never
+	-- shows -- its width and its padding both.
 	local heart, vs = "\u{2764}", "\u{FE0F}"
 	eq(stub.Line({ stub.Span(heart), stub.Span(vs) }):width(), 1)
 	eq(stub.Line({ stub.Span(heart .. vs) }):width(), 2)
@@ -161,8 +161,8 @@ test("Line:truncate: it modifies the line it was given and hands that back", fun
 	-- from eight and `rawequal` held. `cut` in `column.lua` says so and relies
 	-- on it -- each pass cuts the previous result further -- and a column that
 	-- kept a renderable across rows would find it cut down by the first row
-	-- that overflowed. The stub used to build a new Line and leave the original
-	-- untouched, so neither could ever show up in a test.
+	-- that overflowed. A stub that built a new Line and left the original
+	-- untouched would let neither show up in a test.
 	local line = stub.Line { stub.Span("abcdefgh") }
 	eq(line:width(), 8)
 	local out = line:truncate { max = 4 }

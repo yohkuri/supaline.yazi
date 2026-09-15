@@ -682,10 +682,10 @@ end
 --- part, and the wrapper that comes back is a Line of its own, which a further
 --- `ui.Line` may consume in turn -- also measured.
 ---
---- Handing it straight back is what this did until a review caught it, and the
---- cost was the whole point of the check: `column.cell` calls `ui.Line(out)`
---- on whatever a render returns, so a column caching one finished Line was
---- green here and blanked the pane on the second row.
+--- Handing it straight back would cost the whole point of the check:
+--- `column.cell` calls `ui.Line(out)` on whatever a render returns, so a
+--- column caching one finished Line would be green here and blank the pane on
+--- the second row.
 function M.Line(x)
 	local mt = getmetatable(x)
 	local parts = x
@@ -768,11 +768,11 @@ end
 --- `not cha.uid` guard look like the Windows case while Yazi was reaching the
 --- branch below it and drawing `0:0`.
 ---
---- `nil or 0` was the whole of it until this raised as well, which is half a
---- stub: it stopped a spec seeing a nil, and passed anything else through
---- untouched. `uid = "root"` reached `ya.user_name` and came back `userroot`,
---- green, describing a file no Yazi has ever produced -- the silence this
---- harness is supposed to break rather than reproduce.
+--- `nil or 0` alone would be half a stub: it stops a spec seeing a nil and
+--- passes anything else through untouched, so `uid = "root"` reaches
+--- `ya.user_name` and comes back `userroot`, green, describing a file no Yazi
+--- has ever produced -- the silence this harness is supposed to break rather
+--- than reproduce.
 ---@param t table
 ---@param field "uid"|"gid"
 ---@return integer

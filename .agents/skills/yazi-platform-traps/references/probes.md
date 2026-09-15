@@ -306,8 +306,8 @@ Measured with a throwaway fetcher over a two-file folder.
 | reported one of the two files | task **completed**, count cleared |
 | returned a loop | task completed, count cleared |
 
-Row one is nearly invisible from the outside: the body had already run, so the
-side effects landed and a column would still have filled in. The last row is
+Row one is nearly invisible from the outside: the body has already run, so the
+side effects land and a column still fills in. The last row is
 why the stuck count is a measurement and not an anecdote — the same fetcher,
 written correctly, clears it.
 

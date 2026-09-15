@@ -580,12 +580,11 @@ test("band: a dark colour spreads upwards, which is the point of deriving both",
 end)
 
 test("band: black is a grey band rather than a refusal", function()
-	-- Black used to be refused here, on the grounds that it has no lightness to
-	-- scale and no hue to hold. With both ends fixed that stops being true of
-	-- black in particular: a grey has no hue to hold at any lightness, and the
-	-- band is drawn at the two the user asked for regardless. So the three
-	-- greys furthest apart in sRGB all come out as the same band, and refusing
-	-- one of the three would have been an exception with nothing behind it.
+	-- Refusing black -- no lightness to scale, no hue to hold -- is an
+	-- exception with nothing behind it once both ends are fixed: a grey has no
+	-- hue to hold at any lightness, and the band is drawn at the two the user
+	-- asked for regardless. So the three greys furthest apart in sRGB all come
+	-- out as the same band, and none of the three is a special case.
 	local black = stops("#000000 <->")
 	local mid = stops("#767676 <->")
 	local white = stops("#ffffff <->")
@@ -610,10 +609,8 @@ test("band: the pair is directed, so writing it backwards inverts the ramp", fun
 end)
 
 test("bounds: nil is refused along with everything else that is not a table", function()
-	-- It used to be the one value that meant something here -- "the user wrote
-	-- no band" -- and what it returned was the recommended pair. Nothing falls
-	-- back to that pair now, so nil reaching this function is a caller that
-	-- read a name nobody defined and did not check.
+	-- Nothing falls back to the recommended pair, so nil reaching this function
+	-- is a caller that read a name nobody defined and did not check.
 	throws(function() colour.bounds(nil, "x") end, "must be a table of two lightnesses")
 end)
 
@@ -721,10 +718,10 @@ test("bands: a name that is a Lua keyword is quoted where the refusal says to wr
 end)
 
 test("bands: the flat pair written where a table of bands goes is refused by name", function()
-	-- The spelling `band` had before it held bands, and the one a reader
-	-- arrives at from any document written for it. Refused rather than read as
-	-- the `fg` band, because two spellings of one thing is what this plugin
-	-- turns down everywhere else -- and the message names the replacement.
+	-- What a reader writes who takes `band` for one band rather than a table of
+	-- them. Refused rather than read as the `fg` band, because two spellings of
+	-- one thing is what this plugin turns down everywhere else -- and the
+	-- message names the replacement.
 	throws(function() colour.bands({ from = 0.35, to = 0.88 }, "x") end, "are a band's own keys")
 	throws(function() colour.bands({ from = 0.35, to = 0.88 }, "x") end, "band = { fg = { from = 0.35, to = 0.88 } }")
 	throws(function() colour.bands({ from = 0.35 }, "x") end, "are a band's own keys")
