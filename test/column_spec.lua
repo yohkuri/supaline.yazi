@@ -287,7 +287,7 @@ test("register: `register` names the column, so `name` beside it is not read", f
 	throws(function()
 		column.register("real", { render = function() return "x" end, name = "alias" })
 	end, "read by nobody")
-	eq(column.get("alias"), nil, "and nothing was ever registered under it")
+	eq(column._registry["alias"], nil, "and nothing was ever registered under it")
 
 	throws(function()
 		local entry = { "alias", render = function() return "x" end } ---@type any
