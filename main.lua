@@ -117,8 +117,11 @@ local M = {}
 -- else. The same reason `OPTIONS` above has, one level up: a key in the table
 -- constructor `setup` is handed is past what `lua-language-server` checks
 -- against `supaline.Opts` -- `(exact)` was measured not to change that -- so
--- `bnad`, `scal` and `seperator` reach this or they reach nobody, and a `band`
--- written `bnad` leaves every band at its default with nothing said about why.
+-- `bnad`, `scal` and `seperator` reach this or they reach nobody. A `band`
+-- written `bnad` defines no band at all, so the `<->`s that were to use it are
+-- each refused for naming nothing -- loud, but pointed at the wrong table: the
+-- reader is told to define `fg` while a whole `fg` sits three lines above,
+-- spelled right, under a key nobody reads.
 --
 -- This is the outermost of the five tables a user writes. The other four -- a
 -- linemode spec, a separator, a style, and a column spec or definition -- are
@@ -843,8 +846,10 @@ function M.setup(_st, opts)
 		-- definition's own scale through.
 		scale = opts.scale,
 		-- Checked in `colour.lua`, where the two numbers mean something and
-		-- where the default they fall back to lives. Before the commit, so a
-		-- band written wrong leaves the configuration already running alone.
+		-- where the pair the refusals recommend lives. Nothing falls back to
+		-- it: a `setup` that wrote no band defines none, and the `<->` that
+		-- wanted one is refused. Before the commit, so a band written wrong
+		-- leaves the configuration already running alone.
 		band = colour.bands(opts.band, "`band` in `setup`"),
 	}
 

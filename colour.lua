@@ -174,6 +174,26 @@ local NAME = "^[a-z][a-z0-9_]*$"
 -- `to`; `from` is here so the pair is refused together.
 local RESERVED = { from = true, to = true }
 
+-- Lua's own keywords, which are names a band may have and keys a message may
+-- not spell bare. `NAME` takes `end`, and `band = { ["end"] = ... }` defines
+-- it, so refusing the name would take away a band that works; what cannot be
+-- done is write it back as `band = { end = ... }`, which is a syntax error
+-- rather than a setting. Lowercase only, because `NAME` is.
+local KEYWORD = {}
+for word in
+	(
+		"and break do else elseif end false for function goto if in local "
+		.. "nil not or repeat return then true until while"
+	):gmatch("%a+")
+do
+	KEYWORD[word] = true
+end
+
+--- `name` as a key in Lua source, for a message the reader is to paste.
+---@param name string
+---@return string
+local function as_key(name) return KEYWORD[name] and string.format("[%q]", name) or name end
+
 -- A band under every name, for the one caller that reads a value only in order
 -- to refuse it. `M.flat` is handed a separator's style, and a separator has no
 -- value to place on a ramp, so every gradient and every band it can hold is
@@ -1025,6 +1045,21 @@ function M.stops(value, where, bands, fallback)
 					name
 				)
 			)
+		elseif name and RESERVED[name] then
+			-- Caught here as well as in `M.bands`, rather than left to the
+			-- undefined-band refusal below. That one answers a name nobody has
+			-- defined *yet* by saying how to define it, and this is a name
+			-- nobody can define: what it would have said to write is
+			-- `band = { from = { from = ... } }`, which `M.bands` refuses.
+			error(
+				string.format(
+					"supaline: %s: `%s` is one of a band's own two keys, so there is no band "
+						.. "by that name to ask for -- `setup` refuses one that tries. Call the "
+						.. "band something else and name it that",
+					where,
+					name
+				)
+			)
 		end
 
 		-- The key this was written under when the string named nothing, which
@@ -1044,7 +1079,7 @@ function M.stops(value, where, bands, fallback)
 					where,
 					value,
 					wanted,
-					wanted,
+					as_key(wanted),
 					RECOMMENDED_AS_WRITTEN,
 					defined_in(bands)
 				)

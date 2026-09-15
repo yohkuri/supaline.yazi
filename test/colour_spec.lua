@@ -689,6 +689,37 @@ test("bands: what follows the marker is a name, and a colour there says so", fun
 	throws(function() colour.stops("#0b3d91 <-> My_Band", "x", one, "fg") end, "is not a band name")
 end)
 
+test("bands: a band's own two keys are not names a `<->` can ask for", function()
+	-- `from` and `to` pass the name shape and `M.bands` refuses them anyway, so
+	-- a `<->` naming one reaches a name that cannot be defined rather than one
+	-- that merely is not. The undefined-band refusal would answer it by saying
+	-- to write `band = { from = { from = ... } }`, which is the thing `setup`
+	-- turns away -- so it is caught before that, in the words the refusal at
+	-- `setup` uses.
+	local one = { fg = REC }
+	throws(function() colour.stops("#0b3d91 <-> from", "x", one, "fg") end, "one of a band's own two keys")
+	throws(function() colour.stops("#0b3d91 <-> to", "x", one, "fg") end, "Call the band something else")
+	throws(function() colour.stops("#0b3d91 <-> to", "x", one, "fg") end, "`to`")
+end)
+
+test("bands: a name that is a Lua keyword is quoted where the refusal says to write it", function()
+	-- `end` is a name the shape takes and `band = { ["end"] = ... }` defines,
+	-- so it draws. What it may not do is come back bare: `band = { end = ... }`
+	-- is a syntax error, and a refusal a reader pastes has to be a setting.
+	local keyworded = colour.bands({ ["end"] = REC }, "x")
+	eq(next(keyworded), "end", "`setup` takes it")
+	same_band(
+		colour.stops("#0b3d91 <-> end", "x", keyworded, "fg"),
+		colour.band(NAVY, REC),
+		"a keyword is a band name like any other"
+	)
+	throws(function() colour.stops("#0b3d91 <-> end", "x", {}, "fg") end, 'band = { ["end"] = ')
+
+	-- Only where it has to be. An ordinary name stays bare, because bracketing
+	-- every name would make the common message read as the awkward case.
+	throws(function() colour.stops("#0b3d91 <-> dim", "x", {}, "fg") end, "band = { dim = ")
+end)
+
 test("bands: the flat pair written where a table of bands goes is refused by name", function()
 	-- The spelling `band` had before it held bands, and the one a reader
 	-- arrives at from any document written for it. Refused rather than read as
