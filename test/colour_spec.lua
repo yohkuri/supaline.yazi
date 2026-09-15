@@ -79,6 +79,31 @@ local ATTRS = {
 	crossed = "crossed",
 }
 
+--- The pair `colour.recommended` hands a reader to paste, which is what every
+--- band measured below was measured at.
+---
+--- Written out rather than taken from that function. These numbers are the
+--- ones the comments in `colour.lua` justify and the README quotes, so a spec
+--- that moved the recommendation should fail these tests rather than move them
+--- along with it.
+---@type supaline.Band
+local REC = { from = 0.35, to = 0.88 }
+
+--- Every band a `<->` in these tests can ask for, under both keys.
+---@type supaline.Bands
+local BANDS = { fg = REC, bg = REC }
+
+--- `colour.stops`, with a band behind the name a value asks for.
+---
+--- Most of what is below is about the arithmetic rather than about which band
+--- was asked for, and reads better for not saying so on every line. The tests
+--- that *are* about the name call `colour.stops` directly.
+---@param value any
+---@param where string
+---@param band supaline.Band? the recommended pair when omitted
+---@return integer[][]
+local function stops(value, where, band) return colour.stops(value, where, { fg = band or REC }, "fg") end
+
 -- --- one writer's layer ----------------------------------------------------
 
 --- A layer read from `value`, for the tests that go on to read a key off it.
@@ -87,7 +112,7 @@ local ATTRS = {
 ---@param value any
 ---@return supaline.Layer
 local function layer(value)
-	local got = colour.layer(value, "x")
+	local got = colour.layer(value, "x", BANDS)
 	if not got then
 		error("a layer rather than `false`")
 	end
@@ -101,7 +126,7 @@ test("layer: nothing written is an empty layer, and `false` is the layer itself"
 	-- taken off -- the row's own bold along with a theme's -- where what
 	-- `style = false` asks for is a cell drawn in whatever the row already
 	-- carries. `merge` is what reads it, so it is handed on as it is.
-	eq(colour.layer(false, "x"), false)
+	eq(colour.layer(false, "x", BANDS), false)
 end)
 
 test("layer: a string is the `fg`, flat or a gradient", function()
@@ -231,7 +256,7 @@ test("layer: what is not a style at all is refused", function()
 	-- method a Span does not have, and a Span is what this asserts on for
 	-- exactly that reason -- the noun in the message is the only part that
 	-- differs from a real Yazi, where a Span is userdata rather than a table.
-	throws(function() colour.layer(ui.Span("x"), "the `style` of column `size`") end, "column `size`")
+	throws(function() colour.layer(ui.Span("x"), "the `style` of column `size`", BANDS) end, "column `size`")
 	throws(function() layer(42) end, "is a number")
 	throws(function() layer(true) end, "is a boolean")
 
@@ -443,7 +468,7 @@ end)
 -- --- endpoints -------------------------------------------------------------
 
 test("stops: a string splits on the arrow, whitespace and all", function()
-	local stops = colour.stops("  #0b3d91   ->#ffffff->   #7fd4ff  ", "x")
+	local stops = stops("  #0b3d91   ->#ffffff->   #7fd4ff  ", "x")
 	eq(#stops, 3)
 	eq(stops[1][3], 0x91)
 	eq(stops[2][1], 0xff)
@@ -454,28 +479,28 @@ test("stops: a name cannot anchor a ramp", function()
 	-- A perfectly good flat colour, refused here alone: interpolating from it
 	-- means guessing what the terminal draws it as, and the ramp's own end
 	-- would then not meet it.
-	throws(function() colour.stops("cyan -> #7fd4ff", "x") end, "cannot be a gradient endpoint")
-	throws(function() colour.stops("129 -> #7fd4ff", "x") end, "cannot be a gradient endpoint")
+	throws(function() stops("cyan -> #7fd4ff", "x") end, "cannot be a gradient endpoint")
+	throws(function() stops("129 -> #7fd4ff", "x") end, "cannot be a gradient endpoint")
 end)
 
 test("stops: one colour is a band with the marker, and a refusal without it", function()
 	-- Under `fg` a bare colour is a flat colour and has to go on meaning one,
 	-- so the marker is the only spelling of a band -- in a spec as in a theme.
 	-- Both ends come out of `band`, which the tests below pin.
-	same_band(colour.stops("#7fd4ff <->", "x"), colour.band { 0x7f, 0xd4, 0xff })
-	throws(function() colour.stops("#7fd4ff", "x") end, "is one colour, and a gradient needs two ends")
-	throws(function() colour.stops("#7fd4ff", "x") end, "`#7fd4ff <->` to spread the one colour")
+	same_band(stops("#7fd4ff <->", "x"), colour.band({ 0x7f, 0xd4, 0xff }, REC))
+	throws(function() stops("#7fd4ff", "x") end, "is one colour, and a gradient needs two ends")
+	throws(function() stops("#7fd4ff", "x") end, "`#7fd4ff <->` to spread the one colour")
 
 	-- The list spelling is gone with it: what arrives here is a string.
-	throws(function() colour.stops({ "#0b3d91", "#7fd4ff" }, "x") end, "must be a string like")
+	throws(function() stops({ "#0b3d91", "#7fd4ff" }, "x") end, "must be a string like")
 end)
 
 test("stops: `<->` spreads one colour and says so when handed two", function()
-	throws(function() colour.stops("#0b3d91 <-> #7fd4ff", "x") end, "is not a band")
-	throws(function() colour.stops("<->", "x") end, "is not a band")
+	throws(function() stops("#0b3d91 <-> #7fd4ff", "x") end, "is not a band")
+	throws(function() stops("<->", "x") end, "is not a band")
 	-- The marker is the only thing removed, so what is left is read as a
 	-- colour like any other and gets the message a bad colour gets.
-	throws(function() colour.stops("cyan <->", "x") end, "cannot be a gradient endpoint")
+	throws(function() stops("cyan <->", "x") end, "cannot be a gradient endpoint")
 end)
 
 -- --- a band ----------------------------------------------------------------
@@ -489,7 +514,7 @@ test("band: a colour lighter than the band is still not an end of it", function(
 	-- nowhere on it. Both ends are fixed, and what the colour supplies is the
 	-- hue. Widening the band to reach it would make this column's top step
 	-- lighter than the next column's for no reason a reader could see.
-	local stops = colour.stops("#e8f4ff <->", "x")
+	local stops = stops("#e8f4ff <->", "x")
 	eq(hex(stops[1]), "#383b3e")
 	eq(hex(stops[2]), "#ced9e3")
 end)
@@ -498,7 +523,7 @@ test("band: a colour darker than the band is not an end of it either", function(
 	-- The other side, and it is fixed the same way. `#0b1a2f` sits at 0.22,
 	-- below the band's floor of 0.35, and the low end is drawn at the floor
 	-- rather than at the colour.
-	local stops = colour.stops("#0b1a2f <->", "x")
+	local stops = stops("#0b1a2f <->", "x")
 	eq(hex(stops[1]), "#1f3b61")
 	eq(hex(stops[2]), "#bfdaff")
 end)
@@ -509,20 +534,20 @@ test("band: past the exposure's reach, lightness is bought with chroma", functio
 	-- against the 0.83 of the `#7fd4ff` a hand-written ramp would have had.
 	-- Above it the hue is held and the chroma spent, which is the only thing
 	-- that can be given up without turning the colour.
-	local hi = colour.stops("#0b3d91 <->", "x")[2]
+	local hi = stops("#0b3d91 <->", "x")[2]
 	eq(hex(hi), "#c2d9ff")
 
 	-- Having a channel at 255 already is not the same as being high enough: the
 	-- exposure cannot move `#7fd4ff` at all, and 0.83 is below the ceiling, so
 	-- this one buys the rest with chroma too. That is the whole of what a
 	-- ceiling above 0.83 changes, and it is the reason this one is 0.88.
-	local sat = colour.stops("#7fd4ff <->", "x")[2]
+	local sat = stops("#7fd4ff <->", "x")[2]
 	eq(hex(sat), "#a8e1ff")
 
 	-- And never more chroma than the exposure itself would have reached, so a
 	-- colour is not made more vivid on the way to being made lighter. Grey has
 	-- none to spend and stays grey.
-	local grey = colour.stops("#767676 <->", "x")[2]
+	local grey = stops("#767676 <->", "x")[2]
 	eq(grey[1], grey[2])
 	eq(grey[2], grey[3])
 end)
@@ -533,7 +558,7 @@ test("band: a dark colour spreads upwards, which is the point of deriving both",
 	-- colour and falling to the floor would be four hundredths wide and half
 	-- its steps repeats. Taking the room above it instead spreads it from the
 	-- floor to the ceiling, and every step is a colour of its own.
-	local r = colour.ramp(colour.stops("#0b3d91 <->", "x"))
+	local r = colour.ramp(stops("#0b3d91 <->", "x"))
 	local seen, n = {}, 0
 	for _, hex in ipairs(r) do
 		if not seen[hex] then
@@ -552,9 +577,9 @@ test("band: black is a grey band rather than a refusal", function()
 	-- band is drawn at the two the user asked for regardless. So the three
 	-- greys furthest apart in sRGB all come out as the same band, and refusing
 	-- one of the three would have been an exception with nothing behind it.
-	local black = colour.stops("#000000 <->", "x")
-	local mid = colour.stops("#767676 <->", "x")
-	local white = colour.stops("#ffffff <->", "x")
+	local black = stops("#000000 <->", "x")
+	local mid = stops("#767676 <->", "x")
+	local white = stops("#ffffff <->", "x")
 	same_band(black, mid, "black against a mid grey")
 	same_band(black, white, "black against white")
 	eq(hex(black[1]), "#3a3a3a")
@@ -567,22 +592,134 @@ test("band: the pair is directed, so writing it backwards inverts the ramp", fun
 	-- ratio 0 draws `from` whichever of the two is lighter, so inversion is the
 	-- same option written the other way round and there is no second spelling
 	-- to keep in step with the first.
-	local up = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.35, to = 0.88 }))
-	local down = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.88, to = 0.35 }))
+	local up = colour.ramp(stops("#0b3d91 <->", "x", { from = 0.35, to = 0.88 }))
+	local down = colour.ramp(stops("#0b3d91 <->", "x", { from = 0.88, to = 0.35 }))
 	eq(#up, #down)
 	for i = 1, #up do
 		eq(down[i], up[#up + 1 - i], "step " .. i .. " is the other ramp's mirror")
 	end
 end)
 
-test("bounds: the default is what a band gets when `setup` says nothing", function()
-	local d = colour.bounds(nil, "x")
-	eq(d.from, 0.35)
-	eq(d.to, 0.88)
-	-- And the default is what `stops` applies, so the two cannot drift.
-	local implicit = colour.stops("#0b3d91 <->", "x")
-	local explicit = colour.stops("#0b3d91 <->", "x", d)
-	same_band(implicit, explicit)
+test("bounds: nil is refused along with everything else that is not a table", function()
+	-- It used to be the one value that meant something here -- "the user wrote
+	-- no band" -- and what it returned was the recommended pair. Nothing falls
+	-- back to that pair now, so nil reaching this function is a caller that
+	-- read a name nobody defined and did not check.
+	throws(function() colour.bounds(nil, "x") end, "must be a table of two lightnesses")
+end)
+
+test("recommended: a fresh table, so two callers cannot write to one band", function()
+	local a, b = colour.recommended(), colour.recommended()
+	eq(a.from, REC.from)
+	eq(a.to, REC.to)
+	a.from = 0.1
+	eq(b.from, REC.from, "the second copy did not move with the first")
+	eq(colour.recommended().from, REC.from, "and neither did the next one")
+end)
+
+-- --- bands by name ---------------------------------------------------------
+
+test("bands: a `setup` that named no band defines none", function()
+	-- Empty rather than nil, and rather than a pair. Every `<->` is then
+	-- refused, which is the whole of what "no default" means: there is no name
+	-- a band can be asked for by that answers without the user having said so.
+	local none = colour.bands(nil, "x")
+	eq(next(none), nil)
+	throws(function() colour.stops("#0b3d91 <->", "x", none, "fg") end, "nothing defines `fg`")
+end)
+
+test("bands: the refusal carries the pair to paste and says nothing is defined", function()
+	-- This message is the feature's front door: it is what a reader meets the
+	-- first time they write `<->`, not a corner they reach by getting something
+	-- wrong. So it has to carry the two numbers, the name the key asked for,
+	-- and the fact that supaline is not withholding a better answer.
+	local ok, raised = pcall(colour.stops, "#0b3d91 <->", "x", {}, "fg")
+	eq(ok, false)
+	local err = tostring(raised)
+	assert(err:find("{ from = 0.35, to = 0.88 }", 1, true), "the pair, as it is written")
+	assert(err:find("band = { fg = ", 1, true), "under the name that was asked for")
+	assert(err:find("cannot see that ground", 1, true), "and why there is no default")
+	assert(err:find("No band is defined yet", 1, true), "and what is defined")
+end)
+
+test("bands: the refusal lists what is defined, which is where a typo shows up", function()
+	-- The one thing lost by making `band` a namespace: no sweep can refuse
+	-- `bgg`, because every name is a name somebody may have meant. What stands
+	-- in for it is this list, read at the use site one step later.
+	local defined = colour.bands({ fg = REC, bgg = REC }, "x")
+	local ok, raised = pcall(colour.stops, "#0b3d91 <->", "x", defined, "bg")
+	eq(ok, false)
+	assert(tostring(raised):find("Defined: `bgg`, `fg`", 1, true), "sorted, and both of them")
+end)
+
+test("bands: the key a band is written under is the band it asks for", function()
+	local two = colour.bands({ fg = { from = 0.35, to = 0.88 }, bg = { from = 0.1, to = 0.3 } }, "x")
+	local one = colour.layer({ fg = "#0b3d91 <->", bg = "#0b3d91 <->" }, "x", two)
+	assert(one, "a layer rather than `false`")
+	-- A `supaline.Paint` is a flat colour or a ramp's stops, and only the
+	-- second is a band. What narrows it here is the assertion above it -- a
+	-- band under this key is the whole of what each of these tests is for.
+	same_band(one.fg --[[@as integer[][] ]], colour.band({ 0x0b, 0x3d, 0x91 }, { from = 0.35, to = 0.88 }))
+	same_band(one.bg --[[@as integer[][] ]], colour.band({ 0x0b, 0x3d, 0x91 }, { from = 0.1, to = 0.3 }))
+end)
+
+test("bands: a bare string is the `fg` key, so it asks for the `fg` band", function()
+	local two = colour.bands({ fg = REC, bg = { from = 0.1, to = 0.3 } }, "x")
+	local one = colour.layer("#0b3d91 <->", "x", two)
+	assert(one, "a layer rather than `false`")
+	same_band(one.fg --[[@as integer[][] ]], colour.band({ 0x0b, 0x3d, 0x91 }, REC))
+end)
+
+test("bands: a name after the marker wins over the key it was written under", function()
+	local three = colour.bands({ fg = REC, dim = { from = 0.2, to = 0.45 } }, "x")
+	local one = colour.layer({ fg = "#0b3d91 <-> dim" }, "x", three)
+	assert(one, "a layer rather than `false`")
+	same_band(one.fg --[[@as integer[][] ]], colour.band({ 0x0b, 0x3d, 0x91 }, { from = 0.2, to = 0.45 }))
+end)
+
+test("bands: what follows the marker is a name, and a colour there says so", function()
+	-- `#a <-> #b` used to be caught by the joined body having a space in it.
+	-- It is the same mistake and it is now reported one step closer to it: the
+	-- tail of a `<->` is a band's name, and `#7fd4ff` is not one.
+	local one = { fg = REC }
+	throws(function() colour.stops("#0b3d91 <-> #7fd4ff", "x", one, "fg") end, "is not a band name")
+	throws(function() colour.stops("#0b3d91 <-> #7fd4ff", "x", one, "fg") end, "write them with `->`")
+	throws(function() colour.stops("#0b3d91 <-> 0.4", "x", one, "fg") end, "is not a band name")
+	throws(function() colour.stops("#0b3d91 <-> My_Band", "x", one, "fg") end, "is not a band name")
+end)
+
+test("bands: the flat pair written where a table of bands goes is refused by name", function()
+	-- The spelling `band` had before it held bands, and the one a reader
+	-- arrives at from any document written for it. Refused rather than read as
+	-- the `fg` band, because two spellings of one thing is what this plugin
+	-- turns down everywhere else -- and the message names the replacement.
+	throws(function() colour.bands({ from = 0.35, to = 0.88 }, "x") end, "are a band's own keys")
+	throws(function() colour.bands({ from = 0.35, to = 0.88 }, "x") end, "band = { fg = { from = 0.35, to = 0.88 } }")
+	throws(function() colour.bands({ from = 0.35 }, "x") end, "are a band's own keys")
+end)
+
+test("bands: a name is lowercase letters, digits and `_`, starting with a letter", function()
+	-- The shape `theme.toml` holds a field name to, rather than a second one of
+	-- this plugin's own.
+	eq(next(colour.bands({ my_band2 = REC }, "x")), "my_band2")
+	throws(function() colour.bands({ ["my-band"] = REC }, "x") end, "is not a band name")
+	throws(function() colour.bands({ MyBand = REC }, "x") end, "is not a band name")
+	throws(function() colour.bands({ ["2x"] = REC }, "x") end, "is not a band name")
+	throws(function() colour.bands({ [1] = REC }, "x") end, "is not a band name")
+end)
+
+test("bands: a band cannot be named after one of a band's own keys", function()
+	-- `to = { ... }` is a band called `to`, which the flat-pair check above
+	-- lets through -- it looks at the type, so a table under `to` is not the
+	-- old spelling. It is refused here instead, and for its own reason.
+	throws(function() colour.bands({ to = REC }, "x") end, "cannot also be a band's name")
+	throws(function() colour.bands({ from = REC }, "x") end, "cannot also be a band's name")
+end)
+
+test("bands: each band is checked, and the refusal names which one", function()
+	throws(function() colour.bands({ fg = { from = 0, to = 0.88 } }, "`band` in `setup`") end, "must be above 0")
+	throws(function() colour.bands({ fg = { from = 0, to = 0.88 } }, "`band` in `setup`") end, "`band` in `setup`: `fg`")
+	throws(function() colour.bands({ dim = "dark" }, "x") end, "x: `dim` must be a table")
 end)
 
 test("bounds: an end outside `(0, 1]` is refused, NaN included", function()
@@ -614,8 +751,8 @@ test("bounds: two ends at one lightness are taken rather than refused", function
 	-- would catch this spelling and not the one beside it, which draws the
 	-- identical column. Where flat stops being flat is a judgement, and the two
 	-- ends are the writer's to make, degenerate ones included.
-	local flat = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.5, to = 0.5 }))
-	local near = colour.ramp(colour.stops("#0b3d91 <->", "x", { from = 0.5, to = 0.501 }))
+	local flat = colour.ramp(stops("#0b3d91 <->", "x", { from = 0.5, to = 0.5 }))
+	local near = colour.ramp(stops("#0b3d91 <->", "x", { from = 0.5, to = 0.501 }))
 	for i = 1, 64 do
 		eq(flat[i], "#155ace")
 		eq(near[i], flat[i])
@@ -629,7 +766,7 @@ end)
 -- --- the ramp --------------------------------------------------------------
 
 test("ramp: as many colours as the quantisation says, endpoints exact", function()
-	local r = colour.ramp(colour.stops("#0b3d91 -> #7fd4ff", "x"))
+	local r = colour.ramp(stops("#0b3d91 -> #7fd4ff", "x"))
 	-- The count is stated rather than read back off the module, so that changing
 	-- the quantisation fails here instead of agreeing with itself.
 	eq(#r, 64)
@@ -644,7 +781,7 @@ test("ramp: it interpolates in Oklab, not in sRGB", function()
 	-- `#808040` and Oklab a far lighter, less muddy `#688e83`. Pinning the
 	-- value is what makes a change of colour space a failing test rather than
 	-- a difference nobody notices.
-	local r = colour.ramp(colour.stops("#000080 -> #ffff00", "x"))
+	local r = colour.ramp(stops("#000080 -> #ffff00", "x"))
 	eq(r[32], "#688e83")
 	eq(r[33], "#6c9183")
 	assert(r[32] ~= "#808040", "that is the sRGB midpoint")
@@ -660,7 +797,7 @@ end)
 test("ramp: a third stop sits in the middle", function()
 	-- 64 steps over two segments puts no step exactly on the middle stop, so
 	-- the two either side of it are what say it is there.
-	local r = colour.ramp(colour.stops("#0b3d91 -> #ffffff -> #7fd4ff", "x"))
+	local r = colour.ramp(stops("#0b3d91 -> #ffffff -> #7fd4ff", "x"))
 	eq(r[1], "#0b3d91")
 	eq(r[#r], "#7fd4ff")
 	eq(r[32], "#fbfcfd")

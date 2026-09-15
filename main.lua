@@ -21,7 +21,11 @@ local column = require(".column")
 -- `children_add` is called for all of them and has to decide for itself.
 local PANES = { "current", "parent", "preview" }
 
----@type supaline.Cfg
+-- Not `supaline.Cfg`, which this is two keys short of and has to be. `scale`
+-- and `band` are the two a default cannot be written for -- the comments below
+-- say why each -- so claiming the class here would be claiming two fields that
+-- are deliberately absent, and the checker is right to say so. `setup` builds
+-- the record itself and that one is claimed.
 local DEFAULTS = {
 	-- The string a user writes, not the record `render` reads. Every separator
 	-- in the plugin now becomes a record in the same place and on the same
@@ -42,9 +46,12 @@ local DEFAULTS = {
 	-- `setup`" and nothing else. `column.lua` resolves the three sources in
 	-- order and holds the fallback for a column that gets none of them.
 	--
-	-- No `band` either, for a different reason: its default is two Oklab
-	-- lightnesses that only `colour.lua` can justify, so it is kept beside the
-	-- measurements that settled it and `colour.bounds` hands it back.
+	-- No `band` either, and that one has no default anywhere rather than a
+	-- default kept elsewhere. A band's two ends are lightnesses the ground it
+	-- is drawn on decides; supaline cannot see that ground, so a pair written
+	-- here would be a guess applied to everyone who never asked. `colour.lua`
+	-- holds the pair it recommends, the refusals quote it, and a `<->` with no
+	-- band behind it is refused rather than drawn.
 }
 
 --- The module table, as a spec sees it.
@@ -100,7 +107,7 @@ local M = {}
 ---@field separator string|supaline.SepSpec|nil
 ---@field order integer?
 ---@field scale "linear"|"log"|nil
----@field band supaline.Band? the lightnesses a band runs between
+---@field band supaline.Bands? the bands a `<->` may name, by name
 
 -- What `setup` itself takes, which is the only thing that refuses everything
 -- else. The same reason `OPTIONS` above has, one level up: a key in the table
@@ -834,7 +841,7 @@ function M.setup(_st, opts)
 		-- Checked in `colour.lua`, where the two numbers mean something and
 		-- where the default they fall back to lives. Before the commit, so a
 		-- band written wrong leaves the configuration already running alone.
-		band = colour.bounds(opts.band, "`band` in `setup`"),
+		band = colour.bands(opts.band, "`band` in `setup`"),
 	}
 
 	local next_specs = opts.linemodes or {}

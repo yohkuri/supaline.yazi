@@ -204,7 +204,7 @@ test("setup: a key `setup` itself does not take is refused", function()
 	-- And the five it does take still go through.
 	setup(
 		{ t = { { "size", width = 3 } } },
-		{ separator = "|", order = 1400, scale = "log", band = { from = 0.2, to = 0.9 } }
+		{ separator = "|", order = 1400, scale = "log", band = { fg = { from = 0.2, to = 0.9 } } }
 	)
 end)
 
@@ -695,18 +695,19 @@ test("theme: one colour with `<->` is a gradient a theme can ask for", function(
 	-- draws the light end of the band around `#7fd4ff` and the smallest draws
 	-- the dark one. `colour_spec.lua` pins where each lands and why.
 	with_theme({ size = "#7fd4ff <->" }, function()
-		setup { detail = { { "size", width = 4 } } }
+		setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.35, to = 0.88 } } })
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#a8e1ff")
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#223f4d", "and the low end below it")
 	end)
 end)
 
-test("theme: `band` in `setup` moves both ends of every band", function()
-	-- The plugin-wide knob, and the reason it is plugin-wide: a band is a claim
-	-- about what the terminal can show, and a terminal does not change between
-	-- one column and the next.
+test("theme: the `fg` band in `setup` is what a themed `<->` is drawn at", function()
+	-- A theme field holds one value, so a band written there is a bare string
+	-- and a bare string is the `fg` key: `fg` is the name it asks for, and the
+	-- name is the whole of how the two files meet. A flavour writes the hue; a
+	-- reader's `setup` writes the two lightnesses their own ground decides.
 	with_theme({ size = "#0b3d91 <->" }, function()
-		setup({ detail = { { "size", width = 4 } } }, { band = { from = 0.50, to = 0.70 } })
+		setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.50, to = 0.70 } } })
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#649cff", "the high end")
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#155ace", "and the low one")
 	end)
@@ -717,7 +718,7 @@ test("theme: a band written backwards is what a light terminal asks for", functi
 	-- inverting it is writing it the other way round. Nothing else changes:
 	-- the same two lightnesses, the same hue, the largest file now dark.
 	with_theme({ size = "#0b3d91 <->" }, function()
-		setup({ detail = { { "size", width = 4 } } }, { band = { from = 0.88, to = 0.35 } })
+		setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.88, to = 0.35 } } })
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#08347f", "the largest file is dark")
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#c2d9ff", "and the smallest pale")
 	end)
@@ -725,11 +726,11 @@ end)
 
 test("theme: a band survives a theme reload", function()
 	-- `build()` re-runs `compile(specs, cfg)`, so anything in `cfg` has to
-	-- reach the rebuilt ramp as well as the first one. A band read at setup and
-	-- then dropped would go back to the default the next time `app:theme`
-	-- fired, which is a colour changing under the user for no reason on screen.
+	-- reach the rebuilt ramp as well as the first one. Bands read at setup and
+	-- then dropped would leave the next `app:theme` with none defined, which
+	-- turns a drawing column into a refusal for no reason on screen.
 	with_theme({ size = "#0b3d91 <->" }, function()
-		setup({ detail = { { "size", width = 4 } } }, { band = { from = 0.88, to = 0.35 } })
+		setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.88, to = 0.35 } } })
 		stub.fire("theme")
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#08347f")
 	end)
@@ -741,10 +742,51 @@ test("setup: a band that is not two lightnesses is refused, and changes nothing"
 
 	throws(
 		---@diagnostic disable-next-line: assign-type-mismatch
-		function() main.setup({}, { linemodes = { good = { "size" } }, band = { from = 0.35 } }) end,
-		"`band` in `setup`"
+		function() main.setup({}, { linemodes = { good = { "size" } }, band = { fg = { from = 0.35 } } }) end,
+		"`band` in `setup`: `fg`"
 	)
 	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
+end)
+
+test("setup: a `<->` with no band behind it is refused, and changes nothing", function()
+	-- The front door, from the outside. A `setup` that defines no band and a
+	-- spec that writes one is the first thing a reader does, and what they get
+	-- is the message rather than a column drawn at a pair nobody chose.
+	setup { good = { { "size", width = 3 } } }
+	local before = draw("good", CURRENT.files[1])
+
+	throws(
+		function() main.setup({}, { linemodes = { good = { { "size", style = "#0b3d91 <->" } } } }) end,
+		"nothing defines `fg`"
+	)
+	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
+end)
+
+test("setup: a band a spec names by hand is drawn at that band", function()
+	-- The other half of the name: a string may ask for a band the key it was
+	-- written under is not called, which is the only way one column differs
+	-- from the next.
+	setup({ detail = { { "size", width = 4, style = "#0b3d91 <-> dim" } } }, {
+		band = { fg = { from = 0.35, to = 0.88 }, dim = { from = 0.50, to = 0.70 } },
+	})
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#649cff", "`dim`, not `fg`")
+end)
+
+test("setup: a `style` function's band name is read on the pass that draws", function()
+	-- A function is called once per build rather than once at setup, so that it
+	-- sees the flavour. Every level that can hold one is pinned elsewhere; what
+	-- this adds is that the name inside what it returned is resolved on that
+	-- same pass, rather than the string being kept and read once.
+	local asked = 0
+	local style = function()
+		asked = asked + 1
+		return "#0b3d91 <-> dim"
+	end
+	setup({ detail = { { "size", width = 4, style = style } } }, { band = { dim = { from = 0.50, to = 0.70 } } })
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#649cff")
+	stub.fire("theme")
+	eq(asked, 2, "called again on the rebuild")
+	eq(stub.first_style(Linemode.detail { _file = CURRENT.files[2] }).fg, "#649cff", "and resolved again")
 end)
 
 test("theme: a colour in the spec replaces a themed gradient, and keeps the rest of the theme's", function()

@@ -482,6 +482,16 @@ local HUE = "#0b3d91 -> #ffd400"
 -- falling to the floor would be nearly flat, and this one is not.
 local BAND = "#0b3d91 <->"
 
+-- The same band, asked for by name rather than by the key it is written under.
+-- `c_band`'s two columns then take one path each -- the name off the key, and
+-- the name off the string -- and draw the identical ramp, so `e2e.sh` reads
+-- both of them with the check it already had, and a name that failed to
+-- resolve is a refusal rather than a column that looks right.
+--
+-- `both` is defined below to the same pair as `fg` for exactly that reason. A
+-- second pair here would test the name and lose the comparison.
+local BAND_BY_NAME = "#0b3d91 <-> both"
+
 -- The background `c_bg` puts under that ramp. Picked by measurement rather
 -- than taste, because it has to answer to two things at once: the terminal
 -- ground it is *seen* against, which is the reader's and unknown here, and the
@@ -574,6 +584,20 @@ supaline.column("name_line", {
 local EDGE = { "mark" }
 
 supaline:setup({
+	-- Every band this fixture draws, because supaline defines none: a marked
+	-- colour with no band behind it is refused, so a fixture that said nothing
+	-- here would not build. Both names are the pair `colour.lua` recommends,
+	-- which is what every number `e2e.sh` and `MANUAL.md` assert was measured
+	-- at.
+	--
+	-- The marker is spelled out rather than quoted, for the reason the comment
+	-- above `BAND` gives: the second search at the end of this file reads a
+	-- line with an arrow in it as a ramp, and the marker has one inside it.
+	band = {
+		fg = { from = 0.35, to = 0.88 },
+		both = { from = 0.35, to = 0.88 },
+	},
+
 	linemodes = {
 		-- m0: one column, so `m s` is a fair comparison.
 		plain = { "size" },
@@ -680,7 +704,7 @@ supaline:setup({
 		-- the only instrument for is whether what it chose is worth drawing.
 		c_band = {
 			{ "ratio", style = BAND },
-			{ "mtime", style = BAND },
+			{ "mtime", style = BAND_BY_NAME },
 		},
 
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,
@@ -798,8 +822,14 @@ RAMP_SOURCES="$DIR/config/init.lua $DIR/themes/*.toml"
 # Two alternatives, because a band is not a short ramp: it has one colour and
 # the marker sits beside it rather than between two of them. `<->` first, so
 # the arrow inside it cannot be matched as a ramp with an empty end.
+#
+# The band alternative takes an optional name after the marker, which is what a
+# `<->` writes when it wants a band other than the one its key is called. The
+# name is not resolved here and does not have to be: `ramp.lua` answers every
+# name with the pair it was given, because what it is for is looking at a pair
+# rather than at a `setup`.
 # shellcheck disable=SC2086 # the split and the glob above are the point
-grep -hoE '"(#[0-9a-fA-F]{6}[[:space:]]*<->|#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+)"' $RAMP_SOURCES |
+grep -hoE '"(#[0-9a-fA-F]{6}[[:space:]]*<->([[:space:]]*[a-z][a-z0-9_]*)?|#[0-9a-fA-F]{6}([[:space:]]*->[[:space:]]*#[0-9a-fA-F]{6})+)"' $RAMP_SOURCES |
 	tr -d '"' | sort -u >"$DIR/ramps.txt"
 
 # And a second, looser search saying the first one caught everything. Nothing
