@@ -40,12 +40,23 @@ spends whatever it has to in order to keep it -- scaling all three axes
 together while the display allows, and giving up chroma rather than hue once
 it does not. `colour.lua`'s `M.band` carries the measurements for both.
 
-Both ends of that band are **fixed lightnesses**, set plugin-wide by `band` in
-`setup` and not derived from the colour. The colour supplies the hue and
-nothing else, so it need not appear in the band it names -- black and white
-give the identical grey band, and neither is refused. Say so wherever the band
-is described: "spread a colour both ways" reads as though the written colour
-were an endpoint, which it was until `band` landed and is not now.
+Both ends of that band are **fixed lightnesses**, not derived from the colour.
+The colour supplies the hue and nothing else, so it need not appear in the band
+it names -- black and white give the identical grey band, and neither is
+refused. Say so wherever the band is described: "spread a colour both ways"
+reads as though the written colour were an endpoint, which it was until `band`
+landed and is not now.
+
+Where those two lightnesses come from is a **name**. `band` in `setup` holds
+bands by name; a `<->` takes the band called after the key it was written
+under, `fg` or `bg`, or names another after the marker. **No name has a
+default and none is built in**, so a `<->` with no band behind it is refused
+rather than drawn. `colour.lua` carries a pair it recommends and every refusal
+quotes it, which is not the same thing: the two ends are a claim about the
+ground the column is drawn on, that ground is the reader's, and a pair applied
+to whoever said nothing would be a guess that draws rather than a question that
+asks. Do not describe the recommended pair as a default, in this file or
+anywhere else.
 
 Whether supaline ships status columns of its own — version control, dotfile
 management — is **undecided**. Do not describe them as planned or forthcoming,
