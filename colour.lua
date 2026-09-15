@@ -122,19 +122,69 @@ local BOTH = "<->"
 -- quite brightened. The two were drawn at 64 steps over four bases and
 -- compared side by side; 0.88 is the one that was easier to read.
 --
--- **A light terminal wants the pair the other way round**, which is the other
--- half of what `setup`'s `band` is for: `{ from = 0.90, to = 0.35 }` puts the
--- pale end at ratio 0 and the dark one at ratio 1, and nothing else has to
--- change. 0.90 is the mirror of the default's own margin -- 0.35 clears the
--- lightest dark ground by 0.057, and 0.90 clears the darkest light ground by
--- 0.058, Latte's `#eff1f5` at 0.958. Its other end is not derivable and was
--- not derived: 0.35 is there because the dark default's is, and a light
--- terminal is worth looking at with `test/ramp.lua` before settling on one.
+-- **A light terminal wants the pair the other way round**: `{ from = 0.90,
+-- to = 0.35 }` puts the pale end at ratio 0 and the dark one at ratio 1, and
+-- nothing else has to change. 0.90 is the mirror of the dark pair's own margin
+-- -- 0.35 clears the lightest dark ground by 0.057, and 0.90 clears the
+-- darkest light ground by 0.058, Latte's `#eff1f5` at 0.958. Its other end is
+-- not derivable and was not derived: 0.35 is there because the dark pair's is,
+-- and a light terminal is worth looking at with `test/ramp.lua` before
+-- settling on one.
+--
+-- **None of this is applied to anybody.** Every sentence above measures a
+-- population -- five grounds, four bases, one pair of eyes -- and a band is a
+-- claim about the one ground it is drawn on, which is the reader's and which
+-- the paragraph above says outright supaline cannot see. So what these numbers
+-- buy is a recommendation to quote, not a value to reach for when nobody said:
+-- a band with no definition behind it is refused, and the refusal carries this
+-- pair for the reader to paste and then move. The alternative was to apply
+-- them quietly, which draws a band that may be wrong for the ground and says
+-- nothing about being adjustable at all -- the shape of failure the rest of
+-- this plugin refuses.
 --- The two lightnesses a band runs between, `from` at ratio 0.
 ---@alias supaline.Band { from: number, to: number }
 
+--- Bands by name, as `setup` was given them. Every name a `<->` can reach is
+--- in here; there is nothing behind it.
+---@alias supaline.Bands table<string, supaline.Band>
+
 ---@type supaline.Band
-local DEFAULT_BAND = { from = 0.35, to = 0.88 }
+local RECOMMENDED = { from = 0.35, to = 0.88 }
+
+--- What a band with no definition is told to write, as a fresh table.
+---
+--- Fresh because what leaves here goes into a `supaline.Bands` its caller owns
+--- -- `test/ramp.lua` builds one out of it -- and a shared table handed out
+--- twice is two callers writing to one band.
+---@return supaline.Band
+function M.recommended() return { from = RECOMMENDED.from, to = RECOMMENDED.to } end
+
+-- The pair as the refusals spell it, built once from the table above so the
+-- message and the value cannot drift.
+local RECOMMENDED_AS_WRITTEN = string.format("{ from = %s, to = %s }", RECOMMENDED.from, RECOMMENDED.to)
+
+-- What a band's name may hold. The shape `theme.toml` holds a custom section's
+-- field names to, rather than a second one of this plugin's own: a band name
+-- is read beside a column name often enough that two rules would be two things
+-- to remember, and the traps skill still has an open question about what
+-- Yazi's parser does to a field name that is not this shape.
+local NAME = "^[a-z][a-z0-9_]*$"
+
+-- And the two a band writes inside itself, which are therefore not names a
+-- band can have. `to` is the one that would otherwise read as a band called
+-- `to`; `from` is here so the pair is refused together.
+local RESERVED = { from = true, to = true }
+
+-- A band under every name, for the one caller that reads a value only in order
+-- to refuse it. `M.flat` is handed a separator's style, and a separator has no
+-- value to place on a ramp, so every gradient and every band it can hold is
+-- turned away a line after it is parsed -- but it has to be parsed to be
+-- recognised. Resolving those names against the user's `setup` instead would
+-- put "nothing defines `dim`" in front of someone whose actual mistake is that
+-- a separator cannot carry a band at all, and defining `dim` would not fix it.
+--
+-- Nothing drawn ever comes out of here: `M.flat` raises before it returns.
+local ANY_BAND = setmetatable({}, { __index = function() return RECOMMENDED end })
 
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 
@@ -411,11 +461,12 @@ end
 --- Yazi's parser would not take.
 ---@param value any
 ---@param where string
----@param band supaline.Band? for a band, the default when omitted
+---@param bands supaline.Bands
+---@param fallback string the band a `<->` naming none is asking for
 ---@return supaline.Paint
-local function paint(value, where, band)
+local function paint(value, where, bands, fallback)
 	if M.is_ramp(value) then
-		return M.stops(value, where, band)
+		return M.stops(value, where, bands, fallback)
 	end
 	M.colour(value, where)
 	return value
@@ -439,18 +490,25 @@ end
 --- they are here. The shape tests are for a table the user typed: Yazi does
 --- not hand back a constructor, and a `ui.Style()` holding nothing is a layer
 --- that says nothing, which is allowed.
+--- A `<->` under `fg` asks for the band called `fg`, and one under `bg` for the
+--- band called `bg`. The key is the name, which is what makes the common case
+--- silent: a string that wants some other band says so after the marker, and
+--- one that does not is asking for the band named after where it was written.
+---
+--- A bare string is the `fg` key spelled short, here as everywhere else, so it
+--- asks for `fg` too.
 ---@param value any nil, `false`, a colour string, a style table, or a ui.Style
 ---@param where string
----@param band supaline.Band? the default when omitted
+---@param bands supaline.Bands every band `setup` defined
 ---@return supaline.Layer|false
-function M.layer(value, where, band)
+function M.layer(value, where, bands)
 	local t
 	if value == nil then
 		return {}
 	elseif value == false then
 		return false
 	elseif type(value) == "string" then
-		return { fg = paint(value, where, band) }
+		return { fg = paint(value, where, bands, "fg") }
 	elseif is_style(value) then
 		t = (value --[[@as supaline.Style]]):raw()
 	elseif type(value) ~= "table" then
@@ -516,7 +574,7 @@ function M.layer(value, where, band)
 		if v == false then
 			layer[k] = false
 		elseif v ~= nil then
-			layer[k] = paint(v, string.format("%s: `%s`", where, k), band)
+			layer[k] = paint(v, string.format("%s: `%s`", where, k), bands, k)
 		end
 	end
 	for _, k in ipairs(ATTRS) do
@@ -647,7 +705,7 @@ end
 function M.flat(value, where)
 	-- `false` is a separator's caller's to refuse, and it does, before this is
 	-- reached; here it would be a style saying nothing, which is what it is.
-	local layer = M.layer(value, where) or {}
+	local layer = M.layer(value, where, ANY_BAND) or {}
 	local key = M.gradient_in(layer)
 	if key then
 		error(
@@ -673,11 +731,17 @@ end
 ---@return boolean
 function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1, true) ~= nil end
 
---- The band `setup` was given, checked, or the default when it was given none.
+--- One band, checked.
 ---
 --- Checked here rather than in `main.lua` because the pair means something
 --- only to this file, and because `test/ramp.lua` takes one on the command
 --- line and wants the refusals a user's `init.lua` gets.
+---
+--- Nil is refused along with everything else that is not a table. It used to
+--- be the one value that meant something -- "the user wrote no band" -- and
+--- what it returned was the pair above; nothing falls back to that pair now,
+--- so nil arriving here is a caller that read a name nobody defined and did
+--- not check, rather than a user who said nothing.
 ---
 --- A lightness of 0 is black whatever the hue, so an end there is one no
 --- colour reaches and a step most themes draw in their own background; `(0, 1]`
@@ -696,13 +760,11 @@ function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1
 --- either: whether the steps collapse depends on the hue they are drawn at,
 --- which this function never sees, so one column's colour would refuse a band
 --- the rest of them take.
----@param value any what `setup` was given, if anything
+---@param value any
 ---@param where string
 ---@return supaline.Band
 function M.bounds(value, where)
-	if value == nil then
-		return DEFAULT_BAND
-	elseif type(value) ~= "table" then
+	if type(value) ~= "table" then
 		error(
 			string.format(
 				"supaline: %s must be a table of two lightnesses, as "
@@ -742,20 +804,121 @@ function M.bounds(value, where)
 	return out
 end
 
---- Take the `<->` off a value that carries one.
+--- Every band `setup` was given, by name.
 ---
---- Only the marker is removed; what is left is a colour like any other, and
---- goes on to be read as the one stop a band is built from. So there is one
---- path from written value to stops, and `<->` decides nothing but whether
---- one colour is a band or a mistake.
+--- A namespace rather than a fixed set, which costs this option the sweep
+--- every other table a user writes gets: `claims_setup` refuses a key `setup`
+--- does not take, `claims_style` one a style does not, and there is no
+--- equivalent here because every name is a name somebody may have meant. A
+--- band called `bgg` is a band called `bgg`.
+---
+--- What stands in for it is at the use site. A `<->` naming a band nobody
+--- defined is refused, and that refusal lists what *is* defined -- so the
+--- misspelling is read off the message, one step later than a sweep would have
+--- caught it and in the same session.
+---
+--- No name is built in and none is filled in. `fg` and `bg` are ordinary names
+--- that `M.layer` happens to look up, because they are what the two keys are
+--- called; a `setup` that defines neither is a `setup` where every `<->` is
+--- refused, which is the whole of what "no default" means here.
+---@param value any what `setup` was given under `band`, if anything
+---@param where string
+---@return supaline.Bands
+function M.bands(value, where)
+	if value == nil then
+		return {}
+	elseif type(value) ~= "table" then
+		error(
+			string.format(
+				"supaline: %s must be a table of bands by name, as "
+					.. "`{ fg = %s }`, and a name is then what a `<->` asks for",
+				where,
+				RECOMMENDED_AS_WRITTEN
+			)
+		)
+	end
+
+	-- The pair itself, written where a table of them goes. Told apart by the
+	-- type rather than by the key, so a band genuinely named `to` reaches the
+	-- name check below and is refused there for being a reserved word, rather
+	-- than being reported as this.
+	if type(value.from) == "number" or type(value.to) == "number" then
+		error(
+			string.format(
+				"supaline: %s: `from` and `to` are a band's own keys, and `band` holds bands "
+					.. "by name. Write `band = { fg = %s }`, and name a second band to reach it "
+					.. "from a `<->`",
+				where,
+				RECOMMENDED_AS_WRITTEN
+			)
+		)
+	end
+
+	local out = {}
+	for name, one in pairs(value) do
+		if type(name) ~= "string" or not name:find(NAME) then
+			error(
+				string.format(
+					"supaline: %s: `%s` is not a band name. A name holds lowercase letters, "
+						.. "digits and `_`, and starts with a letter",
+					where,
+					tostring(name)
+				)
+			)
+		elseif RESERVED[name] then
+			error(
+				string.format(
+					"supaline: %s: `%s` is one of a band's own two keys and cannot also be a "
+						.. "band's name. Call the band something else",
+					where,
+					name
+				)
+			)
+		end
+		out[name] = M.bounds(one, string.format("%s: `%s`", where, name))
+	end
+
+	return out
+end
+
+--- Split a value on its `<->`: the colour before it, the band's name after.
+---
+--- The two halves come back apart rather than rejoined. Joining was right
+--- while the marker was the whole of what a band said -- what was left was a
+--- colour like any other and went on to be read as one -- and a name after the
+--- marker makes that tail a second thing rather than more of the first.
+---
+--- One refusal moves with it. `#a <-> #b` used to be caught by the joined body
+--- having a space in it; what catches it now is that `#b` is not a band name,
+--- which is the same mistake reported one step closer to it.
 ---@param s string
----@return string body, boolean marked
+---@return string colour, string? name, boolean marked
 local function unmark(s)
 	local a, b = s:find(BOTH, 1, true)
 	if not a then
-		return s, false
+		return s, nil, false
 	end
-	return (s:sub(1, a - 1) .. s:sub(b + 1)):match("^%s*(.-)%s*$"), true
+	local name = s:sub(b + 1):match("^%s*(.-)%s*$")
+	return s:sub(1, a - 1):match("^%s*(.-)%s*$"), name ~= "" and name or nil, true
+end
+
+--- The bands there are, for a refusal to list.
+---
+--- Sorted, for the reason every other key list here is: `pairs` gives a set
+--- back in whatever order the hash does, and a message that reorders itself
+--- between runs reads as a different message.
+---@param bands supaline.Bands
+---@return string
+local function defined_in(bands)
+	local names = {}
+	for name in pairs(bands) do
+		names[#names + 1] = name
+	end
+	if #names == 0 then
+		return "No band is defined yet"
+	end
+	table.sort(names)
+	return string.format("Defined: `%s`", table.concat(names, "`, `"))
 end
 
 ---@param s string
@@ -790,22 +953,60 @@ end
 --- to go on meaning one.
 ---@param value any a string like `#0b3d91 -> #7fd4ff`, or `#7fd4ff <->`
 ---@param where string
----@param band supaline.Band? the default when omitted
+---@param bands supaline.Bands every band `setup` defined
+---@param fallback string the band a `<->` that names none is asking for
 ---@return integer[][]
-function M.stops(value, where, band)
+function M.stops(value, where, bands, fallback)
 	if type(value) ~= "string" then
 		error(string.format("supaline: %s must be a string like `#0b3d91 -> #7fd4ff`, got a %s", where, type(value)))
 	end
-	local body, marked = unmark(value)
-	if marked and (body == "" or body:find("%s")) then
-		error(
-			string.format(
-				"supaline: %s: `%s` is not a band. `<->` spreads one colour both ways, "
-					.. "as `#ff8800 <->`; to choose the ends yourself, write them with `->`",
-				where,
-				value
+	local body, name, marked = unmark(value)
+	local band
+	if marked then
+		if body == "" or body:find("%s") then
+			error(
+				string.format(
+					"supaline: %s: `%s` is not a band. `<->` spreads one colour both ways, "
+						.. "as `#ff8800 <->`; to choose the ends yourself, write them with `->`",
+					where,
+					value
+				)
 			)
-		)
+		elseif name and not name:find(NAME) then
+			error(
+				string.format(
+					"supaline: %s: `%s` is not a band name. What follows `<->` names a band "
+						.. "`setup` defined, in lowercase letters, digits and `_`; to choose "
+						.. "the two ends of a ramp yourself, write them with `->`",
+					where,
+					name
+				)
+			)
+		end
+
+		-- The key this was written under when the string named nothing, which
+		-- is the whole of how `bg = "#x <->"` reaches a band of its own: the
+		-- name is read off the writing, and a string that wants another one
+		-- says so.
+		local wanted = name or fallback
+		band = bands[wanted]
+		if not band then
+			error(
+				string.format(
+					"supaline: %s: `%s` is a band and nothing defines `%s`. Both ends of a band "
+						.. "are lightnesses the ground it is drawn on decides, and supaline "
+						.. "cannot see that ground -- so there is no pair to fall back to. Put "
+						.. "`band = { %s = %s }` in `setup` and move it to suit your terminal; "
+						.. "`lua test/ramp.lua` draws a pair before you keep it. %s",
+					where,
+					value,
+					wanted,
+					wanted,
+					RECOMMENDED_AS_WRITTEN,
+					defined_in(bands)
+				)
+			)
+		end
 	end
 	local written = marked and { body } or split(value)
 
@@ -831,7 +1032,7 @@ function M.stops(value, where, band)
 		-- Forward, through the table: the band is Oklab arithmetic and the
 		-- locals it runs on are declared below, where the rest of that
 		-- arithmetic lives. Reachable by the time anything calls this.
-		return M.band(stops[1], band)
+		return M.band(stops[1], band --[[@as supaline.Band]])
 	elseif #stops < 2 then
 		error(
 			string.format(
@@ -1004,11 +1205,9 @@ end
 ---   on the band anywhere, and unless its own lightness happens to fall
 ---   between the two bounds it is not on it at all.
 ---@param rgb integer[]
----@param band supaline.Band? the default when omitted
+---@param band supaline.Band the two ends, which the caller resolved by name
 ---@return integer[][] two stops, ratio 0 first
 function M.band(rgb, band)
-	band = band or DEFAULT_BAND
-
 	local L, A, B = to_oklab(rgb)
 	local chroma = math.sqrt(A * A + B * B)
 
