@@ -73,7 +73,7 @@ desc = "Linemode: size and mtime"
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
 | `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](#a-coloured-separator). |
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
-| `band`      | `{ from = 0.35, to = 0.88 }` | The two Oklab lightnesses a one-colour band runs between, `from` at ratio 0. Write it backwards for a light terminal; see [`band`](#band). |
+| `band`      | —           | The bands a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no band behind it is refused; see [`band`](#band). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
 
 Those five are the whole of it: a key that is none of them — `scal`, `bnad`,
@@ -540,11 +540,15 @@ one.
 ### A band around one colour
 
 One colour is a gradient too. `<->` spreads it across a fixed band of
-lightness — 0.35 to 0.88 in Oklab by default, dark end first:
+lightness — two Oklab lightnesses you name in [`band`](#band):
 
 ```lua
-{ "size", style = "#7fd4ff <->" }
-{ "size", style = { bg = "#7fd4ff <->" } }
+require("supaline"):setup {
+  band = { fg = { from = 0.35, to = 0.88 } },
+  linemodes = {
+    detail = { { "size", style = "#7fd4ff <->" } },
+  },
+}
 ```
 
 ```toml
@@ -554,6 +558,21 @@ size = "#7fd4ff <->"
 
 The marker is always there. `"#7fd4ff"` on its own is a flat colour, in a spec
 and in a theme alike, and the marker is what says otherwise.
+
+**Which band it asks for is the key it was written under.** A `<->` under `fg`
+takes the band called `fg`, one under `bg` the band called `bg`, and a string
+on its own is the `fg` key spelled short. To ask for another, name it after the
+marker:
+
+```lua
+band = { fg = { from = 0.35, to = 0.88 }, bg = { from = 0.15, to = 0.40 } },
+...
+{ "size", style = { fg = "#7fd4ff <->", bg = "#7fd4ff <->" } }  -- two bands
+{ "size", style = "#7fd4ff <-> bg" }                            -- the `bg` one under `fg`
+```
+
+**A `<->` with no band behind it is refused**, and the message carries a pair
+to paste. Nothing is filled in for you — see [`band`](#band) for why.
 
 **The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
 axis as the colour you wrote, so every step between them does too. As far as
@@ -582,48 +601,99 @@ ratio at the same lightness, so a row reads across them — where a band widened
 to take in whatever colour was written would leave the darkest cell of one
 column and the darkest cell of the next meaning different things.
 
+Two columns on *different* bands are two columns you can no longer read across,
+and naming a second band is how you say you meant that. `bg` is the clearest
+case: it is drawn beneath the row's own text rather than on the ground, so it
+is not the same question and not the same pair. Naming a band says a second
+place is being drawn to — not that your terminal changed between one column and
+the next.
+
 ### `band`
 
-Where those two lightnesses are. `from` is what ratio 0 draws and `to` what
-ratio 1 draws, so the pair carries its own direction:
+Where those two lightnesses are. Bands live here by name, and a `<->` asks for
+one of them:
 
 ```lua
 require("supaline"):setup {
-  band = { from = 0.35, to = 0.88 },
+  band = {
+    fg  = { from = 0.35, to = 0.88 },
+    bg  = { from = 0.15, to = 0.40 },
+    dim = { from = 0.30, to = 0.55 },
+  },
   linemodes = { ... },
 }
 ```
 
-Plugin-wide and nowhere else. A band is a claim about what your terminal can
-show, and that does not change between one column and the next.
+`from` is what ratio 0 draws and `to` what ratio 1 draws, so each pair carries
+its own direction. Names hold lowercase letters, digits and `_`, and start with
+a letter — the shape `theme.toml` holds a field name to. `from` and `to` are a
+band's own keys and cannot be a band's name.
 
-The default assumes a **dark terminal**, and supaline cannot check: Yazi
-exposes no background to read, and a flavour that sets none leaves your
-terminal's own showing through, which Yazi does not know either. 0.35 is where
-a step stops being lighter than the ground it is drawn on, measured against
-five common dark backgrounds; 0.88 was chosen by looking.
+`fg` and `bg` are ordinary names with one convenience: they are what the two
+style keys are called, so a `<->` written under `fg` asks for `fg` without
+saying so. Any other name is asked for after the marker, `"#7fd4ff <-> dim"`.
+
+**Nothing is defined for you.** A `<->` with no band behind it is refused, and
+the message carries a pair to paste:
+
+```lua
+band = { fg = { from = 0.35, to = 0.88 } }
+```
+
+#### Why there is no default
+
+Those two numbers are a claim about the **ground the column is drawn on** — and
+that ground is yours. Yazi exposes no background to read, and a flavour that
+sets none leaves your terminal's own showing through, which Yazi does not know
+either. Beyond the ground, the hue of it, the calibration of your display and
+how much contrast your eyes want at that size are all yours as well.
+
+The pair above is what supaline measured, and measuring it took a population
+rather than a person: 0.35 is where a step stops being lighter than the ground,
+across five common dark backgrounds, and 0.88 was chosen by looking at
+sixty-four steps over four base colours. That makes it a good place to start
+and a poor thing to apply to someone who never asked for it — a band would be
+drawn at a pair nobody chose, and nothing on screen would say it was a knob.
+So supaline recommends it, and you write it.
+
+#### Adjusting it
+
+Look at a pair before you keep it. This needs no Yazi and no restart:
+
+```sh
+lua test/ramp.lua --band 0.35,0.88 "#0b3d91 <->"
+```
+
+The solid line is the band itself — a stretch where several steps read as one
+colour shows up here and nowhere else. The digits under it are the same steps
+carrying text, which is the question a column actually asks: the low end has to
+be legible against your ground, not merely different from it.
+
+Move `from` up if the dark end sinks into your background, and `to` down if the
+light end glares. Both numbers are Oklab lightnesses, above 0 and at most 1.
 
 **On a light terminal, write the pair backwards:**
 
 ```lua
-band = { from = 0.90, to = 0.35 }
+band = { fg = { from = 0.90, to = 0.35 } }
 ```
 
 Ratio 0 is then the pale end and ratio 1 the dark one, and nothing else
-changes. 0.90 is the mirror of the default's own margin — it clears the
-darkest light background of the five by the same amount 0.35 clears the
-lightest dark one. The other end of that pair is a guess; look at it before
-keeping it:
+changes. 0.90 is the mirror of the recommended pair's own margin — it clears
+the darkest light background of the five by the same amount 0.35 clears the
+lightest dark one. The other end of that pair is a guess; `ramp.lua` is how you
+stop it being one.
 
-```sh
-lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
-```
+A band under `bg` wants a different pair rather than a reversed one: it is
+drawn *beneath* the row's own text, so both of its ends have to keep that text
+readable, and supaline can see neither the text nor the ground. There is no
+recommendation for that one at all — `ramp.lua` and your own screen are the
+whole of the method.
 
-Both numbers are Oklab lightnesses, above 0 and at most 1. Nothing checks them
-against each other: two ends at one lightness draw sixty-four steps of one
-colour, which is what a flat colour already is, and supaline takes it rather
-than guessing you did not mean it — a pair a hair apart draws the same column
-and no comparison of two numbers tells them apart.
+Nothing checks the two ends against each other: two ends at one lightness draw
+sixty-four steps of one colour, which is what a flat colour already is, and
+supaline takes it rather than guessing you did not mean it — a pair a hair
+apart draws the same column and no comparison of two numbers tells them apart.
 
 ### `scale`
 
@@ -662,6 +732,12 @@ size  = "#0b3d91 -> #7fd4ff"
 mtime = "#a6e3a1 <->"
 owner = { fg = "green", bold = true }
 ```
+
+A **band** in a theme asks for the band called `fg`, because a field holds one
+value and a bare string is the `fg` key: `mtime` above is drawn at whatever
+`band.fg` in your `setup` says, and is refused if you defined none. That is the
+division the two files are for — a flavour knows its own hues, and only you
+know the ground they will be drawn on.
 
 A string is a colour or a gradient; a table is a style, with the keys
 [`style`](#style) takes, and it says what the same table says in a spec:
