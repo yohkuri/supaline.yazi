@@ -812,9 +812,6 @@ EOF
 # places a ramp can live are covered -- a spec in `init.lua`, and a
 # `[supaline]` field in any of the themes.
 #
-# What this does not reach is a ramp written as a Lua list, `{ "#111", "#222" }`.
-# `colour.stops` takes one; a theme cannot hold one, and nothing here writes
-# one. Write one and it goes unprinted rather than printed wrong.
 # Named once so the two searches below cannot read different files. Left
 # unquoted at each use on purpose: the glob is expanded there, so a theme added
 # later is picked up by both.
@@ -845,8 +842,7 @@ grep -hoE '"(#[0-9a-fA-F]{6}[[:space:]]*<->([[:space:]]*[a-z][a-z0-9_]*)?|#[0-9a
 # single-quoted TOML string, an unusual spacing, a third stop. `-F` matches a
 # manifest entry anywhere in the line, so a line whose ramp was caught is
 # excluded whatever surrounds it, and an empty manifest leaves every one of
-# them behind. A Lua list stays out of reach of this one too -- it has no arrow
-# either -- which is the exemption above, not a gap in this.
+# them behind.
 # shellcheck disable=SC2086 # as above
 missed=$(grep -h -- '->' $RAMP_SOURCES | grep -vFf "$DIR/ramps.txt" || true)
 if [ -n "$missed" ]; then
