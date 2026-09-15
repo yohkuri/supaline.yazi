@@ -500,7 +500,7 @@ test("stops: one colour is a band with the marker, and a refusal without it", fu
 	throws(function() stops("#7fd4ff") end, "is one colour, and a gradient needs two ends")
 	throws(function() stops("#7fd4ff") end, "`#7fd4ff <->` to spread the one colour")
 
-	-- The list spelling is gone with it: what arrives here is a string.
+	-- A gradient is one string, so a list is refused as the wrong type.
 	throws(function() stops { "#0b3d91", "#7fd4ff" } end, "must be a string like")
 end)
 

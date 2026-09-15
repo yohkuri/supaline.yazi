@@ -223,11 +223,11 @@ end
 --- `stats` and a gradient without one is refused where it is written.
 ---
 --- Ten patches per row per frame, and no test against nil to skip them with:
---- `ctx.style` is a style whether or not anybody wrote one, so the guard the
---- old `attrs` had is gone. Buying it back means a second question on the
---- `ctx` beside `fg_written`, which is a documented field for every column to
---- carry so that one of them can skip ten merges beside the ten `ui.Span`
---- allocations above -- and those are the floor here anyway.
+--- `ctx.style` is a style whether or not anybody wrote one. A skip means a
+--- second question on the `ctx` beside `fg_written`, which is a documented
+--- field for every column to carry so that one of them can skip ten merges
+--- beside the ten `ui.Span` allocations above -- and those are the floor
+--- here anyway.
 ---@param perm string
 ---@param over unknown a ui.Style to put over each character's own
 ---@return table[] spans
