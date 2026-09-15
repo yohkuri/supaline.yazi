@@ -67,6 +67,17 @@ from kebab-case to snake_case (`[my-plugin]` becomes `th.my_plugin`), field
 values may only be a style table or a string, and **built-in section names are
 reserved** — a custom field added to `[mgr]` is unreachable.
 
+A field **name** is not normalised the way a section name is; it is refused.
+Yazi takes 1 to 20 characters of lowercase letters, digits and `_`, and answers
+anything else with a TOML parse error that discards the whole of `theme.toml`
+and falls back to the preset — so one bad field name costs every colour in the
+file, not just its own. That is loud, and the silent half is supaline's: a
+column's theme layer is `th.supaline[name]`, so a column registered under a
+name no field can hold draws perfectly and can never be themed. `register`
+refuses such a name, and `column_spec.lua` pins both halves of the rule,
+including the three spellings Yazi's own "snake-case" message implies it
+refuses and in fact accepts. `references/probes.md` has the measurement.
+
 Pinned twice, by `test/main_spec.lua` and by `test/e2e.sh` against a real Yazi,
 and both pins discriminate.
 

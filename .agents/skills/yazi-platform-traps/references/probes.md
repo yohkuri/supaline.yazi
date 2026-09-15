@@ -25,6 +25,7 @@ detached tmux, with a probe plugin and `ya.dbg`.
 - What the two theme pins discriminate
 - A fetcher that returns a boolean
 - What pins the parent-pane child
+- What a custom section will take as a field name
 
 ## What is merged before any plugin code runs, and what is not
 
@@ -324,3 +325,45 @@ have refused and a child does not.
 It pins the code that exists and nothing else. A new column can repeat the trap
 and keep the suite green, which is why the other two constraints of that shape
 became CI spelling checks instead; this one has no spelling to grep for.
+
+## What a custom section will take as a field name
+
+A `[supaline]` section holding one field per run, with `th.supaline` read back
+from `init.lua` into the debug log.
+
+| written | result |
+| ------- | ------ |
+| `beta_two`, `my_col2`, `a_b_c`, `a` | taken |
+| `_x`, `x_`, `2x`, `x__y` | taken |
+| `a_234567890123456789` (20) | taken |
+| `a_2345678901234567890` (21) | refused |
+| `alpha-one` | refused |
+| `GammaThree`, `UPPER` | refused |
+
+A refusal is a TOML parse error naming the line and the column, ending
+`must be 1-20 characters in snake-case`, and Yazi then discards the **whole
+file** and continues on its preset — `Press any key to continue with preset
+settings...`. The same blast radius as an array in a custom section, which
+`colour.lua` records beside `ARROW` for the same reason.
+
+The message says snake-case and the parser does not mean it: `_x`, `x_` and
+`2x` are all taken, so what is enforced is the length and the character class,
+`[a-z0-9_]`. `column.lua` reimplements exactly that and says why it has to —
+the rule is applied while Yazi parses the file, before any plugin code runs,
+so there is nothing to ask the way `M.colour` asks Yazi's colour parser.
+
+Two further things came back from the same run and are worth having in hand:
+
+- `th.supaline` is **userdata, not a table**. `pairs()` over it yields nothing,
+  so a plugin cannot enumerate what the theme provided; only a named read
+  works, and an unknown name answers `nil` without error.
+- A taken name reads back **verbatim**. `my_col` is `th.supaline.my_col`, a
+  string field arrives as the string and a style-table field as a `Style`.
+  Nothing is normalised on the way in, which is what makes the refusal above
+  the whole of the rule.
+
+Measured on 26.9.1 (Homebrew 2026-09-01) in a detached tmux, with a throwaway
+`YAZI_CONFIG_HOME`. What this did not cover: a name that is not valid UTF-8, a
+bare-key spelling TOML itself refuses before Yazi sees it, and whether the
+20-character limit is counted in bytes or in characters — every name tried was
+ASCII.
