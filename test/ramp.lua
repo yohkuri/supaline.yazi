@@ -84,13 +84,8 @@ end
 --- unreadable column. Counting in tens is what lets a reader say which step
 --- stopped being readable rather than "somewhere near the bottom".
 ---@param value string
----@param band supaline.Band
-local function show(value, band)
-	-- One band under every name a `<->` here could ask for. This tool draws the
-	-- pair it was given, so which name a string happens to write is not a
-	-- question it has any business asking -- where a user's `setup` has exactly
-	-- the names they wrote and a `<->` naming another is the refusal they want.
-	local bands = setmetatable({}, { __index = function() return band end })
+---@param bands supaline.Bands
+local function show(value, bands)
 	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua", bands, "fg"))
 	print("")
 	print(string.format("  %s    %d steps, %s to %s", value, #ramp, ramp[1], ramp[#ramp]))
@@ -130,12 +125,20 @@ if not values[1] then
 	os.exit(2)
 end
 
+-- One band under every name a `<->` here could ask for, built once the pair is
+-- known. This tool draws the pair it was given, so which name a string happens
+-- to write is not a question it has any business asking -- where a user's
+-- `setup` has exactly the names they wrote and a `<->` naming another is the
+-- refusal they want.
+---@type supaline.Bands
+local bands = setmetatable({}, { __index = function() return band end })
+
 local failed = false
 for n = 1, #values do
 	-- Each ramp on its own, so one that cannot resolve does not take the rest
 	-- of the screen with it. The message is the plugin's, and it is the same
 	-- one a user gets from a `theme.toml` that says the same thing.
-	local ok, err = pcall(show, values[n], band)
+	local ok, err = pcall(show, values[n], bands)
 	if not ok then
 		io.stderr:write(tostring(err):gsub("^.-:%d+: ", "") .. "\n")
 		failed = true
