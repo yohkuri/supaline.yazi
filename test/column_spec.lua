@@ -349,6 +349,34 @@ test("register: a column needs a render function", function()
 	end, "non-empty name")
 end)
 
+test("register: a name a theme field cannot hold is refused here", function()
+	-- The rule is Yazi's, measured on 26.9.1 against a real one: a custom
+	-- section's field name is 1-20 characters of lowercase letters, digits and
+	-- `_`, and a name outside that is a TOML parse error that discards the
+	-- whole of `theme.toml` and falls back to the preset. So it is refused at
+	-- `register`, where the reader still has the name in front of them, rather
+	-- than months later by a theme that takes their other colours with it.
+	local function reg(name)
+		return function()
+			column.register(name, { render = function() return "" end })
+		end
+	end
+
+	for _, name in ipairs { "my-col", "MyCol", "UPPER", "my col", "my.col", ("a"):rep(21) } do
+		throws(reg(name), "cannot be a column name")
+	end
+
+	-- Yazi's message says "snake-case" and its parser does not mean it: these
+	-- three are all taken by a real 26.9.1, so refusing them here would be
+	-- supaline inventing a rule the platform does not have. Twenty characters
+	-- is the boundary and it is inclusive.
+	for _, name in ipairs { "_x", "x_", "2x", "a", ("a"):rep(20) } do
+		reg(name)()
+		eq(type(column._registry[name]), "table")
+		column._registry[name] = nil
+	end
+end)
+
 test("register: a column may not own asynchronous state", function()
 	-- `ya.sync` blocks are matched by position between the two interpreters, so
 	-- one registered from init.lua would never be replayed on the async side.

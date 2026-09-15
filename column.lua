@@ -562,6 +562,25 @@ local function refuse_unknown(t, name, def, role)
 	)
 end
 
+--- What a column may be called, which is decided by `theme.toml` rather than
+--- here: a column's theme layer is `th.supaline[name]`, so the name has to be
+--- one a custom theme section can hold as a field.
+---
+--- Measured on 26.9.1, and reimplemented rather than asked because there is
+--- nothing to ask -- the rule is enforced while Yazi parses the file, before
+--- any plugin code runs, and there is no call that answers "would this name
+--- do". So it can go stale, and the direction it would go stale in is
+--- refusing a name a newer Yazi accepts. Re-measure it there before believing
+--- this line over the platform.
+---
+--- Yazi's own message says "1-20 characters in snake-case" and its parser is
+--- looser than that reads: `_x`, `x_` and `2x` are all taken, so what is
+--- actually enforced is the length and the character class. Refusing the
+--- leading-letter rule `colour.lua` holds a band name to would be supaline
+--- inventing a restriction the platform does not have.
+local NAME = "^[a-z0-9_]+$"
+local NAME_MAX = 20
+
 --- Register a reusable column under `name`, so a linemode can refer to it as
 --- `"name"` or `{ "name", ... }`.
 ---@param name string
@@ -569,6 +588,26 @@ end
 function M.register(name, def)
 	if type(name) ~= "string" or name == "" then
 		error("supaline: a column needs a non-empty name")
+	elseif not name:find(NAME) or #name > NAME_MAX then
+		-- Refused here rather than left to the theme, because the theme refuses
+		-- it in the worst available way: `[supaline] my-col = ...` is a TOML
+		-- parse error, and Yazi answers one by discarding the *whole file* and
+		-- falling back to its preset -- so a name like this costs the reader
+		-- every other colour they wrote, not just this column's. And a reader
+		-- who never tries to theme the column is told nothing at all: the name
+		-- registers, the column draws, and the one layer a flavor could have
+		-- reached is unreachable for as long as it keeps that name.
+		error(
+			string.format(
+				"supaline: `%s` cannot be a column name. A column's theme layer is the "
+					.. "`[supaline]` field called after it, and Yazi takes a field name of 1 to %d "
+					.. "characters from lowercase letters, digits and `_` -- a name it refuses "
+					.. "takes the whole of `theme.toml` down with it. Call the column something "
+					.. "else and name it that",
+				name,
+				NAME_MAX
+			)
+		)
 	elseif type(def) ~= "table" or type(def.render) ~= "function" then
 		error(string.format("supaline: column `%s` needs a `render` function", name))
 	end
