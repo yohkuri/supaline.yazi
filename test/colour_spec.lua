@@ -679,9 +679,9 @@ test("bands: a name after the marker wins over the key it was written under", fu
 end)
 
 test("bands: what follows the marker is a name, and a colour there says so", function()
-	-- `#a <-> #b` used to be caught by the joined body having a space in it.
-	-- It is the same mistake and it is now reported one step closer to it: the
-	-- tail of a `<->` is a band's name, and `#7fd4ff` is not one.
+	-- The tail of a `<->` is a band's name, and `#7fd4ff` is not one, so two
+	-- endpoints written with the band marker are refused there rather than
+	-- read as a colour.
 	local one = { fg = REC }
 	throws(function() colour.stops("#0b3d91 <-> #7fd4ff", "x", one, "fg") end, "is not a band name")
 	throws(function() colour.stops("#0b3d91 <-> #7fd4ff", "x", one, "fg") end, "write them with `->`")
