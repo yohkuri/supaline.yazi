@@ -246,8 +246,9 @@ test("setup: overriding one of Yazi's own linemode names is still allowed", func
 end)
 
 test("setup: `.setup{...}` works as well as `:setup{...}`", function()
-	-- The dot form lands the options in the state parameter, and used to fail
-	-- with "`linemodes` is empty" -- naming the one thing the user got right.
+	-- The dot form lands the options in the state parameter, where reading them
+	-- as the options says "`linemodes` is empty" -- naming the one thing the
+	-- user got right.
 	main.setup { linemodes = { dotted = { { "size", width = 3 } } } }
 	cx.active.current = CURRENT
 	cx.active.pref.linemode = "dotted"
@@ -432,8 +433,8 @@ test("panes: the current pane is never drawn twice", function()
 end)
 
 test("panes: a linemode that never asked for the current pane is bare there", function()
-	-- The pane set used to be consulted only by the parent/preview child, so
-	-- leaving `current` out changed nothing at all.
+	-- A pane set consulted only by the parent/preview child would make leaving
+	-- `current` out change nothing at all.
 	setup { detail = { parent = { { "size", width = 4 } } } }
 	eq(draw("detail", CURRENT.files[1]), "", "the current pane")
 	eq(draw_child(stub.file { name = "current", in_current = false, size = 1 }), "   1B", "the parent pane")
@@ -460,8 +461,8 @@ test("panes: columns beside a pane key are refused", function()
 	refuses({ "size", parent = { "mtime" } }, "drawn nowhere")
 
 	-- Not `#spec`, which is 0 for a list that starts anywhere but index 1: a
-	-- stray column used to pass here and be dropped, and the very same column
-	-- written at index 1 was refused.
+	-- stray column would pass here and be dropped, where the very same column
+	-- written at index 1 is refused.
 	refuses({ [2] = "size", parent = { "mtime" } }, "drawn nowhere")
 end)
 

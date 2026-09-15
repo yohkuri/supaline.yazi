@@ -236,8 +236,8 @@ test("normalize: `ctx.opts` holds the declared options and nothing else", functi
 end)
 
 test("normalize: a definition may default an option it declares", function()
-	-- What narrowing `ctx.opts` buys. It used to be the spec verbatim, so a
-	-- default written on the definition was read by nobody.
+	-- What narrowing `ctx.opts` buys: handed the spec verbatim, a column would
+	-- never see a default its own definition wrote.
 	timed { options = { "format", "pad" }, format = "%F", pad = false }
 	eq(column.normalize("timed", CFG).ctx.opts.format, "%F", "the definition's, with no spec over it")
 	eq(column.normalize({ "timed", format = "%c" }, CFG).ctx.opts.format, "%c", "and the use site still wins")
@@ -354,7 +354,8 @@ test("register: a column may not own asynchronous state", function()
 	-- one registered from init.lua would never be replayed on the async side.
 	-- Refused by the key sweep rather than by a branch of its own, which is
 	-- what reaches the other way a column is written: an inline definition
-	-- never goes through `register`, and used to keep its `fetch` in silence.
+	-- never goes through `register`, and would otherwise keep its `fetch` in
+	-- silence.
 	throws(function()
 		column.register("async", { render = function() return "" end, fetch = function() end })
 	end, "has to be built into supaline itself")
@@ -429,9 +430,9 @@ test("separator: a style written as a function is called", function()
 end)
 
 test("separator: what a separator is refused for", function()
-	-- Every one of these was silence before `column.separator` existed. A
-	-- column's `sep` went through no check at all, and the rest are shapes that
-	-- could not be written until the table form was.
+	-- Every one of these would be silence without `column.separator`: a
+	-- column's `sep` goes through no other check, and the rest are shapes only
+	-- the table form can hold.
 	refuses_sep(42, "`sep` of column `plain`")
 	refuses_sep({ style = { fg = "cyan" } }, "given nothing to draw")
 	refuses_sep({ 42, style = { fg = "cyan" } }, "given a number to draw")
@@ -468,8 +469,8 @@ test("cell: no width means no padding", function()
 end)
 
 test("cell: an overflowing cell gets exactly one ellipsis", function()
-	-- `ui.truncate` appends an ellipsis of its own; adding a second one was a
-	-- real bug, and it was invisible because the width still came out right.
+	-- `ui.truncate` appends an ellipsis of its own, and a second one leaves the
+	-- width right, so the count is asserted rather than left to it.
 	local out = cell { render = function() return "octocat:wheel" end, width = 12 }
 	eq(out, "octocat:whe…")
 	eq(select(2, out:gsub("…", "")), 1, "ellipsis count")

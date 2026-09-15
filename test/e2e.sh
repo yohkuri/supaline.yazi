@@ -147,11 +147,11 @@ colour_shot 1 t c_theme
 # disagree -- and the measured one has to change when the folder does. `bind`'s
 # per-folder cache key is the piece most likely to get that wrong.
 #
-# `g 2` rather than going to the top of the listing and pressing `l`, which is
-# how this reached `nested/` until it did not have to. That spelling quietly
-# made a check about per-folder width measurement depend on which entry sorted
-# first in `data/`, so anything added to the fixture -- for a reason with
-# nothing to do with widths -- could break it. The key `cd`s by absolute path.
+# `g 2` rather than going to the top of the listing and pressing `l`. That
+# spelling quietly makes a check about per-folder width measurement depend on
+# which entry sorts first in `data/`, so anything added to the fixture -- for a
+# reason with nothing to do with widths -- could break it. The key `cd`s by
+# absolute path.
 tmux send-keys -t "$SESSION" m 3
 sleep 1
 tmux send-keys -t "$SESSION" g 2
@@ -313,8 +313,8 @@ check "m2: permissions" "drwxr-xr-x" "$DIR/screen-m2.txt"
 # should say cannot be written down here -- it depends on how long that is.
 # Read the cell off the screen and hold it against `id` instead: the text is
 # whatever fits, and an ellipsis is there exactly when something was dropped.
-# Two of them in a row was a real bug, and it can only appear on a machine whose
-# name has to be cut, which is why this counts them rather than looking for one.
+# Two of them in a row can only appear on a machine whose name has to be cut,
+# which is why this counts them rather than looking for one.
 #
 # The permissions field the search anchors on is a pattern rather than a
 # literal, because a different umask draws a different one. What follows it is
@@ -452,10 +452,9 @@ check "m3: a stated width does not shrink to fit" "….txt         1B" "$DIR/scr
 # m5: `ext` (5, left), then `size` with `sep = false`, then `mtime` behind "│".
 check "m5: sep = false and a separator of one's own" "bin    1024B│" "$DIR/screen-m5.txt"
 # The colour the separator was given, and immediately before the glyph it was
-# given for. A separator was a bare string in the row until it could carry a
-# style, so it took whatever the row had: greened anywhere in the capture would
-# pass for a colour that landed on the wrong span. `$BAR` is the same glyph,
-# read out of the variable to keep this file ASCII.
+# given for. Greened anywhere in the capture would pass for a colour that
+# landed on the wrong span. `$BAR` is the same glyph, read out of the variable
+# to keep this file ASCII.
 check "m5: that separator is drawn in its own colour" "$(sgr 38 '#a6e3a1')$BAR" "$DIR/color-m5.txt"
 
 # m9: a registered column, one clipped to 8 without an ellipsis, and a bare
@@ -501,10 +500,10 @@ current_holds() { # <label> <capture> <pattern>
 bare_parent=$(parent_of m6)
 bare_preview=$(preview_of m6)
 
-# All three ask for the current pane, and until this check nothing looked at
-# it: the loop above matches the file names, and everything below compares the
-# other two panes against m6. A `pane_cur`, `pane_par` and `pane_prev` drawing
-# nothing where they were asked to passed the whole suite.
+# All three ask for the current pane, and nothing else here looks at it: the
+# loop above matches the file names, and everything below compares the other
+# two panes against m6. A `pane_cur`, `pane_par` and `pane_prev` drawing
+# nothing where they were asked to would pass the rest of the suite.
 for n in 6 7 8; do
 	drew=$(drawn_in_current "m$n")
 	rows=$(rows_in_current "m$n")
@@ -679,9 +678,9 @@ check_ramp "a ramp that turns still draws a step per row" c_hue 0
 # over nothing -- and a third time as the background itself, which the block
 # after this one reads. Three things have to hold of the first two, and a
 # reader can check none of them against their own terminal's ground -- that
-# ground is the very thing the band has to be told apart from, and until this
-# fixture was measured the background it used was 0.02 away from a common one
-# in Oklab.
+# ground is the very thing the band has to be told apart from, so the `bg`
+# here is measured to sit clear of the common ones in Oklab rather than
+# picked.
 #
 #   - the `bg` is there under all sixty-four foregrounds
 #   - it covers the cells the stated width pads with, rather than stopping at
