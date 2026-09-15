@@ -202,6 +202,14 @@ use. `options` is the definition's alone, and so is `name` — a definition
 written inline may give itself one, and a definition handed to `register` is
 named by that call instead.
 
+A name holds 1 to 20 characters, from lowercase letters, digits and `_`, and
+anything else is refused where it is written. The rule is not supaline's: a
+column's theme layer is the `[supaline]` field called after it, and a field
+name Yazi will not parse does not merely go unread — it is an error in
+`theme.toml`, which Yazi answers by discarding the whole file and falling back
+to its preset. So `my-col` would cost you every other colour you wrote, and
+`register` turns the name away instead.
+
 | Option      | Default      | Meaning                                                  |
 | ----------- | ------------ | -------------------------------------------------------- |
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
