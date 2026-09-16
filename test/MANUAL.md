@@ -408,9 +408,9 @@ background this fixture carried first, `#241a33`, sits 0.02 away in Oklab from
 Catppuccin Mocha's `#1e1e2e`: correct, drawn on every row, and invisible to
 anyone reading on one. Both of the ones there now were chosen by measuring that
 distance instead of guessing it — against seven terminal grounds, the 64 steps
-above them, and the colours this fixture itself draws — and `setup.sh` writes
-down all three sets and both sets of numbers. The two are 0.331 apart from each
-other, which is further than either sits from anything else named there.
+above them, and the colours this fixture itself draws, with the two grounds held
+apart from each other as well. `setup.sh` writes down all three sets, both sets
+of numbers, and that last distance.
 
 - The background has to be there on **every** row and the same on every row.
   One row without it is a step that lost its ground.
@@ -425,7 +425,7 @@ other, which is further than either sits from anything else named there.
   column that returns a Line is padded by putting a second span beside it, and
   what has to cover that span is the style applied to the Line around both,
   after the text was measured. The two widths differ so that a glance can tell
-  which band is which.
+  which band is which; nothing in `e2e.sh` needs them to.
 - Legibility is a different question here than anywhere else: the text is being
   read against that ground rather than against the terminal's, so a step that
   was fine in the strip before Yazi opened can be wrong here. The name is drawn
@@ -437,11 +437,12 @@ other, which is further than either sits from anything else named there.
   end and the light end is what nothing here measures. A `bg` gradient takes
   the two endpoints you write, so the answer is yours to move.
 
-`e2e.sh` reads the three bands off the capture — that each is there, that it is
-its own stated width rather than the width of its text, and that the column
-with no ground did not pick one up — and that the last column's background
-climbs a step per row. Legibility is a reader's, twice over, and is why this is
-a manual case at all.
+`e2e.sh` reads both bands off the capture — that each is there, that it is its
+own stated width rather than the width of its text, and that no second column
+picked that ground up — and that `ratio`'s background climbs a step per row. It
+also refuses a grounded column added here that nothing asks it about, so the
+pair above cannot quietly become a list of two out of three. Legibility is a
+reader's, twice over, and is why this is a manual case at all.
 
 ### `c a` — a bold over someone else's colour
 

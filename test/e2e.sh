@@ -685,38 +685,54 @@ check_ramp "a ramp that turns still draws a step per row" c_hue 0
 #   - the `bg` is there on every row
 #   - it covers the cells the stated width pads with, rather than stopping at
 #     the text, which is what padding before the style is applied is for
-#   - the ungrounded column beside it did not pick one up
+#   - no second column picked that ground up, which is what the ungrounded
+#     column is beside it to make answerable
 #
 # A band that is missing and a band that is short are different bugs, so the
 # width is measured rather than the rows counted. A band runs to the next escape
 # of any kind: there is none inside one today, and one put there later would
 # read here as a band that came back short.
 ESC=$(printf '\033')
-# Asked of one grounded column at a time, because `c_bg` now carries two and
-# they differ in the thing this is about. `mtime` hands back a string, which
-# `fit` pads and the style then covers in one piece; `name_line` hands back a
-# Line, which is padded by building a second span beside it and styling the
-# Line around both. Two paths, one claim, and the spelling above is what
-# decides which one a column takes -- so the check is the same arithmetic twice
+# Asked of one grounded column at a time, because `c_bg` carries two and they
+# reach `cell` by different halves of it -- the comment on `M.cell` in
+# `column.lua` is where that is written down, and the name at the call site is
+# all this needs to know about it. The check is the same arithmetic twice
 # rather than two copies of it that could drift.
 #
-# The colour is written here and the width is read off the fixture, and the
-# asymmetry is the reason `sgr` exists: a hex appears in `setup.sh` verbatim, so
-# a grep pairs the two files, where a width stated twice is the one that goes
-# stale quietly. Widen a `c_bg` column there for a reason to do with the manual
-# case and, spelled as a literal here, this would report it as padding applied
-# in the wrong order -- the fixture moved, not the plugin.
-#
+# Both numbers come out of the fixture, addressed by the name it binds them to.
+# A width stated twice is the one that goes stale quietly -- widen a `c_bg`
+# column for a reason to do with the manual case and a literal here would
+# report it as padding applied in the wrong order, the fixture moved rather
+# than the plugin. The colour has the same failure and a louder one: recolour a
+# ground and a literal here finds no band at all, which reads as a plugin that
+# stopped drawing. `sgr` then converts the hex, because converting one by hand
+# is the third way an assertion goes stale.
+ground_hex() { # <the ground's name in init.lua>
+	# Anchored on both sides, so a name bound to anything but one flat colour
+	# answers nothing. `ratio` writes `bg = COOL` and `COOL` is a ramp: that is
+	# not a ground, and this is what tells them apart rather than a list.
+	sed -n "s/^local $1 = \"\(#[0-9a-fA-F]\{6\}\)\"$/\1/p" "$DIR/config/init.lua"
+}
+
 # Splitting on the opening escape leaves one piece per band; a band runs to the
 # next escape of any kind, which `sub` takes off the end of the piece. All three
 # numbers come out of the one pass, so none of them is a count of lines that a
 # `printf` invented.
-check_band() { # <label> <the ground's name in init.lua> <#rrggbb>
-	# The name is followed by a space, a comma or a close brace in every
-	# spelling a style takes, and the class is what keeps `GROUND` from
-	# answering for `LINE_GROUND` as well.
-	_cells=$(sed -n "s/.*bg = $2[ ,}].*width = \([0-9][0-9]*\).*/\1/p" "$DIR/config/init.lua")
-	_counts=$(awk -v esc="$ESC" -v bg="$(sgr 48 "$3")" -v want="$_cells" '
+asked=""
+check_band() { # <label> <the ground's name in init.lua>
+	# Recorded before anything can fail, so the sweep below reads what was
+	# asked for rather than what passed.
+	asked="$asked $2"
+	# A trailing space, comma or close brace, because a style writes the name
+	# with one of the three after it. It costs nothing and it is what a ground
+	# named after another one -- `GROUND` and `GROUND_DIM`, say -- would need.
+	cells=$(sed -n "s/.*bg = $2[ ,}].*width = \([0-9][0-9]*\).*/\1/p" "$DIR/config/init.lua")
+	hex=$(ground_hex "$2")
+	if [ -z "$cells" ] || [ -z "$hex" ]; then
+		fail "$1: the fixture's init.lua has no flat \`local $2\` under a \`bg\` with a stated width, so there is no band to measure"
+		return
+	fi
+	counts=$(awk -v esc="$ESC" -v bg="$(sgr 48 "$hex")" -v want="$cells" '
 		BEGIN {
 			open = esc "\\[" bg
 			tail = esc ".*"
@@ -736,32 +752,47 @@ check_band() { # <label> <the ground's name in init.lua> <#rrggbb>
 		}
 		END { print bands + 0, rows + 0, narrow + 0 }
 	' "$DIR/color-c_bg.txt")
-	IFS=' ' read -r _banded _lines _narrow <<EOF
-$_counts
+	IFS=' ' read -r banded lines narrow <<EOF
+$counts
 EOF
-	if [ -z "$_cells" ]; then
-		fail "$1: no column with \`bg = $2\` and a stated width in the fixture's init.lua, so there is no band to measure"
-	elif [ "$_banded" -lt "$RAMP_FLOOR" ]; then
-		fail "$1: only $_banded row(s) carried a background, wanted $RAMP_FLOOR"
-	elif [ "$_narrow" -gt 0 ]; then
-		fail "$1: $_narrow band(s) were not $_cells cells wide -- the padding is where to look"
-	elif [ "$_banded" -ne "$_lines" ]; then
-		fail "$1: $_banded band(s) across $_lines row(s), so a row carries more than one"
+	if [ "$banded" -lt "$RAMP_FLOOR" ]; then
+		fail "$1: only $banded row(s) carried a background, wanted $RAMP_FLOOR"
+	elif [ "$narrow" -gt 0 ]; then
+		fail "$1: $narrow band(s) were not $cells cells wide -- the padding is where to look"
+	elif [ "$banded" -ne "$lines" ]; then
+		fail "$1: $banded band(s) across $lines row(s), so a row carries more than one"
 	else
-		echo "  $1 ($_banded rows, $_cells cells)"
+		echo "  $1 ($banded rows, $cells cells)"
 	fi
 }
-check_band "a background survives the ramp, padding included" GROUND '#8b0045'
-# The same claim about the other path, and the one no test reached until this
-# column carried a ground: a renderable's pad is a span built after the Line was
-# measured, and what has to cover it is the style applied to the Line around
-# both. It had been read off `yazi-binding` and found consistent, which is not
-# the same as having been drawn.
-check_band "a background covers a pad beside a nested Line" LINE_GROUND '#007a00'
+check_band "a background survives the ramp, padding included" GROUND
+# The half of `cell` no test reached until this column carried a ground. It had
+# been read off `yazi-binding` and found consistent, which is not the same as
+# having been drawn.
+check_band "a background covers a pad beside a nested Line" LINE_GROUND
 
-# The third column of `c_bg` carries the ramp under `bg` rather than `fg`, and
-# nothing sets a foreground on the cell, so it is the background escape and
-# then the ratio. Printed in the shape `ramp_rows` prints, the colour twice, so
+# And a sweep, because the two calls above are a list and a list goes stale in
+# one direction: a grounded column added to `c_bg` would be drawn, read by
+# nobody, and green. Every flat ground the fixture writes there has to have been
+# asked for by name, and the refusal says what to write.
+# A `for` over the whole list rather than a `while read` on the end of the
+# pipeline, which would run in a subshell: `fail` there would print and leave
+# `fails` at what it was, so the sweep would report a miss and exit 0 -- a
+# check that says no and means yes is the one failure this file cannot have.
+# The names are Lua identifiers, so the split is safe.
+# shellcheck disable=SC2013 # a word per name is exactly what this wants
+for ground in $(sed -n '/c_bg = {/,/^\t\t},/p' "$DIR/config/init.lua" |
+	sed -n 's/.*bg = \([A-Z_][A-Z_]*\)[ ,}].*/\1/p'); do
+	[ -n "$(ground_hex "$ground")" ] || continue
+	case " $asked " in
+	*" $ground "*) ;;
+	*) fail "c_bg: \`$ground\` is a ground nothing reads -- write \`check_band \"<what it claims>\" $ground\` beside the two above" ;;
+	esac
+done
+
+# `ratio` in `c_bg` carries the ramp under `bg` rather than `fg`, and nothing
+# sets a foreground on the cell, so it is the background escape and then the
+# ratio. Printed in the shape `ramp_rows` prints, the colour twice, so
 # `ramp_faults` and `check_rows` read it unchanged and the background ramp is
 # asked the same three questions as the foreground one: a step per row, none
 # repeated, climbing in every channel.
