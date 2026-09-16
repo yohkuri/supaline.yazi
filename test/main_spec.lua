@@ -116,8 +116,8 @@ test("setup: `separator = false` on a pane's first column is accepted", function
 end)
 
 test("setup: a registered column's own separator may head a linemode", function()
-	-- The refusal is spec-only for this: one on a definition is read at
-	-- every use of it, so refusing one here would stop a registered column
+	-- The refusal is spec-only for this: a separator on a definition is read
+	-- at every use of it, so refusing one here would stop a registered column
 	-- being written first in any linemode -- one typo's cost paid by every
 	-- reuse. What the column wrote is simply not drawn at index 1.
 	main.column("septic", {
@@ -279,9 +279,9 @@ test("setup: a separator that is neither a string nor a table is refused", funct
 	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = 42 }) end, "`separator` in `setup`")
 
 	-- `false` is the one this is really for. It reads like a column's
-	-- `separator = false` and it is falsy, so it fell through to the plugin-wide
-	-- separator: the linemode drew the separator it had asked to be rid of,
-	-- and not until a row was drawn.
+	-- `separator = false` and it is falsy, so it fell through to the
+	-- plugin-wide separator: the linemode drew the separator it had asked to
+	-- be rid of, and not until a row was drawn.
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() main.setup({}, { linemodes = { t = { "size", separator = false } } }) end, "linemode `t`")
 
