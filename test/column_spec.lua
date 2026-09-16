@@ -88,23 +88,14 @@ test("normalize: one refusal per mistake, whichever spelling wrote it", function
 	throws(function() column.normalize("nope", CFG) end, "unknown column `nope`")
 	throws(function() column.normalize({ "nope" }, CFG) end, "unknown column `nope`")
 
-	---@diagnostic disable-next-line: param-type-mismatch
-	throws(function() column.normalize(42, CFG) end, "must be a name, a function, or a table with `render`")
-	throws(function() column.normalize({ x = 1 }, CFG) end, "must be a name, a function, or a table with `render`")
-end)
-
-test("normalize: an unknown name is refused", function()
-	throws(function() column.normalize("nope", CFG) end, "unknown column `nope`")
-end)
-
-test("normalize: a value that is not a spec is refused", function()
 	-- The wrong value is the test. A spec carries a class now, so the checker
 	-- refuses it as well, and the suppression sits on the line rather than at
 	-- the top of the file: the blanket `param-type-mismatch` disable that used
 	-- to be there was measured to cover this one site and nothing else.
 	---@diagnostic disable-next-line: param-type-mismatch
-	throws(function() column.normalize(42, CFG) end, "must be a name, a function, or a table")
-	throws(function() column.normalize({}, CFG) end, "must be a name, a function, or a table")
+	throws(function() column.normalize(42, CFG) end, "must be a name, a function, or a table with `render`")
+	throws(function() column.normalize({}, CFG) end, "must be a name, a function, or a table with `render`")
+	throws(function() column.normalize({ x = 1 }, CFG) end, "must be a name, a function, or a table with `render`")
 end)
 
 --- A column that declares an option, for the tests that write one at a use
@@ -171,7 +162,7 @@ test("normalize: a value the shared keys do not take is refused", function()
 	throws(
 		---@diagnostic disable-next-line: assign-type-mismatch
 		function() column.normalize({ "fixed", overflow = "elipsis" }, CFG) end,
-		"must be `ellipsis`, `clip`, or `grow`"
+		"must be `ellipsis`, `clip` or `grow`"
 	)
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() column.normalize({ "fixed", scale = "LOG" }, CFG) end, "must be `linear` or `log`")

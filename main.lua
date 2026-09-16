@@ -423,15 +423,24 @@ local function pane_of(file)
 	return "parent", cx.active.parent --[[@as supaline.Folder?]]
 end
 
---- What a `stats` has to come back with for a ramp to have anything to place a
---- row against: the extremes of the listing it was handed.
+--- Put a report in the log in full and a short form of it on the screen.
 ---
---- Only a ramped column is held to this. A `stats` is also how a column
---- derives a width or carries anything its own `render` reads off `ctx.stats`,
---- and a column using it that way owes nobody a `min` and a `max`.
----@param st any
----@return boolean
-local function has_extremes(st) return type(st) == "table" and st.min ~= nil and st.max ~= nil end
+--- Both halves, always, and that pairing is the whole of what this holds. A
+--- notification times out and is gone; `yazi.log` is where a reader goes
+--- afterwards, and where a traceback or a nested `CallbackError` is worth
+--- keeping at whatever length it comes in. What the screen gets is cut to the
+--- sentence that says what to change, because a notification long enough to
+--- fill the preview pane pushes its own first line off the top of it --
+--- measured twice, on `build`'s three stacked tracebacks and on `broke`'s.
+---
+--- The three callers word their own two strings and share nothing else; what
+--- they must not each decide is the level, the timeout and the title.
+---@param logged any the whole of it, error object or string
+---@param shown string the one sentence for the screen
+local function report(logged, shown)
+	ya.err(logged)
+	ya.notify { title = "supaline", content = shown, level = "error", timeout = 10 }
+end
 
 --- Say once that a column's `stats` came back with nothing its ramp can use,
 --- and go on drawing.
@@ -451,9 +460,8 @@ local function has_extremes(st) return type(st) == "table" and st.min ~= nil and
 ---
 --- Once per column, and re-armed by `setup`: that builds fresh records, and a
 --- reader who has just changed the configuration is owed the message again.
----
---- `ya.err` beside it for the reason `build` has one -- a notification times
---- out, and `yazi.log` is where a report of this is read from afterwards.
+--- The flag is read before the message is built, not after, because this is
+--- called from the folder pass of every folder a broken column is bound for.
 ---@param col supaline.Column
 local function no_extremes(col)
 	if col.told_stats then
@@ -468,8 +476,7 @@ local function no_extremes(col)
 			.. "table carrying both",
 		col.name or "?"
 	)
-	ya.err(why)
-	ya.notify { title = "supaline", content = why, level = "error", timeout = 10 }
+	report(why, why)
 end
 
 -- What stands in for a cell that could not be drawn at all, one of these per
@@ -500,7 +507,15 @@ local BROKEN = "!"
 --- no part of this plugin involved in raising it.
 ---
 --- Once per column and re-armed by `setup`, for the reasons `no_extremes`
---- gives, and `ya.err` beside the notification for the same one.
+--- gives, and the flag read before the message is built for the reason it
+--- gives too -- this one is called from a per-row path, so a broken column
+--- would otherwise format a message on every row of every frame.
+---
+--- The screen gets the first line of what was thrown and the log gets all of
+--- it. **Measured on 26.9.1**: what `pcall` hands back here carries a full Lua
+--- traceback, and the whole of it in a notification filled the preview pane
+--- top to bottom, pushing the one line that names the column and the mistake
+--- off the top. `report` is what holds those two halves together.
 ---@param col supaline.Column
 ---@param stage string which of the three threw, named as the reader wrote it
 ---@param err any what it threw
@@ -511,7 +526,7 @@ local function broke(col, stage, err)
 	col.told_broken = true
 
 	local said = tostring(err)
-	ya.err(
+	report(
 		string.format(
 			"supaline: column `%s` threw from its `%s`. Everything else on the line goes on "
 				.. "drawing, and a cell this column cannot draw at all is filled with `%s` so "
@@ -520,26 +535,14 @@ local function broke(col, stage, err)
 			stage,
 			BROKEN,
 			said
-		)
-	)
-
-	-- The notification takes the first line and says where the rest is.
-	-- **Measured on 26.9.1**: what `pcall` hands back here carries a full Lua
-	-- traceback, and the whole of it in a notification filled the preview pane
-	-- top to bottom -- pushing the one line that names the column and the
-	-- mistake off the top of it. A traceback is worth keeping and is what
-	-- `ya.err` above is for.
-	ya.notify {
-		title = "supaline",
-		content = string.format(
+		),
+		string.format(
 			"column `%s` threw from its `%s`: %s (the traceback is in the log)",
 			col.name or "?",
 			stage,
 			said:match("^[^\n]*") or said
-		),
-		level = "error",
-		timeout = 10,
-	}
+		)
+	)
 end
 
 --- Bind one folder's statistics and widths onto every column of a linemode.
@@ -595,7 +598,7 @@ local function bind(name, pane, cols, folder)
 				-- cannot tell a `stats` that returned wrong from a column that has
 				-- none: the no-folder path binds `{}` onto columns whose `stats`
 				-- was never called. This is the line that called it.
-				if col.ramped and not has_extremes(entry.stats) then
+				if col.ramped and not column.has_extremes(entry.stats) then
 					no_extremes(col)
 				end
 				-- The width pass renders every file, and those renders read
@@ -904,8 +907,7 @@ local function build()
 	-- spellings, `[string "supaline.colour"]:85: ` under Yazi and
 	-- `./colour.lua:85: ` under the unit suite.
 	local why = tostring(modes):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", ""):gsub("^.-:%d+: ", "")
-	ya.err(modes)
-	ya.notify { title = "supaline", content = why, level = "error", timeout = 10 }
+	report(modes, why)
 end
 
 -- Subscribed at load rather than in `setup`, so calling `setup` twice cannot
