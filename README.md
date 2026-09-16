@@ -223,8 +223,8 @@ and a definition that names itself alike.
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
 | `stats`     | `nil`        | `function(files)`, run once per folder; result reaches `ctx.stats`. |
 | `refresh`   | `nil`        | `function()`, run when the linemode is installed and on every `cd`. |
-| `width`     | `nil`        | A number, `"auto"`, or `function(stats) -> number`.      |
-| `max_width` | `nil`        | Caps the column's width, however it was derived.          |
+| `width`     | `nil`        | A whole number of cells, 1 or more; `"auto"`; or `function(stats) -> number`, which is held to the same. |
+| `max_width` | `nil`        | Caps the column's width, however it was derived. A whole number of cells, 1 or more. |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](#colours). |
