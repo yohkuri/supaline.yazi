@@ -175,8 +175,13 @@ local RECOMMENDED_AS_WRITTEN = string.format("{ from = %s, to = %s }", RECOMMEND
 -- invented for symmetry, which is the same mistake as an invented class. So
 -- the two agree on everything a measurement decides and differ on the one
 -- thing no measurement reaches. `colour_spec.lua` reads them against each
--- other, which is what catches either literal drifting -- they cannot be
--- shared, since `column.lua` requires this file and not the other way round.
+-- other, which is what catches either literal drifting.
+--
+-- Two literals rather than one shared constant, and the direction is the
+-- reason. This file cannot reach `column.lua`'s, since that one requires this
+-- one; and exporting this one for `column.lua` to read would put the rule in
+-- the file that borrowed it rather than the file the parser binds. The
+-- measurement is `column.lua`'s, so the literal belongs there too.
 --
 -- This used to start `^[a-z]`, and the defence of that was measured and did
 -- not hold. "A name that can be written bare as a Lua key" is not what the
@@ -286,10 +291,17 @@ local MEANT = {
 --- out, so a key added to one cannot be missing from the message that lists
 --- them; what that costs without this is the same `table.concat` expression,
 --- with the same off-by-one in the range, in as many files as have keys.
+---
+--- `conj` is that fourth copy arriving: a list of the *values* a key takes
+--- reads "`a`, `b` or `c`" where a list of keys reads "and", and that word is
+--- the whole of the difference. No comma before it either way -- these
+--- documents do not write one, and a list that punctuated itself differently
+--- depending on the conjunction would be two styles rather than one helper.
 ---@param names string[] at least two
+---@param conj string? the word before the last name, `and` by default
 ---@return string
-function M.key_list(names)
-	return string.format("`%s` and `%s`", table.concat(names, "`, `", 1, #names - 1), names[#names])
+function M.key_list(names, conj)
+	return string.format("`%s` %s `%s`", table.concat(names, "`, `", 1, #names - 1), conj or "and", names[#names])
 end
 
 local KEY_LIST = M.key_list(ATTRS)
