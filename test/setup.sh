@@ -654,8 +654,8 @@ supaline:setup({
 		-- inherited the row's style is to read the escapes.
 		seps = {
 			{ "ext" },
-			{ "size", sep = false },
-			{ "mtime", sep = { "│", style = { fg = "#a6e3a1" } } },
+			{ "size", separator = false },
+			{ "mtime", separator = { "│", style = { fg = "#a6e3a1" } } },
 		},
 
 		-- m6 to m8: the panes. The difference shows in the left and right
@@ -785,7 +785,7 @@ supaline:setup({
 		-- on `│` to find the current pane.
 		c_bold = {
 			{ "ratio", style = { fg = COOL, bold = true } },
-			{ "ratio", style = COOL, sep = "┊" },
+			{ "ratio", style = COOL, separator = "┊" },
 			{ "permissions", style = { bold = true } },
 		},
 
@@ -795,7 +795,8 @@ supaline:setup({
 		--
 		-- The separator is there because the two columns hold the same number
 		-- and would otherwise read as one. It goes on the *second* of them: a
-		-- `sep` is drawn before its own column, so one on the first would be a
+		-- a separator is drawn before its own column, so one on the first would
+		-- be a
 		-- separator with nothing on its left, which `setup` refuses.
 		--
 		-- `┊` rather than the `│` that `m 5` uses, because `e2e.sh` splits a
@@ -805,7 +806,7 @@ supaline:setup({
 		-- so.
 		c_scale = {
 			{ "size", scale = "log", style = COOL },
-			{ "size", scale = "linear", style = COOL, sep = "┊" },
+			{ "size", scale = "linear", style = COOL, separator = "┊" },
 		},
 
 		-- c e, in `colour/edge`: a ramp with nothing to spread over. Every value

@@ -224,7 +224,7 @@ and a definition that names itself alike.
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](#colours). |
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
-| `sep`       | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
+| `separator` | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 | `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
 
 Any other key is refused by name, on a definition and on a spec alike, and so
@@ -398,13 +398,17 @@ way every other key is:
 ```lua
 supaline.column("initials", {
   width = 3,
-  options = { "separator" },
-  separator = ".",
+  options = { "between" },
+  between = ".",
   render = function(file, ctx)
-    return file.name:sub(1, 1) .. ctx.opts.separator, ctx.style
+    return file.name:sub(1, 1) .. ctx.opts.between, ctx.style
   end,
 })
 ```
+
+A column key is not a name a column may take over, so `separator` is not
+available for one of these — `options` naming any of the keys in the table
+above is refused, and the refusal says which one.
 
 `ctx.opts` holds those names and nothing else the spec was written with. A
 column's effective width is `ctx.width` rather than `ctx.opts.width`, and the
@@ -840,8 +844,8 @@ separator = { " │ ", style = { fg = "#585b70" } }
 The first element is what to draw and `style` is what to draw it in — a colour
 string, a style table, a `ui.Style`, or a function returning one, which is
 what a column's [`style`](#style) takes. All three places that take a
-separator take the table: `separator` in `setup`, `separator` on a linemode,
-and a column's own `sep`.
+separator take the table, and all three call it `separator`: in `setup`, on a
+linemode, and on a column.
 
 ```lua
 require("supaline"):setup {
@@ -849,7 +853,7 @@ require("supaline"):setup {
   linemodes = {
     detail = {
       "size",
-      { "mtime", sep = { " · ", style = "#f38ba8" } },
+      { "mtime", separator = { " · ", style = "#f38ba8" } },
     },
   },
 }
@@ -859,7 +863,7 @@ A function is called wherever the colours are built, so it follows a theme
 reload the way a column's does:
 
 ```lua
-sep = { " │ ", style = function() return th.status.perm_sep end }
+separator = { " │ ", style = function() return th.status.perm_sep end }
 ```
 
 There is no gradient. A separator is drawn between two columns rather than on
@@ -869,9 +873,9 @@ one written under its `style` is refused by name.
 Whichever level writes a separator supplies both halves of it. A bare string
 on a column draws uncoloured even under a linemode that wrote a colour: the
 nearer one replaces the farther one whole, which is the one place a nearer
-writer takes everything rather than the keys it wrote. `sep = false` still
-drops the separator before a column, and `""` still draws nothing between two
-of them.
+writer takes everything rather than the keys it wrote. `separator = false`
+still drops the separator before a column, and `""` still draws nothing
+between two of them.
 
 Written wrong it says so, while `setup` runs rather than a session later: a
 table with nothing to draw, a key that is neither the text nor `style`, and a
@@ -879,13 +883,13 @@ table with nothing to draw, a key that is neither the text nor `style`, and a
 name.
 
 A separator is drawn *before* its column, so the first column of a pane has
-nothing before it and is drawn without one. A `sep` written there is refused
-rather than dropped in silence, and each pane has its own first column: a
-column written first under `parent` is refused for that, wherever it sits in
-the current pane's list. `sep = false` is accepted there — it asks for
-nothing, which is what index 1 gets either way — and a column *registered*
-with a `sep` of its own may still head a linemode, since only what a linemode
-spec writes is refused.
+nothing before it and is drawn without one. A `separator` written there is
+refused rather than dropped in silence, and each pane has its own first
+column: a column written first under `parent` is refused for that, wherever it
+sits in the current pane's list. `separator = false` is accepted there — it
+asks for nothing, which is what index 1 gets either way — and a column
+*registered* with a `separator` of its own may still head a linemode, since
+only what a linemode spec writes is refused.
 
 What none of this reaches is the cell at the very start of the row. That space
 is Yazi's own, added before the linemode is asked for anything, so a

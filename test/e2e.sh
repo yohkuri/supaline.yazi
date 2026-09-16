@@ -449,8 +449,9 @@ check "m3: the measured width follows the folder" "      300K 300K" "$DIR/screen
 # one space of separator, then 10 less the two cells of "1B".
 check "m3: a stated width does not shrink to fit" "….txt         1B" "$DIR/screen-m3.txt"
 
-# m5: `ext` (5, left), then `size` with `sep = false`, then `mtime` behind "│".
-check "m5: sep = false and a separator of one's own" "bin    1024B│" "$DIR/screen-m5.txt"
+# m5: `ext` (5, left), then `size` with `separator = false`, then `mtime`
+# behind "│".
+check "m5: separator = false and one of a column's own" "bin    1024B│" "$DIR/screen-m5.txt"
 # The colour the separator was given, and immediately before the glyph it was
 # given for. Greened anywhere in the capture would pass for a colour that
 # landed on the wrong span. `$BAR` is the same glyph, read out of the variable
