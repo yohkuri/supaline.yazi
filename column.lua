@@ -322,6 +322,81 @@ local COLUMN_KEYS = {
 	width = true,
 }
 
+-- The values the shared keys take, for the three that take a fixed set of
+-- them. `COLUMN_KEYS` above refuses a key nobody claims; this refuses a value
+-- nobody accepts, which until now was accepted by being *ignored* -- `align =
+-- "centre"` fell through to the `or "right"` that defaults it and drew a right
+-- aligned column without a word, and `scale = "LOG"` scaled nothing.
+--
+-- Only the keys every column shares are in here, and that is the line rather
+-- than an omission: a column's own options are the column's to check. What
+-- `format` may hold is knowable to `mtime` and to nothing else, which is why
+-- `options` declares the names and stops there.
+--
+-- In the order the message lists them, which is the order README's table
+-- lists them in -- these are read as a set of choices rather than looked up
+-- one at a time, so `pairs` order would reword the message between runs the
+-- way it would the key list above.
+local COLUMN_VALUES = {
+	align = { "left", "right" },
+	overflow = { "ellipsis", "clip", "grow" },
+	scale = { "linear", "log" },
+}
+
+--- `"a"`, `"a" or "b"`, `"a", "b", or "c"`.
+---@param values string[]
+---@return string
+local function or_list(values)
+	if #values == 1 then
+		return string.format("`%s`", values[1])
+	elseif #values == 2 then
+		return string.format("`%s` or `%s`", values[1], values[2])
+	end
+	return string.format("`%s`, or `%s`", table.concat(values, "`, `", 1, #values - 1), values[#values])
+end
+
+--- What the reader wrote, for the tail of a message that names it back.
+---
+--- A string or a number is shown as written and everything else is named by
+--- its type: a misspelling is worth showing letter for letter and a width is
+--- worth showing at all, while a table is worth showing neither way. The
+--- type-only half is the shape `check_options` uses a few lines down.
+---@param value any
+---@return string
+local function as_written(value)
+	local t = type(value)
+	if t == "string" or t == "number" then
+		return string.format("`%s`", tostring(value))
+	end
+	return "a " .. t
+end
+
+--- Refuse a value none of the ones `key` takes covers.
+---
+--- Nil is not a value and is allowed: every one of these keys has a default,
+--- and "nobody wrote one" is what reaches it. The value comes back unchanged,
+--- so a caller reads it and defaults it in one line rather than two.
+---
+--- `where` is the rest of the sentence after the key, because the same key is
+--- written in two places that have to name themselves differently: `of column
+--- `size`` and `in `setup``.
+---@param key "align"|"overflow"|"scale"
+---@param value any
+---@param where string
+---@return any # the value, unchanged
+function M.one_of(key, value, where)
+	if value == nil then
+		return value
+	end
+	local values = COLUMN_VALUES[key]
+	for _, ok in ipairs(values) do
+		if value == ok then
+			return value
+		end
+	end
+	error(string.format("supaline: `%s` %s must be %s, got %s", key, where, or_list(values), as_written(value)))
+end
+
 -- And the two a definition may write that a use of it may not. Which
 -- definitions may write which of them is `ROLES` below -- `register` names the
 -- column it is handed, so `name` is not that one's to write either. What this
@@ -1041,10 +1116,15 @@ function M.normalize(spec, cfg)
 		sep = M.separator(sep, string.format("`separator` of column `%s`", name or "?"))
 	end
 
+	-- Refused before they are defaulted, which is the whole of the fix: the
+	-- `or` that supplies the default is also what swallowed a wrong value, so a
+	-- check written after it would have nothing left to look at.
+	local of_col = string.format("of column `%s`", name or "?")
+
 	local col = {
 		name = name,
-		align = pick("align") or "right",
-		overflow = pick("overflow") or "ellipsis",
+		align = M.one_of("align", pick("align"), of_col) or "right",
+		overflow = M.one_of("overflow", pick("overflow"), of_col) or "ellipsis",
 		max_width = pick("max_width"),
 		sep = sep,
 		stats = pick("stats"),
@@ -1060,7 +1140,12 @@ function M.normalize(spec, cfg)
 		-- Linear is the fallback because the columns with nothing to say about
 		-- it are the timestamps, whose values sit within a few years of each
 		-- other; a log scale over those spreads nothing.
-		scale = opts.scale or cfg.scale or def.scale or "linear",
+		-- The resolved value rather than each of the three, because two of them
+		-- have already been looked at: `cfg.scale` is `setup`'s own key and
+		-- `setup` refuses it by that name, where the message can say `setup`
+		-- rather than name whichever column happened to be normalised first.
+		-- What is left for this call is the spec's and the definition's.
+		scale = M.one_of("scale", opts.scale or cfg.scale or def.scale, of_col) or "linear",
 	}
 
 	local width = pick("width")

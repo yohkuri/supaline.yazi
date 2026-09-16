@@ -211,6 +211,32 @@ test("setup: a key `setup` itself does not take is refused", function()
 	)
 end)
 
+test("setup: a `scale` it does not take is refused by `setup`'s own name", function()
+	-- The test above refuses the key; this one refuses the value under a key
+	-- spelled right. `scale = "LOG"` used to reach every column and scale none
+	-- of them.
+	--
+	-- Refused here rather than left to `column.normalize`, which sees this
+	-- value too. A message from there would name whichever column was
+	-- normalised first, and send the reader to a column they wrote correctly --
+	-- so what this pins is the `setup` in the message, not the refusal.
+	local lm = { t = { "size" } }
+	-- Bound once for the reason the column spec binds its own: a value that is
+	-- wrong on purpose costs a suppression per spelling.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	local shouted = { linemodes = lm, scale = "LOG" }
+	throws(function() main.setup({}, shouted) end, "`scale` in `setup`")
+	throws(function() main.setup({}, shouted) end, "must be `linear` or `log`")
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() main.setup({}, { linemodes = lm, scale = "logarithmic" }) end, "got `logarithmic`")
+
+	-- Both values it does take, and nothing written at all, which is the
+	-- spelling that lets a column definition's own scale through.
+	setup({ t = { "size" } }, { scale = "linear" })
+	setup({ t = { "size" } }, { scale = "log" })
+	setup({ t = { "size" } }, {})
+end)
+
 test("setup: names that are part of the Linemode component are refused", function()
 	-- Yazi keeps the component's machinery on the same table the linemodes are
 	-- looked up on. `linemodes.new` replaced the constructor and took every
