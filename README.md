@@ -82,6 +82,11 @@ a linemode, a column, or a style. Nothing else would say so; a plugin-wide
 `scale` written `scal` is read by nobody and every column goes on scaling the
 way it did.
 
+A value none of them takes is refused the same way, and for the same reason.
+`scale = "LOG"` is spelled right and means nothing, and until it was refused it
+reached every column and scaled none of them — a wrong value was accepted by
+being ignored, which is the quieter half of the same mistake.
+
 A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
 own machinery on the table the linemodes are looked up on, so any name already
 on that table is refused — `new`, `redraw`, `padding`, `children_add`,

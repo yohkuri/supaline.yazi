@@ -845,7 +845,13 @@ function M.setup(_st, opts)
 		order = opts.order or DEFAULTS.order,
 		-- Not `or` a default: see `DEFAULTS`. Nil here is what lets a column
 		-- definition's own scale through.
-		scale = opts.scale,
+		--
+		-- Refused here rather than left to `column.normalize`, which sees this
+		-- value too: the mistake is in the table `setup` was handed, and a
+		-- message reaching the reader through whichever column was normalised
+		-- first would send them to a column they wrote correctly. Before the
+		-- commit, like everything else in this record.
+		scale = column.one_of("scale", opts.scale, "in `setup`"),
 		-- Checked in `colour.lua`, where the two numbers mean something and
 		-- where the pair the refusals recommend lives. Nothing falls back to
 		-- it: a `setup` that wrote no band defines none, and the `<->` that
