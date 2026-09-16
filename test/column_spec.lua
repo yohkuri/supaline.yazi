@@ -196,6 +196,55 @@ test("normalize: a definition's own wrong value is refused too", function()
 	throws(function() column.normalize({ "bent" }, CFG) end, "`align` of column `bent`")
 end)
 
+test("normalize: a width that would draw nothing is refused", function()
+	-- The quieter of the two mistakes this closes. A width of 0 or less was
+	-- taken, carried through `cap` and laid out, and the column drew as the
+	-- empty string on every row -- which reads as a column that is not there
+	-- rather than as a width that was wrong.
+	column.register("plain", { render = function() return "ab" end })
+
+	for _, w in ipairs { 0, -3 } do
+		throws(function() column.normalize({ "plain", width = w }, CFG) end, "`width` of column `plain`")
+		throws(function() column.normalize({ "plain", width = w }, CFG) end, "must be a whole number of cells, 1 or more")
+	end
+	throws(function() column.normalize({ "plain", max_width = 0 }, CFG) end, "`max_width` of column `plain`")
+	throws(function() column.normalize({ "plain", max_width = -1 }, CFG) end, "got `-1`")
+
+	-- Not floored. Rounding is a guess about which of two whole numbers was
+	-- meant, made silently on a value the reader had already got wrong.
+	throws(function() column.normalize({ "plain", width = 3.7 }, CFG) end, "got `3.7`")
+	throws(function() column.normalize({ "plain", max_width = 2.5 }, CFG) end, "got `2.5`")
+
+	-- `max_width` had no check of any kind: a string reached `cap`, which
+	-- compares it against a number, and the reader got `attempt to compare
+	-- string with number` out of a line of `column.lua` rather than anything
+	-- naming the key they wrote.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "plain", max_width = "x" }, CFG) end, "`max_width` of column `plain`")
+
+	-- Measured on 5.5.1: `math.tointeger("3")` answers 3, so the type has to be
+	-- asked before the conversion or a width written as a string passes as one.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "plain", max_width = "3" }, CFG) end, "`max_width` of column `plain`")
+	-- `width` keeps its own message for a value that is no kind of width,
+	-- because it takes two more shapes than `max_width` does.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "plain", width = "3" }, CFG) end, 'must be a number, "auto", or a function')
+end)
+
+test("normalize: a width it does take still goes through", function()
+	column.register("plain", { render = function() return "ab" end })
+	eq(column.normalize({ "plain", width = 6 }, CFG).fixed, 6)
+	-- An integral float is not the mistake the refusal is about -- `3.0` is 3
+	-- -- so it is taken, and narrowed to an integer on the way past.
+	eq(column.normalize({ "plain", width = 6.0 }, CFG).fixed, 6)
+	eq(math.type(column.normalize({ "plain", width = 6.0 }, CFG).fixed), "integer")
+	eq(column.normalize({ "plain", max_width = 4.0 }, CFG).max_width, 4)
+	-- And the cap still applies to the stated width, which is the one thing
+	-- these two keys do together.
+	eq(column.normalize({ "plain", width = 9, max_width = 4 }, CFG).fixed, 4)
+end)
+
 test("normalize: nothing written still reaches the default", function()
 	-- Nil is not a value. Every one of these keys has a default, and a check
 	-- that refused nil would refuse every column that wrote none of them --
@@ -1286,18 +1335,41 @@ test('width: max_width caps "auto"', function()
 	eq(column.resolve_width(col, FILES, nil), 3)
 end)
 
-test("width: a width function that returns no number is refused", function()
+test("width: a width function that returns no usable number is refused", function()
 	-- Returning nil here left the column with no width at all: no padding, no
 	-- truncation, and a cell free to push into the file name.
-	local col = column.normalize({
-		render = function() return "abcdefgh" end,
-		name = "wonky",
-		width = function() return nil end,
-	}, CFG)
-	throws(function() column.resolve_width(col, FILES, nil) end, "returned a nil; it must return a number")
+	---@param w any
+	local function returning(w)
+		return column.normalize({
+			render = function() return "abcdefgh" end,
+			name = "wonky",
+			width = function() return w end,
+		}, CFG)
+	end
+
+	throws(function() column.resolve_width(returning(nil), FILES, nil) end, "returned a nil")
+
+	-- Held to what a stated `width` is held to. A function returning 0 empties
+	-- the column exactly as `width = 0` does, and a door closed on one spelling
+	-- and not the other leaves the same blank column reachable.
+	for _, w in ipairs { 0, -3 } do
+		throws(function() column.resolve_width(returning(w), FILES, nil) end, "must return a whole number of cells")
+	end
+	-- Not floored, for the reason a stated one is not: rounding is a guess
+	-- about which of two whole numbers the arithmetic behind it meant.
+	throws(function() column.resolve_width(returning(2.5), FILES, nil) end, "returned `2.5`")
+
+	-- And what it may return still comes back, an integral float narrowed.
+	eq(column.resolve_width(returning(6), FILES, nil), 6)
+	eq(column.resolve_width(returning(6.0), FILES, nil), 6)
 end)
 
 test('width: "auto" over an empty folder is zero', function()
+	-- Zero, and not refused the way a written 0 is. A measured width of no
+	-- cells is the correct answer to a folder with nothing in it to measure --
+	-- there is no row for the empty column to be drawn on. What the refusals
+	-- above are about is a width the reader stated, which is a claim rather
+	-- than a measurement.
 	local col = column.normalize({ render = function() return "x" end, width = "auto" }, CFG)
 	eq(column.resolve_width(col, {}, nil), 0)
 end)
