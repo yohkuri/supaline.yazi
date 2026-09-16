@@ -165,7 +165,7 @@ local colour = require(".colour")
 
 --- A separator once `M.separator` has read it. The text and the style travel as
 --- one value, which is what lets the three places a separator may be written --
---- `setup`, a linemode, a column's `sep` -- fall back through the single `or`
+--- `setup`, a linemode, a column's own -- fall back through the single `or`
 --- in `main.lua`'s `render`: whichever level wrote one supplies both halves of
 --- it, and none of them supplies half.
 ---
@@ -219,7 +219,7 @@ local colour = require(".colour")
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
----@field sep string|supaline.SepSpec|false|nil a separator of this column's own, `false` for none
+---@field separator string|supaline.SepSpec|false|nil one of this column's own, `false` for none
 ---@field width number|"auto"|(fun(stats: any): number?)|nil a number is floored
 ---@field scale "linear"|"log"|nil
 --- The names of the options this column reads off `ctx.opts` beyond the keys
@@ -261,6 +261,10 @@ local colour = require(".colour")
 ---@field align "left"|"right"
 ---@field overflow "ellipsis"|"clip"|"grow"
 ---@field max_width integer?
+--- Read, where `supaline.ColumnOpts.separator` is what was written. The two
+--- names are the plugin's own division and hold throughout: `separator` is a
+--- separator as a user wrote it -- on `setup`, on a linemode, on a column --
+--- and `sep` is the `supaline.Sep` it was read into.
 ---@field sep supaline.Sep|false|nil a separator of this column's own, `false` for none
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
@@ -313,7 +317,7 @@ local COLUMN_KEYS = {
 	refresh = true,
 	render = true,
 	scale = true,
-	sep = true,
+	separator = true,
 	stats = true,
 	style = true,
 	width = true,
@@ -438,6 +442,8 @@ local COLUMN_MEANT = {
 	name = "a column is named by the `register` call that declares it, by the `[1]` a spec "
 		.. "names it with, or by a `name` written beside an inline `render`; anywhere else it "
 		.. "is read by nobody",
+	sep = "`separator` is the spelling, on a column as in `setup` and on a linemode; `sep` "
+		.. "was a column's own name for the same thing and is nobody's now",
 }
 
 -- `%4$s` is the role's own `draws`: refusing `1` on a definition, under a
@@ -749,7 +755,7 @@ local function claims_sep(key) return SEP_KEYS[key] end
 local SEP_HELP = "supaline: %s must be a string or a table, got a %s -- "
 	.. '`" | "` draws that between two columns, `{ " | ", style = ... }` draws it in a '
 	.. 'colour, and `""` draws nothing at all. `false` drops the separator before a '
-	.. "column and is a column's `sep`, never a linemode's"
+	.. "column and is a column's `separator`, never a linemode's"
 
 local SEP_UNKNOWN = "supaline: %s: %s %s. A separator table takes what to draw as `[1]` "
 	.. 'and `style` beside it -- `{ " | ", style = { fg = "#585b70" } }`'
@@ -796,14 +802,14 @@ end
 
 --- Read a separator, in whichever of the two shapes it was written. Every
 --- place that takes one comes through here: `separator` in `setup`,
---- `separator` on a linemode, and a column's own `sep`. Unrefused, `sep = 42`
+--- `separator` on a linemode, and a column's own. Unrefused, `separator = 42`
 --- reaches Yazi and empties the pane.
 ---
 --- Nil is what "nothing was written" looks like and is handed back as it is,
 --- for the caller to fall back from.
 ---
 --- `false` is the value worth a check of its own, and it arrives here as the
---- wrong type rather than as a shape. It reads like a column's `sep = false`
+--- wrong type rather than as a shape. It reads like a column's `separator = false`
 --- and it is falsy, so unrefused on a linemode it falls through to the
 --- separator it was written to be rid of and the linemode draws the very
 --- thing it asked to drop -- in silence, because a separator is not read
@@ -1007,7 +1013,7 @@ function M.normalize(spec, cfg)
 
 	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:
 	-- that idiom collapses a `def` value of `false` to nil, and `false` is the
-	-- only value `sep` ever takes.
+	-- only value a separator ever takes.
 	--
 	-- The return is annotated because it cannot be inferred. The key is a
 	-- variable, so a language server unions every field either table can
@@ -1026,9 +1032,9 @@ function M.normalize(spec, cfg)
 	-- separator may be that `M.separator` refuses: on a column it says "draw
 	-- nothing before this one", which is a column's answer and not a
 	-- linemode's, and the message it would otherwise get is written to say so.
-	local sep = pick("sep")
+	local sep = pick("separator")
 	if sep ~= false then
-		sep = M.separator(sep, string.format("`sep` of column `%s`", name or "?"))
+		sep = M.separator(sep, string.format("`separator` of column `%s`", name or "?"))
 	end
 
 	local col = {

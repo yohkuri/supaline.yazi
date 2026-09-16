@@ -27,7 +27,7 @@ comparing against.
 | `m 2` | `everything` | Every built-in column                             |
 | `m 3` | `widths`     | Stated width vs `"auto"` vs `max_width`           |
 | `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`, string and Line   |
-| `m 5` | `seps`       | The separator, `sep = false`, and a coloured one  |
+| `m 5` | `seps`       | The separator, `separator = false`, and a coloured one |
 | `m 6` | `pane_cur`   | The current pane alone                            |
 | `m 7` | `pane_par`   | `current` + `parent`, one list between them       |
 | `m 8` | `pane_prev`  | `current` + `preview`, one list between them      |
@@ -166,7 +166,7 @@ The same name, four ways, against a column of twelve.
 ```
 
 - `bin` is the extension column, five cells, left-aligned.
-- **No gap** between it and the size: that column sets `sep = false`.
+- **No gap** between it and the size: that column sets `separator = false`.
 - A `│` sits before the date, and no space either side of it.
 - **That `│` is green**, and nothing else on the row is: it carries a `style`
   of its own rather than taking the row's. Compare it with the pane dividers
