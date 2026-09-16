@@ -27,12 +27,12 @@ Every claim here and in `references/checked-traps.md` was measured on Yazi
 `ya.dbg`; where a measurement stops short, it says so. A different Yazi is a
 reason to re-run the experiment rather than trust the sentence — and when you
 do, write down what you ran. `references/probes.md` holds what was run for the
-three below, which is what you would be re-running.
+four below, which is what you would be re-running.
 
-Seven of the ten traps are refused by a test or a CI job that prints the fix,
-and live in `references/checked-traps.md`, worth opening when one fires. The
-three below are what no check catches. When you find a way to move one into the
-checked list, take it.
+Seven of the eleven traps are refused by a test or a CI job that prints the
+fix, and live in `references/checked-traps.md`, worth opening when one fires.
+The four below are what no check catches. When you find a way to move one into
+the checked list, take it.
 
 ## A theme reload replaces colours already resolved
 
