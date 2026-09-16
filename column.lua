@@ -1373,9 +1373,20 @@ end
 --- Only a ramped column is held to this. A `stats` is also how a column
 --- derives a width or carries anything its own `render` reads off `ctx.stats`,
 --- and a column using it that way owes nobody a `min` and a `max`.
+---
+--- Numbers, not merely present, and that is the half a presence test gets
+--- wrong. `bind` just below does arithmetic on both the moment this answers
+--- true -- `math.log(st.min + 1)` under `scale = "log"`, and `ctx.ratio`
+--- subtracts them on every row whichever scale it is -- and none of that is
+--- contained: `bind` is supaline's own code, called from the folder pass
+--- rather than through the `pcall` a column's own functions go under. So a
+--- `stats` handing back `{ min = "a", max = "z" }` would pass a test for
+--- presence and then raise from inside Yazi's redraw, which costs the whole
+--- screen rather than the column. `broke` in `main.lua` carries that
+--- measurement.
 ---@param st any
 ---@return boolean
-function M.has_extremes(st) return type(st) == "table" and st.min ~= nil and st.max ~= nil end
+function M.has_extremes(st) return type(st) == "table" and type(st.min) == "number" and type(st.max) == "number" end
 
 --- Bind one folder's precomputed statistics and width onto a column, and
 --- prepare whatever `ctx.ratio` needs so that no work is repeated per row.

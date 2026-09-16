@@ -400,6 +400,18 @@ colour. Only a column drawing a gradient is held to the pair — a `stats` that
 derives a width, or that carries something the column's own `render` reads off
 `ctx.stats`, owes nobody a `min` and a `max`.
 
+Nor does a `stats` that returns nothing at all. `nil` is how it says the
+listing in front of it held no value to measure — the built-in `size` says it
+for a directory holding only directories — so it is not a mistake and is not
+reported. A gradient over it draws its low end on every row, which is the
+honest answer to a listing with no range in it.
+
+**Both have to be numbers**, and that half is not only about the colour.
+supaline does arithmetic on the pair from its own folder pass, outside the
+containment a column's own functions get, so a `min` that came back as a string
+would fail Yazi's whole screen rather than the column. It is checked with the
+rest of the pair and said the same way.
+
 **A column that throws is reported the same way and cannot take Yazi with it.**
 `stats`, a `width` that is a function and `render` are all called while a pane
 is drawn, and an error raised there fails Yazi's whole screen — file list,
