@@ -1,17 +1,19 @@
 ---
 name: yazi-platform-traps
 description: >-
-  Three behaviours of Yazi 26.9.1 that break this plugin silently and that CI
+  Four behaviours of Yazi 26.9.1 that break this plugin silently and that CI
   does not catch: a theme reload replaces colours already resolved and the
   flavor lands after `init.lua` has run, a fetcher returns a function rather
-  than a boolean, and linemode children also render in the parent pane. Plus
-  the budget a linemode render runs under. Read when a change resolves a colour
-  or reads the theme, writes a fetcher, touches the parent- or preview-pane
-  child, or adds a column's render or stats -- not for every edit to plugin
+  than a boolean, linemode children also render in the parent pane, and an
+  error raised under a render blanks the whole screen rather than the row.
+  Plus the budget a linemode render runs under. Read when a change resolves a
+  colour or reads the theme, writes a fetcher, touches the parent- or
+  preview-pane child, adds a column's render or stats, or adds a call into a
+  function a column wrote -- not for every edit to plugin
   Lua, and not for a rename or a format string. Seven
   further traps are refused by a test or a CI job that prints the fix, so they
   need no reading in advance; references/checked-traps.md has them for when one
-  fires, and references/probes.md has what was run to establish the three
+  fires, and references/probes.md has what was run to establish the four
   above.
 ---
 
@@ -131,7 +133,8 @@ allocate as little as possible.
 - **`ui.Line` consumes what it is given**, spans and whole Lines alike, so
   nothing renderable can be built once and drawn twice: the second `ui.Line`
   over the same table — or over the same Line — raises `expected a string,
-  Span, Line, or a table of them`, and the pane stops drawing. Cache the
+  Span, Line, or a table of them`, and the screen stops drawing — see the
+  section below for how much of it. Cache the
   styles, rebuild the rest. Measured on 26.9.1, and refused by the stub —
   `column_spec.lua` "a span drawn a second time is refused" and "a whole Line
   drawn a second time is refused too". The Line half is the one `column.cell`
@@ -139,6 +142,37 @@ allocate as little as possible.
 
 A linemode name is 1 to 20 characters. An unregistered name renders as literal
 text, so a name registered late shows up on screen.
+
+## An error under a render takes the whole screen, not the row
+
+Measured on 26.9.1, in a real Yazi. An error raised anywhere beneath a
+linemode's render fails the **`Root` component** — the file list, the header
+and the status bar all stop drawing, leaving the terminal blank but for the
+preview pane's own placeholder. It is not a one-off: the redraw is attempted
+and fails again on every frame, for as long as that folder is open, while Yazi
+goes on accepting keys against a screen showing nothing. `Failed to redraw the
+'Root' component` reaches the log and nothing reaches the screen — and there is
+no log at all unless `YAZI_LOG` was set before Yazi started, which is not how
+anybody runs it.
+
+So an `error` is the most expensive thing a column can do, and it costs the
+same whoever wrote it. A reader's own `render` raising produced exactly that
+blank screen with no part of this plugin involved.
+
+supaline calls three functions a column may write — `stats`, a `width` that is
+one, and `render` — and all three are called inside that redraw. All three are
+made under `pcall` in `main.lua`, which reports once per column and goes on
+drawing; `broke` there carries the reasoning and `main_spec.lua`'s three
+`throwing:` specs pin it. **A new call into a column's code belongs under the
+same containment**, and that is the part no check will tell you: the suite
+stays green either way, because a spec only ever reaches code that already
+exists.
+
+What must not be contained this way is a mistake in the *configuration*.
+`setup` runs from `init.lua`, before any component draws, and an error there
+stops Yazi starting and prints the whole message to the terminal — which is
+the loudest and most useful refusal available. Refuse what can be refused
+there; contain only what cannot be known until a render.
 
 ## Caught by a check, not by reading
 

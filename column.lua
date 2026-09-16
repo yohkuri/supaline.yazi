@@ -280,6 +280,7 @@ local colour = require(".colour")
 --- column that legitimately has none.
 ---@field ramped boolean
 ---@field told_stats boolean? set once a wrong `stats` return has been reported
+---@field told_broken boolean? set once this column has been reported for throwing
 ---@field ctx supaline.Ctx
 
 --- What one pass over one folder produced for one column. main.lua caches
