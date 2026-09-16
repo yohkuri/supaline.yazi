@@ -516,24 +516,18 @@ local GROUND = "#8b0045"
 
 -- The second ground, for the renderable column beside that one. Two of them
 -- because the padding question is asked twice on the same row -- around a
--- string, and around a nested Line -- and one colour would leave a reader
--- unable to say which of the two answers they were looking at.
+-- string, and around a nested Line -- and telling which answer is which is
+-- the first thing a reader does. They are 0.331 apart, further than either
+-- sits from anything named above.
 --
--- Measured the same way and against the same three sets: 0.276 from the
--- nearest of those seven grounds, 0.250 from the nearest of the sixty-four
--- steps, and 0.243 from the nearest colour drawn elsewhere here -- each of
--- them further than `GROUND`'s own 0.207, 0.242 and 0.113. The search
--- maximised the smallest of the three over an RGB grid and refined at the top
--- of it.
+-- Against the same three sets: 0.276, 0.250, 0.243, each of them further than
+-- `GROUND`'s own 0.207, 0.242 and 0.113. The search maximised the smallest of
+-- the three over an RGB grid and refined at the top of it.
 --
 -- That third set is not decoration. The first search returned `#fe00fe`, and
 -- this fixture draws `ext` in `magenta`: what a ground has to stand clear of
 -- includes the palette on the same screen, not only the terminals the screen
 -- might be read on.
---
--- The two grounds are 0.331 apart from each other, which is larger than any
--- distance named above either of them. On a row carrying both bands, telling
--- one from the other is the first thing a reader has to do.
 local LINE_GROUND = "#007a00"
 
 -- User columns, registered through the same entry point the built-ins use.
@@ -734,34 +728,32 @@ supaline:setup({
 		},
 
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,
-		-- beside the same ramp over no ground at all -- and, third, the ramp
-		-- painted *as* the background, under the row's own text. `colour.build`
-		-- sets every step on the ground, so the `bg` is meant to survive under
-		-- sixty-four colours that know nothing about it; and `bg` takes a
-		-- gradient exactly as `fg` does, which is what the third column shows.
-		-- A theme cannot ask for either -- `themes/bg.toml` is where that runs
-		-- out.
+		-- beside the same ramp over no ground at all -- and `ratio`, which
+		-- carries the ramp painted *as* the background, under the row's own
+		-- text. `colour.build` sets every step on the ground, so the `bg` is
+		-- meant to survive under sixty-four colours that know nothing about it;
+		-- and `bg` takes a gradient exactly as `fg` does, which is what `ratio`
+		-- shows. A theme cannot ask for either -- `themes/bg.toml` is where
+		-- that runs out.
 		--
 		-- An ungrounded column beside the grounded one because the question is
 		-- whether the `bg` is still there, and against a single band the only
 		-- reference a reader has is their own terminal's ground. That is
 		-- unknown from here, and may be the very colour the `bg` carries.
 		--
-		-- Every stated width is wider than the text under it, and `fit` pads
-		-- before the style is applied, so a band has to cover cells that carry
-		-- no text. Left at its own width a column is exactly full on every row
-		-- and that half of it could not be looked at: `mtime` is eleven wide in
-		-- both of the formats it picks between, and every name in
-		-- `colour/ramp` is eleven cells too.
+		-- Every stated width is wider than the text under it, so a band has to
+		-- cover cells that carry no text. Left at its own width a column is
+		-- exactly full on every row and that half of it could not be looked at:
+		-- `mtime` is eleven wide in both of the formats it picks between, and
+		-- every name in `colour/ramp` is eleven cells too.
 		--
-		-- `name_line` is the third for the one reason nothing else here can
-		-- serve: it hands back a Line rather than a string, so its pad is built
-		-- around a *nested* Line and styled afterwards, where a string's pad is
-		-- inside `fit` and styled with the text. Those are two paths to the same
-		-- claim, and until this column carried a ground only one of them was
-		-- ever drawn on a ground at all. Its width is 16 rather than 14 so the
-		-- two bands differ in length as well as in colour: a check that read the
-		-- wrong column's width would otherwise agree with itself.
+		-- `name_line` is here for the one reason nothing else can serve: it
+		-- hands back a Line, which `cell` pads by the other of its two routes
+		-- -- the comment on `M.cell` in `column.lua` is where those are written
+		-- down -- and until this column carried a ground only one route was
+		-- ever drawn on one. 16 rather than 14 so a glance can tell the two
+		-- bands apart on screen, which is what `manual.sh` is for; `e2e.sh`
+		-- reads each width off this file and does not need them to differ.
 		--
 		-- A ground and nothing else, where the column above it carries a ramp
 		-- too. Not a choice: `name_line` has no `stats`, and `setup` refuses a
@@ -769,8 +761,7 @@ supaline:setup({
 		-- place a name between, and the ramp could only ever draw its low end.
 		-- Watched, on 26.9.1, by writing `fg = COOL` here and reading the
 		-- refusal off the screen. What that leaves is the row's own foreground
-		-- over the ground, which is the third column's question asked of a
-		-- renderable.
+		-- over the ground, which is `ratio`'s question asked of a renderable.
 		c_bg = {
 			{ "mtime", style = COOL, width = 14 },
 			{ "mtime", style = { fg = COOL, bg = GROUND }, width = 14 },
