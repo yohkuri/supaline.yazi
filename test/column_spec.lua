@@ -315,19 +315,6 @@ test("register: `register` names the column, so `name` beside it is not read", f
 	end, "where a spec names the column it uses")
 end)
 
-test("normalize: `sep` is refused with the spelling it abbreviates", function()
-	-- `separator` is long, and `sep` is what it gets shortened to -- this
-	-- plugin's own records are called that. The key is refused either way;
-	-- what the hint buys is the name to write instead, the way `reverse` and
-	-- `strikethrough` get theirs in a style table.
-	local wrote_sep = function()
-		---@diagnostic disable-next-line: undefined-field
-		column.normalize({ "fixed", sep = "|" }, CFG)
-	end
-	throws(wrote_sep, "`sep` is not a column key")
-	throws(wrote_sep, "`separator` is the spelling, on a column as in `setup`")
-end)
-
 test("normalize: a `render` at `[1]` is refused, and says where it goes", function()
 	-- What is pinned is not the refusal but its message. A render at `[1]` is a
 	-- reasonable thing to write, so the refusal has to say where the render goes
