@@ -537,12 +537,6 @@ local function refuse_unknown(t, name, def, role)
 	if role ~= "use" then
 		check_options(def, name)
 	end
-	-- The two shapes that carry no table of their own leave `normalize` with an
-	-- empty `opts`, and there is no key in one to refuse.
-	if next(t) == nil then
-		return
-	end
-
 	local unknown, _, subject, hints = colour.unknown(t, claims_of(role, def), "column", COLUMN_MEANT)
 	if not unknown then
 		return
@@ -951,33 +945,48 @@ local function layers_of(name, opts, def, bands, role)
 	}, { mine, "theme", "spec" }
 end
 
+-- What a spec may be at all, for the two places that have to say so: a value
+-- that is no kind of table, and a table that is a table and nothing more.
+-- Written once because it is one sentence -- a reword that reached one of them
+-- and missed the other would answer `"size"` and `{ "size" }` differently, and
+-- those are the same mistake.
+local COLUMN_SHAPE = "supaline: a column must be a name, a function, or a table with `render`"
+
+-- Its own message rather than the shape one above, which is about not knowing
+-- what a column is. Whoever writes this knows: they wrote a render, in the one
+-- place that no longer reads one, and what they need is where it goes instead.
+local RENDER_AT_ONE = "supaline: a column's `render` goes under `render`, not at `[1]`: write "
+	.. "`{ render = fn, width = 6 }`. `[1]` is where a spec names the column it "
+	.. "uses, and a function is not a name"
+
 --- Turn one entry of a linemode spec into a runtime column.
 ---@param spec supaline.ColumnSpec
 ---@param cfg supaline.Cfg
 ---@return supaline.Column
 function M.normalize(spec, cfg)
+	-- The sugar, before anything dispatches on it. Since `[1]` holds only a
+	-- name, a spec table is either a `[1]` or a `render`, and the two bare
+	-- spellings are those two written short: `"size"` is `{ "size" }` and `fn`
+	-- is `{ render = fn }`. Rewriting them here rather than giving each a branch
+	-- of its own is what lets the two messages above be written once -- a pair
+	-- kept in step by hand is a pair that drifts.
+	--
+	-- A fresh table each time, so nothing here writes into what the user wrote.
+	if type(spec) == "string" then
+		spec = { spec }
+	elseif type(spec) == "function" then
+		spec = { render = spec }
+	elseif type(spec) ~= "table" then
+		error(COLUMN_SHAPE)
+	end
+
 	local name, opts, def, role
 
-	if type(spec) == "function" then
-		name, opts, def, role = nil, {}, { render = spec }, "inline"
-	elseif type(spec) == "string" then
-		name, opts, role = spec, {}, "use"
-		def = M._registry[spec] or error(string.format("supaline: unknown column `%s`", spec))
-	elseif type(spec) ~= "table" then
-		error("supaline: a column must be a name, a function, or a table with `render`")
-	elseif type(spec[1]) == "string" then
+	if type(spec[1]) == "string" then
 		name, opts, role = spec[1], spec, "use"
 		def = M._registry[name] or error(string.format("supaline: unknown column `%s`", name))
 	elseif type(spec[1]) == "function" then
-		-- Its own message rather than the unknown-key one below, which is about
-		-- not knowing what a column is. Whoever writes this knows: they wrote a
-		-- render, in the one place that no longer reads one, and what they need
-		-- is where it goes instead.
-		error(
-			"supaline: a column's `render` goes under `render`, not at `[1]`: write "
-				.. "`{ render = fn, width = 6 }`. `[1]` is where a spec names the column it "
-				.. "uses, and a function is not a name"
-		)
+		error(RENDER_AT_ONE)
 	elseif type(spec.render) == "function" then
 		name, opts, def, role =
 			spec.name,
@@ -985,7 +994,7 @@ function M.normalize(spec, cfg)
 			spec, --[[@as supaline.ColumnDef]]
 			"inline"
 	else
-		error("supaline: a column must be a name, a function, or a table with `render`")
+		error(COLUMN_SHAPE)
 	end
 
 	-- On the local rather than in the branches above. Every shape assigns `name`
@@ -999,12 +1008,11 @@ function M.normalize(spec, cfg)
 	-- this wording looked at, which is the whole of what it wants.
 	refuse_name(name, "which is the `name` this definition gave itself")
 
-	-- Every shape that carries options is a table the user typed, and this is
-	-- the first line that has one of them. The two shapes that carry none -- a
-	-- bare name and a bare function -- leave the branch above with an empty
-	-- `opts`, so they pass through here without a test of their own. The
-	-- definition says what this column takes beyond the shared keys, and a
-	-- registered one was swept by `register` when it arrived.
+	-- Every shape reaches here with a table, the two desugared ones included --
+	-- theirs holds the one key the sugar put in it, which its role claims, so
+	-- they sweep clean rather than being skipped. The definition says what this
+	-- column takes beyond the shared keys, and a registered one was swept by
+	-- `register` when it arrived.
 	refuse_unknown(opts, name, def, role)
 
 	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:

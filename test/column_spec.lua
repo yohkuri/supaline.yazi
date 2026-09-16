@@ -58,6 +58,41 @@ test("normalize: an inline definition", function()
 	eq(cell { render = function() return "x" end, width = 3, align = "left" }, "x  ")
 end)
 
+test("normalize: the two bare spellings are the tables they desugar to", function()
+	-- `"size"` is `{ "size" }` written short and `fn` is `{ render = fn }`, and
+	-- `normalize` rewrites both before it dispatches -- which is what lets the
+	-- messages below be written once each rather than once per spelling.
+	--
+	-- Pinned against the table, field by field, rather than against a cell:
+	-- `cell` alone would go on passing if a desugared spec picked up a
+	-- different alignment or lost its name, since neither shows in three
+	-- characters of text.
+	column.register("sz", { width = 4, align = "right", render = function() return "ab" end })
+	local bare, table_ = column.normalize("sz", CFG), column.normalize({ "sz" }, CFG)
+	for _, key in ipairs { "name", "fixed", "align", "overflow", "scale" } do
+		eq(bare[key], table_[key], "a bare name and `{ name }` disagree on `" .. key .. "`")
+	end
+
+	local fn = function() return "x" end
+	local loose, wrapped = column.normalize(fn, CFG), column.normalize({ render = fn }, CFG)
+	for _, key in ipairs { "name", "fixed", "align", "overflow", "scale", "needs_pass" } do
+		eq(loose[key], wrapped[key], "a bare function and `{ render = fn }` disagree on `" .. key .. "`")
+	end
+end)
+
+test("normalize: one refusal per mistake, whichever spelling wrote it", function()
+	-- The pair these two messages used to be is what the sugar retired. Each
+	-- was written out twice, once for the bare spelling and once for the table,
+	-- and a reword that reached one and missed the other would answer the same
+	-- mistake two ways. Nothing but this says they are one string.
+	throws(function() column.normalize("nope", CFG) end, "unknown column `nope`")
+	throws(function() column.normalize({ "nope" }, CFG) end, "unknown column `nope`")
+
+	---@diagnostic disable-next-line: param-type-mismatch
+	throws(function() column.normalize(42, CFG) end, "must be a name, a function, or a table with `render`")
+	throws(function() column.normalize({ x = 1 }, CFG) end, "must be a name, a function, or a table with `render`")
+end)
+
 test("normalize: an unknown name is refused", function()
 	throws(function() column.normalize("nope", CFG) end, "unknown column `nope`")
 end)
