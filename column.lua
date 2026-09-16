@@ -279,8 +279,15 @@ local colour = require(".colour")
 --- which is what lets `main.lua` tell a `stats` that came back wrong from a
 --- column that legitimately has none.
 ---@field ramped boolean
----@field told_stats boolean? set once a wrong `stats` return has been reported
----@field told_broken boolean? set once this column has been reported for throwing
+--- What has already been reported about this column, keyed by `main.lua`'s
+--- name for each thing it says. Three things are worth saying once and then
+--- not again -- a `stats` with no extremes, a `width` function returning a
+--- number nobody can use, and a column throwing -- and all three are reached
+--- from a pass that runs while a folder is drawn, so a report that did not
+--- remember itself would be a drip rather than a message. A table rather
+--- than a field apiece, so a fourth costs a key instead of a fourth field on
+--- a class that is otherwise about drawing.
+---@field told table<string, true>
 ---@field ctx supaline.Ctx
 
 --- What one pass over one folder produced for one column. main.lua caches
@@ -1224,6 +1231,12 @@ function M.normalize(spec, cfg)
 	-- nothing to read, and says nothing about it.
 	col.needs_pass = col.stats ~= nil or col.auto or col.width_of ~= nil
 
+	-- Empty, and built here rather than on first use, so the record has one
+	-- shape from the moment it exists. `setup` builds fresh records, which is
+	-- what re-arms every report this holds: a reader who has just changed the
+	-- configuration is owed the message again.
+	col.told = {}
+
 	local layers, sources = layers_of(name, opts, def, cfg.band, role)
 	local resolved, from = colour.merge(layers)
 
@@ -1628,31 +1641,52 @@ end
 
 --- The effective width of a column for one folder, for the two shapes that
 --- derive it from the listing rather than stating it outright.
+---
+--- A `width` function that comes back with something that is not a count of
+--- cells is **returned** as a refusal rather than raised as one, and that is
+--- the only thing in this file that answers a mistake by returning. The
+--- reason is the caller: this runs inside a render pass, and `main.lua` calls
+--- it under `pcall` because a column's own code can raise anything from here
+--- and an error under a render blanks Yazi's whole screen. A refusal raised
+--- into that wrapper comes back out of it indistinguishable from the
+--- reader's function throwing, and would be worded as one -- "column `x`
+--- threw from its `width`" for a function that threw nothing and returned
+--- `0`. Two different mistakes, one sentence, and the more common of the two
+--- described wrongly.
+---
+--- Narrowing the `pcall` to `col.width_of(stats)` would sort the two out as
+--- well, and is the wrong half to take: it puts this refusal back on the path
+--- that takes the screen down.
+---
+--- A width of nil with no reason beside it is not a refusal. A column that
+--- states no width at all has none to resolve, and that is what comes back.
 ---@param col supaline.Column
 ---@param files supaline.File[]
 ---@param stats any
----@return integer?
+---@return integer? # the width, or nil for a column that states none
+---@return string? # why the `width` function's return was unusable, if it was
 function M.resolve_width(col, files, stats)
 	if col.width_of then
 		local w = col.width_of(stats)
 		local cells = cells_of(w)
 		if cells == nil or cells < 1 then
-			-- Returning nil here would leave the column with no width at all:
-			-- no padding, no truncation, and a cell free to push into the file
-			-- name. A stated width and "auto" both fail loudly; so does this.
+			-- Taking it would leave the column with no width at all: no padding,
+			-- no truncation, and a cell free to push into the file name.
 			--
 			-- Held to what a stated `width` is held to, and not because symmetry
 			-- is tidy: a function returning 0 empties the column exactly as
 			-- `width = 0` did, and closing one door and not the other leaves the
-			-- same blank column reachable by the spelling nobody checked.
-			error(
+			-- same blank column reachable by the spelling nobody checked. What
+			-- differs is only how the two are said -- a stated width is refused
+			-- in `setup`, which stops Yazi before anything draws, and this one
+			-- cannot be known until the folder is being rendered.
+			return nil,
 				string.format(
 					"supaline: the `width` function of column `%s` returned %s; it must return a whole "
 						.. "number of cells, 1 or more",
 					col.name or "?",
 					as_written(w)
 				)
-			)
 		end
 		return cap(cells, col.max_width)
 	elseif not col.auto then

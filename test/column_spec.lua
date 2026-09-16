@@ -1338,21 +1338,45 @@ test("width: a width function that returns no usable number is refused", functio
 		}, CFG)
 	end
 
-	throws(function() column.resolve_width(returning(nil), FILES, nil) end, "returned a nil")
+	-- Returned rather than raised, and that is the assertion as much as the
+	-- wording is. The only caller runs this under `pcall`, because a column's
+	-- own code can throw from in here and an error under a render blanks
+	-- Yazi's whole screen; a refusal raised into that wrapper comes back out
+	-- of it looking exactly like the reader's function throwing, and
+	-- `main.lua` would word it as one. So the width has to come back nil with
+	-- the reason beside it.
+	---@param w any
+	---@return string # why it was refused
+	local function refusal(w)
+		local got, why = column.resolve_width(returning(w), FILES, nil)
+		eq(got, nil, "a width nobody can use came back as a width")
+		assert(why, "a width was refused with no reason beside it")
+		return why
+	end
+
+	assert(refusal(nil):find("returned a nil", 1, true), refusal(nil))
 
 	-- Held to what a stated `width` is held to. A function returning 0 empties
 	-- the column exactly as `width = 0` does, and a door closed on one spelling
 	-- and not the other leaves the same blank column reachable.
 	for _, w in ipairs { 0, -3 } do
-		throws(function() column.resolve_width(returning(w), FILES, nil) end, "must return a whole number of cells")
+		local why = refusal(w)
+		assert(why:find("must return a whole number of cells", 1, true), why)
 	end
 	-- Not floored, for the reason a stated one is not: rounding is a guess
 	-- about which of two whole numbers the arithmetic behind it meant.
-	throws(function() column.resolve_width(returning(2.5), FILES, nil) end, "returned `2.5`")
+	assert(refusal(2.5):find("returned `2.5`", 1, true), refusal(2.5))
 
-	-- And what it may return still comes back, an integral float narrowed.
+	-- And what it may return still comes back, an integral float narrowed, with
+	-- nothing in the second return to mistake for a refusal.
 	eq(column.resolve_width(returning(6), FILES, nil), 6)
 	eq(column.resolve_width(returning(6.0), FILES, nil), 6)
+	eq(select(2, column.resolve_width(returning(6), FILES, nil)), nil)
+
+	-- And a column that simply states no width is nil without being refused --
+	-- the reason beside it is what tells the two apart.
+	local plain = column.normalize({ render = function() return "x" end }, CFG)
+	eq(select(2, column.resolve_width(plain, FILES, nil)), nil)
 end)
 
 test('width: "auto" over an empty folder is zero', function()

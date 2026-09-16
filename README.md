@@ -413,6 +413,12 @@ ragged but readable. None of this applies to a mistake in the configuration —
 `setup` runs before anything draws, so what it can refuse it refuses, and Yazi
 says so and does not start.
 
+A `width` function that **returns** a number supaline will not take — `0`,
+a negative, `2.5` — is not a throw and is not reported as one. It is the same
+refusal a stated `width = 0` gets, arriving too late for `setup` to make it,
+so it is said on screen instead: the notification names the column and what
+came back, and the column draws unpadded exactly as a throw would leave it.
+
 A column that takes an option of its own reads it off `ctx.opts` and names it
 in `options`, which is what lets a misspelling of it be refused rather than
 ignored. The built-in timestamp columns do exactly this for `format`. A
