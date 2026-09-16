@@ -317,51 +317,37 @@ local M = { _registry = {} }
 -- measured not to change that -- so `algin` and `max_widht` reach this or they
 -- reach nobody, and a column whose cap was written `max_widht` draws at its
 -- natural width and says nothing about why.
+--
+-- A key whose value is a list takes only what the list holds, and `M.one_of`
+-- refuses anything else -- a value nobody accepts, which until now was
+-- accepted by being *ignored*: `align = "centre"` fell through to the `or
+-- "right"` that defaults it and drew a right aligned column without a word,
+-- and `scale = "LOG"` scaled nothing. The sets sit in here rather than in a
+-- table beside it so that the two cannot fall out of step: a new shared key
+-- is one line, and writing that line is choosing between `true` and a set.
+-- The readers below want a key claimed or not claimed, so a list reads as
+-- `true` to every one of them.
+--
+-- Each set is in the order its message lists them, which is the order
+-- README's table lists them in -- these are read as a set of choices rather
+-- than looked up one at a time, so `pairs` order would reword the message
+-- between runs the way it would the key list below. Only the keys every
+-- column shares are in here at all, and that is the line rather than an
+-- omission: a column's own options are the column's to check. What `format`
+-- may hold is knowable to `mtime` and to nothing else, which is why `options`
+-- declares the names and stops there.
 local COLUMN_KEYS = {
-	align = true,
+	align = { "left", "right" },
 	max_width = true,
-	overflow = true,
+	overflow = { "ellipsis", "clip", "grow" },
 	refresh = true,
 	render = true,
-	scale = true,
+	scale = { "linear", "log" },
 	separator = true,
 	stats = true,
 	style = true,
 	width = true,
 }
-
--- The values the shared keys take, for the three that take a fixed set of
--- them. `COLUMN_KEYS` above refuses a key nobody claims; this refuses a value
--- nobody accepts, which until now was accepted by being *ignored* -- `align =
--- "centre"` fell through to the `or "right"` that defaults it and drew a right
--- aligned column without a word, and `scale = "LOG"` scaled nothing.
---
--- Only the keys every column shares are in here, and that is the line rather
--- than an omission: a column's own options are the column's to check. What
--- `format` may hold is knowable to `mtime` and to nothing else, which is why
--- `options` declares the names and stops there.
---
--- In the order the message lists them, which is the order README's table
--- lists them in -- these are read as a set of choices rather than looked up
--- one at a time, so `pairs` order would reword the message between runs the
--- way it would the key list above.
-local COLUMN_VALUES = {
-	align = { "left", "right" },
-	overflow = { "ellipsis", "clip", "grow" },
-	scale = { "linear", "log" },
-}
-
---- `"a"`, `"a" or "b"`, `"a", "b", or "c"`.
----@param values string[]
----@return string
-local function or_list(values)
-	if #values == 1 then
-		return string.format("`%s`", values[1])
-	elseif #values == 2 then
-		return string.format("`%s` or `%s`", values[1], values[2])
-	end
-	return string.format("`%s`, or `%s`", table.concat(values, "`, `", 1, #values - 1), values[#values])
-end
 
 --- What the reader wrote, for the tail of a message that names it back.
 ---
@@ -378,6 +364,23 @@ local function as_written(value)
 	end
 	return "a " .. t
 end
+
+--- A width as a whole number of cells, or nil for anything that is not one.
+---
+--- `type` is asked before `math.tointeger`, and that order is the whole check:
+--- measured on 5.5.1, `math.tointeger("3")` answers 3, so a `width` written as
+--- the string `"3"` would otherwise pass as an integer. It also covers the
+--- three numbers that are numbers and not counts -- `inf`, `-inf` and NaN all
+--- answer nil.
+---
+--- One function because two keys and a `width` function all ask it, and the
+--- ordering above is the kind of thing a later reader tidies into
+--- `math.tointeger(value)` without knowing what it was for. Each caller words
+--- its own refusal, which is the part that differs; this is the part that
+--- must not.
+---@param value any
+---@return integer?
+local function cells_of(value) return type(value) == "number" and math.tointeger(value) or nil end
 
 --- Refuse a width that is not a whole number of cells, or that is no cells at
 --- all.
@@ -398,12 +401,6 @@ end
 --- the arithmetic that produced it is worth the reader's attention rather than
 --- this function's rounding. An integral float is not that mistake -- `3.0` is
 --- 3 -- so it is taken and narrowed.
----
---- `type` is asked before `math.tointeger`, and that order is the whole check:
---- measured on 5.5.1, `math.tointeger("3")` answers 3, so a `width` written as
---- the string `"3"` would otherwise arrive here and pass as an integer. It
---- also covers the three numbers that are numbers and not counts -- `inf`,
---- `-inf` and NaN all answer nil.
 ---@param key "width"|"max_width"
 ---@param value any
 ---@param where string
@@ -412,7 +409,7 @@ local function whole_cells(key, value, where)
 	if value == nil then
 		return nil
 	end
-	local cells = type(value) == "number" and math.tointeger(value) or nil
+	local cells = cells_of(value)
 	if cells == nil or cells < 1 then
 		error(
 			string.format(
@@ -445,13 +442,15 @@ function M.one_of(key, value, where)
 	if value == nil then
 		return value
 	end
-	local values = COLUMN_VALUES[key]
+	local values = COLUMN_KEYS[key] --[[@as string[] ]]
 	for _, ok in ipairs(values) do
 		if value == ok then
 			return value
 		end
 	end
-	error(string.format("supaline: `%s` %s must be %s, got %s", key, where, or_list(values), as_written(value)))
+	error(
+		string.format("supaline: `%s` %s must be %s, got %s", key, where, colour.key_list(values, "or"), as_written(value))
+	)
 end
 
 -- And the two a definition may write that a use of it may not. Which
@@ -502,7 +501,8 @@ end
 ---@class supaline.RoleKeys
 ---@field keys table<any, true>
 ---@field draws string
----@field claims fun(key: any): boolean? the two above, for a column declaring no options
+---@field claims fun(key: any): any the two above, for a column declaring no options. Truthy is
+--- the whole of the answer: a shared key whose entry is its set of values answers the set.
 
 --- One role. `claims` is built here rather than assigned over the table below,
 --- so nothing can add a role and forget it.
@@ -540,7 +540,7 @@ local ROLES = {
 --- be refused on the same column.
 ---@param role supaline.Role how this table was written
 ---@param def supaline.ColumnOpts whose `options` say what this column also takes
----@return fun(key: any): boolean?
+---@return fun(key: any): any # truthy if the key is claimed; see `supaline.RoleKeys`
 local function claims_of(role, def)
 	local this = ROLES[role]
 	local own = def.options
@@ -703,9 +703,11 @@ end
 ---
 --- Yazi's own message says "1-20 characters in snake-case" and its parser is
 --- looser than that reads: `_x`, `x_` and `2x` are all taken, so what is
---- actually enforced is the length and the character class. Refusing the
---- leading-letter rule `colour.lua` holds a band name to would be supaline
---- inventing a restriction the platform does not have.
+--- actually enforced is the length and the character class. Holding a name to
+--- a leading letter on top of that would be supaline inventing a restriction
+--- the platform does not have -- which is the argument `colour.lua` took when
+--- it dropped the leading letter from the rule a band name is held to, and
+--- the reason the two patterns now read the same.
 local NAME = "^[a-z0-9_]+$"
 local NAME_MAX = 20
 
@@ -1340,6 +1342,28 @@ function M.normalize(spec, cfg)
 	return col
 end
 
+--- What a `stats` has to come back with for a ramp to have anything to place a
+--- row against: the extremes of the listing it was handed.
+---
+--- Exported because two files ask it and only one of them may answer. `bind`
+--- below is what actually decides whether the ramp gets its endpoints, and
+--- `main.lua` reports the column that did not supply them -- so if the two
+--- spelled the test separately, a later change to the shape would leave the
+--- report disagreeing with the binder, which is the silent failure the report
+--- exists to end.
+---
+--- Where the report is raised is a different question, and it is `main.lua`'s:
+--- this function is handed a `stats` and cannot tell one that came back wrong
+--- from a column that has none, while the call site knows whether it called a
+--- `stats` at all.
+---
+--- Only a ramped column is held to this. A `stats` is also how a column
+--- derives a width or carries anything its own `render` reads off `ctx.stats`,
+--- and a column using it that way owes nobody a `min` and a `max`.
+---@param st any
+---@return boolean
+function M.has_extremes(st) return type(st) == "table" and st.min ~= nil and st.max ~= nil end
+
 --- Bind one folder's precomputed statistics and width onto a column, and
 --- prepare whatever `ctx.ratio` needs so that no work is repeated per row.
 ---@param col supaline.Column
@@ -1350,7 +1374,7 @@ function M.bind(col, entry)
 	ctx.width = entry.width or col.fixed
 
 	local st = entry.stats
-	if type(st) ~= "table" or st.min == nil or st.max == nil then
+	if not M.has_extremes(st) then
 		ctx._lo, ctx._hi, ctx._log = nil, nil, false
 		return
 	end
@@ -1611,7 +1635,7 @@ end
 function M.resolve_width(col, files, stats)
 	if col.width_of then
 		local w = col.width_of(stats)
-		local cells = type(w) == "number" and math.tointeger(w) or nil
+		local cells = cells_of(w)
 		if cells == nil or cells < 1 then
 			-- Returning nil here would leave the column with no width at all:
 			-- no padding, no truncation, and a cell free to push into the file
