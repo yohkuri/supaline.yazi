@@ -1538,29 +1538,39 @@ local function soft_cut(text, width)
 	return hard_cut(text, width - 1) .. ELLIPSIS
 end
 
---- Fit a plain string into `width`, padding or truncating as the column asks.
+--- Fit a plain string into `limit` cells, padding it out to `pad` cells if the
+--- column has a width to pad to.
 ---
---- Either cut returns *at most* `width` cells, and either can come back short
+--- Either cut returns *at most* `limit` cells, and either can come back short
 --- when a wide character straddles the boundary, so the result is measured
 --- again and padded.
+---
+--- The two numbers are the same one wherever a column has a width at all --
+--- `bind` has already capped it by `max_width`. They part company on the one
+--- path that leaves a column without a width, which is `M.cell` below.
+---@param text string
+---@param limit integer the most it may be
+---@param pad integer? what to pad it out to, if anything
+---@param align string
+---@param overflow string
 ---@return string
-local function fit(text, width, align, overflow)
+local function fit(text, limit, pad, align, overflow)
 	local w = width_of(text)
 
-	if w > width then
+	if w > limit then
 		if overflow == "grow" then
 			return text
 		elseif overflow == "clip" then
-			text = hard_cut(text, width)
+			text = hard_cut(text, limit)
 		else
-			text = soft_cut(text, width)
+			text = soft_cut(text, limit)
 		end
 		w = width_of(text)
 	end
 
-	if w < width then
-		local pad = string.rep(" ", width - w)
-		return align == "left" and text .. pad or pad .. text
+	if pad and w < pad then
+		local spare = string.rep(" ", pad - w)
+		return align == "left" and text .. spare or spare .. text
 	end
 	return text
 end
@@ -1612,12 +1622,24 @@ function M.cell(col, file)
 		out = ""
 	end
 
-	-- Already capped by `max_width` in `bind`.
+	-- The width to pad out to, and the most the cell may be. They are the same
+	-- number wherever there is one: `bind` has already capped `ctx.width` by
+	-- `max_width`.
+	--
+	-- They part company on the one path that leaves a column with no width at
+	-- all -- a `width` function that threw, or that came back with a number
+	-- supaline will not take. That column draws unpadded, which is what its
+	-- notification says and what a ragged row looks like; a `max_width` the
+	-- reader stated is still theirs, and is the one half of the arithmetic
+	-- that never depended on the function that failed. Handing the cap over as
+	-- the width instead would pad every cell out to it, which is a fixed width
+	-- nobody asked for wearing a cap's name.
 	local width = col.ctx.width
+	local limit = width or col.max_width
 
 	if type(out) == "string" then
-		if width then
-			out = fit(out, width, col.align, col.overflow)
+		if limit then
+			out = fit(out, limit, width, col.align, col.overflow)
 		end
 		return style and ui.Span(out):style(style) or out
 	end
@@ -1631,25 +1653,25 @@ function M.cell(col, file)
 		-- its own keeps them.
 		line = line:style(style)
 	end
-	if not width then
+	if not limit then
 		return line
 	end
 
 	local w = line:width()
-	if w > width then
+	if w > limit then
 		if col.overflow == "grow" then
 			return line
 		end
 		-- An empty ellipsis is how `Line:truncate` is asked to cut cleanly; left
 		-- to itself it inserts "…" like `ui.truncate` does.
-		line = cut(line --[[@as supaline.Line]], width, col.overflow == "clip" and "" or nil)
-		-- `cut` returns *at most* `width`: a wide character straddling the edge
+		line = cut(line --[[@as supaline.Line]], limit, col.overflow == "clip" and "" or nil)
+		-- `cut` returns *at most* `limit`: a wide character straddling the edge
 		-- comes back one cell short, and an unpadded cell drags every column
 		-- after it out of line.
 		w = line:width()
 	end
 
-	if w < width then
+	if width and w < width then
 		local pad = string.rep(" ", width - w)
 		local padded = col.align == "left" and ui.Line { line, pad } or ui.Line { pad, line }
 		-- Styled a second time, around the pad. The string path pads in `fit`

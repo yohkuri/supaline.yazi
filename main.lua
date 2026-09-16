@@ -692,14 +692,19 @@ local function bind(name, pane, cols, folder)
 					else
 						broke(col, "width", got)
 					end
-					-- Neither leaves a width the pass can stand behind, so the
-					-- column falls back to whatever it stated and otherwise draws
-					-- unpadded. That is a ragged row, which is the thing a refused
-					-- width of zero exists to prevent -- but a ragged row is
-					-- readable, arrives with a notification naming the column, and
-					-- leaves the rest of Yazi on screen, which the `error` this
-					-- replaces did not.
-					entry.width = col.fixed or col.max_width
+					-- Neither leaves a width the pass can stand behind, so none is
+					-- invented and the column draws unpadded. That is a ragged
+					-- row, which is the thing a refused width of zero exists to
+					-- prevent -- but a ragged row is readable, arrives with a
+					-- notification naming the column, and leaves the rest of Yazi
+					-- on screen, which the `error` this replaces did not.
+					--
+					-- `entry.width` is left nil rather than set to `max_width`.
+					-- The cap is not a width: padding every cell out to it is a
+					-- fixed width the reader never asked for, and it would
+					-- contradict the notification, which says this column draws
+					-- unpadded. `column.cell` still cuts at the cap, which is the
+					-- half of it that never needed the function that failed.
 				end
 			end
 			entries[i] = entry
