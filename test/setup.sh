@@ -496,17 +496,45 @@ local BAND_BY_NAME = "#0b3d91 <-> both"
 -- ground it is *seen* against, which is the reader's and unknown here, and the
 -- ramp steps that have to stay *readable* on it.
 --
--- In Oklab it sits 0.21 from the nearest of seven common terminal grounds --
--- black, Mocha, One Dark, Gruvbox dark, Solarized dark, white, Solarized
--- light -- and 0.24 from the nearest of the sixty-four steps above. The value
--- that was here before, `#241a33`, was 0.02 from Mocha's `#1e1e2e`: a correct
--- background, drawn on every row, and invisible to anyone reading on one.
+-- In Oklab it sits 0.207 from the nearest of seven common terminal grounds --
+-- black `#000000`, Catppuccin Mocha `#1e1e2e`, One Dark `#282c34`, Gruvbox
+-- dark `#282828`, Solarized dark `#002b36`, white `#ffffff`, Solarized light
+-- `#fdf6e3` -- 0.242 from the nearest of the sixty-four steps above, and 0.113
+-- from the nearest colour this fixture draws elsewhere. The hexes are spelled
+-- out because a distance taken against a list of names cannot be re-taken from
+-- one: whoever checks this needs the colours, not the flavors.
+--
+-- The value that was here before, `#241a33`, was 0.02 from Mocha's `#1e1e2e`:
+-- a correct background, drawn on every row, and invisible to anyone reading on
+-- one.
 --
 -- A near-neutral colour cannot win that, whatever its lightness, because every
 -- terminal ground is near-neutral too and the distance has to come from
 -- somewhere. So the candidates were saturated ones, and this is the one whose
--- two numbers above were both the largest.
+-- three numbers above were the largest.
 local GROUND = "#8b0045"
+
+-- The second ground, for the renderable column beside that one. Two of them
+-- because the padding question is asked twice on the same row -- around a
+-- string, and around a nested Line -- and one colour would leave a reader
+-- unable to say which of the two answers they were looking at.
+--
+-- Measured the same way and against the same three sets: 0.276 from the
+-- nearest of those seven grounds, 0.250 from the nearest of the sixty-four
+-- steps, and 0.243 from the nearest colour drawn elsewhere here -- each of
+-- them further than `GROUND`'s own 0.207, 0.242 and 0.113. The search
+-- maximised the smallest of the three over an RGB grid and refined at the top
+-- of it.
+--
+-- That third set is not decoration. The first search returned `#fe00fe`, and
+-- this fixture draws `ext` in `magenta`: what a ground has to stand clear of
+-- includes the palette on the same screen, not only the terminals the screen
+-- might be read on.
+--
+-- The two grounds are 0.331 apart from each other, which is larger than any
+-- distance named above either of them. On a row carrying both bands, telling
+-- one from the other is the first thing a reader has to do.
+local LINE_GROUND = "#007a00"
 
 -- User columns, registered through the same entry point the built-ins use.
 supaline.column("ext", {
@@ -714,19 +742,39 @@ supaline:setup({
 		-- A theme cannot ask for either -- `themes/bg.toml` is where that runs
 		-- out.
 		--
-		-- Two columns rather than one because the question is whether the `bg`
-		-- is still there, and against a single band the only reference a reader
-		-- has is their own terminal's ground. That is unknown from here, and
-		-- may be the very colour the `bg` carries.
+		-- An ungrounded column beside the grounded one because the question is
+		-- whether the `bg` is still there, and against a single band the only
+		-- reference a reader has is their own terminal's ground. That is
+		-- unknown from here, and may be the very colour the `bg` carries.
 		--
-		-- The stated width is three cells wider than a date, and `fit` pads
-		-- before the style is applied, so the band has to cover cells that
-		-- carry no text. At its own width the column is exactly full on every
-		-- row and that half of it could not be looked at: `mtime` is eleven
-		-- wide in both of the formats it picks between.
+		-- Every stated width is wider than the text under it, and `fit` pads
+		-- before the style is applied, so a band has to cover cells that carry
+		-- no text. Left at its own width a column is exactly full on every row
+		-- and that half of it could not be looked at: `mtime` is eleven wide in
+		-- both of the formats it picks between, and every name in
+		-- `colour/ramp` is eleven cells too.
+		--
+		-- `name_line` is the third for the one reason nothing else here can
+		-- serve: it hands back a Line rather than a string, so its pad is built
+		-- around a *nested* Line and styled afterwards, where a string's pad is
+		-- inside `fit` and styled with the text. Those are two paths to the same
+		-- claim, and until this column carried a ground only one of them was
+		-- ever drawn on a ground at all. Its width is 16 rather than 14 so the
+		-- two bands differ in length as well as in colour: a check that read the
+		-- wrong column's width would otherwise agree with itself.
+		--
+		-- A ground and nothing else, where the column above it carries a ramp
+		-- too. Not a choice: `name_line` has no `stats`, and `setup` refuses a
+		-- gradient on a column that has none -- there would be no extremes to
+		-- place a name between, and the ramp could only ever draw its low end.
+		-- Watched, on 26.9.1, by writing `fg = COOL` here and reading the
+		-- refusal off the screen. What that leaves is the row's own foreground
+		-- over the ground, which is the third column's question asked of a
+		-- renderable.
 		c_bg = {
 			{ "mtime", style = COOL, width = 14 },
 			{ "mtime", style = { fg = COOL, bg = GROUND }, width = 14 },
+			{ "name_line", style = { bg = LINE_GROUND }, width = 16 },
 			{ "ratio", style = { bg = COOL }, width = 6 },
 		},
 

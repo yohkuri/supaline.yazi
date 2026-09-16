@@ -396,38 +396,52 @@ ordering test reaches on any ramp.
 In `g 3`. The same date twice, on the same ramp. The right one is set on a
 ground carrying `bg = "#8b0045"`, which every step is built on so that it
 survives under 64 colours that know nothing about it; the left one has no
-ground at all and is there to be held against it. A third column carries the
-same ramp under `bg` instead, with the row's own text over it.
+ground at all and is there to be held against it. Then the file's **name** on a
+second ground, `#007a00`, which is that same question asked of a column that
+hands a Line back rather than a string. A fourth column carries the ramp under
+`bg` instead, with the row's own text over it.
 
 The second column is what makes the first answerable. A single band can only be
 compared against the terminal's own ground, which is the reader's and unknown
 from here — and that is the very thing the band has to be told apart from. The
 background this fixture carried first, `#241a33`, sits 0.02 away in Oklab from
 Catppuccin Mocha's `#1e1e2e`: correct, drawn on every row, and invisible to
-anyone reading on one. The one there now was chosen by measuring that distance
-instead of guessing it, and `setup.sh` says against what.
+anyone reading on one. Both of the ones there now were chosen by measuring that
+distance instead of guessing it — against seven terminal grounds, the 64 steps
+above them, and the colours this fixture itself draws — and `setup.sh` writes
+down all three sets and both sets of numbers. The two are 0.331 apart from each
+other, which is further than either sits from anything else named there.
 
 - The background has to be there on **every** row and the same on every row.
   One row without it is a step that lost its ground.
-- The band is 14 cells wide and a date is 11, so three of them carry no text
-  and have to be inside the band anyway. `fit` pads before the style is
-  applied, which is what puts them there; padding afterwards would band the
-  text and leave the rest bare. The width has to be stated for any of this to
-  be visible — `mtime` is eleven wide in both of the formats it chooses
-  between, so left alone the column is exactly full on every row.
+- The date's band is 14 cells wide and a date is 11, so three of them carry no
+  text and have to be inside the band anyway. Padding before the style is
+  applied is what puts them there; padding afterwards would band the text and
+  leave the rest bare. The width has to be stated for any of this to be
+  visible — `mtime` is eleven wide in both of the formats it chooses between,
+  so left alone the column is exactly full on every row.
+- The name's band is 16 and every name in this folder is 11, so five cells
+  carry no text there. It looks like the same case and is a different one: a
+  column that returns a Line is padded by putting a second span beside it, and
+  what has to cover that span is the style applied to the Line around both,
+  after the text was measured. The two widths differ so that a glance can tell
+  which band is which.
 - Legibility is a different question here than anywhere else: the text is being
   read against that ground rather than against the terminal's, so a step that
-  was fine in the strip before Yazi opened can be wrong here.
+  was fine in the strip before Yazi opened can be wrong here. The name is drawn
+  in the row's own colour rather than the ramp's, so it is the one place to ask
+  whether a ground disturbs a foreground nobody chose for it.
 
-- The third column is the same question the other way up: the ramp is the
+- The fourth column is the same question the other way up: the ramp is the
   ground, the text is the row's, and whether the text still reads at the dark
   end and the light end is what nothing here measures. A `bg` gradient takes
   the two endpoints you write, so the answer is yours to move.
 
-`e2e.sh` reads the first two off the capture — that a band is there, that it is
-14 cells rather than 11, and that the column beside it did not pick one up —
-and that the third column's background climbs a step per row. Legibility is a
-reader's, twice over, and is why this is a manual case at all.
+`e2e.sh` reads the three bands off the capture — that each is there, that it is
+its own stated width rather than the width of its text, and that the column
+with no ground did not pick one up — and that the last column's background
+climbs a step per row. Legibility is a reader's, twice over, and is why this is
+a manual case at all.
 
 ### `c a` — a bold over someone else's colour
 
