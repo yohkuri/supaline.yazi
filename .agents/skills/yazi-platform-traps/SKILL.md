@@ -174,6 +174,16 @@ stops Yazi starting and prints the whole message to the terminal — which is
 the loudest and most useful refusal available. Refuse what can be refused
 there; contain only what cannot be known until a render.
 
+The containment has one more consequence, and it is easy to walk into:
+**supaline's own refusals inside a contained call must not be raised.** A
+`pcall` cannot tell who threw, so a refusal raised in there comes back out
+worded as the reader's code failing — `column.resolve_width` refusing a
+`width` function's return of `0` would be reported as that function throwing,
+which it did not. It returns `nil, why` instead, and `main.lua` words the two
+differently. Narrowing the `pcall` to the reader's function alone would sort
+them out too, and is the wrong half to take: it puts supaline's own raise back
+on the path that blanks the screen.
+
 ## Caught by a check, not by reading
 
 Detail in `references/checked-traps.md`; the failure itself will usually be

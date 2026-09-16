@@ -1043,6 +1043,32 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 	eq(first, "x")
 end)
 
+test("width: a function returning no usable number is reported as itself", function()
+	-- The other half of the test above, and the distinction is the point.
+	-- Nothing throws here: the function returns, and what it returns is a
+	-- width supaline will not take. `resolve_width` hands that back as a
+	-- reason rather than raising it, so the reader is told their function
+	-- returned `0` instead of being told it threw -- which is what a refusal
+	-- raised into the same `pcall` the throws come out of would have said.
+	main.column("zero_width", {
+		width = function() return 0 end,
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "zero_width" } }
+	local first = draw("detail", CURRENT.files[1])
+
+	eq(#stub.notified - was, 1, "said once")
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("returned `0`", 1, true) ~= nil, true, "and it says what came back")
+	eq(said:find("threw", 1, true), nil, "and does not call a return a throw")
+
+	-- Same fallback as a throw, because the pass is left with the same
+	-- nothing: unpadded, ragged and readable.
+	eq(first, "x")
+end)
+
 test("stats: a column with a stated width still receives them", function()
 	local seen = "not called"
 	main.column("stated", {

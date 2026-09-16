@@ -433,13 +433,41 @@ end
 --- fill the preview pane pushes its own first line off the top of it --
 --- measured twice, on `build`'s three stacked tracebacks and on `broke`'s.
 ---
---- The three callers word their own two strings and share nothing else; what
+--- The four callers word their own two strings and share nothing else; what
 --- they must not each decide is the level, the timeout and the title.
 ---@param logged any the whole of it, error object or string
 ---@param shown string the one sentence for the screen
 local function report(logged, shown)
 	ya.err(logged)
 	ya.notify { title = "supaline", content = shown, level = "error", timeout = 10 }
+end
+
+--- Whether this column has already been told off for `what`, marking it told
+--- if it has not.
+---
+--- Everything below reports from inside a render pass -- the folder pass for
+--- two of them, a per-row path for the third -- so an ungated report is a
+--- drip rather than a message. Measured on 26.9.1: ungated it is not even a
+--- hang, the notification redraws, the redraw renders, the render notifies,
+--- and the loop settles at about one a second and never stops.
+---
+--- Asked before each caller builds its message, never after, since building
+--- one per row of every frame is the cost the gate exists to avoid.
+---
+--- Per column rather than per column and folder: a `stats` that came back
+--- wrong is wrong about the column, and saying it again at every folder the
+--- reader walks into would be the same drip more slowly. `setup` builds
+--- fresh records, which re-arms all of it -- a reader who has just changed
+--- the configuration is owed the message again.
+---@param col supaline.Column
+---@param what "stats"|"width"|"threw"
+---@return boolean # true if it has been said already
+local function told(col, what)
+	if col.told[what] then
+		return true
+	end
+	col.told[what] = true
+	return false
 end
 
 --- Say once that a column's `stats` came back with nothing its ramp can use,
@@ -453,21 +481,13 @@ end
 ---
 --- Measured on 26.9.1, because until it was this had no shape at all.
 --- `ya.notify` from inside a linemode render reaches the screen; the rows draw
---- under it and the pane is not disturbed. Ungated it is not a hang either --
---- the notification redraws, the redraw renders, the render notifies, and the
---- loop settles at about one a second -- but it never stops. So the flag is
---- what makes this a report rather than a drip, and it has to be a real one.
----
---- Once per column, and re-armed by `setup`: that builds fresh records, and a
---- reader who has just changed the configuration is owed the message again.
---- The flag is read before the message is built, not after, because this is
---- called from the folder pass of every folder a broken column is bound for.
+--- under it and the pane is not disturbed. What keeps it from repeating is
+--- `told` above.
 ---@param col supaline.Column
 local function no_extremes(col)
-	if col.told_stats then
+	if told(col, "stats") then
 		return
 	end
-	col.told_stats = true
 
 	local why = string.format(
 		"supaline: column `%s` draws a gradient, and its `stats` came back with no `min` and "
@@ -506,10 +526,17 @@ local BROKEN = "!"
 --- reader's own `render` raising produced exactly the blank screen above, with
 --- no part of this plugin involved in raising it.
 ---
---- Once per column and re-armed by `setup`, for the reasons `no_extremes`
---- gives, and the flag read before the message is built for the reason it
---- gives too -- this one is called from a per-row path, so a broken column
---- would otherwise format a message on every row of every frame.
+--- One report across all three stages, not one each: what the reader has to
+--- look at is the column, and the first thing of theirs it threw from is
+--- where they will start. `told` holds that, and holds it hardest here --
+--- this is the one of the three reached from a per-row path.
+---
+--- What it does **not** cover is a `width` function that came back with a
+--- number nobody can use. That one is supaline's own refusal, `resolve_width`
+--- returns it rather than raising it for exactly this reason, and
+--- `bad_width` below words it as itself. A refusal raised into this wrapper
+--- would arrive here as "column `x` threw from its `width`" for a function
+--- that threw nothing at all.
 ---
 --- The screen gets the first line of what was thrown and the log gets all of
 --- it. **Measured on 26.9.1**: what `pcall` hands back here carries a full Lua
@@ -520,10 +547,9 @@ local BROKEN = "!"
 ---@param stage string which of the three threw, named as the reader wrote it
 ---@param err any what it threw
 local function broke(col, stage, err)
-	if col.told_broken then
+	if told(col, "threw") then
 		return
 	end
-	col.told_broken = true
 
 	local said = tostring(err)
 	report(
@@ -543,6 +569,35 @@ local function broke(col, stage, err)
 			said:match("^[^\n]*") or said
 		)
 	)
+end
+
+--- Say once that a column's `width` function came back with something that is
+--- not a count of cells, and draw the column without one.
+---
+--- This is supaline's own refusal rather than a mistake of Lua's, which is
+--- why it arrives as a string from `resolve_width` instead of out of a
+--- `pcall`: that function returns it so that this can be worded as what it
+--- is. `broke` above has the other half of the argument.
+---
+--- What the reader sees instead of a width is the column unpadded -- it draws
+--- whatever its `render` returns, at whatever width that is, so a listing of
+--- uneven names comes out ragged. Ragged and readable is the right trade
+--- against a stated `width = 0`, which `setup` refuses outright: that one is
+--- knowable before anything draws, and this one is not knowable until the
+--- folder it was handed exists.
+---@param col supaline.Column
+---@param why string the refusal, already worded by `column.lua`
+local function bad_width(col, why)
+	if told(col, "width") then
+		return
+	end
+
+	local said = string.format(
+		"%s. Until it does, this column draws unpadded: everything else on the line keeps its "
+			.. "place and this one is ragged rather than absent",
+		why
+	)
+	report(said, said)
 end
 
 --- Bind one folder's statistics and widths onto every column of a linemode.
@@ -604,20 +659,29 @@ local function bind(name, pane, cols, folder)
 				-- The width pass renders every file, and those renders read
 				-- `ctx.ratio`, so the extremes have to be in place first.
 				column.bind(col, entry)
-				local ok, got = pcall(column.resolve_width, col, files, entry.stats)
-				if ok then
+				-- Three outcomes, and the two that are not a width are different
+				-- mistakes with different sentences. `ok` false is Lua raising:
+				-- a `width` function that threw, or, under `width = "auto"`, a
+				-- `render` that threw while it was being measured. `why` is
+				-- supaline refusing what a `width` function handed back -- not a
+				-- throw at all, which is why `resolve_width` returns it rather
+				-- than raising it into the same `pcall` the throws come out of.
+				local ok, got, why = pcall(column.resolve_width, col, files, entry.stats)
+				if ok and not why then
 					entry.width = got
 				else
-					-- A `width` function that threw, or, under `width = "auto"`,
-					-- a `render` that threw while it was being measured. The pass
-					-- is what raised either, and is what the message names.
-					broke(col, "width", got)
-					-- No width the pass can stand behind, so the column falls back
-					-- to whatever it stated and otherwise draws unpadded. That is
-					-- a ragged row, which is the thing a refused width of zero
-					-- exists to prevent -- but a ragged row is readable, arrives
-					-- with a notification naming the column, and leaves the rest
-					-- of Yazi on screen, which the `error` this replaces did not.
+					if ok then
+						bad_width(col, why --[[@as string]])
+					else
+						broke(col, "width", got)
+					end
+					-- Neither leaves a width the pass can stand behind, so the
+					-- column falls back to whatever it stated and otherwise draws
+					-- unpadded. That is a ragged row, which is the thing a refused
+					-- width of zero exists to prevent -- but a ragged row is
+					-- readable, arrives with a notification naming the column, and
+					-- leaves the rest of Yazi on screen, which the `error` this
+					-- replaces did not.
 					entry.width = col.fixed or col.max_width
 				end
 			end
