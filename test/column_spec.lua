@@ -453,13 +453,13 @@ column.register("plain", { width = 2, render = function() return "x" end })
 
 --- The record `normalize` puts on a column for the separator written at
 --- `value`. Read through a column rather than through `setup` because a
---- column's own is the one of the three places that reached Yazi unread:
---- `separator = 42` emptied the pane, with the cause a whole session behind
---- it.
+--- column's separator is the one of the three places that reached Yazi
+--- unread: `separator = 42` emptied the pane, with the cause a whole session
+--- behind it.
 ---@param value any
 ---@return supaline.Sep
 local function separator(value)
-	-- Cast because a column's record is `false` where the column drops the
+	-- Cast because a column's `sep` is `false` where the column drops the
 	-- separator before it, and that is the one value nothing below writes:
 	-- every call here hands in a separator for `column.separator` to read.
 	return column.normalize({ "plain", separator = value }, CFG).sep --[[@as supaline.Sep]]
@@ -837,9 +837,8 @@ end)
 
 test("style: `false` turns the style off, whatever the layers beneath say", function()
 	-- The spelling a column's `separator` already uses, and the only way to
-	-- drop a style the
-	-- definition or the theme would otherwise supply -- every key of it, not
-	-- the colour alone.
+	-- drop a style the definition or the theme would otherwise supply --
+	-- every key of it, not the colour alone.
 	column.register("hue3", {
 		render = function() return "" end,
 		stats = function() return nil end,

@@ -219,7 +219,7 @@ local colour = require(".colour")
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil
 ---@field max_width integer?
----@field separator string|supaline.SepSpec|false|nil one of this column's own, `false` for none
+---@field separator string|supaline.SepSpec|false|nil a separator of this column's own, `false` for none
 ---@field width number|"auto"|(fun(stats: any): number?)|nil a number is floored
 ---@field scale "linear"|"log"|nil
 --- The names of the options this column reads off `ctx.opts` beyond the keys
@@ -261,10 +261,9 @@ local colour = require(".colour")
 ---@field align "left"|"right"
 ---@field overflow "ellipsis"|"clip"|"grow"
 ---@field max_width integer?
---- Read, where `supaline.ColumnOpts.separator` is what was written. The two
---- names are the plugin's own division and hold throughout: `separator` is a
---- separator as a user wrote it -- on `setup`, on a linemode, on a column --
---- and `sep` is the `supaline.Sep` it was read into.
+--- Read, where `supaline.ColumnOpts.separator` is what was written. A user
+--- writes `separator` wherever one may be written -- on `setup`, on a
+--- linemode, on a column -- and `sep` is the `supaline.Sep` it was read into.
 ---@field sep supaline.Sep|false|nil a separator of this column's own, `false` for none
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function? run whenever a linemode is installed, and on `cd`
@@ -807,14 +806,13 @@ end
 --- for the caller to fall back from.
 ---
 --- `false` is the value worth a check of its own, and it arrives here as the
---- wrong type rather than as a shape. It reads like a column's `separator = false`
---- and it is falsy, so unrefused on a linemode it falls through to the
---- separator it was written to be rid of and the linemode draws the very
---- thing it asked to drop -- in silence, because a separator is not read
---- until a row is, so a wrong one is a render-time failure with the cause a
---- whole session behind it. `normalize` takes a column's `false` before this
---- is reached,
---- which is why only the meaningless one gets here.
+--- wrong type rather than as a shape. It reads like a column's
+--- `separator = false` and it is falsy, so unrefused on a linemode it falls
+--- through to the separator it was written to be rid of and the linemode
+--- draws the very thing it asked to drop -- in silence, because a separator
+--- is not read until a row is, so a wrong one is a render-time failure with
+--- the cause a whole session behind it. `normalize` takes a column's `false`
+--- before this is reached, which is why only the meaningless one gets here.
 ---@param value any
 ---@param where string names where it was written, for the message
 ---@return supaline.Sep?
@@ -1010,8 +1008,8 @@ function M.normalize(spec, cfg)
 	refuse_unknown(opts, name, def, role)
 
 	-- An explicit nil test, not `opts[key] == nil and def[key] or opts[key]`:
-	-- that idiom collapses a `def` value of `false` to nil, and `false` is the
-	-- only value a separator ever takes.
+	-- that idiom collapses a `def` value of `false` to nil, and `separator` is
+	-- the key written `false` on purpose.
 	--
 	-- The return is annotated because it cannot be inferred. The key is a
 	-- variable, so a language server unions every field either table can
