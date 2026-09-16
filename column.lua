@@ -10,10 +10,11 @@
 ---   function(file, ctx) return "..." end    an inline definition, render only
 ---   { render = fn, stats = fn, width = 6 }  ... with options beside it
 ---
---- `[1]` is what tells a use of a column from a definition of one, and it holds
---- one kind of value: the name of a column registered elsewhere. A table with
---- a `render` is the definition itself, and has nothing at `[1]` for anyone to
---- read.
+--- `[1]` is what tells a use of a column from a definition of one, and holds
+--- one kind of value: the name of a column registered elsewhere. A table with a
+--- name there is a use of that column, and everything else in it -- `render`
+--- included -- overrides the definition's. A table with nothing there is the
+--- definition, and a render written at `[1]` is refused.
 ---
 --- `render(file, ctx)` runs for every visible row on every frame and must stay
 --- O(1). Anything that needs to look at the whole folder belongs in

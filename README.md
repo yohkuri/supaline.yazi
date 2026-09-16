@@ -193,9 +193,11 @@ function(file, ctx) return "..." end    -- an inline definition, render only
 ```
 
 `[1]` is what tells a use of a column from a definition of one, and it holds
-one kind of value: the **name** of a column registered elsewhere. A table that
-writes a `render` is the definition itself and has nothing at `[1]`; a render
-written there is refused, with the spelling to use instead.
+one kind of value: the **name** of a column registered elsewhere. A table with
+a name there is a use of that column, and everything else in it — `render`
+included — overrides what the definition set. A table with nothing there is a
+definition; a render written at `[1]` rather than under `render` is refused,
+with the spelling to use instead.
 
 Every option below but the last can be set on the definition or overridden per
 use. `options` is the definition's alone, and so is `name` — a definition
