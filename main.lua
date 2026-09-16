@@ -423,6 +423,55 @@ local function pane_of(file)
 	return "parent", cx.active.parent --[[@as supaline.Folder?]]
 end
 
+--- What a `stats` has to come back with for a ramp to have anything to place a
+--- row against: the extremes of the listing it was handed.
+---
+--- Only a ramped column is held to this. A `stats` is also how a column
+--- derives a width or carries anything its own `render` reads off `ctx.stats`,
+--- and a column using it that way owes nobody a `min` and a `max`.
+---@param st any
+---@return boolean
+local function has_extremes(st) return type(st) == "table" and st.min ~= nil and st.max ~= nil end
+
+--- Say once that a column's `stats` came back with nothing its ramp can use,
+--- and go on drawing.
+---
+--- What it returned is knowable only here, which is inside a render pass, and
+--- that is the whole of what decides the shape. An `error` from here stops the
+--- pane drawing -- worse than the thing it would be reporting, which is a
+--- column drawing in one colour instead of several. So: say it, and keep
+--- drawing.
+---
+--- Measured on 26.9.1, because until it was this had no shape at all.
+--- `ya.notify` from inside a linemode render reaches the screen; the rows draw
+--- under it and the pane is not disturbed. Ungated it is not a hang either --
+--- the notification redraws, the redraw renders, the render notifies, and the
+--- loop settles at about one a second -- but it never stops. So the flag is
+--- what makes this a report rather than a drip, and it has to be a real one.
+---
+--- Once per column, and re-armed by `setup`: that builds fresh records, and a
+--- reader who has just changed the configuration is owed the message again.
+---
+--- `ya.err` beside it for the reason `build` has one -- a notification times
+--- out, and `yazi.log` is where a report of this is read from afterwards.
+---@param col supaline.Column
+local function no_extremes(col)
+	if col.told_stats then
+		return
+	end
+	col.told_stats = true
+
+	local why = string.format(
+		"supaline: column `%s` draws a gradient, and its `stats` came back with no `min` and "
+			.. "`max` to place a row between -- so every row draws the ramp's low end and the "
+			.. "column is one colour. `stats` is handed the folder's files and must return a "
+			.. "table carrying both",
+		col.name or "?"
+	)
+	ya.err(why)
+	ya.notify { title = "supaline", content = why, level = "error", timeout = 10 }
+end
+
 --- Bind one folder's statistics and widths onto every column of a linemode.
 --- Cheap and idempotent: it does nothing at all while the pane being drawn has
 --- not changed.
@@ -465,6 +514,13 @@ local function bind(name, pane, cols, folder)
 			local entry = {}
 			if col.needs_pass then
 				entry.stats = col.stats and col.stats(files) or nil
+				-- Here rather than in `column.bind`, which is handed an entry and
+				-- cannot tell a `stats` that returned wrong from a column that has
+				-- none: the no-folder path binds `{}` onto columns whose `stats`
+				-- was never called. This is the line that called it.
+				if col.ramped and not has_extremes(entry.stats) then
+					no_extremes(col)
+				end
 				-- The width pass renders every file, and those renders read
 				-- `ctx.ratio`, so the extremes have to be in place first.
 				column.bind(col, entry)

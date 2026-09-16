@@ -907,6 +907,62 @@ test("stats: the pass runs once per folder, not once per row", function()
 	eq(calls, 1, "every row, one pass")
 end)
 
+test("stats: a ramp with no extremes to place a row against says so, once", function()
+	-- The failure this reports draws: the ramp has nothing to normalise
+	-- against, so `ctx.ratio` is nil for every row and each one takes the low
+	-- end. A column in one colour where several were asked for, and until now
+	-- nothing said a word about it.
+	--
+	-- Said rather than raised, because this is knowable only inside a render
+	-- pass and an `error` from there stops the pane drawing -- worse than what
+	-- it would be reporting. Measured on 26.9.1: `ya.notify` from a linemode
+	-- render reaches the screen and the rows draw under it.
+	main.column("wrong_stats", {
+		width = 6,
+		stats = function() return { count = 3 } end,
+		style = "#0b3d91 -> #7fd4ff",
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "wrong_stats" } }
+	for _, file in ipairs(CURRENT.files) do
+		draw("detail", file)
+	end
+
+	eq(#stub.notified - was, 1, "said once, not once per row")
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("`wrong_stats`", 1, true) ~= nil, true, "and it names the column")
+	eq(said:find("no `min` and `max`", 1, true) ~= nil, true, "and what came back wrong")
+
+	-- And it kept drawing, which is the half that would be lost to an `error`.
+	eq(draw("detail", CURRENT.files[1]), "     x")
+end)
+
+test("stats: a column that is not a ramp owes nobody extremes", function()
+	-- `stats` is also how a column derives a width, or carries anything its own
+	-- `render` reads off `ctx.stats`. A column using it that way and returning
+	-- no `min` or `max` is doing nothing wrong, and a report pointed at it
+	-- would be the check crying about correct code -- which is the way a check
+	-- like this one usually goes wrong.
+	main.column("widened", {
+		width = function(stats) return stats and stats.widest or 4 end,
+		stats = function() return { widest = 5 } end,
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "widened" } }
+	draw("detail", CURRENT.files[1])
+	eq(#stub.notified - was, 0, "nothing said")
+
+	-- Nor does a column with no `stats` at all, which is most of them.
+	main.column("bare", { width = 3, render = function() return "x" end })
+	setup { detail = { "bare" } }
+	draw("detail", CURRENT.files[1])
+	eq(#stub.notified - was, 0, "still nothing said")
+end)
+
 test("stats: a column with a stated width still receives them", function()
 	local seen = "not called"
 	main.column("stated", {
