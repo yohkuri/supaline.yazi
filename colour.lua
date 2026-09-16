@@ -213,10 +213,23 @@ do
 	KEYWORD[word] = true
 end
 
+-- What Lua takes as a bare key, which is narrower than `NAME` at one end as
+-- well as at the other. A band name may start with a digit -- `NAME` allows
+-- it, and rightly, since nothing parses a band name -- but `band = { 2x = ... }`
+-- is a syntax error, so a refusal spelling it that way hands the reader
+-- something that will not load. Exactly the fault a keyword has, arriving by
+-- the other road, and `as_key` answers both the same way.
+local BARE = "^[a-z_][a-z0-9_]*$"
+
 --- `name` as a key in Lua source, for a message the reader is to paste.
 ---@param name string
 ---@return string
-local function as_key(name) return KEYWORD[name] and string.format("[%q]", name) or name end
+local function as_key(name)
+	if KEYWORD[name] or not name:find(BARE) then
+		return string.format("[%q]", name)
+	end
+	return name
+end
 
 local HEX = "^#(%x%x)(%x%x)(%x%x)$"
 
