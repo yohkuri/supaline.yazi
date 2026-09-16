@@ -167,6 +167,16 @@ test("normalize: a value the shared keys do not take is refused", function()
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() column.normalize({ "fixed", scale = "LOG" }, CFG) end, "must be `linear` or `log`")
 
+	-- `false` rather than a wrong string, because `scale` is the one key of
+	-- the three whose sources are read with an `or` chain rather than through
+	-- `pick`, and an `or` skips a `false` the way it skips a nil. This used to
+	-- fall past `M.one_of` to the next source and be defaulted, which is the
+	-- whole mistake the refusals here were written to end.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", scale = false }, CFG) end, "must be `linear` or `log`")
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", align = false }, CFG) end, "must be `left` or `right`")
+
 	-- A number is shown as written too, because a width is worth reading back.
 	-- What is named by its type rather than shown is everything that is worth
 	-- showing neither way.
