@@ -491,9 +491,9 @@ local function no_extremes(col)
 
 	local why = string.format(
 		"supaline: column `%s` draws a gradient, and its `stats` came back with no `min` and "
-			.. "`max` to place a row between -- so every row draws the ramp's low end and the "
-			.. "column is one colour. `stats` is handed the folder's files and must return a "
-			.. "table carrying both",
+			.. "`max` numbers to place a row between -- so every row draws the ramp's low end "
+			.. "and the column is one colour. `stats` is handed the folder's files and must "
+			.. "return a table carrying both, and both have to be numbers",
 		col.name or "?"
 	)
 	report(why, why)
@@ -653,7 +653,24 @@ local function bind(name, pane, cols, folder)
 				-- cannot tell a `stats` that returned wrong from a column that has
 				-- none: the no-folder path binds `{}` onto columns whose `stats`
 				-- was never called. This is the line that called it.
-				if col.ramped and not column.has_extremes(entry.stats) then
+				--
+				-- `nil` is not a wrong answer and is not reported. It is what a
+				-- `stats` says when the folder in front of it has nothing to
+				-- measure, and `size` says it for a directory of directories --
+				-- pinned by `builtin_spec.lua`'s "a folder with nothing to
+				-- measure has no extremes". Reporting it would put a
+				-- notification on the screen of anybody who walked into such a
+				-- folder, about a built-in doing exactly what it is written to
+				-- do. What the column does instead is draw its ramp's low end
+				-- throughout, which is the honest answer to a listing with no
+				-- range in it.
+				--
+				-- The same test covers a `stats` that threw. That one left
+				-- `entry.stats` nil and `broke` has already named the column, so
+				-- without it this would say a second and different thing about
+				-- the same mistake -- and say the wrong one, since what came
+				-- back was nothing at all rather than a table missing a pair.
+				if col.ramped and entry.stats ~= nil and not column.has_extremes(entry.stats) then
 					no_extremes(col)
 				end
 				-- The width pass renders every file, and those renders read

@@ -939,6 +939,28 @@ test("stats: a ramp with no extremes to place a row against says so, once", func
 	eq(draw("detail", CURRENT.files[1]), "     x")
 end)
 
+test("stats: extremes that are not numbers are reported rather than raised", function()
+	-- The one that would have cost the whole screen rather than the colour. A
+	-- `stats` carrying both keys passes a test for presence, and then
+	-- `column.bind` does `math.log(st.min + 1)` on a string -- from supaline's
+	-- own folder pass, which is not inside the `pcall` a column's own
+	-- functions go under, so the raise reaches Yazi's redraw.
+	main.column("worded_stats", {
+		width = 6,
+		scale = "log",
+		stats = function() return { min = "a", max = "z" } end,
+		style = "#0b3d91 -> #7fd4ff",
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "worded_stats" } }
+	eq(draw("detail", CURRENT.files[1]), "     x", "the row drew")
+	eq(#stub.notified - was, 1, "said once")
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("`worded_stats`", 1, true) ~= nil, true, "and it names the column")
+end)
+
 test("stats: a column that is not a ramp owes nobody extremes", function()
 	-- `stats` is also how a column derives a width, or carries anything its own
 	-- `render` reads off `ctx.stats`. A column using it that way and returning
@@ -1017,6 +1039,50 @@ test("throwing: a `stats` that throws leaves the rest of the line drawing", func
 	-- `render` never asked for the stats, so the column draws exactly as it
 	-- would have. What was lost is whatever `stats` was going to carry.
 	eq(draw("detail", CURRENT.files[1]), "     x")
+end)
+
+test("stats: a folder with nothing to measure is not a mistake", function()
+	-- `nil` is what a `stats` says when the listing in front of it holds no
+	-- value to take extremes of, and `size` says it for a directory holding
+	-- only directories -- `builtin_spec.lua`'s "a folder with nothing to
+	-- measure has no extremes" pins that end. So the reader who walks into one
+	-- of those folders is owed no notification at all: nothing is wrong, there
+	-- is simply no range, and the column draws its ramp's low end throughout.
+	main.column("empty_stats", {
+		width = 6,
+		stats = function() return nil end,
+		style = "#0b3d91 -> #7fd4ff",
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "empty_stats" } }
+	for _, file in ipairs(CURRENT.files) do
+		draw("detail", file)
+	end
+	eq(#stub.notified - was, 0, "nothing said")
+	eq(draw("detail", CURRENT.files[1]), "     x")
+end)
+
+test("throwing: a ramp whose `stats` threw is told off once, not twice", function()
+	-- Two reports for one mistake, and the second one wrong: a `stats` that
+	-- threw returned nothing, so a ramp asking whether what came back carried
+	-- extremes would answer no and say the column's `stats` "came back with no
+	-- `min` and `max`" -- about a function that never came back at all.
+	main.column("thrown_ramp", {
+		width = 6,
+		stats = function() error("no stats for you") end,
+		style = "#0b3d91 -> #7fd4ff",
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "thrown_ramp" } }
+	draw("detail", CURRENT.files[1])
+
+	eq(#stub.notified - was, 1, "said once, not once per reading of the same failure")
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("threw", 1, true) ~= nil, true, "and it says what happened")
 end)
 
 test("throwing: a `width` function that throws draws unpadded rather than not at all", function()
