@@ -388,11 +388,17 @@ range is measured in, so if `render` rounds a value before `ctx.ratio` sees it,
 is on.
 
 **Both keys are named ones**, and a `stats` of your own that writes the pair
-as a list is the one mistake here that says nothing at all: `{ lo, hi }` has
-no `min` and no `max`, so the extremes stay unset, `ctx.ratio` answers `nil`
-for every row, and the column draws flat at its gradient's low end. The
-refusal a gradient gets for a column with no `stats` does not fire either —
-this column has one.
+as a list is the mistake here that draws: `{ lo, hi }` has no `min` and no
+`max`, so the extremes stay unset, `ctx.ratio` answers `nil` for every row,
+and the column draws flat at its gradient's low end. The refusal a gradient
+gets for a column with no `stats` does not fire either — this column has one.
+
+supaline says so on screen, once per column, and goes on drawing. It cannot
+refuse it: what `stats` returned is knowable only while a pane is being
+rendered, and raising there would take the pane down rather than the colour.
+Only a column drawing a gradient is held to the pair — a `stats` that derives
+a width, or that carries something the column's own `render` reads off
+`ctx.stats`, owes nobody a `min` and a `max`.
 
 A column that takes an option of its own reads it off `ctx.opts` and names it
 in `options`, which is what lets a misspelling of it be refused rather than
