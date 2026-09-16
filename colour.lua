@@ -163,11 +163,30 @@ function M.recommended() return { from = RECOMMENDED.from, to = RECOMMENDED.to }
 -- message and the value cannot drift.
 local RECOMMENDED_AS_WRITTEN = string.format("{ from = %s, to = %s }", RECOMMENDED.from, RECOMMENDED.to)
 
--- What a band's name may hold. The shape `theme.toml` holds a custom section's
--- field names to, rather than a second one of this plugin's own: a band name
--- is read beside a column name often enough that two rules would be two things
--- to remember.
-local NAME = "^[a-z][a-z0-9_]*$"
+-- What a band's name may hold, which is the character class a column's name
+-- holds -- for a reason that is not the column's. A column name has to survive
+-- Yazi's parser as a `[supaline]` field; nothing parses a band name at all,
+-- since it is a Lua key under `band` and a substring after a `<->`. The class
+-- is taken anyway, because this plugin already has one shape a name is written
+-- in and a second one would be a rule with nothing behind it.
+--
+-- What is not taken is the cap. `column.lua`'s `NAME` carries `NAME_MAX = 20`
+-- beside it because the parser enforces 20; copying that here would be a limit
+-- invented for symmetry, which is the same mistake as an invented class. So
+-- the two agree on everything a measurement decides and differ on the one
+-- thing no measurement reaches. `colour_spec.lua` reads them against each
+-- other, which is what catches either literal drifting -- they cannot be
+-- shared, since `column.lua` requires this file and not the other way round.
+--
+-- This used to start `^[a-z]`, and the defence of that was measured and did
+-- not hold. "A name that can be written bare as a Lua key" is not what the
+-- pattern described: on 5.5.1 `end` passed it and `{ end = ... }` is a syntax
+-- error -- `as_key` below exists to write that one back as `["end"]` -- while
+-- `_x` is a legal bare key and was refused. `column.lua`'s own comment had
+-- already written down that a leading letter would be inventing a restriction
+-- the platform does not have, so the plugin was arguing with itself across two
+-- files, and the half with a measurement behind it won.
+local NAME = "^[a-z0-9_]+$"
 
 -- And the two a band writes inside itself, which are therefore not names a
 -- band can have. `to` is the one that would otherwise read as a band called
@@ -920,8 +939,7 @@ function M.bands(value, where)
 		if type(name) ~= "string" or not name:find(NAME) then
 			error(
 				string.format(
-					"supaline: %s: `%s` is not a band name. A name holds lowercase letters, "
-						.. "digits and `_`, and starts with a letter",
+					"supaline: %s: `%s` is not a band name. A name holds lowercase letters, " .. "digits and `_`",
 					where,
 					tostring(name)
 				)

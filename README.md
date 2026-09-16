@@ -647,8 +647,10 @@ require("supaline"):setup {
 ```
 
 `from` is what ratio 0 draws and `to` what ratio 1 draws, so each pair carries
-its own direction. Names hold lowercase letters, digits and `_`, and start with
-a letter — the shape `theme.toml` holds a field name to. `from` and `to` are a
+its own direction. Names hold lowercase letters, digits and `_` — the same
+characters a column's name holds, so there is one shape to learn rather than
+two. The length limit on a column's name is not here, because that one is
+Yazi's field parser and nothing parses a band name. `from` and `to` are a
 band's own keys and cannot be a band's name.
 
 `fg` and `bg` are ordinary names with one convenience: they are what the two
