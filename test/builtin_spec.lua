@@ -111,6 +111,15 @@ test(
 	function() eq(render("mtime", stub.file { mtime = OLD }, { format = "%Y-%m-%d", width = 10 }), "2020-12-25") end
 )
 
+test("mtime: `format` reserves no word of its own", function()
+	-- `"smart"` was a second spelling of the preset here, which is what
+	-- leaving `format` out asks for. Withdrawn, it is the literal `os.date`
+	-- makes of any string carrying no `%`, the way `"hello"` is -- so what
+	-- this pins is that the word went back to `os.date`. Put the branch back
+	-- and this reads the preset's `12/25  2020` instead.
+	eq(render("mtime", stub.file { mtime = OLD }, { format = "smart", width = 5 }), "smart")
+end)
+
 test("btime and atime read their own fields", function()
 	eq(render("btime", stub.file { btime = OLD, mtime = RECENT }), "12/25  2020")
 	eq(render("atime", stub.file { atime = OLD, mtime = RECENT }), "12/25  2020")
