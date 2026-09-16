@@ -442,8 +442,8 @@ local COLUMN_MEANT = {
 	name = "a column is named by the `register` call that declares it, by the `[1]` a spec "
 		.. "names it with, or by a `name` written beside an inline `render`; anywhere else it "
 		.. "is read by nobody",
-	sep = "`separator` is the spelling, on a column as in `setup` and on a linemode; `sep` "
-		.. "was a column's own name for the same thing and is nobody's now",
+	sep = "`separator` is the spelling, on a column as in `setup` and on a linemode -- "
+		.. "one key, written the same way wherever a separator is written",
 }
 
 -- `%4$s` is the role's own `draws`: refusing `1` on a definition, under a
