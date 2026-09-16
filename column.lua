@@ -583,13 +583,12 @@ local NAME_MAX = 20
 
 --- Refuse a name no `[supaline]` field can be called, wherever it was written.
 ---
---- Every way of naming a column comes through here, and that is the whole
---- reason it is a function. `register` is not the only one: a definition
---- written inline names itself, under `name` beside its `render` or beside a
---- render at `[1]`, and `normalize` reads those two straight off the spec. All
---- three names reach `th.supaline[name]` alike, so a check on `register` alone
---- refuses the one spelling and leaves the other two carrying exactly the
---- defect it was written for.
+--- Two callers, and only two because of where the second one sits. `register`
+--- names the column it is handed and checks it there, so that a name it cannot
+--- keep is turned away as it is declared rather than at the first use of it.
+--- Every other way of naming a column settles the name in one local inside
+--- `normalize`, and the check sits on that local rather than on the branches
+--- that assign it.
 ---
 --- Nil is not a name and is allowed: an inline definition need not name itself,
 --- and one that does not has no theme layer to reach.
@@ -621,6 +620,20 @@ local function refuse_name(name, where)
 		)
 	)
 end
+
+--- How the name reached `normalize`, by the part the table it was written in
+--- plays, so that a refusal says which of them to go and fix.
+---
+--- `use` is in here for completeness rather than for use. A use site's name is
+--- a registry key, and a key that could not be a theme field was refused when
+--- `register` put it there -- so the lookup either finds a name that has
+--- already passed or raises `unknown column` before this is read.
+---@type table<supaline.Role, string>
+local NAME_WHERE = {
+	listed = "which is the `name` beside a render at `[1]`",
+	inline = "which is the `name` this definition gave itself",
+	use = "which is the name at `[1]`",
+}
 
 --- Register a reusable column under `name`, so a linemode can refer to it as
 --- `"name"` or `{ "name", ... }`.
@@ -991,11 +1004,9 @@ function M.normalize(spec, cfg)
 		-- and `layers_of` finds its `style` where a definition's is rather than
 		-- where a use site's would be.
 		local fn = spec[1] --[[@as supaline.Render]]
-		refuse_name(spec.name, "which is the `name` beside a render at `[1]`")
 		name, opts, role = spec.name, spec, "listed"
 		def = { render = fn, name = spec.name, options = spec.options, style = spec.style }
 	elseif type(spec.render) == "function" then
-		refuse_name(spec.name, "which is the `name` this definition gave itself")
 		name, opts, def, role =
 			spec.name,
 			spec,
@@ -1004,6 +1015,16 @@ function M.normalize(spec, cfg)
 	else
 		error("supaline: a column must be a name, a function, or a table with `render`")
 	end
+
+	-- On the local rather than in the branches above, which is the whole of what
+	-- makes this one check. Every shape assigns `name` before anything reads it,
+	-- so a rule put here covers the shapes written above and the ones nobody has
+	-- written yet: a spelling added to that chain arrives already refused.
+	--
+	-- A call in each branch that names a column is the arrangement this replaces.
+	-- Those sites are a list, and a list of places to repeat a rule is something
+	-- that can be short one entry without anything saying so.
+	refuse_name(name, NAME_WHERE[role])
 
 	-- Every shape that carries options is a table the user typed, and this is
 	-- the first line that has one of them. The two shapes that carry none -- a
