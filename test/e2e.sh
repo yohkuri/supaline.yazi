@@ -675,16 +675,16 @@ check_ramp "a band climbs too, on endpoints nobody wrote" c_band 1
 check_ramp "a ramp that turns still draws a step per row" c_hue 0
 
 # `c_bg` draws the same ramp twice: over a ground carrying `bg = #8b0045`, and
-# over nothing -- and a third time as the background itself, which the block
-# after this one reads. Three things have to hold of the first two, and a
-# reader can check none of them against their own terminal's ground -- that
-# ground is the very thing the band has to be told apart from, so the `bg`
-# here is measured to sit clear of the common ones in Oklab rather than
-# picked.
+# over nothing -- then a name over a second ground, and last the ramp as the
+# background itself, which the block after this one reads. Three things have to
+# hold of a grounded column, and a reader can check none of them against their
+# own terminal's ground -- that ground is the very thing a band has to be told
+# apart from, so both of the ones here are measured to sit clear of the common
+# ones in Oklab rather than picked.
 #
-#   - the `bg` is there under all sixty-four foregrounds
+#   - the `bg` is there on every row
 #   - it covers the cells the stated width pads with, rather than stopping at
-#     the text, which is what `fit` padding before the style is applied is for
+#     the text, which is what padding before the style is applied is for
 #   - the ungrounded column beside it did not pick one up
 #
 # A band that is missing and a band that is short are different bugs, so the
@@ -692,51 +692,72 @@ check_ramp "a ramp that turns still draws a step per row" c_hue 0
 # of any kind: there is none inside one today, and one put there later would
 # read here as a band that came back short.
 ESC=$(printf '\033')
-# Read off the fixture rather than written here, for the reason `sgr` exists:
-# every other number this block asserts on is a hex string that appears in
-# `setup.sh` verbatim, and a width stated twice is the one that goes stale
-# quietly. Widen `c_bg`'s columns there for a reason to do with the manual case
-# and, spelled as a literal, this would report it as `fit` padding in the wrong
-# order -- the fixture moved, not the plugin.
-BAND_CELLS=$(sed -n 's/.*bg = GROUND.*width = \([0-9][0-9]*\).*/\1/p' "$DIR/config/init.lua")
+# Asked of one grounded column at a time, because `c_bg` now carries two and
+# they differ in the thing this is about. `mtime` hands back a string, which
+# `fit` pads and the style then covers in one piece; `name_line` hands back a
+# Line, which is padded by building a second span beside it and styling the
+# Line around both. Two paths, one claim, and the spelling above is what
+# decides which one a column takes -- so the check is the same arithmetic twice
+# rather than two copies of it that could drift.
+#
+# The colour is written here and the width is read off the fixture, and the
+# asymmetry is the reason `sgr` exists: a hex appears in `setup.sh` verbatim, so
+# a grep pairs the two files, where a width stated twice is the one that goes
+# stale quietly. Widen a `c_bg` column there for a reason to do with the manual
+# case and, spelled as a literal here, this would report it as padding applied
+# in the wrong order -- the fixture moved, not the plugin.
+#
 # Splitting on the opening escape leaves one piece per band; a band runs to the
 # next escape of any kind, which `sub` takes off the end of the piece. All three
 # numbers come out of the one pass, so none of them is a count of lines that a
 # `printf` invented.
-counts=$(awk -v esc="$ESC" -v bg="$(sgr 48 '#8b0045')" -v want="$BAND_CELLS" '
-	BEGIN {
-		open = esc "\\[" bg
-		tail = esc ".*"
-	}
-	{
-		n = split($0, seg, open)
-		if (n > 1) {
-			rows++
+check_band() { # <label> <the ground's name in init.lua> <#rrggbb>
+	# The name is followed by a space, a comma or a close brace in every
+	# spelling a style takes, and the class is what keeps `GROUND` from
+	# answering for `LINE_GROUND` as well.
+	_cells=$(sed -n "s/.*bg = $2[ ,}].*width = \([0-9][0-9]*\).*/\1/p" "$DIR/config/init.lua")
+	_counts=$(awk -v esc="$ESC" -v bg="$(sgr 48 "$3")" -v want="$_cells" '
+		BEGIN {
+			open = esc "\\[" bg
+			tail = esc ".*"
 		}
-		for (i = 2; i <= n; i++) {
-			sub(tail, "", seg[i])
-			bands++
-			if (length(seg[i]) != want) {
-				narrow++
+		{
+			n = split($0, seg, open)
+			if (n > 1) {
+				rows++
+			}
+			for (i = 2; i <= n; i++) {
+				sub(tail, "", seg[i])
+				bands++
+				if (length(seg[i]) != want) {
+					narrow++
+				}
 			}
 		}
-	}
-	END { print bands + 0, rows + 0, narrow + 0 }
-' "$DIR/color-c_bg.txt")
-IFS=' ' read -r banded lines narrow <<EOF
-$counts
+		END { print bands + 0, rows + 0, narrow + 0 }
+	' "$DIR/color-c_bg.txt")
+	IFS=' ' read -r _banded _lines _narrow <<EOF
+$_counts
 EOF
-if [ -z "$BAND_CELLS" ]; then
-	fail "c_bg: no grounded column with a stated width in the fixture's init.lua, so there is no band to measure"
-elif [ "$banded" -lt "$RAMP_FLOOR" ]; then
-	fail "c_bg: only $banded row(s) carried a background, wanted $RAMP_FLOOR"
-elif [ "$narrow" -gt 0 ]; then
-	fail "c_bg: $narrow band(s) were not $BAND_CELLS cells wide -- the padding is where to look"
-elif [ "$banded" -ne "$lines" ]; then
-	fail "c_bg: $banded band(s) across $lines row(s), so a row carries more than one"
-else
-	echo "  a background survives the ramp, padding included ($banded rows)"
-fi
+	if [ -z "$_cells" ]; then
+		fail "$1: no column with \`bg = $2\` and a stated width in the fixture's init.lua, so there is no band to measure"
+	elif [ "$_banded" -lt "$RAMP_FLOOR" ]; then
+		fail "$1: only $_banded row(s) carried a background, wanted $RAMP_FLOOR"
+	elif [ "$_narrow" -gt 0 ]; then
+		fail "$1: $_narrow band(s) were not $_cells cells wide -- the padding is where to look"
+	elif [ "$_banded" -ne "$_lines" ]; then
+		fail "$1: $_banded band(s) across $_lines row(s), so a row carries more than one"
+	else
+		echo "  $1 ($_banded rows, $_cells cells)"
+	fi
+}
+check_band "a background survives the ramp, padding included" GROUND '#8b0045'
+# The same claim about the other path, and the one no test reached until this
+# column carried a ground: a renderable's pad is a span built after the Line was
+# measured, and what has to cover it is the style applied to the Line around
+# both. It had been read off `yazi-binding` and found consistent, which is not
+# the same as having been drawn.
+check_band "a background covers a pad beside a nested Line" LINE_GROUND '#007a00'
 
 # The third column of `c_bg` carries the ramp under `bg` rather than `fg`, and
 # nothing sets a foreground on the cell, so it is the background escape and
