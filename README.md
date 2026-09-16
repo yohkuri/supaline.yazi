@@ -189,13 +189,13 @@ A column is written in one of these shapes:
 "size"                                  -- a registered column, by name
 { "size", width = 9, scale = "log" }    -- ... with its options overridden
 function(file, ctx) return "..." end    -- an inline definition, render only
-{ fn, name = "mine", width = 6 }        -- ... with options beside it
-{ render = fn, stats = fn, width = 6 }  -- the same, with the render named
+{ render = fn, stats = fn, width = 6 }  -- ... with options beside it
 ```
 
-`[1]` is what tells them apart: a **string** there names a column registered
-elsewhere, and a **function** there is that column's `render`, which makes the
-table around it a definition rather than a use of one.
+`[1]` is what tells a use of a column from a definition of one, and it holds
+one kind of value: the **name** of a column registered elsewhere. A table that
+writes a `render` is the definition itself and has nothing at `[1]`; a render
+written there is refused, with the spelling to use instead.
 
 Every option below but the last can be set on the definition or overridden per
 use. `options` is the definition's alone, and so is `name` — a definition
@@ -208,7 +208,8 @@ column's theme layer is the `[supaline]` field called after it, and a field
 name Yazi will not parse does not merely go unread — it is an error in
 `theme.toml`, which Yazi answers by discarding the whole file and falling back
 to its preset. So `my-col` would cost you every other colour you wrote, and
-`register` turns the name away instead.
+supaline turns the name away instead — wherever you wrote it, a `register` call
+and a definition that names itself alike.
 
 | Option      | Default      | Meaning                                                  |
 | ----------- | ------------ | -------------------------------------------------------- |
@@ -227,9 +228,8 @@ to its preset. So `my-col` would cost you every other colour you wrote, and
 Any other key is refused by name, on a definition and on a spec alike, and so
 is one of those two written where it is not read — `options` at a use site,
 `name` on a definition `register` has already named, an entry at `[1]` beside a
-`render` written under its own name. Nothing else would say so: a misspelled
-`max_widht` is read by nobody, and the column draws at its natural width
-without a word about why.
+`render`. Nothing else would say so: a misspelled `max_widht` is read by
+nobody, and the column draws at its natural width without a word about why.
 
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated
@@ -790,10 +790,9 @@ keeps the theme's `bold` and the definition's `bg`; a theme that writes
 
 A column written inline **is** its own definition, so its style is the
 farthest of the three and a `[supaline]` field named after it reaches the
-colour it chose, exactly as one reaches a column `register` declared. That
-covers both spellings — `{ render = fn, name = "x", style = ... }` and
-`{ fn, name = "x", style = ... }`. Only a use of a column defined elsewhere,
-`"size"` or `{ "size", ... }`, writes the nearest layer.
+colour it chose, exactly as one reaches a column `register` declared. Only a
+use of a column defined elsewhere, `"size"` or `{ "size", ... }`, writes the
+nearest layer.
 
 ```lua
 -- with `size = "#0b3d91 -> #7fd4ff"` in your theme:

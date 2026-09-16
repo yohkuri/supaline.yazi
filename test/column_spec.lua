@@ -279,11 +279,10 @@ end)
 
 test("register: `register` names the column, so `name` beside it is not read", function()
 	-- Both of these were accepted and then ignored. `register` names the
-	-- column; `[1]` is where a *spec* names one, or where a definition written
-	-- as a list puts its `render`. A definition handed to `register` has
-	-- neither, so a `name` in it renamed nothing and an entry at `[1]` drew
-	-- nothing -- the silence the sweep exists to end, left standing in the one
-	-- table that is read again for every spec naming the column.
+	-- column; `[1]` is where a *spec* names one. A definition handed to
+	-- `register` has neither, so a `name` in it renamed nothing and an entry at
+	-- `[1]` drew nothing -- the silence the sweep exists to end, left standing
+	-- in the one table that is read again for every spec naming the column.
 	throws(function()
 		column.register("real", { render = function() return "x" end, name = "alias" })
 	end, "read by nobody")
@@ -291,43 +290,55 @@ test("register: `register` names the column, so `name` beside it is not read", f
 
 	throws(function()
 		local entry = { "alias", render = function() return "x" end } ---@type any
-		column.register("listed", entry)
+		column.register("regd", entry)
 	end, "`1` is not a column key")
 	-- And the hint says where `[1]` *is* read, because "not a column key" is
-	-- true of it in one shape and false of it in two others.
+	-- true of it here and false of it on a spec.
 	throws(function()
 		local entry = { "alias", render = function() return "x" end } ---@type any
-		column.register("listed", entry)
+		column.register("regd", entry)
 	end, "where a spec names the column it uses")
 end)
 
-test("normalize: `{ fn, ... }` is a definition written as a list", function()
-	-- `[1]` holds the render, so the table around it is the definition, and
-	-- the two keys only a definition writes are read right here as they are in
-	-- `{ render = fn, ... }`. Table identity said otherwise: `normalize` built
-	-- a definition of its own around the function, which is a different table,
-	-- so `options` was refused at the one place it belonged -- and refused
-	-- with a message sending the writer to the definition they were standing
-	-- in.
+test("normalize: a `render` at `[1]` is refused, and says where it goes", function()
+	-- What is pinned is not the refusal but its message. A render at `[1]` is a
+	-- reasonable thing to write, so the refusal has to say where the render goes
+	-- instead, and the unknown-key message that would otherwise catch it does
+	-- not.
+	--
+	-- Suppressed on the line, not at the top of the file: `[1]` is declared as a
+	-- name, so a render there is refused by the checker as well as by the code
+	-- under test, and planting one is what this test is.
+	local at_one = function()
+		---@diagnostic disable-next-line: assign-type-mismatch
+		column.normalize({ function() return "ab" end, width = 6 }, CFG)
+	end
+	throws(at_one, "goes under `render`, not at `[1]`")
+	-- The spelling itself, because the right one is not guessable from the
+	-- wrong one.
+	throws(at_one, "`{ render = fn, width = 6 }`")
+
+	-- The shape it points at, with the keys only a definition writes read where
+	-- they are written.
 	local col = column.normalize({
-		function() return "ab" end,
-		name = "listed",
+		render = function() return "ab" end,
+		name = "written",
 		options = { "pad" },
 		pad = 2,
 	}, CFG)
-	eq(col.name, "listed", "and the name is the one the theme is looked up under")
+	eq(col.name, "written", "and the name is the one the theme is looked up under")
 	eq(col.ctx.opts.pad, 2)
 
 	-- What it declared is still all it may read.
 	throws(function()
-		column.normalize({ function() return "ab" end, options = { "pad" }, pda = 2 }, CFG)
+		column.normalize({ render = function() return "ab" end, options = { "pad" }, pda = 2 }, CFG)
 	end, "`pda` is not a column key")
 end)
 
 test("normalize: `[1]` beside an inline `render` is read by nobody", function()
-	-- A string at `[1]` names a registered column and a function there is the
-	-- render, so what reaches this branch is neither -- and is read by nothing
-	-- once it does.
+	-- A string at `[1]` names a registered column and a function there is
+	-- refused by the branch above, so what reaches this one is neither -- and is
+	-- read by nothing once it does.
 	throws(function()
 		local entry = { [1] = true, render = function() return "x" end } ---@type any
 		column.normalize(entry, CFG)
@@ -379,26 +390,23 @@ end)
 
 test("register: the same name rule reaches a definition that names itself", function()
 	-- `register` is not the only way a column gets a name. A definition written
-	-- inline names itself, under `name` beside its `render` or beside a render
-	-- at `[1]`, and `normalize` reads both straight off the spec -- so a check
-	-- on `register` alone left those two carrying the whole of the defect it
-	-- was written for. Pinned because that is exactly what happened: the first
-	-- version of this rule refused `register("my-col")` and normalised
-	-- `{ render = fn, name = "my-col" }` without a word.
+	-- inline names itself, under `name` beside its `render`, and `normalize`
+	-- reads that straight off the spec -- so a check on `register` alone left
+	-- it carrying the whole of the defect the check was written for. Pinned
+	-- because that is exactly the shape the mistake takes: a rule spelled out
+	-- once per site, with a site missing.
 	--
-	-- The name is not decorative on either of them. It reaches
-	-- `th.supaline[name]` the way a registered one does, which the theme test
-	-- below shows, so an unthemeable name is as unthemeable written this way.
+	-- The name is not decorative here. It reaches `th.supaline[name]` the way a
+	-- registered one does, which the theme test below shows, so an unthemeable
+	-- name is as unthemeable written this way.
 	local r = function() return "" end
 	for _, name in ipairs { "my-col", "MyCol", ("a"):rep(21) } do
 		throws(function() column.normalize({ render = r, name = name }, CFG) end, "cannot be a column name")
-		throws(function() column.normalize({ r, name = name }, CFG) end, "cannot be a column name")
 	end
 
 	-- Nil is not a name and is not refused: an inline definition need not name
 	-- itself, and one that does not has no theme layer to reach.
 	eq(type(column.normalize({ render = r }, CFG)), "table")
-	eq(type(column.normalize({ r }, CFG)), "table")
 
 	-- What makes the refusal worth having, rather than a rule for its own sake.
 	with(
@@ -954,13 +962,9 @@ test("style: an inline column is one writer, read once and read as the definitio
 	eq(rawget(ctx.style, "fg"), nil, "and the style is the one answer, not two merged")
 
 	-- So the theme reaches it, the way it reaches any other definition's style.
-	-- Both spellings of an inline definition answer alike: `{ fn, ... }` is the
-	-- same table with its render at `[1]`.
 	with(stub.th, "supaline", { inline2 = "red" }, function()
 		local named = { render = function() return "" end, name = "inline2", style = "cyan" }
 		eq(column.normalize(named, CFG).ctx.style.fg, "red", "the theme is nearer than a definition")
-		local listed = { function() return "" end, name = "inline2", style = "cyan" }
-		eq(column.normalize(listed, CFG).ctx.style.fg, "red", "and `{ fn, ... }` is that definition too")
 	end)
 
 	-- A use of a column defined elsewhere still writes the spec's layer, which

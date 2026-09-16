@@ -152,7 +152,7 @@ test("setup: a nearer separator replaces a farther one whole, colour and all", f
 	-- therefore draws uncoloured rather than borrowing the colour above it,
 	-- which is what a column's `style` does to a theme one level down.
 	setup({
-		detail = { plain("a"), { plain("b"), sep = "-" } },
+		detail = { plain("a"), { render = plain("b"), sep = "-" } },
 	}, { separator = { " | ", style = { fg = "#585b70" } } })
 	eq(draw("detail", CURRENT.files[1]), "a-b")
 	eq(style_in("detail"), nil, "the nearer separator took the colour with it as well as the text")
