@@ -1135,6 +1135,22 @@ test("width: a function returning no usable number is reported as itself", funct
 	eq(first, "x")
 end)
 
+test("width: a `max_width` outlives the function that failed, as a cap", function()
+	-- A cap is not a width. The column whose `width` function failed draws
+	-- unpadded -- which is what its notification says -- and padding every cell
+	-- out to `max_width` instead would be a fixed width the reader never asked
+	-- for, with the message on screen saying the opposite. What the cap goes on
+	-- doing is the half that never depended on the function: cutting.
+	main.column("capped", {
+		width = function() error("cannot size this") end,
+		render = function(file) return file.name == "a.txt" and "x" or "abcdefgh" end,
+	})
+
+	setup { detail = { { "capped", max_width = 4 } } }
+	eq(draw("detail", CURRENT.files[1]), "x", "unpadded, so a short cell stays short")
+	eq(draw("detail", CURRENT.files[2]), "abc…", "and a long one is still cut at the cap")
+end)
+
 test("stats: a column with a stated width still receives them", function()
 	local seen = "not called"
 	main.column("stated", {
