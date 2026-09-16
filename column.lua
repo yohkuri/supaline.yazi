@@ -273,6 +273,13 @@ local colour = require(".colour")
 ---@field width_of fun(stats: any): number?|nil
 ---@field fixed integer? a stated width, `max_width` already applied
 ---@field needs_pass boolean whether this column costs a pass over the folder
+--- Whether this column draws a ramp, which is what says it needs extremes to
+--- place a row between. `normalize` refuses a gradient on a column with no
+--- `stats`, so this being true also says there is a `stats` function --
+--- which is what lets `main.lua` tell a `stats` that came back wrong from a
+--- column that legitimately has none.
+---@field ramped boolean
+---@field told_stats boolean? set once a wrong `stats` return has been reported
 ---@field ctx supaline.Ctx
 
 --- What one pass over one folder produced for one column. main.lua caches
@@ -1264,6 +1271,10 @@ function M.normalize(spec, cfg)
 	for _, key in ipairs(def.options or EMPTY) do
 		options[key] = pick(key)
 	end
+
+	-- Kept on the record rather than left in the closures below, because the
+	-- one caller that has to know is `main.lua`, and `steps` is a local here.
+	col.ramped = steps ~= nil
 
 	local ctx = {
 		style = steps and steps[1] or ground,
