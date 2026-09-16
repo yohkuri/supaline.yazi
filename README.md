@@ -431,6 +431,10 @@ refusal a stated `width = 0` gets, arriving too late for `setup` to make it,
 so it is said on screen instead: the notification names the column and what
 came back, and the column draws unpadded exactly as a throw would leave it.
 
+A `max_width` you stated survives either one, and survives as a cap rather than
+as a width: the cell is still cut to it and is still not padded out to it. The
+cap never depended on the function that failed.
+
 A column that takes an option of its own reads it off `ctx.opts` and names it
 in `options`, which is what lets a misspelling of it be refused rather than
 ignored. The built-in timestamp columns do exactly this for `format`. A
