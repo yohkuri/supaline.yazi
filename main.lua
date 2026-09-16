@@ -268,8 +268,8 @@ local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `
 
 -- A separator is drawn before its column, so the first column of a pane's
 -- list has nothing before it and `render` skips the separator there. Written
--- on that column anyway, a `separator` is drawn nowhere and says nothing -- the
--- silence every other refusal in this file exists for.
+-- on that column anyway, a `separator` is drawn nowhere and says nothing --
+-- the silence every other refusal in this file exists for.
 --
 -- The message names the pane, because a list is the pane's rather than the
 -- linemode's: two panes of one linemode each have a first column, and only a

@@ -406,9 +406,9 @@ supaline.column("initials", {
 })
 ```
 
-A column key is not a name a column may take over, so `separator` is not
-available for one of these — `options` naming any of the keys in the table
-above is refused, and the refusal says which one.
+`options` may not name a key a column already takes, which is why the example
+calls its option `between` rather than `separator`. Any of the keys in the
+table above is refused there, and the refusal says which one.
 
 `ctx.opts` holds those names and nothing else the spec was written with. A
 column's effective width is `ctx.width` rather than `ctx.opts.width`, and the
