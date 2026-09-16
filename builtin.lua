@@ -133,12 +133,11 @@ local function register_time(field)
 				return "", ctx.style
 			end
 
-			-- A format is `os.date`'s alone, and supaline reserves no word out
-			-- of it. `"smart"` was read here as the preset and is now the
-			-- literal `os.date` makes of any string carrying no `%`. Leaving
-			-- `format` out is what asks for the preset and always was, so the
-			-- word said nothing the omission did not -- while taking a
-			-- spelling out of a namespace this plugin does not own.
+			-- A format is `os.date`'s alone: supaline reserves no word out of
+			-- it, so a string carrying no `%` draws itself. Leaving `format`
+			-- out is the whole of how the preset is asked for, and a second
+			-- spelling of that would have to be a word taken out of a
+			-- namespace this plugin does not own.
 			local fmt = ctx.opts.format
 			local text = fmt and os.date(fmt, time) or smart(time)
 			return text, ctx.style_at(ctx.ratio(time))

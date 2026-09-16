@@ -315,11 +315,11 @@ test("register: `register` names the column, so `name` beside it is not read", f
 	end, "where a spec names the column it uses")
 end)
 
-test("normalize: `sep` is refused, and says what took its place", function()
-	-- The withdrawn spelling. A column's separator was `sep` where the other
-	-- two places that take one call it `separator`, and a key nobody claims is
-	-- refused -- so what a reader who writes `sep` today needs is the name it
-	-- went to, not that the plugin has never heard of it.
+test("normalize: `sep` is refused with the spelling it abbreviates", function()
+	-- `separator` is long, and `sep` is what it gets shortened to -- this
+	-- plugin's own records are called that. The key is refused either way;
+	-- what the hint buys is the name to write instead, the way `reverse` and
+	-- `strikethrough` get theirs in a style table.
 	local wrote_sep = function()
 		---@diagnostic disable-next-line: undefined-field
 		column.normalize({ "fixed", sep = "|" }, CFG)
