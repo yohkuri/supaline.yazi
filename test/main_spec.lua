@@ -914,9 +914,9 @@ test("stats: a ramp with no extremes to place a row against says so, once", func
 	-- nothing said a word about it.
 	--
 	-- Said rather than raised, because this is knowable only inside a render
-	-- pass and an `error` from there stops the pane drawing -- worse than what
-	-- it would be reporting. Measured on 26.9.1: `ya.notify` from a linemode
-	-- render reaches the screen and the rows draw under it.
+	-- pass and an `error` from there takes the whole screen down -- worse than
+	-- what it would be reporting. Measured on 26.9.1: `ya.notify` from a
+	-- linemode render reaches the screen and the rows draw under it.
 	main.column("wrong_stats", {
 		width = 6,
 		stats = function() return { count = 3 } end,
@@ -961,6 +961,86 @@ test("stats: a column that is not a ramp owes nobody extremes", function()
 	setup { detail = { "bare" } }
 	draw("detail", CURRENT.files[1])
 	eq(#stub.notified - was, 0, "still nothing said")
+end)
+
+test("throwing: a `render` that throws is kept inside that column's cells", function()
+	-- What this is standing in for cannot be reached from here, and is the
+	-- reason the code under test exists. Measured on 26.9.1 in a real Yazi: an
+	-- error raised under a linemode's render fails the whole `Root` component,
+	-- so the file list, the header and the status bar all stop drawing, on
+	-- every frame, with no message on screen and no log at all unless
+	-- `YAZI_LOG` was set before Yazi started. Nothing in supaline raises this
+	-- one -- it is the reader's own `render` -- which is why the containment
+	-- cannot live beside the plugin's own refusals.
+	main.column("fine", { width = 2, render = function() return "ok" end })
+	main.column("thrower", {
+		width = 3,
+		render = function() error("a column of mine is broken") end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "fine", "thrower" } }
+
+	-- Every row, not just the first: the flag is what makes this a report
+	-- rather than one notification per row per frame.
+	for _, file in ipairs(CURRENT.files) do
+		draw("detail", file)
+	end
+	eq(#stub.notified - was, 1, "said once, not once per row")
+
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("`thrower`", 1, true) ~= nil, true, "and it names the column")
+	eq(said:find("`render`", 1, true) ~= nil, true, "and which of the three threw")
+	eq(said:find("a column of mine is broken", 1, true) ~= nil, true, "and what it said")
+
+	-- The cells the column was given, filled rather than left blank, and the
+	-- column beside it untouched. This is the assertion the whole change is
+	-- for: the line still draws.
+	eq(draw("detail", CURRENT.files[1]), "ok !!!")
+end)
+
+test("throwing: a `stats` that throws leaves the rest of the line drawing", function()
+	main.column("bad_stats", {
+		width = 6,
+		stats = function() error("no stats for you") end,
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "bad_stats" } }
+	draw("detail", CURRENT.files[1])
+
+	eq(#stub.notified - was, 1, "said once")
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("`stats`", 1, true) ~= nil, true, "and it names the stage")
+
+	-- `render` never asked for the stats, so the column draws exactly as it
+	-- would have. What was lost is whatever `stats` was going to carry.
+	eq(draw("detail", CURRENT.files[1]), "     x")
+end)
+
+test("throwing: a `width` function that throws draws unpadded rather than not at all", function()
+	main.column("bad_width", {
+		width = function() error("cannot size this") end,
+		render = function() return "x" end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "bad_width" } }
+	-- The width pass runs on the first row drawn, not on `setup`: `setup`
+	-- compiles the spec and nothing has a folder to measure against yet.
+	local first = draw("detail", CURRENT.files[1])
+
+	eq(#stub.notified - was, 1, "said once")
+	local said = stub.notified[#stub.notified].content
+	eq(said:find("`width`", 1, true) ~= nil, true, "and it names the stage")
+
+	-- The documented fallback, and the honest one: there is no width the pass
+	-- can stand behind and none is invented, so the cell is whatever `render`
+	-- returned. A ragged row -- which is what a refused `width = 0` exists to
+	-- prevent -- but a ragged row is readable and arrives with the message
+	-- above, where the `error` this replaces left an empty terminal.
+	eq(first, "x")
 end)
 
 test("stats: a column with a stated width still receives them", function()

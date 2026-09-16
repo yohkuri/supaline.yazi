@@ -395,10 +395,23 @@ gets for a column with no `stats` does not fire either — this column has one.
 
 supaline says so on screen, once per column, and goes on drawing. It cannot
 refuse it: what `stats` returned is knowable only while a pane is being
-rendered, and raising there would take the pane down rather than the colour.
-Only a column drawing a gradient is held to the pair — a `stats` that derives
-a width, or that carries something the column's own `render` reads off
+rendered, and raising there would take the whole screen down rather than the
+colour. Only a column drawing a gradient is held to the pair — a `stats` that
+derives a width, or that carries something the column's own `render` reads off
 `ctx.stats`, owes nobody a `min` and a `max`.
+
+**A column that throws is reported the same way and cannot take Yazi with it.**
+`stats`, a `width` that is a function and `render` are all called while a pane
+is drawn, and an error raised there fails Yazi's whole screen — file list,
+header and status bar together, on every frame, with nothing written anywhere
+unless `YAZI_LOG` was set before Yazi started. So all three are called under
+`pcall`: the column is named once in a notification, with what it threw and a
+full traceback in the log, and everything else on the line goes on drawing. A
+cell the column cannot draw at all is filled with `!` so the row keeps its
+shape; a `width` function that threw leaves the column unpadded, which is
+ragged but readable. None of this applies to a mistake in the configuration —
+`setup` runs before anything draws, so what it can refuse it refuses, and Yazi
+says so and does not start.
 
 A column that takes an option of its own reads it off `ctx.opts` and names it
 in `options`, which is what lets a misspelling of it be refused rather than

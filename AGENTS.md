@@ -180,7 +180,7 @@ more strictly and saying in every document which one a sentence is about.
 
 ## Traps
 
-Ten behaviours of Yazi break this plugin **silently** — no error, just an
+Eleven behaviours of Yazi break this plugin **silently** — no error, just an
 empty column, a stale colour, or a task that never finishes. Knowing that they
 exist is what this list is for, and for most changes it is the whole of what you
 need; the mechanism behind each, and the experiment that established it, is in
@@ -213,8 +213,12 @@ need; the mechanism behind each, and the experiment that established it, is in
   — `bold()` and `bold(false)` both add the attribute and only `bold(true)`
   takes it off, so a theme's `bold = false` copied into a call arrives as a
   second `true`
+- an error raised under a linemode's render fails the whole `Root` component
+  rather than the row — the file list, the header and the status bar all stop
+  drawing, on every frame, and nothing is written to the log unless `YAZI_LOG`
+  was set before Yazi started
 
-**Seven of the ten are refused by a check**, which prints what to write
+**Seven of the eleven are refused by a check**, which prints what to write
 instead: `ya.sync` placement in CI, the names `in_preview` and `is_regular`
 by the `Forbidden spellings` job, an unpublished DDS kind by the stub, a
 module returning a boolean by `test/module_spec.lua`, a cut that counts
@@ -222,12 +226,14 @@ characters by `truncate_spec.lua` and `column_spec.lua`, and an attribute
 given the value rather than the removal flag by `colour_spec.lua`. Nobody has
 to read about those.
 
-The other three are why the skill exists, because a green suite says nothing
+The other four are why the skill exists, because a green suite says nothing
 about them. The parent-pane child is pinned against the code already here, so
 **new** code can repeat it and stay green — measured, not assumed: a fresh
 column written with `not is_regular` passed the whole suite before
 `Forbidden spellings` existed. The fetcher has no pin at all, because there is
-no fetcher yet.
+no fetcher yet. The last of the four is the same shape as the first: the three
+calls supaline makes into a column's own code are contained and pinned, but a
+**new** call into it is not, and the suite goes on passing either way.
 
 ## Commands
 

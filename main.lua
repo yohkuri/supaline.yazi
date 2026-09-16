@@ -437,10 +437,10 @@ local function has_extremes(st) return type(st) == "table" and st.min ~= nil and
 --- and go on drawing.
 ---
 --- What it returned is knowable only here, which is inside a render pass, and
---- that is the whole of what decides the shape. An `error` from here stops the
---- pane drawing -- worse than the thing it would be reporting, which is a
---- column drawing in one colour instead of several. So: say it, and keep
---- drawing.
+--- that is the whole of what decides the shape. An `error` from here takes the
+--- whole screen down -- see `broke` below for what that costs -- which is far
+--- worse than the thing it would be reporting, a column drawing in one colour
+--- instead of several. So: say it, and keep drawing.
 ---
 --- Measured on 26.9.1, because until it was this had no shape at all.
 --- `ya.notify` from inside a linemode render reaches the screen; the rows draw
@@ -470,6 +470,76 @@ local function no_extremes(col)
 	)
 	ya.err(why)
 	ya.notify { title = "supaline", content = why, level = "error", timeout = 10 }
+end
+
+-- What stands in for a cell that could not be drawn at all, one of these per
+-- cell the column was given. Loud on purpose: a broken column filled with
+-- spaces is a column that is not there, which is what `whole_cells` refuses a
+-- stated width of zero for, and a reader looking at a gap would be looking for
+-- the wrong fault.
+local BROKEN = "!"
+
+--- Say once that a column threw, and go on drawing everything else.
+---
+--- A column may write three functions -- `stats`, a `width` that is one, and
+--- `render` -- and all three are called inside Yazi's redraw. **Measured on
+--- 26.9.1**: an error raised anywhere under a linemode's render fails the
+--- whole `Root` component, not the row and not the pane. The file list, the
+--- header and the status bar all stop drawing, it happens again on every
+--- frame for as long as that folder is open, and Yazi goes on taking keys
+--- against a screen that is blank but for the preview's own placeholder. The
+--- message reaches the log and nowhere else -- and there is no log at all
+--- unless `YAZI_LOG` was set before Yazi started, which is not how anybody
+--- runs it. So the reader is left with an empty terminal and nothing to read.
+---
+--- That is worse than any mistake it could be reporting, so the three calls
+--- are made under `pcall` and this says what happened instead. It is the same
+--- judgement `no_extremes` is, reached for the same reason and from the same
+--- measurement; what is new here is that the throw need not be supaline's. A
+--- reader's own `render` raising produced exactly the blank screen above, with
+--- no part of this plugin involved in raising it.
+---
+--- Once per column and re-armed by `setup`, for the reasons `no_extremes`
+--- gives, and `ya.err` beside the notification for the same one.
+---@param col supaline.Column
+---@param stage string which of the three threw, named as the reader wrote it
+---@param err any what it threw
+local function broke(col, stage, err)
+	if col.told_broken then
+		return
+	end
+	col.told_broken = true
+
+	local said = tostring(err)
+	ya.err(
+		string.format(
+			"supaline: column `%s` threw from its `%s`. Everything else on the line goes on "
+				.. "drawing, and a cell this column cannot draw at all is filled with `%s` so "
+				.. "that the row keeps its shape. It threw: %s",
+			col.name or "?",
+			stage,
+			BROKEN,
+			said
+		)
+	)
+
+	-- The notification takes the first line and says where the rest is.
+	-- **Measured on 26.9.1**: what `pcall` hands back here carries a full Lua
+	-- traceback, and the whole of it in a notification filled the preview pane
+	-- top to bottom -- pushing the one line that names the column and the
+	-- mistake off the top of it. A traceback is worth keeping and is what
+	-- `ya.err` above is for.
+	ya.notify {
+		title = "supaline",
+		content = string.format(
+			"column `%s` threw from its `%s`: %s (the traceback is in the log)",
+			col.name or "?",
+			stage,
+			said:match("^[^\n]*") or said
+		),
+		level = "error",
+		timeout = 10,
+	}
 end
 
 --- Bind one folder's statistics and widths onto every column of a linemode.
@@ -513,7 +583,14 @@ local function bind(name, pane, cols, folder)
 		for i, col in ipairs(cols) do
 			local entry = {}
 			if col.needs_pass then
-				entry.stats = col.stats and col.stats(files) or nil
+				if col.stats then
+					local ok, got = pcall(col.stats, files)
+					if ok then
+						entry.stats = got
+					else
+						broke(col, "stats", got)
+					end
+				end
 				-- Here rather than in `column.bind`, which is handed an entry and
 				-- cannot tell a `stats` that returned wrong from a column that has
 				-- none: the no-folder path binds `{}` onto columns whose `stats`
@@ -524,7 +601,22 @@ local function bind(name, pane, cols, folder)
 				-- The width pass renders every file, and those renders read
 				-- `ctx.ratio`, so the extremes have to be in place first.
 				column.bind(col, entry)
-				entry.width = column.resolve_width(col, files, entry.stats)
+				local ok, got = pcall(column.resolve_width, col, files, entry.stats)
+				if ok then
+					entry.width = got
+				else
+					-- A `width` function that threw, or, under `width = "auto"`,
+					-- a `render` that threw while it was being measured. The pass
+					-- is what raised either, and is what the message names.
+					broke(col, "width", got)
+					-- No width the pass can stand behind, so the column falls back
+					-- to whatever it stated and otherwise draws unpadded. That is
+					-- a ragged row, which is the thing a refused width of zero
+					-- exists to prevent -- but a ragged row is readable, arrives
+					-- with a notification naming the column, and leaves the rest
+					-- of Yazi on screen, which the `error` this replaces did not.
+					entry.width = col.fixed or col.max_width
+				end
 			end
 			entries[i] = entry
 		end
@@ -568,7 +660,17 @@ local function render(mode, pane, cols, file, folder)
 			local one = col.sep or sep
 			out[#out + 1] = one.style and ui.Span(one.text):style(one.style) or one.text
 		end
-		out[#out + 1] = column.cell(col, file)
+		-- The third of the three, and the one called per row rather than per
+		-- folder. A `pcall` here costs one per column per row -- five columns
+		-- down forty rows is two hundred a frame, against a redraw that has
+		-- just measured and styled every one of them -- and it is what keeps a
+		-- column's own mistake inside that column's cells.
+		local ok, cell = pcall(column.cell, col, file)
+		if not ok then
+			broke(col, "render", cell)
+			cell = string.rep(BROKEN, col.ctx.width or #BROKEN)
+		end
+		out[#out + 1] = cell
 	end
 	return ui.Line(out)
 end

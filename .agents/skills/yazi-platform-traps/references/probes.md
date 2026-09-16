@@ -1,15 +1,16 @@
-# The probes behind the three unchecked traps
+# The probes behind the four unchecked traps
 
-`SKILL.md` states three constraints no check refuses — a theme reload replaces
+`SKILL.md` states four constraints no check refuses — a theme reload replaces
 colours already resolved, a fetcher returns a function rather than a boolean,
-a linemode child renders in the parent pane too — and says what to do about
-each in a paragraph apiece. That is the whole of the working knowledge, and a
+a linemode child renders in the parent pane too, an error under a render
+blanks the whole screen — and says what to do about each in a paragraph
+apiece. That is the whole of the working knowledge, and a
 change that resolves a colour or writes a fetcher needs nothing from here.
 
 This file is what was actually run and what came back. Read it when the
 sentence upstairs has to be doubted rather than followed: a newer Yazi, a
 symptom that does not match the claim, or a check you are about to write to
-retire one of the three.
+retire one of the four.
 
 Everything here was measured on Yazi 26.9.1 (Homebrew 2026-09-01), in a
 detached tmux, with a probe plugin and `ya.dbg`.
@@ -26,6 +27,7 @@ detached tmux, with a probe plugin and `ya.dbg`.
 - A fetcher that returns a boolean
 - What pins the parent-pane child
 - What a custom section will take as a field name
+- What an error under a render costs
 
 ## What is merged before any plugin code runs, and what is not
 
@@ -367,3 +369,32 @@ Measured on 26.9.1 (Homebrew 2026-09-01) in a detached tmux, with a throwaway
 bare-key spelling TOML itself refuses before Yazi sees it, and whether the
 20-character limit is counted in bytes or in characters — every name tried was
 ASCII.
+
+## What an error under a render costs
+
+Four configurations, each its own throwaway `YAZI_CONFIG_HOME` with a linemode
+of one column, run in a detached tmux against a folder of three files.
+
+- **A `width` function returning `0`.** `Failed to redraw the 'Root' component`
+  in the log, and the terminal blank but for the preview pane's own
+  `Empty file`. Not the row and not the pane: no file list, no header, no
+  status bar.
+- **The same, pressing keys.** Three keypresses turned one logged failure into
+  seven. It is attempted and fails again on every frame, and Yazi goes on
+  accepting input against a screen that shows nothing. There is no recovery
+  short of quitting blind and editing `init.lua`.
+- **The same, with `YAZI_LOG` unset.** Identical screen, and **no log file was
+  written at all**. So what the reader is left with is an empty terminal and
+  nothing anywhere to read.
+- **A user's own `render` calling `error()`.** Byte-identical outcome, with no
+  part of supaline raising it. This is the one that decided the design: the
+  cost belongs to the call site, not to whose mistake it was.
+
+Against that, the same mistake **stated** rather than returned — `width = 0` in
+`setup` — makes Yazi refuse to start, print the whole message to the terminal
+and exit 1. That gap is the argument for refusing in `setup` whatever `setup`
+can reach, and containing only what cannot be known until a render.
+
+What this did not cover: whether a `peek`, a `preload` or a `fetch` raising has
+the same reach — only the linemode path was driven — and whether a Yazi built
+without Homebrew's flags logs differently.
