@@ -1,9 +1,9 @@
 # The traps a check already catches
 
-Seven of the ten constraints are refused by a test or a CI job, so writing one
-the wrong way fails on its own and prints what to write instead. They are here
-rather than in `SKILL.md` for that reason: reading about them in advance buys
-nothing the check does not already give you.
+Seven of the eleven constraints are refused by a test or a CI job, so writing
+one the wrong way fails on its own and prints what to write instead. They are
+here rather than in `SKILL.md` for that reason: reading about them in advance
+buys nothing the check does not already give you.
 
 Read this when one of them fires and the message is not enough.
 
