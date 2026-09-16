@@ -76,17 +76,17 @@ test("setup: the separator can be replaced per plugin and per linemode", functio
 	eq(draw("detail", CURRENT.files[1]), "1B::1B")
 end)
 
-test("setup: `sep = false` drops the separator before a column", function()
-	setup { detail = { { "size", width = 3 }, { "size", width = 3, sep = false } } }
+test("setup: `separator = false` drops the separator before a column", function()
+	setup { detail = { { "size", width = 3 }, { "size", width = 3, separator = false } } }
 	eq(draw("detail", CURRENT.files[1]), " 1B 1B")
 end)
 
-test("setup: a `sep` on a pane's first column is refused", function()
+test("setup: a `separator` on a pane's first column is refused", function()
 	-- `render` guards the separator with `i > 1`, so this one is drawn
 	-- nowhere. Refused rather than ignored, and refused while `setup` runs
 	-- rather than a session later.
 	throws(
-		function() main.setup({}, { linemodes = { t = { { "size", sep = "|" }, "size" } } }) end,
+		function() main.setup({}, { linemodes = { t = { { "size", separator = "|" }, "size" } } }) end,
 		"the first column of `current` on linemode `t`"
 	)
 
@@ -97,7 +97,10 @@ test("setup: a `sep` on a pane's first column is refused", function()
 		function()
 			main.setup({}, {
 				linemodes = {
-					t = { current = { "size", { "size", sep = "|" } }, parent = { { "size", sep = "|" } } },
+					t = {
+						current = { "size", { "size", separator = "|" } },
+						parent = { { "size", separator = "|" } },
+					},
 				},
 			})
 		end,
@@ -105,20 +108,20 @@ test("setup: a `sep` on a pane's first column is refused", function()
 	)
 end)
 
-test("setup: `sep = false` on a pane's first column is accepted", function()
+test("setup: `separator = false` on a pane's first column is accepted", function()
 	-- It asks for nothing and gets nothing, which is the one spelling that
 	-- agrees with what index 1 draws.
-	setup { detail = { { "size", width = 3, sep = false }, { "size", width = 3 } } }
+	setup { detail = { { "size", width = 3, separator = false }, { "size", width = 3 } } }
 	eq(draw("detail", CURRENT.files[1]), " 1B  1B")
 end)
 
-test("setup: a registered column's own `sep` may head a linemode", function()
-	-- The refusal is spec-only for this: `sep` on a definition is read at
+test("setup: a registered column's own separator may head a linemode", function()
+	-- The refusal is spec-only for this: one on a definition is read at
 	-- every use of it, so refusing one here would stop a registered column
 	-- being written first in any linemode -- one typo's cost paid by every
 	-- reuse. What the column wrote is simply not drawn at index 1.
 	main.column("septic", {
-		sep = "|",
+		separator = "|",
 		width = 3,
 		render = function() return "x" end,
 	})
@@ -152,7 +155,7 @@ test("setup: a nearer separator replaces a farther one whole, colour and all", f
 	-- therefore draws uncoloured rather than borrowing the colour above it,
 	-- which is what a column's `style` does to a theme one level down.
 	setup({
-		detail = { plain("a"), { render = plain("b"), sep = "-" } },
+		detail = { plain("a"), { render = plain("b"), separator = "-" } },
 	}, { separator = { " | ", style = { fg = "#585b70" } } })
 	eq(draw("detail", CURRENT.files[1]), "a-b")
 	eq(style_in("detail"), nil, "the nearer separator took the colour with it as well as the text")
@@ -276,7 +279,7 @@ test("setup: a separator that is neither a string nor a table is refused", funct
 	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = 42 }) end, "`separator` in `setup`")
 
 	-- `false` is the one this is really for. It reads like a column's
-	-- `sep = false` and it is falsy, so it fell through to the plugin-wide
+	-- `separator = false` and it is falsy, so it fell through to the plugin-wide
 	-- separator: the linemode drew the separator it had asked to be rid of,
 	-- and not until a row was drawn.
 	---@diagnostic disable-next-line: assign-type-mismatch

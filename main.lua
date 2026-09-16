@@ -268,17 +268,17 @@ local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `
 
 -- A separator is drawn before its column, so the first column of a pane's
 -- list has nothing before it and `render` skips the separator there. Written
--- on that column anyway, a `sep` is drawn nowhere and says nothing -- the
+-- on that column anyway, a `separator` is drawn nowhere and says nothing -- the
 -- silence every other refusal in this file exists for.
 --
 -- The message names the pane, because a list is the pane's rather than the
 -- linemode's: two panes of one linemode each have a first column, and only a
 -- list written under both is the same one twice.
-local FIRST_SEP = "supaline: the first column of `%s` on linemode `%s` was given a `sep`, "
-	.. "which is drawn by nobody: a separator goes before its column, and the first "
-	.. "column has nothing before it. Write it on the column it should precede, or "
-	.. "drop it -- `sep = false` is accepted there, since it asks for nothing and gets "
-	.. "nothing"
+local FIRST_SEP = "supaline: the first column of `%s` on linemode `%s` was given a "
+	.. "`separator`, which is drawn by nobody: a separator goes before its column, and "
+	.. "the first column has nothing before it. Write it on the column it should "
+	.. "precede, or drop it -- `separator = false` is accepted there, since it asks for "
+	.. "nothing and gets nothing"
 
 -- `PANES` as a set, so a key can be classified without walking it. Derived
 -- rather than written out, because a list and a set of the same three names
@@ -584,9 +584,10 @@ end
 --- validates a spec: `column.normalize` and `panes_of` both raise, so a
 --- configuration that does not compile never reaches module state.
 ---
---- One refusal is this function's own rather than either of theirs -- a `sep`
---- on the first column of a pane's list -- because it is the only one that
---- needs a column's position among its neighbours, which neither of them has.
+--- One refusal is this function's own rather than either of theirs -- a
+--- `separator` on the first column of a pane's list -- because it is the only
+--- one that needs a column's position among its neighbours, which neither of
+--- them has.
 ---@param from table<string, supaline.LinemodeSpec>
 ---@param with supaline.Cfg
 ---@return table<string, supaline.Mode> modes, function[] hooks, boolean outer whether any mode leaves the current pane
@@ -623,7 +624,7 @@ local function compile(from, with)
 			local made = list and built[list]
 			if list and not made then
 				-- Against the spec alone, and not through `normalize`. `pick`
-				-- reads `sep` off the definition as well, so refusing what a
+				-- reads `separator` off the definition as well, so refusing what a
 				-- definition wrote would forbid a registered column from ever
 				-- heading a linemode: one typo's cost, paid by every reuse of
 				-- the column. What the user wrote here is what nobody draws.
@@ -633,7 +634,7 @@ local function compile(from, with)
 				-- what index 1 gets. A list with no index 1 passes too -- a
 				-- gap there is `panes_of`'s to refuse, and it does.
 				local first = list[1]
-				if type(first) == "table" and first.sep then
+				if type(first) == "table" and first.separator then
 					error(string.format(FIRST_SEP, pane, name))
 				end
 				made = {}

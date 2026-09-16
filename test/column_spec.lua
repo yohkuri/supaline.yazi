@@ -42,12 +42,12 @@ test("normalize: a use site may override the definition's `render`", function()
 end)
 
 test("normalize: an option written on the definition survives, `false` and all", function()
-	-- `sep` is the only option whose meaningful value is `false`, and the
+	-- A separator is the only option whose meaningful value is `false`, and the
 	-- `opts[k] == nil and def[k] or opts[k]` idiom collapsed it to nil, so a
-	-- definition that said `sep = false` still got a separator drawn.
-	column.register("tight", { width = 3, sep = false, render = function() return "x" end })
+	-- definition that said `separator = false` still got a separator drawn.
+	column.register("tight", { width = 3, separator = false, render = function() return "x" end })
 	eq(column.normalize("tight", CFG).sep, false)
-	eq(column.normalize({ "tight", sep = "|" }, CFG).sep.text, "|", "the use site still wins")
+	eq(column.normalize({ "tight", separator = "|" }, CFG).sep.text, "|", "the use site still wins")
 end)
 
 test("normalize: a bare function", function()
@@ -124,7 +124,7 @@ test("normalize: every key a column takes passes the sweep", function()
 		align = "left",
 		overflow = "clip",
 		max_width = 6,
-		sep = "|",
+		separator = "|",
 		stats = function() return {} end,
 		refresh = function() end,
 		style = { bold = true },
@@ -315,6 +315,19 @@ test("register: `register` names the column, so `name` beside it is not read", f
 	end, "where a spec names the column it uses")
 end)
 
+test("normalize: `sep` is refused, and says what took its place", function()
+	-- The withdrawn spelling. A column's separator was `sep` where the other
+	-- two places that take one call it `separator`, and a key nobody claims is
+	-- refused -- so what a reader who writes `sep` today needs is the name it
+	-- went to, not that the plugin has never heard of it.
+	local wrote_sep = function()
+		---@diagnostic disable-next-line: undefined-field
+		column.normalize({ "fixed", sep = "|" }, CFG)
+	end
+	throws(wrote_sep, "`sep` is not a column key")
+	throws(wrote_sep, "`separator` is the spelling, on a column as in `setup`")
+end)
+
 test("normalize: a `render` at `[1]` is refused, and says where it goes", function()
 	-- What is pinned is not the refusal but its message. A render at `[1]` is a
 	-- reasonable thing to write, so the refusal has to say where the render goes
@@ -453,15 +466,16 @@ column.register("plain", { width = 2, render = function() return "x" end })
 
 --- The record `normalize` puts on a column for the separator written at
 --- `value`. Read through a column rather than through `setup` because a
---- column's `sep` is the one of the three places that reached Yazi unread:
---- `sep = 42` emptied the pane, with the cause a whole session behind it.
+--- column's own is the one of the three places that reached Yazi unread:
+--- `separator = 42` emptied the pane, with the cause a whole session behind
+--- it.
 ---@param value any
 ---@return supaline.Sep
 local function separator(value)
-	-- Cast because a column's `sep` is `false` where the column drops the
+	-- Cast because a column's record is `false` where the column drops the
 	-- separator before it, and that is the one value nothing below writes:
 	-- every call here hands in a separator for `column.separator` to read.
-	return column.normalize({ "plain", sep = value }, CFG).sep --[[@as supaline.Sep]]
+	return column.normalize({ "plain", separator = value }, CFG).sep --[[@as supaline.Sep]]
 end
 
 --- Assert that a separator is refused, with a message mentioning `pattern`.
@@ -508,15 +522,15 @@ test("separator: a style written as a function is called", function()
 	-- message carrying no location says nothing about which line to open.
 	refuses_sep(
 		{ "|", style = function() return th.nosuch.field end },
-		"the style function under `sep` of column `plain` raised"
+		"the style function under `separator` of column `plain` raised"
 	)
 end)
 
 test("separator: what a separator is refused for", function()
 	-- Every one of these would be silence without `column.separator`: a
-	-- column's `sep` goes through no other check, and the rest are shapes only
+	-- column's own goes through no other check, and the rest are shapes only
 	-- the table form can hold.
-	refuses_sep(42, "`sep` of column `plain`")
+	refuses_sep(42, "`separator` of column `plain`")
 	refuses_sep({ style = { fg = "cyan" } }, "given nothing to draw")
 	refuses_sep({ 42, style = { fg = "cyan" } }, "given a number to draw")
 	refuses_sep({ "|", styel = { fg = "cyan" } }, "`styel`")
@@ -835,7 +849,8 @@ test("style: a NaN ratio is clamped too, where a comparison would let it past", 
 end)
 
 test("style: `false` turns the style off, whatever the layers beneath say", function()
-	-- The spelling `sep` already uses, and the only way to drop a style the
+	-- The spelling a column's `separator` already uses, and the only way to
+	-- drop a style the
 	-- definition or the theme would otherwise supply -- every key of it, not
 	-- the colour alone.
 	column.register("hue3", {
