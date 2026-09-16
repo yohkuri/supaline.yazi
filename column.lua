@@ -371,6 +371,55 @@ local function as_written(value)
 	return "a " .. t
 end
 
+--- Refuse a width that is not a whole number of cells, or that is no cells at
+--- all.
+---
+--- Both keys that state one come through here. `max_width` had no check of any
+--- kind: a string reached `cap`, which compares it against a number, and the
+--- reader got `attempt to compare string with number` from a line of this file
+--- rather than anything naming the key they wrote.
+---
+--- A width of 0 or less is the quieter one. It was taken, carried through
+--- `cap` and laid out, and `fit` padded the cell to no cells -- so the column
+--- drew as the empty string on every row, which reads as a column that is not
+--- there rather than as a setting that was wrong.
+---
+--- Non-integral is refused rather than floored. Flooring is a guess about
+--- which of two whole numbers was meant, made silently and on a value the
+--- reader had already got wrong; `2.5` is a mistake wherever it came from, and
+--- the arithmetic that produced it is worth the reader's attention rather than
+--- this function's rounding. An integral float is not that mistake -- `3.0` is
+--- 3 -- so it is taken and narrowed.
+---
+--- `type` is asked before `math.tointeger`, and that order is the whole check:
+--- measured on 5.5.1, `math.tointeger("3")` answers 3, so a `width` written as
+--- the string `"3"` would otherwise arrive here and pass as an integer. It
+--- also covers the three numbers that are numbers and not counts -- `inf`,
+--- `-inf` and NaN all answer nil.
+---@param key "width"|"max_width"
+---@param value any
+---@param where string
+---@return integer? # the value as an integer, or nil if none was written
+local function whole_cells(key, value, where)
+	if value == nil then
+		return nil
+	end
+	local cells = type(value) == "number" and math.tointeger(value) or nil
+	if cells == nil or cells < 1 then
+		error(
+			string.format(
+				"supaline: `%s` %s must be a whole number of cells, 1 or more, got %s -- a column "
+					.. "of no cells draws as the empty string on every row, which reads as a column "
+					.. "that is not there rather than as a width that was wrong",
+				key,
+				where,
+				as_written(value)
+			)
+		)
+	end
+	return cells
+end
+
 --- Refuse a value none of the ones `key` takes covers.
 ---
 --- Nil is not a value and is allowed: every one of these keys has a default,
@@ -1125,7 +1174,7 @@ function M.normalize(spec, cfg)
 		name = name,
 		align = M.one_of("align", pick("align"), of_col) or "right",
 		overflow = M.one_of("overflow", pick("overflow"), of_col) or "ellipsis",
-		max_width = pick("max_width"),
+		max_width = whole_cells("max_width", pick("max_width"), of_col),
 		sep = sep,
 		stats = pick("stats"),
 		refresh = pick("refresh"),
@@ -1154,7 +1203,7 @@ function M.normalize(spec, cfg)
 	elseif type(width) == "function" then
 		col.width_of = width
 	elseif type(width) == "number" then
-		col.fixed = cap(math.floor(width), col.max_width)
+		col.fixed = cap(whole_cells("width", width, of_col), col.max_width)
 	elseif width ~= nil then
 		error(string.format('supaline: `width` of column `%s` must be a number, "auto", or a function', name or "?"))
 	end
@@ -1550,19 +1599,26 @@ end
 function M.resolve_width(col, files, stats)
 	if col.width_of then
 		local w = col.width_of(stats)
-		if type(w) ~= "number" then
+		local cells = type(w) == "number" and math.tointeger(w) or nil
+		if cells == nil or cells < 1 then
 			-- Returning nil here would leave the column with no width at all:
 			-- no padding, no truncation, and a cell free to push into the file
 			-- name. A stated width and "auto" both fail loudly; so does this.
+			--
+			-- Held to what a stated `width` is held to, and not because symmetry
+			-- is tidy: a function returning 0 empties the column exactly as
+			-- `width = 0` did, and closing one door and not the other leaves the
+			-- same blank column reachable by the spelling nobody checked.
 			error(
 				string.format(
-					"supaline: the `width` function of column `%s` returned a %s; it must return a number",
+					"supaline: the `width` function of column `%s` returned %s; it must return a whole "
+						.. "number of cells, 1 or more",
 					col.name or "?",
-					type(w)
+					as_written(w)
 				)
 			)
 		end
-		return cap(math.floor(w), col.max_width)
+		return cap(cells, col.max_width)
 	elseif not col.auto then
 		return col.fixed -- capped when the spec was normalised
 	end
