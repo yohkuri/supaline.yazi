@@ -1187,6 +1187,33 @@ function M.normalize(spec, cfg)
 	-- check written after it would have nothing left to look at.
 	local of_col = string.format("of column `%s`", name or "?")
 
+	-- Not `pick`, which is the one place that would be wrong. `pick` reads the
+	-- spec and then the definition, and a definition's scale has to lose to a
+	-- `scale` written in `setup` -- otherwise the plugin-wide option cannot
+	-- reach `size`, the one built-in that states one and the one whose values
+	-- span orders of magnitude. So: the spec, then what the user asked for
+	-- plugin-wide, then the column's own, then linear.
+	--
+	-- Linear is the fallback because the columns with nothing to say about it
+	-- are the timestamps, whose values sit within a few years of each other; a
+	-- log scale over those spreads nothing.
+	--
+	-- An explicit nil test rather than `opts.scale or cfg.scale or def.scale`,
+	-- for the reason `pick` gives above and with one more behind it. The `or`
+	-- chain skips a `false` along with a nil, so `scale = false` would fall
+	-- through to the next source and be defaulted -- past `M.one_of`, which is
+	-- the one thing that was going to tell the reader `false` is not a scale.
+	-- The whole of the fix this file made for the other keys was refusing a
+	-- value before the `or` that supplies the default; the same `or` reaches
+	-- this one twice.
+	local scale = opts.scale
+	if scale == nil then
+		scale = cfg.scale
+	end
+	if scale == nil then
+		scale = def.scale
+	end
+
 	local col = {
 		name = name,
 		align = M.one_of("align", pick("align"), of_col) or "right",
@@ -1196,22 +1223,12 @@ function M.normalize(spec, cfg)
 		stats = pick("stats"),
 		refresh = pick("refresh"),
 		render = opts.render or def.render,
-		-- Not `pick`, which is the one place that would be wrong. `pick` reads
-		-- the spec and then the definition, and a definition's scale has to
-		-- lose to a `scale` written in `setup` -- otherwise the plugin-wide
-		-- option cannot reach `size`, the one built-in that states one and the
-		-- one whose values span orders of magnitude. So: the spec, then what
-		-- the user asked for plugin-wide, then the column's own, then linear.
-		--
-		-- Linear is the fallback because the columns with nothing to say about
-		-- it are the timestamps, whose values sit within a few years of each
-		-- other; a log scale over those spreads nothing.
 		-- The resolved value rather than each of the three, because two of them
 		-- have already been looked at: `cfg.scale` is `setup`'s own key and
 		-- `setup` refuses it by that name, where the message can say `setup`
 		-- rather than name whichever column happened to be normalised first.
 		-- What is left for this call is the spec's and the definition's.
-		scale = M.one_of("scale", opts.scale or cfg.scale or def.scale, of_col) or "linear",
+		scale = M.one_of("scale", scale, of_col) or "linear",
 	}
 
 	local width = pick("width")
