@@ -725,7 +725,7 @@ test("bands: a band's own two keys are not names a `<->` can ask for", function(
 	throws(function() colour.stops("#0b3d91 <-> to", "x", one, "fg") end, "`to`")
 end)
 
-test("bands: a name that is a Lua keyword is quoted where the refusal says to write it", function()
+test("bands: a name Lua will not take bare is quoted where the refusal says to write it", function()
 	-- `end` is a name the shape takes and `band = { ["end"] = ... }` defines,
 	-- so it draws. What it may not do is come back bare: `band = { end = ... }`
 	-- is a syntax error, and a refusal a reader pastes has to be a setting.
@@ -738,9 +738,22 @@ test("bands: a name that is a Lua keyword is quoted where the refusal says to wr
 	)
 	throws(function() colour.stops("#0b3d91 <-> end", "x", {}, "fg") end, 'band = { ["end"] = ')
 
+	-- A name that starts with a digit is the same fault by the other road, and
+	-- it is the one the keyword test does not reach: `2x` is no keyword, `NAME`
+	-- takes it, and `band = { 2x = ... }` is a syntax error all the same.
+	local digit_led = colour.bands({ ["2x"] = REC }, "x")
+	eq(next(digit_led), "2x", "`setup` takes it")
+	same_band(
+		colour.stops("#0b3d91 <-> 2x", "x", digit_led, "fg"),
+		colour.band(NAVY, REC),
+		"a digit-led name is a band name like any other"
+	)
+	throws(function() colour.stops("#0b3d91 <-> 2x", "x", {}, "fg") end, 'band = { ["2x"] = ')
+
 	-- Only where it has to be. An ordinary name stays bare, because bracketing
 	-- every name would make the common message read as the awkward case.
 	throws(function() colour.stops("#0b3d91 <-> dim", "x", {}, "fg") end, "band = { dim = ")
+	throws(function() colour.stops("#0b3d91 <-> _x", "x", {}, "fg") end, "band = { _x = ")
 end)
 
 test("bands: a band's name is a column's rule, without the cap that is Yazi's", function()
