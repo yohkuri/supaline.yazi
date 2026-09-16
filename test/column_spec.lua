@@ -148,6 +148,77 @@ test("normalize: a key nobody claimed is refused by name", function()
 	throws(function() column.normalize({ "fixed", "mtime" }, CFG) end, "`2` is not a column key")
 end)
 
+test("normalize: a value the shared keys do not take is refused", function()
+	-- The opposite mistake to the one above, and the one nothing caught: a key
+	-- nobody claims is refused by name, while a *value* nobody accepts was
+	-- accepted by being ignored. `align = "centre"` fell through to the `or`
+	-- that defaults it and drew a right-aligned column without a word.
+	column.register("fixed", { width = 4, render = function() return "ab" end })
+
+	-- Bound once rather than written out per assertion: the value is wrong on
+	-- purpose, so each spelling of it costs a suppression, and three of them
+	-- around one message reads as three different mistakes. `normalize` never
+	-- writes into the spec it is handed, so one table answers all three.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	local centred = { "fixed", align = "centre" }
+	throws(function() column.normalize(centred, CFG) end, "`align` of column `fixed`")
+	throws(function() column.normalize(centred, CFG) end, "must be `left` or `right`")
+	-- What was written comes back in the message. The right spelling is not
+	-- guessable from the wrong one, and neither is which of several columns
+	-- carried it.
+	throws(function() column.normalize(centred, CFG) end, "got `centre`")
+
+	throws(
+		---@diagnostic disable-next-line: assign-type-mismatch
+		function() column.normalize({ "fixed", overflow = "elipsis" }, CFG) end,
+		"must be `ellipsis`, `clip`, or `grow`"
+	)
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", scale = "LOG" }, CFG) end, "must be `linear` or `log`")
+
+	-- A number is shown as written too, because a width is worth reading back.
+	-- What is named by its type rather than shown is everything that is worth
+	-- showing neither way.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", align = 42 }, CFG) end, "got `42`")
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", align = {} }, CFG) end, "got a table")
+end)
+
+test("normalize: a definition's own wrong value is refused too", function()
+	-- `pick` reads the spec and then the definition, so a check that looked at
+	-- the spec alone would let a definition write `align = "centre"` and have
+	-- every use of that column draw it silently -- the worse of the two, since
+	-- the reader of a use site cannot see the definition.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	column.register("bent", { width = 4, align = "centre", render = function() return "ab" end })
+	throws(function() column.normalize("bent", CFG) end, "`align` of column `bent`")
+	throws(function() column.normalize({ "bent" }, CFG) end, "`align` of column `bent`")
+end)
+
+test("normalize: nothing written still reaches the default", function()
+	-- Nil is not a value. Every one of these keys has a default, and a check
+	-- that refused nil would refuse every column that wrote none of them --
+	-- which is most of them.
+	column.register("plain", { render = function() return "ab" end })
+	local col = column.normalize("plain", CFG)
+	eq(col.align, "right")
+	eq(col.overflow, "ellipsis")
+	eq(col.scale, "linear")
+
+	-- And every value they do take still passes, which is what says the check
+	-- is a list and not a wall.
+	for _, v in ipairs { "left", "right" } do
+		eq(column.normalize({ "plain", align = v }, CFG).align, v)
+	end
+	for _, v in ipairs { "ellipsis", "clip", "grow" } do
+		eq(column.normalize({ "plain", overflow = v }, CFG).overflow, v)
+	end
+	for _, v in ipairs { "linear", "log" } do
+		eq(column.normalize({ "plain", scale = v }, CFG).scale, v)
+	end
+end)
+
 test("normalize: every key a column takes passes the sweep", function()
 	-- The other half of the refusal above, and the half that catches a key
 	-- left out of the allow-list: a spelling that works is refused by nothing
