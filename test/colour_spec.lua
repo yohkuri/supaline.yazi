@@ -6,6 +6,11 @@
 
 local colour = require(".colour")
 
+-- One test reads both name rules against each other, which is the only way to
+-- see that they have come apart. Nothing else in this file reaches into
+-- `column.lua`.
+local column = require(".column")
+
 --- A stop as the colour it is, so a mismatch reads as two colours rather than
 --- as two channel numbers. Injective over the integers 0-255, so comparing two
 --- of these is exactly comparing the channels.
@@ -738,6 +743,31 @@ test("bands: a name that is a Lua keyword is quoted where the refusal says to wr
 	throws(function() colour.stops("#0b3d91 <-> dim", "x", {}, "fg") end, "band = { dim = ")
 end)
 
+test("bands: a band's name is a column's rule, without the cap that is Yazi's", function()
+	-- The only cross-module test here, and it is load-bearing: the two `NAME`
+	-- literals cannot be shared, because `column.lua` requires `colour.lua` and
+	-- the lower layer cannot reach the upper one's. Nothing but this says they
+	-- have come apart.
+	--
+	-- The band rule used to start `^[a-z]`, so `2x` and `_x` were names a
+	-- column could have and a band could not. What retired that is measurement:
+	-- the defence of the leading letter was "a name writable bare as a Lua
+	-- key", and `_x` is one and was refused while `end` is not one and passed.
+	for _, name in ipairs { "2x", "_x", "x_", "my_band2" } do
+		column.register(name, { render = function() return "x" end })
+		eq(next(colour.bands({ [name] = REC }, "x")), name, name .. " names both a column and a band")
+	end
+
+	-- The one difference left, and it belongs to Yazi rather than to either
+	-- rule. A column name is capped at 20 because a `[supaline]` field is;
+	-- nothing parses a band name, so nothing caps it.
+	local long = string.rep("b", 21)
+	throws(function()
+		column.register(long, { render = function() return "x" end })
+	end, "cannot be a column name")
+	eq(next(colour.bands({ [long] = REC }, "x")), long, "a band of 21 characters is defined")
+end)
+
 test("bands: the flat pair written where a table of bands goes is refused by name", function()
 	-- What a reader writes who takes `band` for one band rather than a table of
 	-- them. Refused rather than read as the `fg` band, because two spellings of
@@ -748,13 +778,12 @@ test("bands: the flat pair written where a table of bands goes is refused by nam
 	throws(function() colour.bands({ from = 0.35 }, "x") end, "are a band's own keys")
 end)
 
-test("bands: a name is lowercase letters, digits and `_`, starting with a letter", function()
-	-- The shape `theme.toml` holds a field name to, rather than a second one of
-	-- this plugin's own.
+test("bands: a name is lowercase letters, digits and `_`", function()
+	-- The class a column's name holds, taken because this plugin has one shape
+	-- a name is written in -- not because anything parses a band name.
 	eq(next(colour.bands({ my_band2 = REC }, "x")), "my_band2")
 	throws(function() colour.bands({ ["my-band"] = REC }, "x") end, "is not a band name")
 	throws(function() colour.bands({ MyBand = REC }, "x") end, "is not a band name")
-	throws(function() colour.bands({ ["2x"] = REC }, "x") end, "is not a band name")
 	throws(function() colour.bands({ [1] = REC }, "x") end, "is not a band name")
 end)
 
