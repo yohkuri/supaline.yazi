@@ -26,6 +26,21 @@ test("normalize: a name with its options overridden", function()
 	eq(cell { "fixed", width = 5, align = "left" }, "ab   ")
 end)
 
+test("normalize: a use site may override the definition's `render`", function()
+	-- `render` is a column key like any other, so a use site may write one and
+	-- `column.lua` takes the spec's: `opts.render or def.render` rather than
+	-- `pick`. Pinned because nothing else says so, and because the shape reads
+	-- as a definition -- a definition is the other table that writes a
+	-- `render`, and what tells the two apart is the name at `[1]`.
+	column.register("over", { width = 6, align = "left", render = function() return "def" end })
+	eq(cell { "over", render = function() return "spec" end }, "spec  ")
+	eq(
+		column.normalize({ "over", render = function() return "spec" end }, CFG).name,
+		"over",
+		"and the name the theme is looked up under is still the definition's"
+	)
+end)
+
 test("normalize: an option written on the definition survives, `false` and all", function()
 	-- `sep` is the only option whose meaningful value is `false`, and the
 	-- `opts[k] == nil and def[k] or opts[k]` idiom collapsed it to nil, so a
