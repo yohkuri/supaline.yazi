@@ -894,7 +894,7 @@ local SEP_HELP = "supaline: %s must be a string or a table, got a %s -- "
 	.. 'colour, and `""` draws nothing at all. `false` drops the separator before a '
 	.. "column and is a column's `separator`, never a linemode's"
 
-local SEP_UNKNOWN = "supaline: %s: %s %s. A separator table takes what to draw as `[1]` "
+local SEP_UNKNOWN = "supaline: %s: %s. A separator table takes what to draw as `[1]` "
 	.. 'and `style` beside it -- `{ " | ", style = { fg = "#585b70" } }`'
 
 local SEP_TEXT = "supaline: %s was given %s to draw. The first element of a separator table "
@@ -965,11 +965,13 @@ function M.separator(value, where)
 		error(string.format(SEP_HELP, where, type(value)))
 	end
 
-	local unknown, quoted = colour.unknown(value, claims_sep)
+	-- Through the `noun`, like every other sweep here. Spelled out, this was the
+	-- one caller of the five still wording its own "is not a ... key", which is
+	-- exactly the half of a message `colour.unknown` was given a `noun` to hold
+	-- -- and the half it records having watched drift apart once already.
+	local unknown, _, subject = colour.unknown(value, claims_sep, "separator")
 	if unknown then
-		error(
-			string.format(SEP_UNKNOWN, where, quoted, #unknown == 1 and "is not a separator key" or "are not separator keys")
-		)
+		error(string.format(SEP_UNKNOWN, where, subject))
 	end
 
 	local text = value[1]
