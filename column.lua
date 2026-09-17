@@ -372,22 +372,35 @@ local function as_written(value)
 	return "a " .. t
 end
 
---- A width as a whole number of cells, or nil for anything that is not one.
+--- A width as a usable number of cells, or nil for anything that is not one.
 ---
---- `type` is asked before `math.tointeger`, and that order is the whole check:
+--- `type` is asked before `math.tointeger`, and that order is half the check:
 --- measured on 5.5.1, `math.tointeger("3")` answers 3, so a `width` written as
 --- the string `"3"` would otherwise pass as an integer. It also covers the
 --- three numbers that are numbers and not counts -- `inf`, `-inf` and NaN all
 --- answer nil.
 ---
---- One function because two keys and a `width` function all ask it, and the
---- ordering above is the kind of thing a later reader tidies into
---- `math.tointeger(value)` without knowing what it was for. Each caller words
---- its own refusal, which is the part that differs; this is the part that
---- must not.
+--- The floor is the other half, and it belongs here rather than beside each
+--- refusal. Every source of a width empties the column the same way with a 0
+--- -- a stated `width`, a stated `max_width`, and what a `width` function
+--- returns all reach the same blank row -- so a floor left at one call site is
+--- a door the next source gets written past. What a 0 costs is said beside the
+--- refusals, which is where it belongs.
+---
+--- One function because all three ask it, and both halves are the kind of
+--- thing a later reader tidies away -- the ordering into
+--- `math.tointeger(value)`, the floor into whichever caller looks like it
+--- needed one. Each caller words its own refusal, which is the part that
+--- differs; this is the part that must not.
 ---@param value any
----@return integer?
-local function cells_of(value) return type(value) == "number" and math.tointeger(value) or nil end
+---@return integer? # the width, or nil for anything that cannot be one
+local function cells_of(value)
+	local cells = type(value) == "number" and math.tointeger(value) or nil
+	if cells == nil or cells < 1 then
+		return nil
+	end
+	return cells
+end
 
 --- Refuse a width that is not a whole number of cells, or that is no cells at
 --- all.
@@ -417,7 +430,7 @@ local function whole_cells(key, value, where)
 		return nil
 	end
 	local cells = cells_of(value)
-	if cells == nil or cells < 1 then
+	if cells == nil then
 		error(
 			string.format(
 				"supaline: `%s` %s must be a whole number of cells, 1 or more, got %s -- a column "
@@ -1719,14 +1732,14 @@ function M.resolve_width(col, files, stats)
 	if col.width_of then
 		local w = col.width_of(stats)
 		local cells = cells_of(w)
-		if cells == nil or cells < 1 then
+		if cells == nil then
 			-- Taking it would leave the column with no width at all: no padding,
 			-- no truncation, and a cell free to push into the file name.
 			--
 			-- Held to what a stated `width` is held to, and not because symmetry
-			-- is tidy: a function returning 0 empties the column exactly as
-			-- `width = 0` did, and closing one door and not the other leaves the
-			-- same blank column reachable by the spelling nobody checked. What
+			-- is tidy: `cells_of` is the one floor every source of a width
+			-- passes, so a function returning 0 empties the column exactly as
+			-- `width = 0` did and is refused for it in the same place. What
 			-- differs is only how the two are said -- a stated width is refused
 			-- in `setup`, which stops Yazi before anything draws, and this one
 			-- cannot be known until the folder is being rendered.

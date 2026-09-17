@@ -55,6 +55,36 @@ local function draw_child(file)
 	return text_of(stub.children[1].fn { _file = file })
 end
 
+--- What the last notification put on screen.
+---@return string
+local function last_said() return stub.notified[#stub.notified].content end
+
+--- Assert that a notification said `text`.
+---
+--- The substring test is written out once here rather than at each of the ten
+--- places that make it, and not only for the length: as
+--- `eq(said:find(text, 1, true) ~= nil, true, what)` a failure reads
+--- `expected "true", got "false"`, which names neither the text that was
+--- looked for nor the notification that did not carry it.
+---@param said string
+---@param text string
+---@param what string
+local function mentions(said, text, what)
+	if said:find(text, 1, true) == nil then
+		error(string.format("%s: looked for %q in %q", what, text, said), 2)
+	end
+end
+
+--- The other way round, for a message that must not reach for the wrong word.
+---@param said string
+---@param text string
+---@param what string
+local function omits(said, text, what)
+	if said:find(text, 1, true) ~= nil then
+		error(string.format("%s: found %q in %q", what, text, said), 2)
+	end
+end
+
 -- --- registration ----------------------------------------------------------
 
 test("setup: every linemode becomes a Linemode entry", function()
@@ -876,7 +906,7 @@ test("theme: a reload the theme breaks keeps the old colours and says so", funct
 		-- back what Lua and Yazi wrapped around it -- a source position here, a
 		-- `runtime error:` and two tracebacks under a real Yazi -- and
 		-- `ya.notify` draws every line of whatever it is given.
-		local said = stub.notified[#stub.notified].content
+		local said = last_said()
 		eq(
 			said,
 			"supaline: the `[supaline] size` field in your theme: `nosuchcolour` is not a colour Yazi "
@@ -931,9 +961,9 @@ test("stats: a ramp with no extremes to place a row against says so, once", func
 	end
 
 	eq(#stub.notified - was, 1, "said once, not once per row")
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("`wrong_stats`", 1, true) ~= nil, true, "and it names the column")
-	eq(said:find("no `min` and `max`", 1, true) ~= nil, true, "and what came back wrong")
+	local said = last_said()
+	mentions(said, "`wrong_stats`", "and it names the column")
+	mentions(said, "no `min` and `max`", "and what came back wrong")
 
 	-- And it kept drawing, which is the half that would be lost to an `error`.
 	eq(draw("detail", CURRENT.files[1]), "     x")
@@ -957,8 +987,8 @@ test("stats: extremes that are not numbers are reported rather than raised", fun
 	setup { detail = { "worded_stats" } }
 	eq(draw("detail", CURRENT.files[1]), "     x", "the row drew")
 	eq(#stub.notified - was, 1, "said once")
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("`worded_stats`", 1, true) ~= nil, true, "and it names the column")
+	local said = last_said()
+	mentions(said, "`worded_stats`", "and it names the column")
 end)
 
 test("stats: a column that is not a ramp owes nobody extremes", function()
@@ -1010,10 +1040,10 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 	end
 	eq(#stub.notified - was, 1, "said once, not once per row")
 
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("`thrower`", 1, true) ~= nil, true, "and it names the column")
-	eq(said:find("`render`", 1, true) ~= nil, true, "and which of the three threw")
-	eq(said:find("a column of mine is broken", 1, true) ~= nil, true, "and what it said")
+	local said = last_said()
+	mentions(said, "`thrower`", "and it names the column")
+	mentions(said, "`render`", "and which of the three threw")
+	mentions(said, "a column of mine is broken", "and what it said")
 
 	-- The cells the column was given, filled rather than left blank, and the
 	-- column beside it untouched. This is the assertion the whole change is
@@ -1033,8 +1063,8 @@ test("throwing: a `stats` that throws leaves the rest of the line drawing", func
 	draw("detail", CURRENT.files[1])
 
 	eq(#stub.notified - was, 1, "said once")
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("`stats`", 1, true) ~= nil, true, "and it names the stage")
+	local said = last_said()
+	mentions(said, "`stats`", "and it names the stage")
 
 	-- `render` never asked for the stats, so the column draws exactly as it
 	-- would have. What was lost is whatever `stats` was going to carry.
@@ -1081,8 +1111,8 @@ test("throwing: a ramp whose `stats` threw is told off once, not twice", functio
 	draw("detail", CURRENT.files[1])
 
 	eq(#stub.notified - was, 1, "said once, not once per reading of the same failure")
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("threw", 1, true) ~= nil, true, "and it says what happened")
+	local said = last_said()
+	mentions(said, "threw", "and it says what happened")
 end)
 
 test("throwing: a `width` function that throws draws unpadded rather than not at all", function()
@@ -1098,8 +1128,8 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 	local first = draw("detail", CURRENT.files[1])
 
 	eq(#stub.notified - was, 1, "said once")
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("`width`", 1, true) ~= nil, true, "and it names the stage")
+	local said = last_said()
+	mentions(said, "`width`", "and it names the stage")
 
 	-- The documented fallback, and the honest one: there is no width the pass
 	-- can stand behind and none is invented, so the cell is whatever `render`
@@ -1126,9 +1156,9 @@ test("width: a function returning no usable number is reported as itself", funct
 	local first = draw("detail", CURRENT.files[1])
 
 	eq(#stub.notified - was, 1, "said once")
-	local said = stub.notified[#stub.notified].content
-	eq(said:find("returned `0`", 1, true) ~= nil, true, "and it says what came back")
-	eq(said:find("threw", 1, true), nil, "and does not call a return a throw")
+	local said = last_said()
+	mentions(said, "returned `0`", "and it says what came back")
+	omits(said, "threw", "and does not call a return a throw")
 
 	-- Same fallback as a throw, because the pass is left with the same
 	-- nothing: unpadded, ragged and readable.
