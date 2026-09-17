@@ -41,6 +41,11 @@ Colour has leaders of its own, `g` and `c`, and folders of its own to be read
 in. They are in [Colour](#colour) below rather than here, because a colour case
 is a folder and a linemode together and the table above has no column for that.
 
+The columns that are wrong on purpose have a leader too, `b`, and are in
+[Broken columns](#broken-columns). Nothing in that section is a linemode
+decision; every key in it is a *report* supaline can put on the screen, and the
+column under it exists only to cause one.
+
 ## What to look for
 
 ### `m 0` — one column
@@ -554,6 +559,136 @@ Then add it to the `colour_shot` list in `test/e2e.sh`. That does not judge it
 drawn as literal text and one that threw takes the rows with it, and without
 that line the first person to find out is whoever next runs `manual.sh`.
 
+## Broken columns
+
+Everything above is a column that works. supaline can also put a **report** on
+the screen, and not one appears unless a column is written to fail. Until this
+section existed, the only way any of them had been read was a throwaway
+configuration written beside the code that emits it, which says nothing about
+how a report reads against the columns a reader actually has.
+
+There are six a column can cause: the four functions it may write, each
+throwing, and the two supaline words itself when a `width` or a `stats` came
+back with something it cannot use. A seventh is not a column's and has no key
+— a `[supaline]` value supaline refuses reaches the screen from the `theme`
+handler, since the user wrote it after `setup` had run.
+
+Hence a third leader. `b` says **what is broken**, and each key under it draws
+one column that is wrong on purpose between a `size` and an `mtime` that are
+not.
+
+| Key   | The column's fault                          | Read it in |
+| ----- | ------------------------------------------- | ---------- |
+| `b r` | a `render` that throws                      | `g 1`      |
+| `b s` | a `stats` that throws                       | `g 1`      |
+| `b w` | a `width` function that throws              | `g 1`      |
+| `b u` | a `width` function that returns `0`         | `g 1`      |
+| `b g` | a `stats` that finds no extremes, on a ramp | `g 3`      |
+| `b f` | two columns counting their own refreshes    | `g 1`      |
+
+| Key   | Goes to   | What it does                                   |
+| ----- | --------- | ---------------------------------------------- |
+| `g 6` | `broken/` | breaks the `refresh` of the column `b f` draws |
+
+The notification is drawn over the top of the preview pane, a second or two
+after the key, and times out after ten seconds. Read one before pressing the
+next.
+
+**Each of these is worth one look per session.** `told` in `main.lua` marks a
+column the first time it is reported and drops every report from that column
+afterwards, which is what keeps a per-row failure from redrawing its own
+notification once a second for ever. So a `b` key pressed twice draws the cells
+the second time and says nothing. Restart `manual.sh` to see a report again.
+
+`e2e.sh` presses none of this, and that is forced rather than an oversight:
+`report` writes to `yazi.log` as well as to the screen, and `e2e.sh` fails a
+run in which Yazi logged an error at all. These six are the one part of the
+fixture the headless run cannot stand behind.
+
+### `b r` — a `render` that throws
+
+```text
+ exactly-1k.bin           1024B !!!!!! 09/17 17:14
+ huge.bin                 87.9M !!!!!! 05/06  2024
+```
+
+- The cell is filled with `!` to the column's stated width — six here — rather
+  than left blank. A blank reads as a column nobody configured, and the fault
+  is the opposite of that.
+- `size` and `mtime` either side keep their places. Nothing else on the row
+  moves, which is the whole of what the `!` is for.
+
+### `b s` — a `stats` that throws
+
+```text
+ exactly-1k.bin           1024B     ok 09/17 17:14
+```
+
+- **Nothing on the line says so.** The column's `render` works, so every cell
+  comes out as it would have anyway. `stats` is called once per folder and this
+  column needs the result for nothing, so the notification is the entire
+  signal — which is why it has to carry the column's name.
+
+### `b w` — a `width` function that throws
+
+```text
+ nested                       2 dir 09/17 17:14
+ exactly-1k.bin           1024B file 09/17 17:14
+```
+
+- The column is left with **no width at all** rather than a guessed one, so it
+  draws unpadded: `dir` is three cells and `file` is four, and the `mtime`
+  beside it shifts by one between the two rows. Ragged and readable is the
+  trade against the stated `width = 0` that `setup` refuses outright.
+
+### `b u` — a `width` function that returns `0`
+
+The same two cells, the same ragged rows, and a different sentence. This one is
+supaline refusing what the function handed back; `b w` is the function throwing
+and supaline reporting it. **Nothing on the screen tells the two apart**, which
+is why both keys are here rather than one: press them in turn and read the two
+notifications against each other.
+
+### `b g` — a ramp with nothing to place a row in
+
+Read it in `g 3`, where the real `ratio` column beside it climbs through every
+step of the same ramp.
+
+- The left column climbs and the right one does not move. That is what a
+  `stats` returning no `min` and `max` costs: there is nothing to place a row
+  between, so every row draws the ramp's low end and the column is one colour.
+- Four dashes rather than a number, because with no extremes there is no ratio
+  to format.
+- Not a throw. The notification says what `stats` has to return rather than
+  what was raised.
+
+### `b f` — a `refresh` that throws
+
+The fourth function a column may write, and the only one supaline calls from
+outside Yazi's redraw: it runs at `setup` and again on every `cd`, whichever
+linemode is showing. So no linemode key can break it. `b f` only draws it.
+
+Both columns count their own refreshes, and they agree:
+
+```text
+ exactly-1k.bin           1024B   5   5 09/17 17:14
+```
+
+Press `g 6`, and the folder it takes you to breaks the left one:
+
+```text
+ one.txt                     1B   5   6 09/17 17:14
+```
+
+- The left column is frozen where it stood and the right one carried on. That
+  is the report's two halves on screen — every other column still refreshes,
+  and this one goes on drawing whatever it had cached.
+- Walk about with `g 1` and `g 2` and the gap widens. The notification does not
+  come back, which is `told` doing its job: a hook that throws throws again at
+  every folder you walk into, and one sentence is the right number.
+- `g 6` is the only thing that arms it and nothing else in the fixture goes
+  there. A hook that threw unconditionally would throw during `e2e.sh` too.
+
 ## The fixture
 
 `data/` is where you start, and it holds the cases that break width
@@ -575,6 +710,11 @@ arithmetic.
 
 `sibling-one` and `sibling-two` sit alongside `data/` so the parent pane has
 rows of its own.
+
+`broken/` sits alongside them as well, and holds three unremarkable files. It
+is not there to be looked at: walking into it is what breaks the `refresh` hook
+[`b f`](#b-f--a-refresh-that-throws) draws, and nothing else in the fixture
+does.
 
 `colour/` sits alongside them too, and holds nothing that breaks width
 arithmetic. Its three folders are distributions rather than awkward cases, one
@@ -605,6 +745,13 @@ find it stops rather than building a folder that quietly means something else.
 - **`c c`, `c d`, `c f` and `c n` still copy a path.** The colour keys avoid
   the four sub-keys Yazi binds under `c` rather than shadowing them, so those
   keep working and none of them is a colour case you missed.
+- **A `b` key says nothing the second time you press it.** One report per
+  column per session is the plugin rather than the fixture: `told` drops every
+  report from a column after its first, which is what keeps a per-row failure
+  from redrawing its own notification for ever. Restart to see one again.
+- **`b` is not one of Yazi's keys.** It binds nothing at all in Yazi's own
+  `mgr` table — the `b` that is bound is `m b`, its btime linemode — so nothing
+  under this leader shadows anything.
 - **The theme you left behind does not survive.** `c 1` to `c 3` overwrite
   `config/theme.toml`, and every run rebuilds the whole directory from
   `setup.sh`, so the next one opens on the default whatever you pressed.

@@ -188,6 +188,24 @@ for d in unlisted-a unlisted-b; do
 done
 touch -t 202312250000 colour/edge/same-*.txt colour/edge/unlisted-a colour/edge/unlisted-b
 
+# --- the folder that arms the broken `refresh` -----------------------------
+# `refresh` is the one function supaline calls into a column from outside the
+# redraw, so a hook that throws cannot be reached by pressing a linemode key:
+# it runs at `setup` and again on every `cd`, whichever linemode is showing.
+# Walking in here is what arms it, and nothing else does.
+#
+# A folder rather than a key, because `e2e.sh` shares this fixture and fails a
+# run in which Yazi logged an error at all -- `report` writes to the log as
+# well as to the screen. A hook that threw at `setup` would fail the headless
+# run on every commit. Nothing in that run enters this folder.
+#
+# Three entries, and names of two lengths, so the two ragged cases can be read
+# in here as well as in `data/`.
+mkdir -p broken
+printf 'x' >broken/one.txt
+printf 'xx' >broken/a-longer-name.txt
+dd if=/dev/zero of=broken/some.bin bs=1k count=4 2>/dev/null
+
 cd "$ROOT"
 
 # --- configuration ---------------------------------------------------------
@@ -324,6 +342,47 @@ desc = "supaline: user-written columns"
 on   = [ "m", "e" ]
 run  = "linemode pane_each"
 desc = "supaline: a column set per pane"
+
+# The broken columns, on a leader of their own. `b` binds nothing at all in
+# Yazi's own `mgr` table -- the `b` that is bound is `m b`, its btime linemode
+# -- so nothing here shadows anything, the way the digits under `m` do not.
+#
+# A leader rather than six more keys under `m`, because these are not cases of
+# the thing that table is about. Every one of them is a *report* supaline can
+# put on the screen, and the column under it exists only to cause one.
+#
+# `b f` draws the pair of counting columns and does not by itself break
+# anything. What breaks it is `g 6`, which is where the comment beside that key
+# says why.
+[[mgr.prepend_keymap]]
+on   = [ "b", "r" ]
+run  = "linemode b_render"
+desc = "supaline: a `render` that throws"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "s" ]
+run  = "linemode b_stats"
+desc = "supaline: a `stats` that throws"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "w" ]
+run  = "linemode b_width"
+desc = "supaline: a `width` function that throws"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "u" ]
+run  = "linemode b_zero"
+desc = "supaline: a `width` function returning no usable number"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "g" ]
+run  = "linemode b_range"
+desc = "supaline: a ramp whose `stats` found no extremes"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "f" ]
+run  = "linemode b_tick"
+desc = "supaline: two columns counting their own refreshes"
 EOF
 
 # The colour keys, in a heredoc of their own because these need `$DIR`
@@ -372,6 +431,22 @@ desc = "supaline: go to sizes doubling from 1B"
 on   = [ "g", "5" ]
 run  = "cd $DIR/fixture/colour/edge"
 desc = "supaline: go to the degenerate distributions"
+
+# The one folder in the fixture whose only purpose is to break something.
+# Arriving here throws the \`refresh\` hook of \`torn_tick\`, and every \`cd\` after
+# it throws again -- so the count that column draws stops climbing while the
+# sound one beside it goes on, which is the two halves of what that report
+# claims, on screen.
+#
+# A folder rather than a key of its own, because \`refresh\` is not reached by
+# choosing a linemode: it runs at \`setup\` and on every \`cd\`, whichever one is
+# showing. A hook that threw unconditionally would therefore throw during
+# \`e2e.sh\` as well, and that run fails on a Yazi that logged an error at all.
+# Nothing in it comes here.
+[[mgr.prepend_keymap]]
+on   = [ "g", "6" ]
+run  = "cd $DIR/fixture/broken"
+desc = "supaline: go to the folder that breaks a \`refresh\`"
 
 [[mgr.prepend_keymap]]
 on   = [ "c", "r" ]
@@ -599,6 +674,150 @@ supaline.column("name_line", {
 	width = 12,
 	align = "left",
 	render = function(file, ctx) return ui.Line { ui.Span(file.name) }, ctx.style end,
+})
+
+-- --- columns that are wrong on purpose -------------------------------------
+-- Every report a broken column can cause, which is six: the four functions a
+-- column may write, each throwing, plus the two supaline words itself when a
+-- `width` or a `stats` came back with something it cannot use. Not one of them
+-- appears unless a column is written to cause it, and until these the only way
+-- any had been read was a throwaway configuration written beside the code that
+-- emits them -- which says nothing about how one reads against the columns a
+-- reader actually has.
+--
+-- A seventh has no key here and is not a column's: `build` reports a
+-- `[supaline]` value supaline refuses, from the `theme` handler, because the
+-- user wrote it after `setup` had run. A theme file and a `c` key would reach
+-- it, in the shape `c 1` to `c 3` already have.
+--
+-- They sit on a leader of their own, `b`, and `e2e.sh` presses none of it.
+-- That is forced rather than chosen: `report` writes to `yazi.log` as well as
+-- to the screen, and `e2e.sh` fails a run in which Yazi logged an error at
+-- all. So this is the one part of the fixture the headless run cannot stand
+-- behind, and `MANUAL.md` says so where it says how to add a case.
+--
+-- One report per column per session, which is the plugin rather than the
+-- fixture: `told` marks a column the first time it is reported and drops every
+-- later report from it, which is what keeps a per-row failure from redrawing
+-- itself once a second for ever. So each key here is worth one look, and
+-- pressing it again draws the cells without the sentence. Restart `manual.sh`
+-- to see one a second time.
+--
+-- A column each rather than one column with six faults, for that same reason:
+-- `told` is per column, so two faults in one would report whichever happened
+-- first and say nothing at all about the other.
+
+-- `b r`. A `render` that throws, once per row. The only one of the four that
+-- leaves anything on the line: the cell cannot be drawn, so `column.cell`
+-- fills its width with `!` rather than with spaces, and the columns either
+-- side keep their places.
+supaline.column("torn_render", {
+	width = 6,
+	align = "right",
+	style = "red",
+	render = function() error("this column cannot draw") end,
+})
+
+-- `b s`. A `stats` that throws, once per folder. Nothing on the line says so
+-- -- the `render` below works and the cells come out as they would have
+-- anyway -- which is the whole of why the report has to carry the column's
+-- name.
+supaline.column("torn_stats", {
+	width = 6,
+	align = "right",
+	style = "red",
+	stats = function() error("this column cannot measure a folder") end,
+	render = function(file, ctx) return "ok", ctx.style end,
+})
+
+-- `b w`. A `width` function that throws. No width is invented in its place, so
+-- the column draws unpadded and the row goes ragged: `dir` and `file` differ
+-- by one cell, which is what makes that visible at all.
+supaline.column("torn_width", {
+	width = function() error("this column cannot measure itself") end,
+	align = "right",
+	style = "red",
+	render = function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end,
+})
+
+-- `b u`. A `width` function that returns a number nobody can use. The pair
+-- worth reading beside `b w`, and why both are here: the cell is identical --
+-- ragged, the same two words -- and the sentence is not. One says the reader's
+-- function threw and the other says supaline refused what it handed back, and
+-- nothing on the screen tells those apart.
+supaline.column("torn_zero", {
+	width = function() return 0 end,
+	align = "right",
+	style = "red",
+	render = function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end,
+})
+
+-- `b g`, read in `colour/ramp`. A `stats` that neither throws nor answers: it
+-- comes back carrying no `min` and `max`, so there are no extremes to place a
+-- row between and every row draws the ramp's low end. Beside the real `ratio`
+-- column on the same ramp, one climbs and one does not -- which is the only
+-- way one colour repeated sixty-four times is legible at all.
+supaline.column("torn_range", {
+	width = 4,
+	align = "right",
+	style = COOL,
+	stats = function() return {} end,
+	render = function(file, ctx)
+		local r = ctx.ratio(mtime_of(file))
+		-- Four dashes rather than one, which is what the real `ratio` column
+		-- draws: with no extremes there is no ratio to format, and a single `-`
+		-- would leave one cell of colour per row to judge a flat column by.
+		return r and string.format("%.2f", r) or "----", ctx.style_at(r)
+	end,
+})
+
+-- `b f`, armed by `g 6`. The fourth function, and the only one supaline calls
+-- from outside the redraw -- at `setup`, and again on every `cd`.
+--
+-- Two columns, because the sentence that report carries has two halves and
+-- neither is legible alone: every other column still refreshes, and this one
+-- goes on drawing whatever it had cached. What they cache is a count of their
+-- own refreshes, which is the one cached value a reader can check by eye.
+--
+-- The broken one goes first in the list on purpose. Before the containment
+-- landed the throw stopped that loop where it stood and every hook behind it
+-- went unrun, so the column worth watching here is the one that is not broken:
+-- its count has to go on climbing.
+local whole_ticks, torn_ticks = 0, 0
+
+-- Armed by walking into `broken/`, and by nothing else. A hook that threw
+-- unconditionally would throw at `setup`, which `e2e.sh` runs too, and that
+-- run fails on a Yazi that logged an error at all. Nothing in it enters this
+-- folder.
+--
+-- `cx` is guarded rather than read outright because this hook also runs from
+-- `install`, reached from `init.lua` before there is a manager to ask, and
+-- from `fixture_spec.lua`, where the stub has no `current` at all.
+local torn_armed = false
+
+supaline.column("torn_tick", {
+	width = 3,
+	align = "right",
+	style = "red",
+	refresh = function()
+		local cur = cx and cx.active and cx.active.current
+		if cur and cur.cwd and tostring(cur.cwd):match("/broken$") then
+			torn_armed = true
+		end
+		if torn_armed then
+			error("this column cannot refresh")
+		end
+		torn_ticks = torn_ticks + 1
+	end,
+	render = function(file, ctx) return tostring(torn_ticks), ctx.style end,
+})
+
+supaline.column("whole_tick", {
+	width = 3,
+	align = "right",
+	style = "green",
+	refresh = function() whole_ticks = whole_ticks + 1 end,
+	render = function(file, ctx) return tostring(whole_ticks), ctx.style end,
 })
 
 -- One list, handed to two panes below.
@@ -832,6 +1051,25 @@ supaline:setup({
 		-- the case the layers exist for. The ramp moves under `c 1` to `c 3`;
 		-- the bold stays.
 		c_theme = { "size", { "mtime", style = { bold = true } }, "owner", "ext" },
+
+		-- The broken columns, `b r` to `b f`. Each carries one column that is
+		-- wrong on purpose between two that are not, because what has never been
+		-- looked at is not the notification on its own -- that was read off a
+		-- throwaway configuration while it was being written -- but how it, and
+		-- the cell it leaves behind, read against the columns a reader has.
+		b_render = { "size", "torn_render", "mtime" },
+		b_stats = { "size", "torn_stats", "mtime" },
+		b_width = { "size", "torn_width", "mtime" },
+		b_zero = { "size", "torn_zero", "mtime" },
+
+		-- Read in `colour/ramp`, where the real `ratio` beside it climbs through
+		-- every step. A column stuck at one colour is not something anybody can
+		-- see on its own.
+		b_range = { { "ratio", style = COOL }, "torn_range", "mtime" },
+
+		-- The broken hook first, so what is on show is the one behind it still
+		-- running.
+		b_tick = { "size", "torn_tick", "whole_tick", "mtime" },
 	},
 })
 EOF
