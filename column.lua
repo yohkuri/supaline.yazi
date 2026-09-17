@@ -282,11 +282,13 @@ local colour = require(".colour")
 --- What has already been reported about this column, keyed by `main.lua`'s
 --- name for each thing it says. Three things are worth saying once and then
 --- not again -- a `stats` with no extremes, a `width` function returning a
---- number nobody can use, and a column throwing -- and all three are reached
---- from a pass that runs while a folder is drawn, so a report that did not
---- remember itself would be a drip rather than a message. A table rather
---- than a field apiece, so a fourth costs a key instead of a fourth field on
---- a class that is otherwise about drawing.
+--- number nobody can use, and a column throwing -- and every one of them is
+--- reached from a pass that runs again and again: two while a folder is
+--- drawn, and a third whenever the reader walks into one, which is where a
+--- `refresh` that throws is caught. A report that did not remember itself
+--- would be a drip rather than a message. A table rather than a field
+--- apiece, so a fourth costs a key instead of a fourth field on a class that
+--- is otherwise about drawing.
 ---@field told table<string, true>
 ---@field ctx supaline.Ctx
 

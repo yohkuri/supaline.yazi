@@ -425,6 +425,17 @@ ragged but readable. None of this applies to a mistake in the configuration —
 `setup` runs before anything draws, so what it can refuse it refuses, and Yazi
 says so and does not start.
 
+`refresh` is the fourth, and it is contained for its own reason rather than for
+that one: it is not called while a pane is drawn, so an error there does not
+cost the screen. What it would cost is a silence. It runs from the `cd` handler
+and from `setup`, and neither has anybody to raise to — Yazi puts no error out
+of an event handler in front of anyone, and `setup` has committed by the time
+the hooks run, so a throw there would leave every linemode unregistered and
+drawn as its own name. It is reported like the other three, once; the columns
+refreshed after the one that threw go on refreshing, and the one that threw
+draws with whatever it had cached, which the first time round is nothing at
+all.
+
 A `width` function that **returns** a number supaline will not take — `0`,
 a negative, `2.5` — is not a throw and is not reported as one. It is the same
 refusal a stated `width = 0` gets, arriving too late for `setup` to make it,
