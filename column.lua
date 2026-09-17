@@ -333,9 +333,21 @@ local M = { _registry = {} }
 -- "right"` that defaults it and drew a right aligned column without a word,
 -- and `scale = "LOG"` scaled nothing. The sets sit in here rather than in a
 -- table beside it so that the two cannot fall out of step: a new shared key
--- is one line, and writing that line is choosing between `true` and a set.
--- The readers below want a key claimed or not claimed, so a list reads as
--- `true` to every one of them.
+-- is one line, and writing that line is choosing between `true`, a set, and
+-- the name of a type. The readers below want a key claimed or not claimed, so
+-- a set and a type name both read as `true` to every one of them.
+--
+-- A type name is for a key whose value is *called* rather than read. There
+-- are three, and two of them were taken on trust for as long as they existed:
+-- `render` was checked on its way through `register` and again where
+-- `normalize` dispatches on it, and `stats` and `refresh` were checked
+-- nowhere. What that cost is the mistake the sets exist to end, arriving a
+-- stage later. `stats = 42` compiled, and surfaced at bind time as "column
+-- `x` threw from its `stats`" -- naming a function the reader never wrote as
+-- the thing that threw. `refresh = 42` compiled too, and raised out of
+-- `install`, which runs after `setup` has committed: every linemode left
+-- unregistered, which Yazi draws as literal text. Both are knowable while
+-- `setup` runs, and that is where a refusal is loudest.
 --
 -- Each set is in the order its message lists them, which is the order
 -- README's table lists them in -- these are read as a set of choices rather
@@ -349,11 +361,11 @@ local COLUMN_KEYS = {
 	align = { "left", "right" },
 	max_width = true,
 	overflow = { "ellipsis", "clip", "grow" },
-	refresh = true,
-	render = true,
+	refresh = "function",
+	render = "function",
 	scale = { "linear", "log" },
 	separator = true,
-	stats = true,
+	stats = "function",
 	style = true,
 	width = true,
 }
@@ -490,6 +502,58 @@ local EMPTY = {}
 -- because `pairs` gives a set in whatever order the hash does and a message
 -- that reorders itself between runs reads as a different message.
 local COLUMN_KEY_LIST = colour.key_list_of(COLUMN_KEYS)
+
+-- And the ones carrying a constraint, sorted for a second reason on top of
+-- that one: `normalize` walks these in order, so a spec that got two of them
+-- wrong names the same one first on every run.
+local CHECKED_KEYS = {}
+do
+	for key, claim in pairs(COLUMN_KEYS) do
+		if claim ~= true then
+			CHECKED_KEYS[#CHECKED_KEYS + 1] = key
+		end
+	end
+	table.sort(CHECKED_KEYS)
+end
+
+--- Hold `key` to whatever `COLUMN_KEYS` constrains it to: one of a set of
+--- values, a type, or nothing at all.
+---
+--- One function, walked over every constrained key, so declaring the key is
+--- the whole of enabling its check. The sets were three calls written out by
+--- hand and the keys wanting a type had none at all, which is the shape a
+--- check goes missing in -- a rule applied at each of the places that
+--- remembered it is a rule the next place does without.
+---
+--- Nil is not a value and is allowed, for the reason `M.one_of` gives.
+---@param key string
+---@param value any
+---@param where string the rest of the sentence after the key
+local function constrained(key, value, where)
+	local claim = COLUMN_KEYS[key]
+	if value == nil or claim == true then
+		return
+	end
+	if type(claim) == "table" then
+		M.one_of(key --[[@as "align"|"overflow"|"scale"]], value, where)
+		return
+	end
+	if type(value) == claim then
+		return
+	end
+	error(
+		string.format(
+			"supaline: `%s` %s must be a %s, got %s -- it is called rather than read, so "
+				.. "anything else is refused now, while `setup` can still say so, instead of "
+				.. "surfacing at the first row as this column throwing from a `%s` nobody wrote",
+			key,
+			where,
+			claim,
+			as_written(value),
+			key
+		)
+	)
+end
 
 --- The part a table of column keys plays, which is what says which of the keys
 --- only some of them read it is entitled to. Three, over the four shapes a
@@ -1227,6 +1291,20 @@ function M.normalize(spec, cfg)
 	-- check written after it would have nothing left to look at.
 	local of_col = string.format("of column `%s`", name or "?")
 
+	-- Every key that carries a constraint, held to it in one pass. Which keys
+	-- those are is `COLUMN_KEYS`'s to say and not this function's, which is
+	-- the whole of the arrangement: a key is declared in one place and
+	-- checked because it was declared, rather than checked wherever somebody
+	-- remembered to write the call. `stats` and `refresh` were what that cost
+	-- -- both called, neither checked -- while `align` was refused twice over.
+	--
+	-- `scale` is checked again below, on the resolved value. What this pass
+	-- sees is what `pick` reads, the spec's and the definition's; `setup`'s is
+	-- a fourth source and reaches the record without coming through here.
+	for _, key in ipairs(CHECKED_KEYS) do
+		constrained(key, pick(key), of_col)
+	end
+
 	-- Not `pick`, which is the one place that would be wrong. `pick` reads the
 	-- spec and then the definition, and a definition's scale has to lose to a
 	-- `scale` written in `setup` -- otherwise the plugin-wide option cannot
@@ -1256,8 +1334,12 @@ function M.normalize(spec, cfg)
 
 	local col = {
 		name = name,
-		align = M.one_of("align", pick("align"), of_col) or "right",
-		overflow = M.one_of("overflow", pick("overflow"), of_col) or "ellipsis",
+		-- Refused by the pass above rather than here, so what is left on this
+		-- line is the default. Both halves of the original one-liner are still
+		-- present and still in that order -- refuse, then default -- which is
+		-- what the fix was; they sit a dozen lines apart now.
+		align = pick("align") or "right",
+		overflow = pick("overflow") or "ellipsis",
 		max_width = whole_cells("max_width", pick("max_width"), of_col),
 		sep = sep,
 		stats = pick("stats"),

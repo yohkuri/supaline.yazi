@@ -186,6 +186,47 @@ test("normalize: a value the shared keys do not take is refused", function()
 	throws(function() column.normalize({ "fixed", align = {} }, CFG) end, "got a table")
 end)
 
+test("normalize: a key that is called rather than read must be a function", function()
+	-- The three keys `COLUMN_KEYS` holds a type for, and the two of them that
+	-- were taken on trust. Each mistake they let through was answered
+	-- somewhere, and somewhere is the problem: `stats = 42` compiled, and
+	-- reached the reader at bind time as "column `fixed` threw from its
+	-- `stats`" -- naming a function they never wrote as the thing that threw.
+	-- `refresh = 42` compiled too, and raised out of `install`, which runs
+	-- after `setup` has committed: every linemode left unregistered, and Yazi
+	-- draws an unregistered name as literal text.
+	--
+	-- Both are knowable while `setup` runs, and that is the line the skill
+	-- draws -- refuse what can be refused there, contain only what cannot be
+	-- known until a render.
+	column.register("fixed", { width = 4, render = function() return "ab" end })
+
+	---@diagnostic disable-next-line: assign-type-mismatch
+	local counted = { "fixed", stats = 42 }
+	throws(function() column.normalize(counted, CFG) end, "`stats` of column `fixed`")
+	throws(function() column.normalize(counted, CFG) end, "must be a function, got `42`")
+
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", refresh = 42 }, CFG) end, "`refresh` of column `fixed`")
+	-- Named by its type rather than shown, the way the sets name one.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", refresh = {} }, CFG) end, "got a table")
+
+	-- The third, and the one that was checked on one of its two ways in.
+	-- `register` holds a definition to a `render` that is a function; a use
+	-- site may write one over the definition's, and that one went unread until
+	-- `column.cell` tried to call it.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() column.normalize({ "fixed", render = "nope" }, CFG) end, "`render` of column `fixed`")
+
+	-- A definition's own, for the reason the alignment above gives: `pick`
+	-- reads the spec and then the definition, so a check on the spec alone
+	-- leaves exactly the half a reader of the use site cannot see.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	column.register("untidy", { width = 4, refresh = 42, render = function() return "ab" end })
+	throws(function() column.normalize("untidy", CFG) end, "`refresh` of column `untidy`")
+end)
+
 test("normalize: a definition's own wrong value is refused too", function()
 	-- `pick` reads the spec and then the definition, so a check that looked at
 	-- the spec alone would let a definition write `align = "centre"` and have
