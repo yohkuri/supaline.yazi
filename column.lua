@@ -513,33 +513,56 @@ local COLUMN_KEY_LIST = colour.key_list_of(COLUMN_KEYS)
 ---@class supaline.RoleKeys
 ---@field keys table<any, true>
 ---@field draws string
+--- Which of the three style layers this table's own `style` writes, under the
+--- name `WHERE`, `FN_WHERE` and `NO_STATS` all key by. A table that is both
+--- the definition and the only use of it writes the definition's layer.
+---@field mine supaline.StyleWriter
+--- Whether the same table also writes the spec's layer. True for a use of a
+--- column defined elsewhere and false for the two shapes that are their own
+--- definition -- reading one of those as both wrote its style into two layers
+--- at once, which `layers_of` records the cost of.
+---@field spec boolean
 ---@field claims fun(key: any): any the two above, for a column declaring no options. Truthy is
 --- the whole of the answer: a shared key whose entry is its set of values answers the set.
 
 --- One role. `claims` is built here rather than assigned over the table below,
---- so nothing can add a role and forget it.
+--- so nothing can add a role and forget it -- which is also why every other
+--- fact that turns on the role is a field here rather than a condition at the
+--- place that wants it.
 ---@param keys table<any, true>
 ---@param draws string
+---@param mine supaline.StyleWriter
+---@param spec boolean
 ---@return supaline.RoleKeys
-local function role_keys(keys, draws)
+local function role_keys(keys, draws, mine, spec)
 	-- The answer for a column that declares no options, which is most of them:
 	-- one closure per role, built once, so the common case allocates nothing.
-	return { keys = keys, draws = draws, claims = function(key) return COLUMN_KEYS[key] or keys[key] end }
+	return {
+		keys = keys,
+		draws = draws,
+		mine = mine,
+		spec = spec,
+		claims = function(key) return COLUMN_KEYS[key] or keys[key] end,
+	}
 end
 
 local DRAWS_RENDER = "the `render` that says what it draws"
 
 ---@type table<supaline.Role, supaline.RoleKeys>
 local ROLES = {
-	-- `register("size", { render = fn })`. The call names it.
-	registered = role_keys({ options = true }, DRAWS_RENDER),
+	-- `register("size", { render = fn })`. The call names it, and what it
+	-- states is the default every use of that column starts from.
+	registered = role_keys({ options = true }, DRAWS_RENDER, "definition", false),
 	-- `{ render = fn, name = "size" }`: the definition and the only use of it
 	-- are one table, so both keys a definition writes are read right here. A
-	-- bare `function` is this role too, with nothing beside the render.
-	inline = role_keys({ name = true, options = true }, DRAWS_RENDER),
+	-- bare `function` is this role too, with nothing beside the render. Its
+	-- style is written once, in the list the reader is already looking at,
+	-- which is why it gets a name of its own rather than the definition's.
+	inline = role_keys({ name = true, options = true }, DRAWS_RENDER, "inline", false),
 	-- `{ "size", width = 8 }`: a use of a definition written elsewhere, naming
-	-- it at `[1]`. `name` and `options` are that definition's.
-	use = role_keys({ [1] = true }, "the name at `[1]` that says which column it is"),
+	-- it at `[1]`. `name` and `options` are that definition's, and so is the
+	-- far layer -- this is the one shape with a spec layer to write.
+	use = role_keys({ [1] = true }, "the name at `[1]` that says which column it is", "definition", true),
 }
 
 --- What one table is entitled to: the shared keys, whichever of the rest its
@@ -1077,15 +1100,23 @@ local function layers_of(name, opts, def, bands, role)
 	--
 	-- An `and`/`or` would drop a `style = false` on the way past, which is the
 	-- one spelling that means something and is falsy.
+	--
+	-- Both facts are read off the role rather than decided here. `ROLES` is
+	-- built so that nothing can add a role and forget it, and a condition out
+	-- here is exactly what that promise cannot cover: a fourth shape added to
+	-- `normalize`'s dispatch would compile, draw, and write its style into the
+	-- wrong layer, which is the pair of silent failures the paragraph above
+	-- measures.
+	local this = ROLES[role]
 	local written
-	if role == "use" then
+	if this.spec then
 		written = opts.style
 	end
 
 	-- One painter behind all three writers: the bands are the same for each,
 	-- and `layer_of` runs once per column per build rather than per row.
 	local painter = colour.painter(bands)
-	local mine = role == "use" and "definition" or "inline"
+	local mine = this.mine
 	return {
 		layer_of(def.style, mine, name, painter),
 		layer_of(themed, "theme", name, painter),
