@@ -67,6 +67,21 @@ supaline manual test
 
   c 1   theme: the default              c 2   theme: every field moved
   c 3   theme: backgrounds              T     reload without changing it
+──── broken on purpose ─────────────────────────────────────────────────────
+  A third leader. `b` is what is broken, and each key draws one column
+  that is wrong in one way between a size and an mtime that are not.
+  Every report supaline can put on a screen is one of these, and `told`
+  says each of them once a session -- so read the notification, which
+  lands over the preview pane a moment late, before pressing the next.
+
+  b r   a render that throws            in g 1
+  b s   a stats that throws             in g 1 -- the line says nothing
+  b w   a width that throws             in g 1 -- press b u straight after
+  b u   a width that returns 0          in g 1 -- same cells, other words
+  b g   a ramp with no extremes         in g 3 -- beside one that climbs
+  b f   two refresh counters            in g 1 -- g 6 breaks the left one
+
+  g 6   the folder that arms it -- walk in and b f's left column stops
 ────────────────────────────────────────────────────────────────────────────
   You start in `data/`, which carries the awkward cases: CJK and emoji names,
   one far too long, and sizes either side of the 1K boundary. `sibling-one`
