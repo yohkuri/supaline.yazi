@@ -1019,6 +1019,16 @@ function M.bands(value, where)
 	return out
 end
 
+--- `s` with whatever space sits around it taken off.
+---
+--- Named rather than written out at each of the three sites that want it. The
+--- pattern is one a reader checks rather than reads -- the lazy `(.-)` between
+--- two anchored `%s*` is what makes it a trim, and a greedy `(.*)` looks
+--- identical at a glance and eats the trailing space instead.
+---@param s string
+---@return string
+local function trim(s) return (s:match("^%s*(.-)%s*$")) end
+
 --- Split a value on its `<->`: the colour before it, the band's name after.
 ---
 --- The two halves come back apart rather than rejoined: a name after the
@@ -1038,8 +1048,8 @@ local function unmark(s)
 	if not a then
 		return nil, nil
 	end
-	local name = s:sub(b + 1):match("^%s*(.-)%s*$")
-	return s:sub(1, a - 1):match("^%s*(.-)%s*$"), name ~= "" and name or nil
+	local name = trim(s:sub(b + 1))
+	return trim(s:sub(1, a - 1)), name ~= "" and name or nil
 end
 
 --- The bands there are, for a refusal to list.
@@ -1062,7 +1072,7 @@ local function split(s)
 		local a, b = s:find(ARROW, pos, true)
 		-- `sub(pos, nil)` is `sub(pos)`, so the last piece falls out of the same
 		-- line as the ones before it and there is one trim rather than two.
-		out[#out + 1] = s:sub(pos, a and a - 1):match("^%s*(.-)%s*$")
+		out[#out + 1] = trim(s:sub(pos, a and a - 1))
 		if not b then
 			return out
 		end
