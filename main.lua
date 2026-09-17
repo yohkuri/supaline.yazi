@@ -136,19 +136,11 @@ local SETUP_KEYS = {
 
 local function claims_setup(key) return SETUP_KEYS[key] end
 
--- The keys above, in the order the message lists them. Sorted for the reason
--- `column.lua` sorts its own: `pairs` gives a set back in whatever order the
--- hash does, and a message that reorders itself between runs reads as a
--- different message.
-local SETUP_KEY_LIST
-do
-	local names = {}
-	for key in pairs(SETUP_KEYS) do
-		names[#names + 1] = key
-	end
-	table.sort(names)
-	SETUP_KEY_LIST = colour.key_list(names)
-end
+-- The keys above, in the order the message lists them. `key_list_of` sorts,
+-- for the reason it gives: `pairs` gives a set back in whatever order the hash
+-- does, and a message that reorders itself between runs reads as a different
+-- message.
+local SETUP_KEY_LIST = colour.key_list_of(SETUP_KEYS)
 
 -- What a key that is none of them most likely meant. Both are mistakes about
 -- where a thing goes rather than misspellings: one linemode written where the
