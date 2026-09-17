@@ -317,6 +317,28 @@ function M.key_list(names, conj)
 	return string.format("`%s` %s `%s`", table.concat(names, "`, `", 1, #names - 1), conj or "and", names[#names])
 end
 
+--- The same over a key set rather than a list: every key of `set`, sorted.
+---
+--- Sorted for the reason `listed` gives below -- `pairs` walks a table in
+--- whatever order the hash gives, so a message that names a set reorders
+--- itself between runs and reads as a different message.
+---
+--- Here rather than beside each allow-list, because collecting and sorting is
+--- the half of `key_list`'s own argument the list form cannot carry. The two
+--- callers had written the same five lines, down to the comment explaining
+--- the sort, and an allow-list added anywhere would have written a third.
+---@param set table<string, any> the allow-list itself, read for its keys
+---@param conj string? the word before the last name, `and` by default
+---@return string
+function M.key_list_of(set, conj)
+	local names = {}
+	for key in pairs(set) do
+		names[#names + 1] = key
+	end
+	table.sort(names)
+	return M.key_list(names, conj)
+end
+
 local KEY_LIST = M.key_list(ATTRS)
 
 ---@param value string
