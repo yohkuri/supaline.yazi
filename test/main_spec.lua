@@ -1042,7 +1042,7 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 
 	local said = last_said()
 	mentions(said, "`thrower`", "and it names the column")
-	mentions(said, "`render`", "and which of the three threw")
+	mentions(said, "`render`", "and which of the four threw")
 	mentions(said, "a column of mine is broken", "and what it said")
 
 	-- The cells the column was given, filled rather than left blank, and the
@@ -1171,6 +1171,63 @@ test('throwing: a `render` that throws under `width = "auto"` is named as a `ren
 	-- And the line still draws: no width to pad to, so the failed cell is the
 	-- one `!` its own unpadded width allows, beside a neighbour untouched.
 	eq(draw("detail", CURRENT.files[1]), "ok !")
+end)
+
+test("throwing: a `refresh` that throws is reported rather than propagated", function()
+	-- The fourth call into a column's own code, and the one that was made bare
+	-- while the other three went under `pcall`. It is not called under a render,
+	-- so the blank screen `broke` is written against is not what it cost --
+	-- what it cost was a silence apiece, one per caller.
+	--
+	-- From `moved` it runs inside a `ps.sub` handler, and Yazi puts no error
+	-- out of one in front of anybody, so the hooks queued after the throwing
+	-- one simply stopped running: another column's cached year stayed stale for
+	-- the rest of the session with nothing on screen to say why.
+	--
+	-- From `install` it runs after `setup` has committed, past the line that
+	-- says nothing below it may raise. `uninstall` had already handed every
+	-- name back and the loop that registers them had not run, so the throw left
+	-- every supaline linemode unregistered -- and Yazi draws an unregistered
+	-- name as literal text on every row.
+	local ran = 0
+	main.column("bad_refresh", {
+		width = 2,
+		refresh = function() error("cannot refresh this") end,
+		render = function() return "ok" end,
+	})
+	main.column("good_refresh", {
+		width = 2,
+		refresh = function() ran = ran + 1 end,
+		render = function() return "ok" end,
+	})
+
+	local was = #stub.notified
+	-- The thrower first, so the hook that must go on running is one the old
+	-- loop would have abandoned rather than one it had already reached.
+	setup { detail = { "bad_refresh", "good_refresh" } }
+
+	eq(ran, 1, "the hook queued after the throwing one still ran")
+	-- The half `setup` lost outright, and the reason this is not just a tidier
+	-- message: the commit is behind the call that threw.
+	eq(type(Linemode.detail), "function", "and the linemode reached `Linemode`")
+	eq(draw("detail", CURRENT.files[1]), "ok ok", "and it draws, both columns")
+
+	eq(#stub.notified - was, 1, "said once")
+	local said = last_said()
+	mentions(said, "`bad_refresh`", "and it names the column")
+	mentions(said, "`refresh`", "and which of the four threw")
+	mentions(said, "cannot refresh this", "and what it said")
+	-- Not the sentence the three drawing stages share. Nothing here stands in
+	-- for a cell nobody could fill: the row is drawn after this and looks
+	-- exactly as it would have, and what was lost is what the column caches.
+	omits(said, "filled with", "rather than a cell that was filled with a marker")
+
+	-- And again on every `cd`, which is what makes the gate matter more here
+	-- than anywhere: ungated, a hook that throws is a notification per folder
+	-- the reader walks into.
+	stub.fire("cd")
+	eq(ran, 2, "the working hook goes on running")
+	eq(#stub.notified - was, 1, "and the broken one is not reported a second time")
 end)
 
 test("width: a function returning no usable number is reported as itself", function()

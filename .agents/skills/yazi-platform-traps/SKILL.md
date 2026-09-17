@@ -159,14 +159,31 @@ So an `error` is the most expensive thing a column can do, and it costs the
 same whoever wrote it. A reader's own `render` raising produced exactly that
 blank screen with no part of this plugin involved.
 
-supaline calls three functions a column may write — `stats`, a `width` that is
-one, and `render` — and all three are called inside that redraw. All three are
-made under `pcall` in `main.lua`, which reports once per column and goes on
-drawing; `broke` there carries the reasoning and `main_spec.lua`'s three
+supaline calls four functions a column may write. Three of them — `stats`, a
+`width` that is one, and `render` — are called inside that redraw, and all
+three are made under `pcall` in `main.lua`, which reports once per column and
+goes on drawing; `broke` there carries the reasoning and `main_spec.lua`'s
 `throwing:` specs pin it. **A new call into a column's code belongs under the
 same containment**, and that is the part no check will tell you: the suite
 stays green either way, because a spec only ever reaches code that already
 exists.
+
+The fourth is `refresh`, and it is that warning having already come true. It
+was bare for a long time, and it was found by reading rather than by anything
+failing. It is not called under a render, so the blank screen is not what it
+cost; what it cost is a silence per caller. On `cd` it runs from a `ps.sub`
+handler, which Yazi puts no error out of in front of anybody, so the hooks
+queued behind the throwing one stopped running and another column's cached
+value went stale for the rest of the session. From `setup` it runs after the
+commit — `uninstall` done, the registration loop not yet run — so the throw
+left every supaline linemode unregistered, which Yazi draws as literal text on
+every row. It is contained now, and `main_spec.lua`'s "a `refresh` that
+throws" pins both halves.
+
+So the rule is not "wrap what is called under a render". It is that a call into
+a column's own code is contained wherever it is made, because the question is
+never whether the throw is survivable — it is who the error would reach, and in
+this plugin the answer has so far always been nobody.
 
 What must not be contained this way is a mistake in the *configuration*.
 `setup` runs from `init.lua`, before any component draws, and an error there
