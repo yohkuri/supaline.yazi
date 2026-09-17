@@ -1465,15 +1465,32 @@ function M.bind(col, entry)
 	end
 end
 
+--- Whether every byte of `text` is ASCII, which is what says the byte length
+--- is the display width and that Yazi's own truncate can be trusted on it.
+---
+--- Named because it is load-bearing in three places rather than an
+--- optimisation in three places. In `soft_cut` it is the branch between
+--- `ui.truncate` and the cluster walk the `❤️` measurement exists for, so a
+--- typo in the byte class there reads as a performance choice and cuts a cell
+--- too wide.
+---@param text string
+---@return boolean
+local function is_ascii(text) return not text:find("[\128-\255]") end
+
 --- Display width of a plain string. Sizes, dates and permission strings are
 --- ASCII, so the byte length is exact; anything else asks Yazi.
+---
+--- The answer to `is_ascii` comes back beside the width, because measuring is
+--- where it is asked and cutting is where it is wanted again. A caller with no
+--- cut ahead of it ignores the second value and pays nothing for it.
 ---@param text string
----@return integer
+---@return integer width
+---@return boolean ascii whether the byte length was what answered
 local function width_of(text)
-	if not text:find("[\128-\255]") then
-		return #text
+	if is_ascii(text) then
+		return #text, true
 	end
-	return ui.width(text)
+	return ui.width(text), false
 end
 
 -- The mark `ui.truncate` leaves behind, and the one cell it takes.
@@ -1535,13 +1552,20 @@ end
 --- do this -- it always appends an ellipsis of its own -- so the general case
 --- is walked here, one cluster at a time. Only ever reached by a cell that
 --- overflows, and the ASCII path covers every built-in column.
+---
+--- `ascii` is passed in rather than asked, because every caller has already
+--- had to ask: `fit` measured the string before it knew the cell overflowed,
+--- and `soft_cut` chose this path by the same answer. Asked here as well, the
+--- same bytes were scanned twice on the way to one cut and three times on the
+--- way through `fit`.
 ---@param text string
 ---@param width integer
+---@param ascii boolean whether `text` is all ASCII
 ---@return string
-local function hard_cut(text, width)
+local function hard_cut(text, width, ascii)
 	if width < 1 then
 		return ""
-	elseif not text:find("[\128-\255]") then
+	elseif ascii then
 		return text:sub(1, width)
 	end
 
@@ -1566,14 +1590,15 @@ end
 --- boundary and with the ellipsis's own cell held back.
 ---@param text string
 ---@param width integer
+---@param ascii boolean whether `text` is all ASCII; see `hard_cut`
 ---@return string
-local function soft_cut(text, width)
-	if not text:find("[\128-\255]") then
+local function soft_cut(text, width, ascii)
+	if ascii then
 		return ui.truncate(text, { max = width })
 	elseif width < 1 then
 		return ""
 	end
-	return hard_cut(text, width - 1) .. ELLIPSIS
+	return hard_cut(text, width - 1, false) .. ELLIPSIS
 end
 
 --- Fit a plain string into `limit` cells, padding it out to `pad` cells if the
@@ -1593,16 +1618,23 @@ end
 ---@param overflow string
 ---@return string
 local function fit(text, limit, pad, align, overflow)
-	local w = width_of(text)
+	-- Taken off the measurement and handed to whichever cut is chosen. Measuring
+	-- had to ask already, and both cuts ask the same question of the same bytes
+	-- -- so left to each of them the class was scanned three times over for
+	-- every cell that overflows, on every row of every frame.
+	local w, ascii = width_of(text)
 
 	if w > limit then
 		if overflow == "grow" then
 			return text
 		elseif overflow == "clip" then
-			text = hard_cut(text, limit)
+			text = hard_cut(text, limit, ascii)
 		else
-			text = soft_cut(text, limit)
+			text = soft_cut(text, limit, ascii)
 		end
+		-- Measured again rather than assumed: either cut returns *at most*
+		-- `limit`, and a cut that dropped a wide cluster comes back shorter --
+		-- and no longer necessarily non-ASCII, so this asks afresh.
 		w = width_of(text)
 	end
 
