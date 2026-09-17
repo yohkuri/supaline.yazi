@@ -339,6 +339,18 @@ function M.key_list_of(set, conj)
 	return M.key_list(names, conj)
 end
 
+--- `names` backquoted and comma-joined, in whatever order they arrive in.
+---
+--- Exported because the quoting is shared with a caller that must *not* sort:
+--- `column.lua` lists the options a definition declared, and those are read in
+--- the order the definition wrote them. Without this the same expression is
+--- spelled a third way -- `key_list` above carries the conjunction, `listed`
+--- below carries the sort, and this is what the two of them have in common --
+--- so a change to how a message quotes a name has three places to reach.
+---@param names string[]
+---@return string
+function M.quoted(names) return "`" .. table.concat(names, "`, `") .. "`" end
+
 local KEY_LIST = M.key_list(ATTRS)
 
 ---@param value string
@@ -392,7 +404,7 @@ local function listed(names)
 		return nil
 	end
 	table.sort(names)
-	return "`" .. table.concat(names, "`, `") .. "`"
+	return M.quoted(names)
 end
 
 --- The style a table written in a spec asks for.
