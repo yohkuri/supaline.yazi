@@ -1364,18 +1364,20 @@ test("width: a width function that returns no usable number is refused", functio
 		return why
 	end
 
-	assert(refusal(nil):find("returned a nil", 1, true), refusal(nil))
+	local why = refusal(nil)
+	assert(why:find("returned a nil", 1, true), why)
 
 	-- Held to what a stated `width` is held to. A function returning 0 empties
 	-- the column exactly as `width = 0` does, and a door closed on one spelling
 	-- and not the other leaves the same blank column reachable.
 	for _, w in ipairs { 0, -3 } do
-		local why = refusal(w)
+		why = refusal(w)
 		assert(why:find("must return a whole number of cells", 1, true), why)
 	end
 	-- Not floored, for the reason a stated one is not: rounding is a guess
 	-- about which of two whole numbers the arithmetic behind it meant.
-	assert(refusal(2.5):find("returned `2.5`", 1, true), refusal(2.5))
+	why = refusal(2.5)
+	assert(why:find("returned `2.5`", 1, true), why)
 
 	-- And what it may return still comes back, an integral float narrowed, with
 	-- nothing in the second return to mistake for a refusal.

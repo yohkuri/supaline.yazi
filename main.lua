@@ -433,14 +433,35 @@ end
 --- fill the preview pane pushes its own first line off the top of it --
 --- measured twice, on `build`'s three stacked tracebacks and on `broke`'s.
 ---
---- The four callers word their own two strings and share nothing else; what
---- they must not each decide is the level, the timeout and the title.
+--- The four callers word their own strings and share nothing else; what they
+--- must not each decide is the level, the timeout and the title. Two of them
+--- pass one string, which says the whole of it is already short enough for the
+--- screen -- a refusal supaline worded itself, rather than something a
+--- traceback came wrapped around.
 ---@param logged any the whole of it, error object or string
----@param shown string the one sentence for the screen
+---@param shown string? the one sentence for the screen, if it is not the whole
 local function report(logged, shown)
 	ya.err(logged)
-	ya.notify { title = "supaline", content = shown, level = "error", timeout = 10 }
+	ya.notify { title = "supaline", content = shown or logged, level = "error", timeout = 10 }
 end
+
+--- One line of what a `pcall` handed back, with Lua's wrapper off the front.
+---
+--- **Measured on 26.9.1**: what comes back is not the string `error` was
+--- given. Yazi wraps it as `runtime error: <chunk>:<line>: <message>` and
+--- appends two stack tracebacks, and `ya.notify` draws every line -- eleven
+--- rows of it, with the one sentence that says what to change second. The log
+--- is handed the error itself and keeps all three tracebacks, which is what a
+--- log is for; this is what the screen gets.
+---
+--- What it leaves on is the `<chunk>:<line>: `, and that is the half the two
+--- callers differ over rather than share. `build` strips it as well: the chunk
+--- is one of supaline's own and the message already names the key. `broke`
+--- keeps it, because there the chunk is the reader's and the line is where
+--- their own function threw.
+---@param err any what `pcall` handed back
+---@return string
+local function one_line(err) return (tostring(err):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", "")) end
 
 --- Whether this column has already been told off for `what`, marking it told
 --- if it has not.
@@ -496,7 +517,7 @@ local function no_extremes(col)
 			.. "return a table carrying both, and both have to be numbers",
 		col.name or "?"
 	)
-	report(why, why)
+	report(why)
 end
 
 -- What stands in for a cell that could not be drawn at all, one of these per
@@ -566,7 +587,7 @@ local function broke(col, stage, err)
 			"column `%s` threw from its `%s`: %s (the traceback is in the log)",
 			col.name or "?",
 			stage,
-			said:match("^[^\n]*") or said
+			one_line(said)
 		)
 	)
 end
@@ -597,7 +618,7 @@ local function bad_width(col, why)
 			.. "place and this one is ragged rather than absent",
 		why
 	)
-	report(said, said)
+	report(said)
 end
 
 --- Bind one folder's statistics and widths onto every column of a linemode.
@@ -684,27 +705,26 @@ local function bind(name, pane, cols, folder)
 				-- throw at all, which is why `resolve_width` returns it rather
 				-- than raising it into the same `pcall` the throws come out of.
 				local ok, got, why = pcall(column.resolve_width, col, files, entry.stats)
-				if ok and not why then
-					entry.width = got
+				-- Neither failure leaves a width the pass can stand behind, so
+				-- none is invented and `entry.width` is left nil: the column
+				-- draws unpadded. That is a ragged row, which is the thing a
+				-- refused width of zero exists to prevent -- but a ragged row is
+				-- readable, arrives with a notification naming the column, and
+				-- leaves the rest of Yazi on screen, which the `error` this
+				-- replaces did not.
+				--
+				-- Nil rather than `max_width`. The cap is not a width: padding
+				-- every cell out to it is a fixed width the reader never asked
+				-- for, and it would contradict the notification, which says this
+				-- column draws unpadded. `column.cell` still cuts at the cap,
+				-- which is the half of it that never needed the function that
+				-- failed.
+				if not ok then
+					broke(col, "width", got)
+				elseif why then
+					bad_width(col, why --[[@as string]])
 				else
-					if ok then
-						bad_width(col, why --[[@as string]])
-					else
-						broke(col, "width", got)
-					end
-					-- Neither leaves a width the pass can stand behind, so none is
-					-- invented and the column draws unpadded. That is a ragged
-					-- row, which is the thing a refused width of zero exists to
-					-- prevent -- but a ragged row is readable, arrives with a
-					-- notification naming the column, and leaves the rest of Yazi
-					-- on screen, which the `error` this replaces did not.
-					--
-					-- `entry.width` is left nil rather than set to `max_width`.
-					-- The cap is not a width: padding every cell out to it is a
-					-- fixed width the reader never asked for, and it would
-					-- contradict the notification, which says this column draws
-					-- unpadded. `column.cell` still cuts at the cap, which is the
-					-- half of it that never needed the function that failed.
+					entry.width = got
 				end
 			end
 			entries[i] = entry
@@ -978,21 +998,17 @@ local function build()
 		return install(modes, hooks)
 	end
 
-	-- What `pcall` hands back is not the string `error` was given. Measured on
-	-- 26.9.1: Yazi wraps it as `runtime error: <chunk>:<line>: <message>` and
-	-- appends two stack tracebacks, and `ya.notify` draws every line of it --
-	-- the notification came out eleven rows tall with the one sentence that
-	-- says what to change second. Cut back to that sentence for the screen;
 	-- `ya.err` is handed the error itself rather than the trimmed string, and
 	-- Yazi renders that as a nested `CallbackError` carrying all three
 	-- tracebacks -- which is what a log is for and what a notification is not.
 	--
-	-- The last pattern is lazy so it takes the shortest source prefix, which is
-	-- the one Lua put there; the messages themselves open `supaline: ` and
-	-- carry no `:<digits>: ` for it to stop at early. It reaches both
-	-- spellings, `[string "supaline.colour"]:85: ` under Yazi and
-	-- `./colour.lua:85: ` under the unit suite.
-	local why = tostring(modes):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", ""):gsub("^.-:%d+: ", "")
+	-- The source prefix goes too, which is the half `one_line` leaves on. The
+	-- pattern is lazy so it takes the shortest one, which is the one Lua put
+	-- there; the messages themselves open `supaline: ` and carry no
+	-- `:<digits>: ` for it to stop at early. It reaches both spellings,
+	-- `[string "supaline.colour"]:85: ` under Yazi and `./colour.lua:85: `
+	-- under the unit suite.
+	local why = one_line(modes):gsub("^.-:%d+: ", "")
 	report(modes, why)
 end
 
