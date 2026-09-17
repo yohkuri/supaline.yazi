@@ -447,7 +447,7 @@ end
 ---@param shown string? the one sentence for the screen, if it is not the whole
 local function report(logged, shown)
 	ya.err(logged)
-	ya.notify { title = "supaline", content = shown or logged, level = "error", timeout = 10 }
+	ya.notify { title = "supaline", content = shown or logged, level = "error", timeout = 20 }
 end
 
 --- One line of what a `pcall` handed back, with Lua's wrapper off the front.
