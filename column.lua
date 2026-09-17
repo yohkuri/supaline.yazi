@@ -484,18 +484,10 @@ local DEFINITION_KEYS = { name = true, options = true }
 -- Never written to, and never handed out.
 local EMPTY = {}
 
--- The keys above, in the order the message lists them. Sorted, because `pairs`
--- gives a set in whatever order the hash does, and a message that reorders
--- itself between runs reads as a different message.
-local COLUMN_KEY_LIST
-do
-	local names = {}
-	for key in pairs(COLUMN_KEYS) do
-		names[#names + 1] = key
-	end
-	table.sort(names)
-	COLUMN_KEY_LIST = colour.key_list(names)
-end
+-- The keys above, in the order the message lists them. `key_list_of` sorts,
+-- because `pairs` gives a set in whatever order the hash does and a message
+-- that reorders itself between runs reads as a different message.
+local COLUMN_KEY_LIST = colour.key_list_of(COLUMN_KEYS)
 
 --- The part a table of column keys plays, which is what says which of the keys
 --- only some of them read it is entitled to. Three, over the four shapes a
