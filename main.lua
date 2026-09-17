@@ -172,10 +172,14 @@ local specs = {} ---@type table<string, supaline.LinemodeSpec> the user's linemo
 
 local linemodes = {} ---@type table<string, supaline.Mode>
 
--- The `refresh` hooks of every column in service, flattened. A column that
--- caches something across rows -- the current year, say -- declares one, and it
--- is run whenever a linemode is installed and on every `cd`.
-local refreshers = {} ---@type table<integer, function>
+-- Every column in service that declared a `refresh` hook, flattened. A column
+-- that caches something across rows -- the current year, say -- declares one,
+-- and it is run whenever a linemode is installed and on every `cd`.
+--
+-- The whole column rather than the hook alone, because the hook is called
+-- under `pcall` the way the other three of a column's functions are, and
+-- `broke` has to be able to say whose it was.
+local refreshers = {} ---@type supaline.Column[]
 
 -- Statistics and derived widths, keyed by linemode, folder and file count. The
 -- count catches the common case of a file being added or removed; a write that
@@ -528,10 +532,29 @@ end
 -- the wrong fault.
 local BROKEN = "!"
 
+-- What the throw cost, worded per stage, for the middle of the sentence
+-- `broke` builds. One sentence covers the three called inside the redraw:
+-- each of them leaves a cell that cannot be drawn, and the row is held open
+-- with `BROKEN` so the columns beside it keep their places.
+--
+-- `refresh` is not one of those and must not borrow their sentence. It runs
+-- before any row is drawn, so there is no cell standing in for anything and
+-- nothing on the line looks different; what was lost is whatever the column
+-- was going to cache, which the first time round is the whole of what it had.
+local COST = {
+	drawing = string.format(
+		"Everything else on the line goes on drawing, and a cell this column cannot draw at all "
+			.. "is filled with `%s` so that the row keeps its shape",
+		BROKEN
+	),
+	refresh = "Every other column still refreshes, and this one goes on drawing with whatever it "
+		.. "had cached before -- which the first time round is nothing at all",
+}
+
 --- Say once that a column threw, and go on drawing everything else.
 ---
---- A column may write three functions -- `stats`, a `width` that is one, and
---- `render` -- and all three are called inside Yazi's redraw. **Measured on
+--- A column may write four functions. Three of them -- `stats`, a `width`
+--- that is one, and `render` -- are called inside Yazi's redraw. **Measured on
 --- 26.9.1**: an error raised anywhere under a linemode's render fails the
 --- whole `Root` component, not the row and not the pane. The file list, the
 --- header and the status bar all stop drawing, it happens again on every
@@ -541,17 +564,22 @@ local BROKEN = "!"
 --- unless `YAZI_LOG` was set before Yazi started, which is not how anybody
 --- runs it. So the reader is left with an empty terminal and nothing to read.
 ---
---- That is worse than any mistake it could be reporting, so the three calls
+--- That is worse than any mistake it could be reporting, so those three calls
 --- are made under `pcall` and this says what happened instead. It is the same
 --- judgement `no_extremes` is, reached for the same reason and from the same
 --- measurement; what is new here is that the throw need not be supaline's. A
 --- reader's own `render` raising produced exactly the blank screen above, with
 --- no part of this plugin involved in raising it.
 ---
---- One report across all three stages, not one each: what the reader has to
+--- The fourth is `refresh`, which is contained for a different reason and
+--- said the same way -- `refresh` above carries that half of it. What the two
+--- reasons have in common is that neither caller has anybody to raise to.
+---
+--- One report across all four stages, not one each: what the reader has to
 --- look at is the column, and the first thing of theirs it threw from is
 --- where they will start. `told` holds that, and holds it hardest here --
---- this is the one of the three reached from a per-row path.
+--- two of the four are reached from a path that runs again and again, a
+--- per-row one and a per-`cd` one.
 ---
 --- What it does **not** cover is a `width` function that came back with a
 --- number nobody can use. That one is supaline's own refusal, `resolve_width`
@@ -566,7 +594,7 @@ local BROKEN = "!"
 --- top to bottom, pushing the one line that names the column and the mistake
 --- off the top. `report` is what holds those two halves together.
 ---@param col supaline.Column
----@param stage string which of the three threw, named as the reader wrote it
+---@param stage string which of the four threw, named as the reader wrote it
 ---@param err any what it threw
 local function broke(col, stage, err)
 	if told(col, "threw") then
@@ -576,12 +604,10 @@ local function broke(col, stage, err)
 	local said = tostring(err)
 	report(
 		string.format(
-			"supaline: column `%s` threw from its `%s`. Everything else on the line goes on "
-				.. "drawing, and a cell this column cannot draw at all is filled with `%s` so "
-				.. "that the row keeps its shape. It threw: %s",
+			"supaline: column `%s` threw from its `%s`. %s. It threw: %s",
 			col.name or "?",
 			stage,
-			BROKEN,
+			COST[stage] or COST.drawing,
 			said
 		),
 		string.format(
@@ -781,11 +807,11 @@ local function render(mode, pane, cols, file, folder)
 			local one = col.sep or sep
 			out[#out + 1] = one.style and ui.Span(one.text):style(one.style) or one.text
 		end
-		-- The third of the three, and the one called per row rather than per
-		-- folder. A `pcall` here costs one per column per row -- five columns
-		-- down forty rows is two hundred a frame, against a redraw that has
-		-- just measured and styled every one of them -- and it is what keeps a
-		-- column's own mistake inside that column's cells.
+		-- The third of the three called under a render, and the one called per
+		-- row rather than per folder. A `pcall` here costs one per column per
+		-- row -- five columns down forty rows is two hundred a frame, against a
+		-- redraw that has just measured and styled every one of them -- and it
+		-- is what keeps a column's own mistake inside that column's cells.
 		local ok, cell = pcall(column.cell, col, file)
 		if not ok then
 			broke(col, "render", cell)
@@ -843,9 +869,35 @@ end
 --- Run every column's `refresh` hook. Subscribed to `cd` through `moved`,
 --- which is the event that fires often enough to keep a value cached across
 --- rows -- the current year -- from going stale in a session left open.
+---
+--- The fourth call supaline makes into a column's own code, and contained the
+--- way the other three are. `broke` above has the reason those three are; this
+--- one is not called under a render at all and has two of its own, one per
+--- caller, both of them a throw that reaches nobody.
+---
+--- From `moved` it runs inside a `ps.sub` handler, and Yazi does not put an
+--- error out of one in front of anyone -- the same silence `build` is written
+--- against, one handler along. From `install` it runs after `setup` has
+--- committed, past the line that says nothing below it may raise: `uninstall`
+--- has already handed every name back and the loop that registers them has
+--- not run, so a throw there left every supaline linemode unregistered, and
+--- Yazi draws an unregistered name as literal text on every row.
+---
+--- Either way the loop stopped where it threw, so every hook after it went
+--- unrun and another column's cached year stayed stale for the rest of the
+--- session with nothing said. Contained, each column pays only for its own.
+---
+--- `told` gates the report, and gates it hardest here: this runs on every
+--- `cd`, so a hook that throws throws again at every folder the reader walks
+--- into.
 local function refresh()
 	for i = 1, #refreshers do
-		refreshers[i]()
+		local col = refreshers[i]
+		-- Never nil: `compile` appends a column here only when it has one.
+		local ok, err = pcall(col.refresh --[[@as function]])
+		if not ok then
+			broke(col, "refresh", err)
+		end
 	end
 end
 
@@ -869,7 +921,7 @@ end
 --- them has.
 ---@param from table<string, supaline.LinemodeSpec>
 ---@param with supaline.Cfg
----@return table<string, supaline.Mode> modes, function[] hooks, boolean outer whether any mode leaves the current pane
+---@return table<string, supaline.Mode> modes, supaline.Column[] hooks, boolean outer whether any mode leaves the current pane
 local function compile(from, with)
 	local modes, hooks, outer = {}, {}, false
 	-- Read here rather than in `setup`, which is what makes a `style` function
@@ -921,7 +973,7 @@ local function compile(from, with)
 					local col = column.normalize(entry, with)
 					made[i] = col
 					if col.refresh then
-						hooks[#hooks + 1] = col.refresh
+						hooks[#hooks + 1] = col
 					end
 				end
 				built[list] = made
@@ -952,6 +1004,8 @@ end
 
 --- Put a compiled set of linemodes into service, dropping everything derived
 --- from the last one.
+---@param modes table<string, supaline.Mode>
+---@param hooks supaline.Column[] the columns that declared a `refresh`
 local function install(modes, hooks)
 	linemodes, refreshers = modes, hooks
 	invalidate()

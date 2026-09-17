@@ -231,9 +231,11 @@ about them. The parent-pane child is pinned against the code already here, so
 **new** code can repeat it and stay green — measured, not assumed: a fresh
 column written with `not is_regular` passed the whole suite before
 `Forbidden spellings` existed. The fetcher has no pin at all, because there is
-no fetcher yet. The last of the four is the same shape as the first: the three
+no fetcher yet. The last of the four is the same shape as the first: the four
 calls supaline makes into a column's own code are contained and pinned, but a
-**new** call into it is not, and the suite goes on passing either way.
+**new** call into it is not, and the suite goes on passing either way. The
+fourth of them was found bare by reading rather than by any check, long after
+the other three were contained, which is what that warning is worth.
 
 ## Commands
 
