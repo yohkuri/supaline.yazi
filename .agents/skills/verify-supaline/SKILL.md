@@ -127,6 +127,18 @@ this needs no remembering.
 `test/setup.sh`, so what a person looks at and what the headless run asserts on
 cannot drift apart.
 
+`fixture_spec.lua` is the third reader of that file, and the one that changes
+what you have to remember when you edit it. It lifts the fixture's `init.lua`
+out of the heredoc `setup.sh` writes it from and puts that through `setup`
+under the stub, so a refusal that turns the fixture's own configuration away
+fails in the unit suite rather than in a headless Yazi minutes later. Two
+things follow. Rename or requote that heredoc and the extraction stops
+matching — which is why the spec asserts it found a `setup` call and a
+`column` registration rather than trusting a pattern, since a spec reading the
+empty string compiles, runs and refuses nothing. And it says nothing about the
+screen: `setup` took the configuration is the whole of the claim, and `e2e.sh`
+is still what says the configuration draws what `MANUAL.md` describes.
+
 The fixture opens on a directory carrying the cases that break width
 arithmetic — CJK, emoji, an over-long name, sizes either side of the 1K
 boundary — with siblings above it and a subdirectory below, so all three panes

@@ -40,6 +40,7 @@ local SPECS = {
 	"column_spec",
 	"builtin_spec",
 	"main_spec",
+	"fixture_spec",
 }
 
 ---@type supaline.Stub
