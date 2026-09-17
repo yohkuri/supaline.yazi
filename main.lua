@@ -203,7 +203,16 @@ local bound_name, bound_pane, bound_cwd, bound_n = nil, nil, nil, nil
 --
 -- `prev` holds what each name was bound to before, which is what lets an
 -- override of one of Yazi's own linemodes be handed back.
-local installed = { names = {}, prev = {}, child = nil } ---@type table
+--
+-- One record per name rather than a list of names beside a table keyed by
+-- them, which is the rule the `supaline.Mode` record a few lines down follows
+-- for the same reason. Keyed, `prev[name]` cannot tell "was bound to nil" from
+-- "we never registered it", so the list was carrying that distinction and the
+-- two had to be written in step -- by two adjacent lines in `setup` and read
+-- back by a loop in `uninstall`. Touch one of the three and an override of
+-- Yazi's own linemode stays taken rather than being handed back, which is the
+-- leak this table exists to have already fixed once.
+local installed = { prev = {}, child = nil } ---@type table
 
 -- Yazi keeps the component's own machinery on the very table the linemodes are
 -- looked up on, so a linemode named after any of it silently replaces the
@@ -953,15 +962,15 @@ end
 --- what they were bound to, so an override of one of Yazi's own linemodes is
 --- handed back rather than left as a supaline one that draws nothing.
 local function uninstall()
-	for _, name in ipairs(installed.names) do
-		Linemode[name] = installed.prev[name]
+	for _, one in ipairs(installed.prev) do
+		Linemode[one.name] = one.was
 	end
 	if installed.child then
 		-- `Linemode:redraw()` calls every child it holds, so a second one
 		-- would draw the parent and preview panes twice over.
 		Linemode:children_remove(installed.child)
 	end
-	installed = { names = {}, prev = {}, child = nil }
+	installed = { prev = {}, child = nil }
 end
 
 --- Rebuild every linemode from the stored specs. Subscribed to `theme` for
@@ -1170,8 +1179,10 @@ function M.setup(_st, opts)
 	-- the folder is the current one without asking.
 	for name in pairs(specs) do
 		ours[name] = true
-		installed.names[#installed.names + 1] = name
-		installed.prev[name] = Linemode[name]
+		-- The name and what it was bound to in one record, so `uninstall` has
+		-- one list to walk and nothing to keep in step. `was` may be nil, and
+		-- being in the list at all is what says this name is ours to hand back.
+		installed.prev[#installed.prev + 1] = { name = name, was = Linemode[name] }
 		Linemode[name] = function(self)
 			local mode = linemodes[name]
 			local cols = mode and mode.cols.current
