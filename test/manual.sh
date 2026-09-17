@@ -96,6 +96,17 @@ supaline manual test
 
   Quit with q. `test/manual.sh --clean` throws the fixture away.
   What to look for: test/MANUAL.md
+EOF
+
+# The log's path has to be expanded, so it cannot sit in the quoted heredoc
+# above -- and it is worth printing rather than describing, because the half of
+# a report that never reaches the screen is the half a reader has to be told
+# where to find.
+cat <<EOF
+
+  What a report says past its one sentence -- what the fault cost, and the
+  traceback -- goes to the log rather than to the screen. This run keeps one:
+  $DIR/state/yazi/yazi.log
 ────────────────────────────────────────────────────────────────────────────
 EOF
 
@@ -134,4 +145,11 @@ printf 'Press Enter to open Yazi... '
 # Tolerate a closed stdin, so the script can be sourced by something else.
 read -r _ || true
 
-YAZI_CONFIG_HOME="$DIR/config" XDG_STATE_HOME="$DIR/state" exec yazi "$DIR/fixture/data"
+# `YAZI_LOG` because a report is two halves and only the shorter one is a
+# notification -- and there is no log at all unless this is set before Yazi
+# starts, so without it the reports point at a file that was never written.
+# `debug` is the spelling `e2e.sh` uses, and measured on 26.9.1 it costs three
+# lines over `error` across a short run. `XDG_STATE_HOME` is the throwaway
+# directory, so `--clean` takes the log with it.
+YAZI_CONFIG_HOME="$DIR/config" XDG_STATE_HOME="$DIR/state" YAZI_LOG=debug \
+	exec yazi "$DIR/fixture/data"
