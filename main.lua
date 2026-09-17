@@ -593,6 +593,11 @@ local COST = {
 --- traceback, and the whole of it in a notification filled the preview pane
 --- top to bottom, pushing the one line that names the column and the mistake
 --- off the top. `report` is what holds those two halves together.
+---
+--- It "goes to" the log rather than being "in" it, which is a word and is the
+--- difference between where something was sent and a file being there to open:
+--- there is no log at all unless `YAZI_LOG` was set before Yazi started, and
+--- most readers of this sentence will not have set it.
 ---@param col supaline.Column
 ---@param stage string which of the four threw, named as the reader wrote it
 ---@param err any what it threw
@@ -611,7 +616,7 @@ local function broke(col, stage, err)
 			said
 		),
 		string.format(
-			"column `%s` threw from its `%s`: %s (the traceback is in the log)",
+			"column `%s` threw from its `%s`: %s (the traceback goes to the log)",
 			col.name or "?",
 			stage,
 			one_line(said)
