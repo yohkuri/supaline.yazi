@@ -689,17 +689,17 @@ local function refuse_unknown(t, name, def, role)
 	-- is most worth saying to the use site, which is the one that cannot see
 	-- the definition.
 	local own = def.options
-	error(
-		string.format(
-			COLUMN_UNKNOWN,
-			name or "?",
-			subject,
-			COLUMN_KEY_LIST,
-			ROLES[role].draws,
-			own and string.format(". That column also takes `%s`", table.concat(own, "`, `")) or "",
-			hints
-		)
-	)
+	error(string.format(
+		COLUMN_UNKNOWN,
+		name or "?",
+		subject,
+		COLUMN_KEY_LIST,
+		ROLES[role].draws,
+		-- In the order the definition declared them, so `colour.quoted`
+		-- rather than the sorted `listed` behind every other name list here.
+		own and string.format(". That column also takes %s", colour.quoted(own)) or "",
+		hints
+	))
 end
 
 --- What a column may be called, which is decided by `theme.toml` rather than
