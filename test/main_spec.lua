@@ -1139,6 +1139,40 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 	eq(first, "x")
 end)
 
+test('throwing: a `render` that throws under `width = "auto"` is named as a `render`', function()
+	-- The third way into the same `pcall`, and the one that had been worded as
+	-- one of the other two. `resolve_width` renders every file in the folder to
+	-- measure an `auto` column, so the reader's `render` throwing comes out of
+	-- the width pass -- but there is no `width` function here to have thrown,
+	-- and a message naming one sends the reader to code they never wrote.
+	main.column("fine", { width = 2, render = function() return "ok" end })
+	main.column("auto_thrower", {
+		width = "auto",
+		render = function() error("a column of mine is broken") end,
+	})
+
+	local was = #stub.notified
+	setup { detail = { "fine", "auto_thrower" } }
+	for _, file in ipairs(CURRENT.files) do
+		draw("detail", file)
+	end
+
+	-- Once, because `told` holds the column rather than the stage, and the
+	-- per-row path is about to throw from the same `render` on every row. That
+	-- is what makes the name on this one report load-bearing: it is the only
+	-- one the reader gets.
+	eq(#stub.notified - was, 1, "said once, measuring pass and rows together")
+	local said = last_said()
+	mentions(said, "`auto_thrower`", "and it names the column")
+	mentions(said, "`render`", "and the function the reader actually wrote")
+	omits(said, "`width`", "rather than a `width` function that does not exist")
+	mentions(said, "a column of mine is broken", "and what it said")
+
+	-- And the line still draws: no width to pad to, so the failed cell is the
+	-- one `!` its own unpadded width allows, beside a neighbour untouched.
+	eq(draw("detail", CURRENT.files[1]), "ok !")
+end)
+
 test("width: a function returning no usable number is reported as itself", function()
 	-- The other half of the test above, and the distinction is the point.
 	-- Nothing throws here: the function returns, and what it returns is a

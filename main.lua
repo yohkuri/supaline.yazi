@@ -720,7 +720,18 @@ local function bind(name, pane, cols, folder)
 				-- which is the half of it that never needed the function that
 				-- failed.
 				if not ok then
-					broke(col, "width", got)
+					-- Which of the reader's functions threw, not which pass was
+					-- running when it did. `width_of` is the only thing this
+					-- branch calls that the reader wrote as a `width`; under
+					-- `width = "auto"` there is no `width` function at all and
+					-- what threw was their `render`, called once per file to
+					-- measure it. Naming the stage `width` there sent the reader
+					-- to a function they had not written -- and `told` made it
+					-- the only thing they were sent, since the same `render`
+					-- throwing again on every row is suppressed as the report
+					-- already made. Told apart here, that suppression is right:
+					-- one mistake, said once, under its own name.
+					broke(col, col.width_of and "width" or "render", got)
 				elseif why then
 					bad_width(col, why --[[@as string]])
 				else
