@@ -147,6 +147,17 @@ linemodes, one per decision worth looking at, and `test/MANUAL.md` says what to
 look for in each. Yazi's own `m s` and `m n` still work, which is what makes
 them worth comparing against.
 
+A third leader, `b`, draws the columns that are wrong on purpose -- one per
+report supaline can put on a screen -- and `e2e.sh` presses none of it. That is
+forced rather than a gap somebody left: `report` writes to `yazi.log` as well
+as to the screen, and `e2e.sh` fails a run in which Yazi logged an error at
+all. So adding one of those keys to a capture loop turns the suite red, and the
+repair is to take the key back out rather than to teach the log check an
+exception -- an allowlist there is the one check that reads the log learning to
+ignore the errors it was written to find. What stands behind that family
+instead is `fixture_spec.lua`, which takes the whole of `init.lua` through
+`setup`, and a person with `MANUAL.md` open.
+
 ```sh
 test/e2e.sh --keep          # leave the scratch directory behind
 test/manual.sh --clean      # discard the manual fixture
