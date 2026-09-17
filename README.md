@@ -238,6 +238,13 @@ is one of those two written where it is not read — `options` at a use site,
 `render`. Nothing else would say so: a misspelled `max_widht` is read by
 nobody, and the column draws at its natural width without a word about why.
 
+So is a value the key does not take. `align = "centre"` is spelled right and
+means nothing, and `render`, `stats` and `refresh` are *called* rather than
+read, so anything but a function written there is turned away while `setup` can
+still say so. Left to itself a `stats = 42` reaches you at the first row as this
+column throwing from its `stats` — about a function you never wrote — and a
+`refresh = 42` reaches you as every linemode drawn on screen as its own name.
+
 `width = "auto"` measures every file in the folder once per `cd` and takes the
 widest result. It is exact, and it costs a pass over the listing; a stated
 number costs nothing. `function(stats)` sits in between, for a column whose
