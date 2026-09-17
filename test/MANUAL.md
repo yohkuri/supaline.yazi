@@ -591,8 +591,8 @@ not.
 | `g 6` | `broken/` | breaks the `refresh` of the column `b f` draws |
 
 The notification is drawn over the top of the preview pane, a second or two
-after the key, and times out after ten seconds. Read one before pressing the
-next.
+after the key, and times out after twenty seconds. Read one before pressing
+the next.
 
 **Each of these is worth one look per session.** `told` in `main.lua` marks a
 column the first time it is reported and drops every report from that column
