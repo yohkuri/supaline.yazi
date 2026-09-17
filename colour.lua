@@ -551,27 +551,6 @@ end
 ---@field hidden boolean?
 ---@field crossed boolean?
 
---- One colour or gradient under `fg` or `bg`, as the layer keeps it.
----
---- A gradient is told by the arrow, which is the one thing a flat colour can
---- never contain, and parsed here rather than kept as written so that every
---- refusal a style can earn is earned while the layer is read. Everything
---- else goes through `M.colour`, which refuses what is not a string -- a
---- table under `fg` included, and no more is said about one -- and what
---- Yazi's parser would not take.
----@param value any
----@param where string
----@param bands supaline.Bands
----@param fallback string the band a `<->` naming none is asking for
----@return supaline.Paint
-local function paint(value, where, bands, fallback)
-	if M.is_ramp(value) then
-		return M.stops(value, where, bands, fallback)
-	end
-	M.colour(value, where)
-	return value
-end
-
 --- What `M.layer` calls for every colour it finds, so that what a gradient
 --- means belongs to the caller rather than to this function.
 ---
@@ -586,10 +565,24 @@ end
 --- One per build rather than one per layer: `layers_of` reads three writers
 --- with the same bands behind all three, and `layer_of` promises a paragraph
 --- of its own that it runs once per column per build and never per row.
+---
+--- Written out here rather than behind a named function, the way `M.flat`
+--- writes its own: a gradient is told by the arrow, which is the one thing a
+--- flat colour can never contain, and it is resolved while the layer is read
+--- so that every refusal a style can earn is earned there. Everything else
+--- goes through `M.colour`, which refuses what is not a string -- a table
+--- under `fg` included, and no more is said about one -- and what Yazi's
+--- parser would not take.
 ---@param bands supaline.Bands every band `setup` defined
 ---@return supaline.Painter
 function M.painter(bands)
-	return function(value, where, fallback) return paint(value, where, bands, fallback) end
+	return function(value, where, fallback)
+		if M.is_ramp(value) then
+			return M.stops(value, where, bands, fallback)
+		end
+		M.colour(value, where)
+		return value
+	end
 end
 
 --- Read what one writer put under `style` into a layer.
