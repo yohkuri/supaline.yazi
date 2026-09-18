@@ -65,6 +65,19 @@ local function last_said() return stub.notified[#stub.notified].content end
 -- nothing about that half.
 local function last_logged() return tostring(stub.logged[#stub.logged][1]) end
 
+--- How many reports have been made so far, the screen's half and the log's
+--- counted as one.
+---
+--- `report` writes both from the same two lines, so the two tables can only
+--- disagree by that pairing coming apart -- and counting the notifications
+--- alone would let `last_logged` answer out of an earlier spec, quietly, in
+--- any test whose report never reached the log at all.
+---@return integer
+local function reports()
+	eq(#stub.logged, #stub.notified, "a report is two halves and both are written")
+	return #stub.notified
+end
+
 --- Assert that a notification said `text`.
 ---
 --- The substring test is written out once here rather than at each of the ten
@@ -897,7 +910,7 @@ test("theme: a reload the theme breaks keeps the old colours and says so", funct
 		setup { detail = { { "size", width = 3 } } }
 		eq(stub.first_style(Linemode.detail { _file = CURRENT.files[1] }).fg, "#ff8800")
 
-		local was = #stub.notified
+		local was = reports()
 		stub.th.supaline = { size = "nosuchcolour" }
 		stub.fire("theme")
 
@@ -906,7 +919,7 @@ test("theme: a reload the theme breaks keeps the old colours and says so", funct
 			"#ff8800",
 			"the last theme that compiled keeps drawing"
 		)
-		eq(#stub.notified - was, 1, "and the refusal reaches the screen, not only the log")
+		eq(reports() - was, 1, "and the refusal reaches the screen, not only the log")
 
 		-- Cut back to the sentence the message was written as. `pcall` hands
 		-- back what Lua and Yazi wrapped around it -- a source position here, a
@@ -960,13 +973,13 @@ test("stats: a ramp with no extremes to place a row against says so, once", func
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "wrong_stats" } }
 	for _, file in ipairs(CURRENT.files) do
 		draw("detail", file)
 	end
 
-	eq(#stub.notified - was, 1, "said once, not once per row")
+	eq(reports() - was, 1, "said once, not once per row")
 	local said = last_said()
 	mentions(said, "`wrong_stats`", "and it names the column")
 	mentions(said, "no `min` and `max`", "and what came back wrong")
@@ -989,10 +1002,10 @@ test("stats: extremes that are not numbers are reported rather than raised", fun
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "worded_stats" } }
 	eq(draw("detail", CURRENT.files[1]), "     x", "the row drew")
-	eq(#stub.notified - was, 1, "said once")
+	eq(reports() - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "`worded_stats`", "and it names the column")
 end)
@@ -1009,16 +1022,16 @@ test("stats: a column that is not a ramp owes nobody extremes", function()
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "widened" } }
 	draw("detail", CURRENT.files[1])
-	eq(#stub.notified - was, 0, "nothing said")
+	eq(reports() - was, 0, "nothing said")
 
 	-- Nor does a column with no `stats` at all, which is most of them.
 	main.column("bare", { width = 3, render = function() return "x" end })
 	setup { detail = { "bare" } }
 	draw("detail", CURRENT.files[1])
-	eq(#stub.notified - was, 0, "still nothing said")
+	eq(reports() - was, 0, "still nothing said")
 end)
 
 test("throwing: a `render` that throws is kept inside that column's cells", function()
@@ -1036,7 +1049,7 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 		render = function() error("a column of mine is broken") end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "fine", "thrower" } }
 
 	-- Every row, not just the first: the flag is what makes this a report
@@ -1044,7 +1057,7 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 	for _, file in ipairs(CURRENT.files) do
 		draw("detail", file)
 	end
-	eq(#stub.notified - was, 1, "said once, not once per row")
+	eq(reports() - was, 1, "said once, not once per row")
 
 	local said = last_said()
 	mentions(said, "`thrower`", "and it names the column")
@@ -1068,11 +1081,11 @@ test("throwing: a `stats` that throws leaves the rest of the line drawing", func
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "bad_stats" } }
 	draw("detail", CURRENT.files[1])
 
-	eq(#stub.notified - was, 1, "said once")
+	eq(reports() - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "`stats`", "and it names the stage")
 
@@ -1095,12 +1108,12 @@ test("stats: a folder with nothing to measure is not a mistake", function()
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "empty_stats" } }
 	for _, file in ipairs(CURRENT.files) do
 		draw("detail", file)
 	end
-	eq(#stub.notified - was, 0, "nothing said")
+	eq(reports() - was, 0, "nothing said")
 	eq(draw("detail", CURRENT.files[1]), "     x")
 end)
 
@@ -1116,11 +1129,11 @@ test("throwing: a ramp whose `stats` threw is told off once, not twice", functio
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "thrown_ramp" } }
 	draw("detail", CURRENT.files[1])
 
-	eq(#stub.notified - was, 1, "said once, not once per reading of the same failure")
+	eq(reports() - was, 1, "said once, not once per reading of the same failure")
 	local said = last_said()
 	mentions(said, "threw", "and it says what happened")
 
@@ -1137,13 +1150,13 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "bad_width" } }
 	-- The width pass runs on the first row drawn, not on `setup`: `setup`
 	-- compiles the spec and nothing has a folder to measure against yet.
 	local first = draw("detail", CURRENT.files[1])
 
-	eq(#stub.notified - was, 1, "said once")
+	eq(reports() - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "`width`", "and it names the stage")
 
@@ -1179,7 +1192,7 @@ test('throwing: a `render` that throws under `width = "auto"` is named as a `ren
 		render = function() error("a column of mine is broken") end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "fine", "auto_thrower" } }
 	for _, file in ipairs(CURRENT.files) do
 		draw("detail", file)
@@ -1189,7 +1202,7 @@ test('throwing: a `render` that throws under `width = "auto"` is named as a `ren
 	-- per-row path is about to throw from the same `render` on every row. That
 	-- is what makes the name on this one report load-bearing: it is the only
 	-- one the reader gets.
-	eq(#stub.notified - was, 1, "said once, measuring pass and rows together")
+	eq(reports() - was, 1, "said once, measuring pass and rows together")
 	local said = last_said()
 	mentions(said, "`auto_thrower`", "and it names the column")
 	mentions(said, "`render`", "and the function the reader actually wrote")
@@ -1229,7 +1242,7 @@ test("throwing: a `refresh` that throws is reported rather than propagated", fun
 		render = function() return "ok" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	-- The thrower first, so the hook that must go on running is one the old
 	-- loop would have abandoned rather than one it had already reached.
 	setup { detail = { "bad_refresh", "good_refresh" } }
@@ -1240,22 +1253,27 @@ test("throwing: a `refresh` that throws is reported rather than propagated", fun
 	eq(type(Linemode.detail), "function", "and the linemode reached `Linemode`")
 	eq(draw("detail", CURRENT.files[1]), "ok ok", "and it draws, both columns")
 
-	eq(#stub.notified - was, 1, "said once")
+	eq(reports() - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "`bad_refresh`", "and it names the column")
 	mentions(said, "`refresh`", "and which of the four threw")
 	mentions(said, "cannot refresh this", "and what it said")
-	-- Not the sentence the three drawing stages share. Nothing here stands in
-	-- for a cell nobody could fill: the row is drawn after this and looks
-	-- exactly as it would have, and what was lost is what the column caches.
-	omits(said, "filled with", "rather than a cell that was filled with a marker")
+	-- Not the sentence the three drawing stages share, and read off the log
+	-- rather than off `said`: the screen's half of a `broke` report carries no
+	-- cost sentence at any stage, so an `omits` against it would pass whatever
+	-- this stage had been worded with. Nothing here stands in for a cell nobody
+	-- could fill -- the row is drawn after this and looks exactly as it would
+	-- have, and what was lost is what the column caches.
+	local logged = last_logged()
+	omits(logged, "filled with", "rather than a cell that was filled with a marker")
+	mentions(logged, "cached", "and says that a stale value is what it costs")
 
 	-- And again on every `cd`, which is what makes the gate matter more here
 	-- than anywhere: ungated, a hook that throws is a notification per folder
 	-- the reader walks into.
 	stub.fire("cd")
 	eq(ran, 2, "the working hook goes on running")
-	eq(#stub.notified - was, 1, "and the broken one is not reported a second time")
+	eq(reports() - was, 1, "and the broken one is not reported a second time")
 end)
 
 test("throwing: a theme reload does not re-arm a column's report", function()
@@ -1275,21 +1293,21 @@ test("throwing: a theme reload does not re-arm a column's report", function()
 	})
 	main.column("torn_cell", { width = 2, render = function() error("cannot draw this") end })
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "torn_hook", "torn_cell" } }
 	draw("detail", CURRENT.files[1])
-	eq(#stub.notified - was, 2, "one apiece")
+	eq(reports() - was, 2, "one apiece")
 
 	stub.fire("theme")
 	draw("detail", CURRENT.files[1])
-	eq(#stub.notified - was, 2, "and the rebuild says neither of them again")
+	eq(reports() - was, 2, "and the rebuild says neither of them again")
 
 	-- The re-arming that was meant, so this cannot pass on a gate nothing ever
 	-- clears: a reader who has just changed the configuration is owed both
 	-- messages again.
 	setup { detail = { "torn_hook", "torn_cell" } }
 	draw("detail", CURRENT.files[1])
-	eq(#stub.notified - was, 4, "while `setup` re-arms both")
+	eq(reports() - was, 4, "while `setup` re-arms both")
 end)
 
 test("width: a function returning no usable number is reported as itself", function()
@@ -1304,11 +1322,11 @@ test("width: a function returning no usable number is reported as itself", funct
 		render = function() return "x" end,
 	})
 
-	local was = #stub.notified
+	local was = reports()
 	setup { detail = { "zero_width" } }
 	local first = draw("detail", CURRENT.files[1])
 
-	eq(#stub.notified - was, 1, "said once")
+	eq(reports() - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "returned `0`", "and it says what came back")
 	omits(said, "threw", "and does not call a return a throw")
