@@ -438,9 +438,16 @@ of numbers, and that last distance.
   whether a ground disturbs a foreground nobody chose for it.
 
 - The fourth column is the same question the other way up: the ramp is the
-  ground, the text is the row's, and whether the text still reads at the dark
-  end and the light end is what nothing here measures. A `bg` gradient takes
-  the two endpoints you write, so the answer is yours to move.
+  ground, and the text over it is the row's own — supaline sets no foreground
+  there at all, so what the text reads against is whatever your terminal
+  supplies. Measured off a capture of this folder, against a white one: the
+  ground holds 4.5:1 from the dark end up to ratio `0.40`, crosses at `0.41`,
+  and reaches 1.65:1 at `1.00`. Twenty-six of the sixty-four steps read and
+  thirty-eight do not. A dark foreground fails at the other end instead, and
+  by less — `0.00` is 2.09:1. Neither is a fault: a `bg` gradient takes the
+  two endpoints you write, and this pair spans more lightness than one
+  unchosen foreground can cross. The endpoints are yours to move, and what
+  you are choosing between is which end you can read.
 
 `e2e.sh` reads both bands off the capture — that each is there, that it is its
 own stated width rather than the width of its text, and that no second column
