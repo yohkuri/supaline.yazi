@@ -550,6 +550,15 @@ end
 -- the wrong fault.
 local BROKEN = "!"
 
+-- What a column with no width to pad to draws instead. One string rather than
+-- two because two reports end in it -- a `width` that threw, and a `width` that
+-- came back with a number supaline will not take -- and `MANUAL.md` sends a
+-- reader from `b w` straight to `b u` precisely because nothing on the screen
+-- tells those two apart. The sentences agreeing is the whole of that
+-- comparison, so they are not two sentences.
+local UNPADDED = "this column draws unpadded: everything else on the line keeps its place and "
+	.. "this one is ragged rather than absent"
+
 -- What the throw cost, worded per stage, for the middle of the sentence
 -- `broke` builds. A sentence each, because what a throw costs differs by
 -- stage and the screen says which.
@@ -558,12 +567,9 @@ local BROKEN = "!"
 -- written at one site, under the per-row `pcall` alone, so that is the only
 -- stage a sentence may mention it in.
 --
--- A `width` that threw leaves the column with no width, so it draws unpadded.
--- That is the same screen `bad_width` reports for a `width` that returned a
--- number nobody can use, and it is worded the same way here on purpose:
--- `MANUAL.md` puts those two side by side precisely because nothing on the
--- screen tells them apart, and two sentences describing one screen
--- differently is a reader being told which of their eyes to distrust.
+-- A `width` that threw leaves the column with no width, so it draws unpadded:
+-- `UNPADDED` above, which the report `bad_width` makes about that same screen
+-- ends in too.
 --
 -- A `stats` that threw usually leaves the line alone, since the reader's
 -- `render` is the only thing that reads a `stats` and one that needed none of
@@ -586,8 +592,7 @@ local COST = {
 			.. "is filled with `%s` so that the row keeps its shape",
 		BROKEN
 	),
-	width = "Until it returns a width, this column draws unpadded: everything else on the line "
-		.. "keeps its place and this one is ragged rather than absent",
+	width = "Until it returns a width, " .. UNPADDED,
 	stats = "Everything else on the line goes on drawing, and so does this column: a `stats` is "
 		.. "read by the column's own `render`, so a line that looks untouched is one whose "
 		.. "`render` needed nothing from it",
@@ -687,11 +692,7 @@ local function bad_width(col, why)
 		return
 	end
 
-	local said = string.format(
-		"%s. Until it does, this column draws unpadded: everything else on the line keeps its "
-			.. "place and this one is ragged rather than absent",
-		why
-	)
+	local said = string.format("%s. Until it does, " .. UNPADDED, why)
 	report(said)
 end
 
