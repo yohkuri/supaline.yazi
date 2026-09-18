@@ -97,10 +97,11 @@ test("fixture: the configuration `e2e.sh` draws is one `setup` takes", function(
 end)
 
 -- `e2e.sh` names this key set too and is deliberately not compared against it.
--- It presses no `b` key at all -- every one of them puts a report in
--- `yazi.log`, and that run fails on a Yazi that logged an error -- so "every
--- bound key is captured there" is false on purpose, and a check written around
--- that would have to carry a list of which keys are exempt. Such a list is a
+-- It presses `c 2` and neither `c 1` nor `c 3`: that key replaces `theme.toml`
+-- wholesale, and every capture taken before it was taken against the file the
+-- run had been editing in place, so one swap is all a run can afford. "Every
+-- bound key is pressed there" is false on purpose, and a check written around
+-- it would have to carry a list of which keys are exempt. Such a list is a
 -- fifth place naming the set, which is the thing this half of the file exists
 -- not to become.
 

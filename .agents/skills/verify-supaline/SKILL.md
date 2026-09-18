@@ -155,9 +155,11 @@ with every bound key named at once, while an empty authority would let all
 three comparisons pass over nothing. So it is checked against `setup.sh`'s own
 shape — one `on` line per `[[mgr.prepend_keymap]]` block — rather than against
 a count written in the spec, which would be a fifth place holding the size of
-the set. And `e2e.sh` is left out on purpose: it presses no `b` key, for the
-reason two paragraphs down, so comparing against it would need a list of which
-keys are exempt, and that list is the fifth place again.
+the set. And `e2e.sh` is left out on purpose: it presses `c 2` and neither
+`c 1` nor `c 3`, because that key replaces `theme.toml` wholesale and one swap
+is all a run whose earlier captures were taken against that file can afford.
+Comparing against it would need a list of which keys are exempt, and that list
+is the fifth place again.
 
 The fixture opens on a directory carrying the cases that break width
 arithmetic — CJK, emoji, an over-long name, sizes either side of the 1K
@@ -168,15 +170,46 @@ look for in each. Yazi's own `m s` and `m n` still work, which is what makes
 them worth comparing against.
 
 A third leader, `b`, draws the columns that are wrong on purpose -- one per
-report supaline can put on a screen -- and `e2e.sh` presses none of it. That is
-forced rather than a gap somebody left: `report` writes to `yazi.log` as well
-as to the screen, and `e2e.sh` fails a run in which Yazi logged an error at
-all. So adding one of those keys to a capture loop turns the suite red, and the
-repair is to take the key back out rather than to teach the log check an
-exception -- an allowlist there is the one check that reads the log learning to
-ignore the errors it was written to find. What stands behind that family
-instead is `fixture_spec.lua`, which takes the whole of `init.lua` through
-`setup`, and a person with `MANUAL.md` open.
+report supaline can put on a screen. `e2e.sh` presses all of them, in a
+**second Yazi with a log of its own**, started once the first has been torn
+down. The clean run's log check is untouched and unfiltered: it still says that
+run logged no error at all. The second log is read for the opposite thing --
+one line per broken column, and that many lines in all, so a line naming
+anything else has nowhere to sit.
+
+The shape is decided by what it must not be. `report` writes to `yazi.log` as
+well as to the screen, and `e2e.sh` fails a run in which Yazi logged an error,
+so pressing a `b` key in *that* run turns the suite red. The repair is not to
+teach the log check an exception -- an allowlist there is the one check that
+reads the log learning to ignore the errors it was written to find. Two logs
+and two absolute claims cost one more Yazi and no exception at all.
+
+Three things about that run were measured on 26.9.1 rather than reasoned about,
+and each one is why some of the code is shaped the way it is:
+
+- `ya.notify` does reach a `tmux capture-pane`, drawn as a bordered box over
+  the preview pane. That is the half of a report no log can show, and until
+  this run existed nothing outside the stub looked at it.
+- Yazi draws **three** notifications at a time and queues the rest, each for
+  the twenty seconds `report` asks for. Six reports therefore never share a
+  screen, so the check reads the screen until every one has been seen on it
+  rather than taking a single shot. The file it builds is a union, and the
+  claim is that each report reached the screen -- not that they were ever
+  there together.
+- The box title carries a Nerd Font icon between `╭` and the word, so a
+  matcher written as `╭ supaline` matches nothing. What the check anchors on
+  is the column name in backticks, which the first line of the box carries.
+
+The per-column count of exactly 1 is three claims in one number: the column
+reported, `told` held it down across two further `cd`s, and it survived two
+`app:theme` rebuilds without re-arming. The run presses all four for that
+reason and checks none of them separately.
+
+What is left for a person is what none of that can judge -- whether the
+sentence reads correctly against the column it is about, and whether twenty
+seconds is long enough to read it. That, `fixture_spec.lua` taking the whole of
+`init.lua` through `setup`, and `MANUAL.md` open beside the screen, are what
+stands behind the family.
 
 ```sh
 test/e2e.sh --keep          # leave the scratch directory behind
