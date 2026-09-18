@@ -59,8 +59,10 @@ supaline manual test
   g 5   hi == lo, and no value at all
 
   c r   a ramp that climbs              in g 3 -- one step per row
+  c b   a band with no ends written     in g 3 -- the same navy, derived
   c h   a ramp that turns in hue        in g 3 -- what e2e cannot check
   c g   a ramp over, and as, a ground   in g 3 -- beside one with none
+  c a   a bold beside a ramp's colour   in g 3 -- the pair must agree
   c s   log beside linear               in g 4
   c e   a ramp with nothing to spread   in g 5
   c t   whatever [supaline] says        in g 1 -- the only themed one
