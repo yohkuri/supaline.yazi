@@ -139,6 +139,26 @@ empty string compiles, runs and refuses nothing. And it says nothing about the
 screen: `setup` took the configuration is the whole of the claim, and `e2e.sh`
 is still what says the configuration draws what `MANUAL.md` describes.
 
+The same file holds the fixture's **key set** together. Four places name that
+set — the keymap, `manual.sh`'s banner, `test/MANUAL.md`, and `e2e.sh`'s
+capture loops — and the banner is the only one whose reader is a person, so it
+is the one that can fall behind with everything still green. The keymap is the
+authority and the spec names no key of its own: it reads the `on` lines, then
+asks whether the banner offers each and whether `MANUAL.md` spells each. A key
+the banner offers and nothing binds is refused as well, unless `NOT_BOUND` says
+whose it is — `m s` is Yazi's — and an entry there has to still be offered, so
+that table cannot fill up with keys the banner has dropped.
+
+Two things to know before editing that half. The authority is the only side
+that has to prove it was read: a reader side that comes back empty fails loudly
+with every bound key named at once, while an empty authority would let all
+three comparisons pass over nothing. So it is checked against `setup.sh`'s own
+shape — one `on` line per `[[mgr.prepend_keymap]]` block — rather than against
+a count written in the spec, which would be a fifth place holding the size of
+the set. And `e2e.sh` is left out on purpose: it presses no `b` key, for the
+reason two paragraphs down, so comparing against it would need a list of which
+keys are exempt, and that list is the fifth place again.
+
 The fixture opens on a directory carrying the cases that break width
 arithmetic — CJK, emoji, an over-long name, sizes either side of the 1K
 boundary — with siblings above it and a subdirectory below, so all three panes
