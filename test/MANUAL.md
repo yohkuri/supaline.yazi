@@ -559,6 +559,10 @@ Then add it to the `colour_shot` list in `test/e2e.sh`. That does not judge it
 drawn as literal text and one that threw takes the rows with it, and without
 that line the first person to find out is whoever next runs `manual.sh`.
 
+A case under `b` is the exception and takes no such line: `e2e.sh` fails a run
+in which Yazi logged an error at all, and a column that is wrong on purpose
+makes it log one. [Broken columns](#broken-columns) has the rest of it.
+
 ## Broken columns
 
 Everything above is a column that works. supaline can also put a **report** on
@@ -586,9 +590,8 @@ not.
 | `b g` | a `stats` that finds no extremes, on a ramp | `g 3`      |
 | `b f` | two columns counting their own refreshes    | `g 1`      |
 
-| Key   | Goes to   | What it does                                   |
-| ----- | --------- | ---------------------------------------------- |
-| `g 6` | `broken/` | breaks the `refresh` of the column `b f` draws |
+`g 6` is a seventh key on the `g` leader: it goes to `broken/`, the folder
+that breaks the `refresh` of the column `b f` draws.
 
 The notification is drawn over the top of the preview pane, a second or two
 after the key, and times out after twenty seconds. Read one before pressing
@@ -755,9 +758,8 @@ find it stops rather than building a folder that quietly means something else.
   the four sub-keys Yazi binds under `c` rather than shadowing them, so those
   keep working and none of them is a colour case you missed.
 - **A `b` key says nothing the second time you press it.** One report per
-  column per session is the plugin rather than the fixture: `told` drops every
-  report from a column after its first, which is what keeps a per-row failure
-  from redrawing its own notification for ever. Restart to see one again.
+  column per session is the plugin rather than the fixture — see
+  [Broken columns](#broken-columns).
 - **`b` is not one of Yazi's keys.** It binds nothing at all in Yazi's own
   `mgr` table — the `b` that is bound is `m b`, its btime linemode — so nothing
   under this leader shadows anything.
