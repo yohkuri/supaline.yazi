@@ -189,18 +189,12 @@ done
 touch -t 202312250000 colour/edge/same-*.txt colour/edge/unlisted-a colour/edge/unlisted-b
 
 # --- the folder that arms the broken `refresh` -----------------------------
-# `refresh` is the one function supaline calls into a column from outside the
-# redraw, so a hook that throws cannot be reached by pressing a linemode key:
-# it runs at `setup` and again on every `cd`, whichever linemode is showing.
-# Walking in here is what arms it, and nothing else does.
+# Walking in here arms the `refresh` of `torn_tick`, and nothing else does.
+# Why that is a folder rather than a key is beside the column, with the code
+# that reads the cwd.
 #
-# A folder rather than a key, because `e2e.sh` shares this fixture and fails a
-# run in which Yazi logged an error at all -- `report` writes to the log as
-# well as to the screen. A hook that threw at `setup` would fail the headless
-# run on every commit. Nothing in that run enters this folder.
-#
-# Three entries, and names of two lengths, so the two ragged cases can be read
-# in here as well as in `data/`.
+# Three entries, so the counter that stops climbing is read down a column
+# rather than off a single row.
 mkdir -p broken
 printf 'x' >broken/one.txt
 printf 'xx' >broken/a-longer-name.txt
@@ -438,11 +432,8 @@ desc = "supaline: go to the degenerate distributions"
 # sound one beside it goes on, which is the two halves of what that report
 # claims, on screen.
 #
-# A folder rather than a key of its own, because \`refresh\` is not reached by
-# choosing a linemode: it runs at \`setup\` and on every \`cd\`, whichever one is
-# showing. A hook that threw unconditionally would therefore throw during
-# \`e2e.sh\` as well, and that run fails on a Yazi that logged an error at all.
-# Nothing in it comes here.
+# A \`cd\` key rather than a linemode key, because \`refresh\` is not reached by
+# choosing a linemode. The comment beside \`torn_tick\` has the rest of it.
 [[mgr.prepend_keymap]]
 on   = [ "g", "6" ]
 run  = "cd $DIR/fixture/broken"
@@ -730,6 +721,11 @@ supaline.column("torn_stats", {
 	render = function(file, ctx) return "ok", ctx.style end,
 })
 
+-- One function, shared by the two columns below, because what makes that pair
+-- worth pressing in turn is that their cells are identical. Two copies of the
+-- line would let an edit to one falsify that quietly.
+local function dir_or_file(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end
+
 -- `b w`. A `width` function that throws. No width is invented in its place, so
 -- the column draws unpadded and the row goes ragged: `dir` and `file` differ
 -- by one cell, which is what makes that visible at all.
@@ -737,7 +733,7 @@ supaline.column("torn_width", {
 	width = function() error("this column cannot measure itself") end,
 	align = "right",
 	style = "red",
-	render = function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end,
+	render = dir_or_file,
 })
 
 -- `b u`. A `width` function that returns a number nobody can use. The pair
@@ -749,7 +745,7 @@ supaline.column("torn_zero", {
 	width = function() return 0 end,
 	align = "right",
 	style = "red",
-	render = function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end,
+	render = dir_or_file,
 })
 
 -- `b g`, read in `colour/ramp`. A `stats` that neither throws nor answers: it
@@ -771,8 +767,8 @@ supaline.column("torn_range", {
 	end,
 })
 
--- `b f`, armed by `g 6`. The fourth function, and the only one supaline calls
--- from outside the redraw -- at `setup`, and again on every `cd`.
+-- `b f`, armed by `g 6`. The fourth function a column may write, and the only
+-- one supaline calls from outside the redraw.
 --
 -- Two columns, because the sentence that report carries has two halves and
 -- neither is legible alone: every other column still refreshes, and this one
@@ -785,10 +781,11 @@ supaline.column("torn_range", {
 -- its count has to go on climbing.
 local whole_ticks, torn_ticks = 0, 0
 
--- Armed by walking into `broken/`, and by nothing else. A hook that threw
--- unconditionally would throw at `setup`, which `e2e.sh` runs too, and that
--- run fails on a Yazi that logged an error at all. Nothing in it enters this
--- folder.
+-- Armed by walking into `broken/`, and by nothing else. No linemode key can
+-- reach this hook -- it runs at `setup` and again on every `cd`, whichever
+-- linemode is showing -- so a hook that threw unconditionally would throw
+-- during `e2e.sh` as well, and that run fails on a Yazi that logged an error
+-- at all. Nothing in it enters this folder.
 --
 -- `cx` is guarded rather than read outright because this hook also runs from
 -- `install`, reached from `init.lua` before there is a manager to ask, and

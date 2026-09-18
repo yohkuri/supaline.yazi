@@ -562,7 +562,9 @@ local COST = {
 --- against a screen that is blank but for the preview's own placeholder. The
 --- message reaches the log and nowhere else -- and there is no log at all
 --- unless `YAZI_LOG` was set before Yazi started, which is not how anybody
---- runs it. So the reader is left with an empty terminal and nothing to read.
+--- runs it. So the reader is left with an empty terminal and nothing to read,
+--- and it is why the sentence below says the traceback *goes to* the log
+--- rather than that it is in one.
 ---
 --- That is worse than any mistake it could be reporting, so those three calls
 --- are made under `pcall` and this says what happened instead. It is the same
@@ -593,11 +595,6 @@ local COST = {
 --- traceback, and the whole of it in a notification filled the preview pane
 --- top to bottom, pushing the one line that names the column and the mistake
 --- off the top. `report` is what holds those two halves together.
----
---- It "goes to" the log rather than being "in" it, which is a word and is the
---- difference between where something was sent and a file being there to open:
---- there is no log at all unless `YAZI_LOG` was set before Yazi started, and
---- most readers of this sentence will not have set it.
 ---@param col supaline.Column
 ---@param stage string which of the four threw, named as the reader wrote it
 ---@param err any what it threw
