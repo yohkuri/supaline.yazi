@@ -1230,6 +1230,40 @@ test("throwing: a `refresh` that throws is reported rather than propagated", fun
 	eq(#stub.notified - was, 1, "and the broken one is not reported a second time")
 end)
 
+test("throwing: a theme reload does not re-arm a column's report", function()
+	-- `told` holds the column, and the column used to be the record `compile`
+	-- built -- which `build` rebuilds on every `theme` event, Yazi firing one
+	-- of those a few milliseconds after `init.lua` without being asked. So the
+	-- gate re-armed at startup and again at every reload, and "once a session"
+	-- was true of `cd` alone.
+	--
+	-- A hook and a drawing stage together, because one gate covers all four
+	-- calls and these two reach it by different paths: `refresh` from
+	-- `install`, `render` from the row.
+	main.column("torn_hook", {
+		width = 2,
+		refresh = function() error("cannot refresh this") end,
+		render = function() return "ok" end,
+	})
+	main.column("torn_cell", { width = 2, render = function() error("cannot draw this") end })
+
+	local was = #stub.notified
+	setup { detail = { "torn_hook", "torn_cell" } }
+	draw("detail", CURRENT.files[1])
+	eq(#stub.notified - was, 2, "one apiece")
+
+	stub.fire("theme")
+	draw("detail", CURRENT.files[1])
+	eq(#stub.notified - was, 2, "and the rebuild says neither of them again")
+
+	-- The re-arming that was meant, so this cannot pass on a gate nothing ever
+	-- clears: a reader who has just changed the configuration is owed both
+	-- messages again.
+	setup { detail = { "torn_hook", "torn_cell" } }
+	draw("detail", CURRENT.files[1])
+	eq(#stub.notified - was, 4, "while `setup` re-arms both")
+end)
+
 test("width: a function returning no usable number is reported as itself", function()
 	-- The other half of the test above, and the distinction is the point.
 	-- Nothing throws here: the function returns, and what it returns is a

@@ -468,6 +468,24 @@ end
 ---@return string
 local function one_line(err) return (tostring(err):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", "")) end
 
+-- Every gate `told` has closed, keyed by the id `compile` gives a column.
+--
+-- Beside the compiled records rather than on one, because `compile` builds a
+-- fresh record for every column on every `theme` event, and Yazi fires one of
+-- those a few milliseconds after `init.lua` without being asked. A gate kept
+-- on the record therefore re-armed at startup and again at every reload of the
+-- theme. Measured on 26.9.1, in a detached tmux, by a throwaway plugin whose
+-- `refresh` threw unconditionally: two identical reports reached `yazi.log`
+-- 1.9ms apart before anybody had pressed a key, and only one of them reached
+-- the screen -- Yazi drops a notification identical to one still showing, so
+-- what the second cost was invisible rather than absent. Past the first one's
+-- timeout, an `app:theme` put it back on screen.
+--
+-- `setup` is the one thing that replaces this table, which is the re-arming
+-- that was meant: a reader who has just changed the configuration is owed the
+-- message again.
+local gates = {} ---@type table<string, table<string, true>>
+
 --- Whether this column has already been told off for `what`, marking it told
 --- if it has not.
 ---
@@ -482,9 +500,9 @@ local function one_line(err) return (tostring(err):gsub("\nstack traceback:.*", 
 ---
 --- Per column rather than per column and folder: a `stats` that came back
 --- wrong is wrong about the column, and saying it again at every folder the
---- reader walks into would be the same drip more slowly. `setup` builds
---- fresh records, which re-arms all of it -- a reader who has just changed
---- the configuration is owed the message again.
+--- reader walks into would be the same drip more slowly. It is `gates` above
+--- that makes "per column" outlive the record the column was drawn from, and
+--- `setup` that re-arms it.
 ---@param col supaline.Column
 ---@param what "stats"|"width"|"threw"
 ---@return boolean # true if it has been said already
@@ -913,18 +931,24 @@ local function moved()
 	refresh()
 end
 
---- Turn a set of specs into runtime linemodes. Pure, and the only place that
---- validates a spec: `column.normalize` and `panes_of` both raise, so a
---- configuration that does not compile never reaches module state.
+--- Turn a set of specs into runtime linemodes. Pure but for `keep`, and the
+--- only place that validates a spec: `column.normalize` and `panes_of` both
+--- raise, so a configuration that does not compile never reaches module state.
 ---
 --- One refusal is this function's own rather than either of theirs -- a
 --- `separator` on the first column of a pane's list -- because it is the only
 --- one that needs a column's position among its neighbours, which neither of
 --- them has.
+---
+--- `keep` is handed in rather than read off `gates` for the same reason the
+--- rest of this is pure: `setup` compiles into a table of its own and swaps it
+--- in only once the configuration it belongs to is committed, so a `setup`
+--- that refuses leaves the gates of the one still drawing alone.
 ---@param from table<string, supaline.LinemodeSpec>
 ---@param with supaline.Cfg
+---@param keep table<string, table<string, true>> report gates, carried across this compile and added to in place
 ---@return table<string, supaline.Mode> modes, supaline.Column[] hooks, boolean outer whether any mode leaves the current pane
-local function compile(from, with)
+local function compile(from, with, keep)
 	local modes, hooks, outer = {}, {}, false
 	-- Read here rather than in `setup`, which is what makes a `style` function
 	-- under it follow the theme. `cfg` is stored once and handed to every
@@ -974,6 +998,16 @@ local function compile(from, with)
 				for i, entry in ipairs(list) do
 					local col = column.normalize(entry, with)
 					made[i] = col
+					-- The column's position in the configuration, and not
+					-- anything it says about itself: a `theme` event recompiles
+					-- the same `specs` table, so position is exactly what is
+					-- stable across one, while a name is optional on an inline
+					-- column and two nameless ones would share a gate. A list
+					-- handed to two panes compiles once, under the first of
+					-- them in `PANES` order, so it takes one id rather than two.
+					local id = string.format("%s\0%s\0%d", name, pane, i)
+					col.told = keep[id] or col.told
+					keep[id] = col.told
 					if col.refresh then
 						hooks[#hooks + 1] = col
 					end
@@ -1061,7 +1095,7 @@ end
 --- last configuration that did compile keeps drawing -- the same rule `setup`
 --- follows when it refuses a spec.
 local function build()
-	local ok, modes, hooks = pcall(compile, specs, cfg)
+	local ok, modes, hooks = pcall(compile, specs, cfg, gates)
 	if ok then
 		return install(modes, hooks)
 	end
@@ -1219,11 +1253,16 @@ function M.setup(_st, opts)
 	-- Compiling is what validates the columns and the panes, so it also has to
 	-- happen before the commit -- and only once, rather than again inside
 	-- `build`.
-	local modes, hooks, wants_child = compile(next_specs, next_cfg)
+	--
+	-- Into a table of its own, which is what makes `setup` the one thing that
+	-- re-arms a report: nothing is carried into it, so every column starts
+	-- unsaid, and a `setup` that refuses never reaches the swap below.
+	local next_gates = {}
+	local modes, hooks, wants_child = compile(next_specs, next_cfg, next_gates)
 
 	-- Committed. Nothing below here may raise on a configuration that got this
 	-- far.
-	cfg, specs = next_cfg, next_specs
+	cfg, specs, gates = next_cfg, next_specs, next_gates
 	uninstall()
 	install(modes, hooks)
 
