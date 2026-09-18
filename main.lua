@@ -551,22 +551,49 @@ end
 local BROKEN = "!"
 
 -- What the throw cost, worded per stage, for the middle of the sentence
--- `broke` builds. One sentence covers the three called inside the redraw:
--- each of them leaves a cell that cannot be drawn, and the row is held open
--- with `BROKEN` so the columns beside it keep their places.
+-- `broke` builds. A sentence each, because what a throw costs differs by
+-- stage and the screen says which.
 --
--- `refresh` is not one of those and must not borrow their sentence. It runs
--- before any row is drawn, so there is no cell standing in for anything and
--- nothing on the line looks different; what was lost is whatever the column
--- was going to cache, which the first time round is the whole of what it had.
+-- `render` is the only one that leaves a cell nobody can fill. `BROKEN` is
+-- written at one site, under the per-row `pcall` alone, so that is the only
+-- stage a sentence may mention it in.
+--
+-- A `width` that threw leaves the column with no width, so it draws unpadded.
+-- That is the same screen `bad_width` reports for a `width` that returned a
+-- number nobody can use, and it is worded the same way here on purpose:
+-- `MANUAL.md` puts those two side by side precisely because nothing on the
+-- screen tells them apart, and two sentences describing one screen
+-- differently is a reader being told which of their eyes to distrust.
+--
+-- A `stats` that threw usually leaves the line alone, since the reader's
+-- `render` is the only thing that reads a `stats` and one that needed none of
+-- it draws exactly as it would have. That is why this report has to carry the
+-- column's name: it is the whole of the signal. The sentence says which line
+-- is which rather than promising either, because a `render` that did need the
+-- result throws in its turn and `told` reports this one instead.
+--
+-- `refresh` runs before any row is drawn, so nothing on the line looks
+-- different; what was lost is whatever the column was going to cache, which
+-- the first time round is the whole of what it had.
+--
+-- `default` is what a stage nobody has worded gets, and it claims nothing
+-- about the cells. A shared sentence that did is the fault this table was
+-- carrying: three stages borrowed `render`'s, and two of them draw something
+-- else. Read on a screen, at `b r`, `b s` and `b w` in `manual.sh`.
 local COST = {
-	drawing = string.format(
+	render = string.format(
 		"Everything else on the line goes on drawing, and a cell this column cannot draw at all "
 			.. "is filled with `%s` so that the row keeps its shape",
 		BROKEN
 	),
+	width = "Until it returns a width, this column draws unpadded: everything else on the line "
+		.. "keeps its place and this one is ragged rather than absent",
+	stats = "Everything else on the line goes on drawing, and so does this column: a `stats` is "
+		.. "read by the column's own `render`, so a line that looks untouched is one whose "
+		.. "`render` needed nothing from it",
 	refresh = "Every other column still refreshes, and this one goes on drawing with whatever it "
 		.. "had cached before -- which the first time round is nothing at all",
+	default = "Everything else on the line goes on drawing",
 }
 
 --- Say once that a column threw, and go on drawing everything else.
@@ -627,7 +654,7 @@ local function broke(col, stage, err)
 			"supaline: column `%s` threw from its `%s`. %s. It threw: %s",
 			col.name or "?",
 			stage,
-			COST[stage] or COST.drawing,
+			COST[stage] or COST.default,
 			said
 		),
 		string.format(
