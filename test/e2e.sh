@@ -200,9 +200,90 @@ sleep 1
 # so it has to be gone before they run. The scratch directory stays until the
 # trap fires.
 stop
+sleep 1
+
+# --- the run that is meant to go wrong --------------------------------------
+# Read out of `setup.sh` rather than written here, the way every colour
+# asserted on below is a hex string that file spells verbatim. Register a
+# seventh broken column and this goes red until a key for it is pressed below,
+# which is the direction the list has to grow in.
+BROKEN_COLUMNS=$(sed -n 's/^supaline\.column("\(torn_[a-z]*\)".*/\1/p' "$ROOT/test/setup.sh")
+
+# A second Yazi, with a log of its own, for the columns that are broken on
+# purpose. The separate log is the whole design rather than a convenience: the
+# check below goes on saying that the run above logged no error *at all*,
+# unfiltered and unexcused, and the errors this run makes happen in a different
+# file that is read for the opposite thing. Neither check learns an exception,
+# which is what an allowlist over one log would have been.
+#
+# There is a second reason to keep them apart. `g 6` arms a `refresh` that
+# throws at every `cd` after it, and `told` reports a column once a session, so
+# any capture taken past that point comes from a session that can no longer
+# report. Every capture above is left exactly as it was.
+tmux new-session -d -s "$SESSION" -x 170 -y 40 \
+	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state-broken' YAZI_LOG=debug yazi '$DIR/fixture/data'"
+STARTED=1
+sleep 4
+
+for k in r s w u g; do
+	tmux send-keys -t "$SESSION" b "$k"
+	sleep 1
+done
+
+# `b f` draws the counting pair and breaks nothing by itself; `g 6` is what
+# throws the `refresh`. Last, because every `cd` after it throws again.
+tmux send-keys -t "$SESSION" b f
+sleep 1
+tmux send-keys -t "$SESSION" g 6
+sleep 2
+
+# A union over one capture, not one capture, because six reports do not fit on
+# the screen at once. Measured on 26.9.1: Yazi draws **three** notifications at
+# a time and queues the rest, each for the twenty seconds `report` asks for, so
+# a fourth takes the first one's place as it expires. A single shot taken here
+# holds the first three and would report the other three as never drawn.
+#
+# So the screen is read until every report has been seen on it, and the file
+# this appends to is the union rather than a picture -- the claim being made is
+# that each report reached the screen, not that they were ever there together.
+# The deadline is generous against the drain it is waiting for, which is bounded
+# by those twenty seconds and takes about fifteen in practice.
+: >"$DIR/screen-broken.txt"
+waited=0
+while [ "$waited" -lt 60 ]; do
+	tmux capture-pane -t "$SESSION" -p >>"$DIR/screen-broken.txt"
+	unseen=0
+	for c in $BROKEN_COLUMNS; do
+		grep -q "\`$c\`" "$DIR/screen-broken.txt" || unseen=1
+	done
+	[ "$unseen" -eq 0 ] && break
+	sleep 1
+	waited=$((waited + 1))
+done
+echo "e2e: the reports drained to the screen in ${waited}s"
+
+# Everything after the capture is there to make one report come back if the
+# gates that hold it down let go. Two more `cd`s, since a `refresh` that throws
+# throws again at every folder walked into; then two `app:theme` presses, since
+# a theme event rebuilds every column and the gate has to survive being
+# recompiled. Nothing here is checked on its own -- it is the same per-column
+# count below that answers all of it, by still being 1.
+tmux send-keys -t "$SESSION" g 1
+sleep 1
+tmux send-keys -t "$SESSION" g 2
+sleep 2
+tmux send-keys -t "$SESSION" T
+sleep 2
+tmux send-keys -t "$SESSION" T
+sleep 2
+
+tmux send-keys -t "$SESSION" q
+sleep 1
+stop
 
 # --- check -----------------------------------------------------------------
 LOG="$DIR/state/yazi/yazi.log"
+BROKEN_LOG="$DIR/state-broken/yazi/yazi.log"
 fails=0
 
 fail() {
@@ -254,6 +335,58 @@ if [ -f "$LOG" ] && grep -qiE "ERROR|WARN|attempt to|error converting" "$LOG"; t
 	fail "Yazi logged an error"
 else
 	echo "  clean"
+fi
+
+# The other half of that check, and the reason it did not have to learn an
+# exception. The one above says the run that is meant to be clean logged
+# nothing; this says the run that is meant to go wrong logged exactly what it
+# was told to. Two logs, two absolute claims, no line filtered out of either.
+#
+# Why this is worth a second Yazi: until it existed, `report` -- the pairing
+# the longest docblock in `main.lua` is written to justify -- had no coverage
+# outside the stub. The three faults found in it were all found by a person at
+# a terminal.
+echo "== the reports =="
+if [ -z "$BROKEN_COLUMNS" ]; then
+	# The guard the counts below inherit. An empty list makes every one of them
+	# pass over nothing, quietly, which is the one way this check could be
+	# worth less than the `grep` it sits beside.
+	fail "no broken column is registered in test/setup.sh; this check is reading nothing"
+else
+	# A total beside the per-column counts, so the pair is closed: each name
+	# exactly once and this many lines in all leaves no room for a line naming
+	# something else, and none of it is spelled as "ignore these".
+	want=$(echo "$BROKEN_COLUMNS" | wc -l | tr -d ' ')
+	got=$(grep -ciE "ERROR|WARN|attempt to|error converting" "$BROKEN_LOG" || true)
+	if [ "$got" -ne "$want" ]; then
+		# Printed, not asserted on: the counts below name any column that
+		# reported twice or not at all, so what is left to show is a line naming
+		# no column of ours. `cut` because a report carries its whole traceback
+		# on the line with it, and ten of those bury the failure they explain.
+		grep -iE "ERROR|WARN|attempt to|error converting" "$BROKEN_LOG" |
+			grep -v 'torn_' | cut -c1-120 | head -5 >&2
+		fail "the broken run logged $got error line(s), expected $want -- one per broken column"
+	else
+		echo "  $got error lines, one per broken column"
+	fi
+
+	for c in $BROKEN_COLUMNS; do
+		# Exactly one, which is three claims in one number: the column reported,
+		# `told` held it down across two further `cd`s, and it survived two
+		# `app:theme` rebuilds without re-arming.
+		logged=$(grep -c "\`$c\`" "$BROKEN_LOG" || true)
+		# The half no log can show. `ya.notify` draws a bordered box over the
+		# preview pane and tmux captures it like anything else, so a report that
+		# reached the log and not the screen is visible here and nowhere else.
+		shown=$(grep -c "\`$c\`" "$DIR/screen-broken.txt" || true)
+		if [ "$logged" -ne 1 ]; then
+			fail "$c: $logged line(s) in the broken run's log, expected exactly 1"
+		elif [ "$shown" -eq 0 ]; then
+			fail "$c: reported to the log and not to the screen"
+		else
+			echo "  $c reported once, to the log and to the screen"
+		fi
+	done
 fi
 
 # What this proves is that Yazi is alive and every linemode name resolved: an
