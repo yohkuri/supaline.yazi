@@ -289,6 +289,10 @@ local colour = require(".colour")
 --- would be a drip rather than a message. A table rather than a field
 --- apiece, so a fourth costs a key instead of a fourth field on a class that
 --- is otherwise about drawing.
+---
+--- Shared with whatever record stood in this one's place before it, which is
+--- `main.lua`'s to arrange: the record is rebuilt on every `theme` event and
+--- the reports are not meant to come back with it.
 ---@field told table<string, true>
 ---@field ctx supaline.Ctx
 
@@ -1371,9 +1375,9 @@ function M.normalize(spec, cfg)
 	col.needs_pass = col.stats ~= nil or col.auto or col.width_of ~= nil
 
 	-- Empty, and built here rather than on first use, so the record has one
-	-- shape from the moment it exists. `setup` builds fresh records, which is
-	-- what re-arms every report this holds: a reader who has just changed the
-	-- configuration is owed the message again.
+	-- shape from the moment it exists. It is the table this column starts with
+	-- rather than the one it keeps: `compile` hands a column the gate its
+	-- position already had, so a report outlives the record being rebuilt.
 	col.told = {}
 
 	local layers, sources = layers_of(name, opts, def, cfg.band, role)
