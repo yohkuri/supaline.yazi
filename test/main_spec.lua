@@ -59,6 +59,12 @@ end
 ---@return string
 local function last_said() return stub.notified[#stub.notified].content end
 
+-- The other half of the same report. `report` in `main.lua` gives `ya.notify`
+-- the short sentence and `ya.err` the long one, and only the long one says what
+-- the fault cost the rest of the line. A spec reading `last_said` alone can say
+-- nothing about that half.
+local function last_logged() return tostring(stub.logged[#stub.logged][1]) end
+
 --- Assert that a notification said `text`.
 ---
 --- The substring test is written out once here rather than at each of the ten
@@ -1044,6 +1050,10 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 	mentions(said, "`thrower`", "and it names the column")
 	mentions(said, "`render`", "and which of the four threw")
 	mentions(said, "a column of mine is broken", "and what it said")
+	-- The one stage the marker sentence belongs to, and the reason the other
+	-- three carry their own: `BROKEN` is written at one site, under the per-row
+	-- `pcall` alone.
+	mentions(last_logged(), "filled with", "and the marker sentence stays with `render`")
 
 	-- The cells the column was given, filled rather than left blank, and the
 	-- column beside it untouched. This is the assertion the whole change is
@@ -1113,6 +1123,12 @@ test("throwing: a ramp whose `stats` threw is told off once, not twice", functio
 	eq(#stub.notified - was, 1, "said once, not once per reading of the same failure")
 	local said = last_said()
 	mentions(said, "threw", "and it says what happened")
+
+	-- Nor does this one borrow it. A `stats` is read by the column's own
+	-- `render`, so one that needed none of the result draws every cell as it
+	-- would have and the line carries no sign at all -- which is what `b s` in
+	-- `manual.sh` shows, and why this report has to carry the column's name.
+	omits(last_logged(), "filled with", "rather than a marker a `stats` failure never writes")
 end)
 
 test("throwing: a `width` function that throws draws unpadded rather than not at all", function()
@@ -1130,6 +1146,18 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 	eq(#stub.notified - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "`width`", "and it names the stage")
+
+	-- And it words that stage rather than borrowing `render`'s sentence. Every
+	-- cell this column was asked for is drawn; what it has not got is a width to
+	-- pad them to, so a marker in the message sends the reader looking for
+	-- something only a `render` ever writes. `b w` and `b u` in `manual.sh` draw
+	-- a single screen between them, and the second of them -- `bad_width`, which
+	-- is supaline refusing a number rather than a function throwing -- words that
+	-- screen this same way. Two sentences over one screen is a reader being told
+	-- which of their eyes to distrust.
+	local logged = last_logged()
+	omits(logged, "filled with", "rather than a marker no width failure writes")
+	mentions(logged, "unpadded", "and says what the column does instead")
 
 	-- The documented fallback, and the honest one: there is no width the pass
 	-- can stand behind and none is invented, so the cell is whatever `render`

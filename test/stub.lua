@@ -998,7 +998,18 @@ function M.install(root)
 		user_name = function(uid) return "user" .. tostring(uid) end,
 		group_name = function(gid) return "group" .. tostring(gid) end,
 		dbg = function() end,
-		err = function() end,
+		-- Recorded rather than dropped, for the reason `notify` below is and one
+		-- of its own. A report is two halves, and this is the longer one: what
+		-- the fault cost the rest of the line, and the traceback, go here and
+		-- nowhere else. A spec that can read only the notification can therefore
+		-- say nothing about the half a reader is sent to the log for -- and that
+		-- half carried one stage's sentence for three of them, unseen by the
+		-- suite, until `manual.sh` put the three on a screen.
+		--
+		-- `msg` and `...` as Yazi declares them, and every argument kept: the
+		-- plugin passes one, and a stub that folded the rest away would take a
+		-- call shaped like `ya.err("a", "b")` without a word.
+		err = function(msg, ...) table.insert(M.logged, { msg, ... }) end,
 		-- Recorded rather than dropped, because this is the plugin's only way
 		-- to put anything in front of a user from a `ps.sub` handler -- there
 		-- is nobody to raise to there -- and a spec has to be able to say the
@@ -1017,6 +1028,7 @@ function M.install(root)
 		end,
 	}
 	M.notified = {}
+	M.logged = {}
 
 	M.subs = {}
 	_G.ps = {
