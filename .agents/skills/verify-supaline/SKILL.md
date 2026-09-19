@@ -105,7 +105,7 @@ the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
 blanket disable there grows to cover code nobody meant to exempt.
 
-## What the unit suite can prove
+## What the Lua unit suite can prove
 
 Pure logic — normalisation, layout, the ratio contract, the built-in
 formatters — and, through the stub's fidelity, most of the constraints in the
@@ -120,6 +120,43 @@ Write the test code for **Lua 5.5**, the version Yazi runs: `%z` in a pattern
 means the NUL byte on 5.1 and the letter `z` from 5.2 on, and `utf8` arrived in
 5.3. `test/run.lua` refuses any other version and says where to get one, so
 this needs no remembering.
+
+## The second unit suite, and where a fact belongs
+
+`test/screen.py` reads a `tmux capture-pane` — which pane a row belongs to,
+which step of a ramp a cell drew in, how wide a background band came out — and
+`test/test_screen.py` puts captures written by hand through it. Those two are
+**pure**: no process, no file, no clock. That is what puts them in CI while
+`e2e.py` around them stays out of it, and it is a rule rather than an accident.
+A `subprocess` or a `Path.read_text` added to `screen.py` takes the whole file
+out of CI with it.
+
+So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
+
+- A fact about **what the screen looks like** belongs in `screen.py`, with a
+  hand-written capture in `test_screen.py` beside it. A raw escape sequence is
+  the most worth moving rather than the least: it is the one thing a capture
+  written by hand can state exactly.
+- A fact about **what the fixture spells** belongs in a reader over
+  `test/fixture/init.lua` — `ground_hex`, `ramp_ends` and `broken_columns` are
+  the three — and `TheFixtureItReads` calls those readers rather than
+  re-spelling their patterns. A copy of a pattern goes on passing while the
+  reader beside it has quietly stopped matching, and `e2e.py` is not in CI to
+  say so.
+- What is left for `e2e.py` is driving Yazi and holding the parsed answer
+  against what this machine says: `pwd`, `grp`, a file on disk, a colour read
+  out of the fixture.
+
+Two habits the harness keeps throughout. Never `assert`: `Checks` counts named
+failures and the run exits once, because a change that moves one column moves a
+handful of checks and the shape of that handful is what says where to look.
+And give a check a guard wherever an empty list or an unmatched pattern would
+let it pass over nothing — a sweep that read nothing looks exactly like a sweep
+that found nothing wrong.
+
+**Python 3.11 or newer**, nothing outside the standard library, and
+`harness.py` refuses an older one with a sentence rather than a traceback, the
+way `test/run.lua` refuses the wrong Lua.
 
 ## The fixture, shared by both harnesses
 
