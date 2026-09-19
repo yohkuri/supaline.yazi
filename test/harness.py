@@ -11,11 +11,13 @@ milliseconds after `init.lua` and without being asked, which the first half of
 from __future__ import annotations
 
 import shutil
+import signal
 import subprocess
 import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from types import FrameType
 from typing import NoReturn
 
 #: The oldest Python these harnesses are written for. Nothing here needs a
@@ -31,6 +33,11 @@ ROOT = Path(__file__).resolve().parent.parent
 #: and it is worth keeping: "there is no tmux here" and "the columns came out
 #: wrong" are answered by different people.
 REFUSED = 2
+
+#: And what it exits with when something outside it asked it to stop. 143 is
+#: what a shell reports for a process SIGTERM ended, and what the harness this
+#: replaced spelled by hand in its own `trap`.
+TERMINATED = 143
 
 
 def refuse(message: str) -> NoReturn:
@@ -51,6 +58,27 @@ def require_python() -> None:
         want = ".".join(str(n) for n in MINIMUM)
         have = ".".join(str(n) for n in sys.version_info[:3])
         refuse(f"this harness needs Python {want} or newer, and this is {have}")
+
+
+def _terminated(number: int, frame: FrameType | None) -> NoReturn:
+    raise SystemExit(TERMINATED)
+
+
+def catch_term() -> None:
+    """Make a SIGTERM raise, so the teardown a `finally` holds still runs.
+
+    The shell harness this replaced trapped TERM and exited 143 from the trap,
+    which put it through the EXIT trap that tore the run down. Python's default
+    handling ends the process without raising anything, so the `finally` never
+    runs -- and what is left behind is a tmux session and a scratch directory
+    both named after this run's PID, which nothing else will ever clear: a
+    later run has a different PID, and `Session.kill` refuses on purpose to
+    take a name it did not start.
+
+    Not SIGINT, which needs nothing: Python raises `KeyboardInterrupt` for it
+    already, and a `finally` runs on the way out.
+    """
+    signal.signal(signal.SIGTERM, _terminated)
 
 
 def run(
