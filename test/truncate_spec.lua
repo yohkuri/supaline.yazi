@@ -7,7 +7,7 @@
 --- joiner, a skin-tone modifier and a flag -- cut at every `max` from 0 to 8,
 --- with and without an ellipsis. The stub reproduces all of it.
 ---
---- The two cuts do not agree, and the tests below say where. `column.cell` is
+--- The two cuts do not agree, and the tests below say where. `layout.cell` is
 --- what closes the gap, so a stub that quietly closed it here would let the
 --- correction be deleted with the suite still green.
 
@@ -114,7 +114,7 @@ test("Line:truncate: it counts characters, and can come back wider than max", fu
 	-- none, and two cells on screen; `Line:truncate` adds the characters up,
 	-- decides a five-cell line fits in four, and hands it back untouched.
 	-- Measured on Yazi 26.9.1 -- and there is no `max` that cuts this line to
-	-- exactly four, which is why `column.cell` cuts again rather than once.
+	-- exactly four, which is why `layout.cell` cuts again rather than once.
 	eq(stub.Line("\u{2764}\u{FE0F}abc"):truncate({ max = 4, ellipsis = "" }):width(), 5)
 	eq(lt("\u{2764}\u{FE0F}abc", 3, ""), "\u{2764}\u{FE0F}a")
 end)

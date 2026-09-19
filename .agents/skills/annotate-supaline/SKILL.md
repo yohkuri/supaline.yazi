@@ -25,15 +25,15 @@ it runs.
 ## What the check reaches
 
 What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
-declared classes, so a misspelled field or a wrong arity on one is refused, and
-`column.lua` declares `supaline.File` and `supaline.Ctx` for the two values a
-`render` is handed, so the columns are read too — `file.cha.is_dirr` and
-`ctx.stlye` are both refused, in a built-in column and in a spec alike. The
-records the plugin passes around carry classes as well: a linemode, a column, a
-folder and a bound entry. So does the configuration `setup` is given — the
-plugin-wide options, a linemode spec, and the four shapes a column may be
-written in — so `cfg.orderr`, `opts.linemodess` and `spec.separatorr` are
-refused.
+declared classes, so a misspelled field or a wrong arity on one is refused,
+and `column.lua` declares `supaline.File` and `runtime.lua` declares
+`supaline.Ctx` for the two values a `render` is handed, so the columns are
+read too — `file.cha.is_dirr` and `ctx.stlye` are both refused, in a built-in
+column and in a spec alike. The records the plugin passes around carry classes
+as well: configuration plans, appearances, folders and prepared columns. So
+does the configuration `setup` is given — the plugin-wide options, a linemode
+spec, and the four shapes a column may be written in — so `cfg.orderr`,
+`opts.linemodess` and `spec.separatorr` are refused.
 
 That last one reaches only so far, and the limit is worth knowing before
 trusting it. A wrong **value** in a spec is refused: `separator = 42` on a
@@ -49,7 +49,7 @@ lua-language-server 3.19.1, the version CI pins, a local written as
 `line = line:truncate {...}` inside a `while` keeps its class for that call and
 loses it for the rest of the loop body — `line:widthh()` on the next line is
 not refused, where the same typo after the loop ends, or outside one, is. `cut`
-in `column.lua` is that shape, so what covers the `line:width()` inside its
+in `layout.lua` is that shape, so what covers the `line:width()` inside its
 loop is `column_spec.lua` at runtime and nothing at check time.
 
 The specs are inside that reach only because `main.lua` declares
@@ -66,7 +66,7 @@ plugin's own modules` fires.
 
 A module table carries no class of its own for free. `require(".column")`
 resolves to this tree and that module's signatures are read normally, yet a
-misspelled `column.normalizze` costs nothing unless the table `column.lua`
+misspelled `column.extremez` costs nothing unless the table `column.lua`
 returns carries a class of its own. It carries `supaline.ColumnModule` — the
 shape `supaline.Stub` uses too. Declared on the table rather than written out,
 its fields are whatever the file assigns, so nothing has to pin them.
@@ -80,8 +80,8 @@ neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
 string where 26.9.1 has a method, declares `ui.truncate` but nothing for
 `Line:truncate`, which 26.9.1 has, describes no `Tab:history`, which
 `builtin.lua` asks a directory for its entry count, and no `Style:raw`, which
-`colour.lua` reads every `ui.Style` it is handed through — so `column.lua` and
-`colour.lua` declare the difference themselves, with the evidence written
+`style.lua` reads every `ui.Style` it is handed through — so `column.lua`,
+`layout.lua` and `style.lua` declare the difference, with the evidence written
 beside the classes: a probe for the four read off `cx`,
 `test/truncate_spec.lua` for the one method, which pins what it does, and
 `colour_spec.lua` against `yazi-platform-traps/references/probes.md` for the

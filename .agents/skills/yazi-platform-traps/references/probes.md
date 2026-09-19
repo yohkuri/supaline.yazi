@@ -122,8 +122,8 @@ into the debug log.
 A hex comes back uppercased and a name in the spelling ratatui's `Display`
 gives it, after `FromStr` has folded what went in: `bright` to `light`, `grey`
 to `gray`, `bright-black` to `DarkGray`, `bright-white` to `White`. Every one
-of those goes straight back into `fg()`, `Reset` included, and `colour.lua`'s
-`HEX` pattern takes either case. The folding is read off
+of those goes straight back into `fg()`, `Reset` included, and `colour.rgb`'s
+hex pattern takes either case. The folding is read off
 `ratatui-core/src/style/color.rs` at the revision 26.9.1 builds against; the
 rows above are measured, and `test/stub.lua` spells its `raw()` from both.
 
@@ -142,11 +142,11 @@ field twice — once in `init.lua`, once inside a `theme` handler:
 Three things fall out of it.
 
 **A flavor can supply a gradient endpoint.** It writes every colour as
-`#rrggbb`, so `raw().fg` off one is a value `colour.stops` would take. Yazi's
+`#rrggbb`, so `raw().fg` off one is a value `style.stops` would take. Yazi's
 own preset does not: `Yellow` is a name, and a name cannot anchor a ramp. So a
 gradient anchored on a colour a function returned would refuse a flavorless
 user's, and refuse it from inside a `theme` handler rather than while `setup`
-ran — which is the part to design before the part that works. `colour.lua`
+ran — which is the part to design before the part that works. `style.lua`
 does not do it yet.
 
 **The flavor timing is measured a second way here.** The two columns disagree
@@ -154,7 +154,7 @@ for exactly the fields a flavor supplies, which is what the section above
 established by drawing three columns on a screen and reading the escapes back.
 Two lines of `ya.dbg` reach it now, and a check could.
 
-**`colour.lua` reads every `ui.Style` it is handed through it**, which is what
+**`style.lua` reads every `ui.Style` it is handed through it**, which is what
 lets a themed table field be merged key by key with the spec's, and taking it
 cost three things. `types.yazi` declares no `raw` on `ui.Style`, which it
 marks `(exact)`, so `supaline.Style` declares it and a caller casts to that
@@ -194,7 +194,7 @@ ratatui's `Cell::set_style` in `ratatui-core/src/buffer/cell.rs` replaces a
 cell's colours only where the span's style sets them and inserts the span's
 modifiers over what the line put there.
 
-**Source-read, and not seen on screen here.** `column.cell` is what relies on
+**Source-read, and not seen on screen here.** `layout.cell` is what relies on
 it: a `render` handing back `renderable, style` has that style put on the Line,
 so a column that styled its own spans keeps them. One column in the tree takes
 that path — the fixture's `name_line`, which exists for the truncation a
@@ -271,11 +271,11 @@ style of its own is drawn in the colour the flavor gave the file itself --
 `#89b4fa` is catppuccin-mocha's directory and `#cdd6f4` its regular file --
 while one of the sixteen names is resolved by the terminal, which the flavor
 never reaches. `colour.lua` says the same thing from the other end:
-`colour.colour("cyan")` is `nil`, because there are no channels behind a name
+`colour.rgb("cyan")` is `nil`, because there are no channels behind a name
 to interpolate between.
 
-What produces the first behaviour is `colour.layer(nil)` reading as a layer
-that says nothing, so that `colour.build` hands back an empty `ui.Style()`
+What produces the first behaviour is `style.layer(nil)` reading as a layer
+that says nothing, so that `style.build` hands back an empty `ui.Style()`
 rather than refusing: "no style" arrives at the screen as no style rather
 than as a default of the plugin's own. Measured before the layers existed,
 against `colour.style(nil)`, which answered the same empty style.
@@ -346,7 +346,7 @@ A refusal is a TOML parse error naming the line and the column, ending
 `must be 1-20 characters in snake-case`, and Yazi then discards the **whole
 file** and continues on its preset — `Press any key to continue with preset
 settings...`. The same blast radius as an array in a custom section, which
-`colour.lua` records beside `ARROW` for the same reason.
+`style.lua` records beside `ARROW` for the same reason.
 
 The message says snake-case and the parser does not mean it: `_x`, `x_` and
 `2x` are all taken, so what is enforced is the length and the character class,

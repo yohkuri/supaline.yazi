@@ -118,10 +118,8 @@ dd if=/dev/zero of=sibling-two/two.bin bs=1k count=64 2>/dev/null
 # and a key in `keymap.toml`.
 mkdir -p colour/ramp colour/scale colour/edge
 
-# One file per ramp step. Read out of `colour.lua` rather than written here: a
-# fixture that claimed one row per step while `STEPS` had moved would be a
-# quieter kind of wrong than a harness that stops.
-STEPS=$(sed -n 's/^local STEPS = \([0-9][0-9]*\)$/\1/p' "$ROOT/colour.lua")
+# One file per ramp step, read through the pure colour module's interface.
+STEPS=$(lua -e 'print(dofile(arg[1]).STEPS)' /dev/null "$ROOT/colour.lua")
 if [ -z "$STEPS" ] || [ "$STEPS" -gt 1440 ]; then
 	echo "setup: cannot read a usable STEPS out of colour.lua (got '${STEPS:-nothing}')" >&2
 	echo "setup: the ramp folder spaces its files one minute apart, so it needs a day's worth" >&2
@@ -711,7 +709,7 @@ supaline.column("name_line", {
 -- report against, which is the other half of why these are six.
 
 -- `b r`. A `render` that throws, once per row. The only one of the four that
--- leaves anything on the line: the cell cannot be drawn, so `column.cell`
+-- leaves anything on the line: the cell cannot be drawn, so `runtime`
 -- fills its width with `!` rather than with spaces, and the columns either
 -- side keep their places.
 supaline.column("torn_render", {
@@ -958,7 +956,7 @@ supaline:setup({
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,
 		-- beside the same ramp over no ground at all -- and `ratio`, which
 		-- carries the ramp painted *as* the background, under the row's own
-		-- text. `colour.build` sets every step on the ground, so the `bg` is
+		-- text. `style.build` sets every step on the ground, so the `bg` is
 		-- meant to survive under sixty-four colours that know nothing about it;
 		-- and `bg` takes a gradient exactly as `fg` does, which is what `ratio`
 		-- shows. A theme cannot ask for either -- `themes/bg.toml` is where

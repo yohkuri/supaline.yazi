@@ -88,8 +88,8 @@ moves.
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
 argument rather than a misspelled field before believing them: a misspelled
 field bites only on a value carrying a declared class, and a module table has
-none until someone gives it one. `column.normalizze({}, {})` passes on the line
-above a refused `column.normalize(42, {})` for any module whose table carries no
+none until someone gives it one. `column.extremez(42)` passes on the line
+above a refused `column.extremes(42)` for any module whose table carries no
 class. `column.lua`'s carries `supaline.ColumnModule`; `th` carries nothing at
 all, so it takes whatever name a spec spells.
 
@@ -99,7 +99,7 @@ not of the misspelling, which a harness grepping for the field name scores as a
 module that refuses nothing.
 
 Deliberately wrong values are a spec's stock in trade, and they now cost
-something: a class on the configuration means `column.normalize(42, ...)` and
+something: a class on the configuration means `registry.compile(42, ...)` and
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a

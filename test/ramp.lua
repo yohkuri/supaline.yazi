@@ -31,14 +31,14 @@
 
 local HERE = (arg[0] or "test/ramp.lua"):match("^(.*)[/\\]") or "."
 
--- `colour.lua` answers a `#rrggbb` straight out of a pattern, and reaches for
+-- `style.lua` reads hex through colour.rgb and reaches for
 -- Yazi only to ask whether it takes one of the *other* spellings -- a name, a
 -- 256-colour index -- by trying to build a style out of one. There is no Yazi
 -- here, so this stands in for it.
 --
 -- Permissive rather than strict, which is the opposite of what a stub in this
 -- harness usually owes Yazi, and for a reason that only holds here: nothing but
--- `#rrggbb` can be drawn either way, because `colour.stops` needs numbers at
+-- `#rrggbb` can be drawn either way, because `style.stops` needs numbers at
 -- both ends and refuses everything else on the next line. So the only thing
 -- this choice decides is which refusal a reader gets. Accepting sends `cyan` to
 -- the message about why an endpoint cannot be a palette name -- the true one,
@@ -51,7 +51,20 @@ ui = {
 	end,
 }
 
-local colour = dofile(HERE .. "/../colour.lua")
+-- Yazi's relative module spelling, scoped to these pure/formatting helpers.
+local require_before = require
+local loaded = {}
+require = function(name)
+	if name:sub(1, 1) ~= "." then
+		return require_before(name)
+	end
+	if not loaded[name] then
+		loaded[name] = dofile(HERE .. "/../" .. name:sub(2) .. ".lua")
+	end
+	return loaded[name]
+end
+local colour = require(".colour")
+local style = require(".style")
 
 local ESC = string.char(27)
 
@@ -65,11 +78,11 @@ local ESC = string.char(27)
 local function strip(ramp, cell)
 	local out = {}
 	for i, hex in ipairs(ramp) do
-		-- `colour.colour` rather than a pattern of our own: the hex spelling is
+		-- `style.colour` rather than a pattern of our own: the hex spelling is
 		-- the plugin's to define, and a second copy here would answer nil the
 		-- day it widens. `pcall` in `show` would then report that as a ramp the
 		-- reader wrote wrong.
-		local rgb = colour.colour(hex, "test/ramp.lua") --[[@as integer[] ]]
+		local rgb = style.colour(hex, "test/ramp.lua") --[[@as integer[] ]]
 		out[#out + 1] = string.format("%s[38;2;%d;%d;%dm%s", ESC, rgb[1], rgb[2], rgb[3], cell(i))
 	end
 	return table.concat(out) .. ESC .. "[0m"
@@ -86,7 +99,7 @@ end
 ---@param value string
 ---@param bands supaline.Bands
 local function show(value, bands)
-	local ramp = colour.ramp(colour.stops(value, "test/ramp.lua", bands, "fg"))
+	local ramp = colour.ramp(style.stops(value, "test/ramp.lua", bands, "fg"))
 	print("")
 	print(string.format("  %s    %d steps, %s to %s", value, #ramp, ramp[1], ramp[#ramp]))
 	print("  " .. strip(ramp, function() return "█" end))
@@ -97,10 +110,10 @@ end
 -- ramps, and taken wherever it appears: a reader iterating on the bounds is as
 -- likely to append the flag as to lead with it, and a positional rule would
 -- answer that by refusing the ramp as a colour. The pair goes through
--- `colour.bounds` rather than being checked here, which is the point of that
--- function living in `colour.lua`: what this prints for `--band 0,1` is what a
+-- `style.bounds` rather than being checked here, which is the point of that
+-- function living in `style.lua`: what this prints for `--band 0,1` is what a
 -- user's `init.lua` would have said.
-local values, band = {}, colour.recommended()
+local values, band = {}, style.recommended()
 local i = 1
 while arg[i] do
 	if arg[i] == "--band" then
@@ -112,7 +125,7 @@ while arg[i] do
 		end
 		-- The unparsed string rather than the nil it becomes, so a `--band a,b`
 		-- is refused in the words the user typed.
-		band = colour.bounds({ from = tonumber(from) or from, to = tonumber(to) or to }, "`--band`")
+		band = style.bounds({ from = tonumber(from) or from, to = tonumber(to) or to }, "`--band`")
 		i = i + 2
 	else
 		values[#values + 1] = arg[i]
