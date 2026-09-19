@@ -673,14 +673,20 @@ kind.
 ### `b w` — a `width` function that throws
 
 ```text
- nested                       2 dir 09/17 17:14
+ nested                        2 dir 09/17 17:14
  exactly-1k.bin           1024B file 09/17 17:14
 ```
 
 - The column is left with **no width at all** rather than a guessed one, so it
-  draws unpadded: `dir` is three cells and `file` is four, and the `mtime`
-  beside it shifts by one between the two rows. Ragged and readable is the
-  trade against the stated `width = 0` that `setup` refuses outright.
+  draws unpadded: `dir` is three cells and `file` is four. Yazi draws the
+  linemode flush right, so it is the `size` **before** it that takes up the
+  slack and the `mtime` after it that holds its column — measured at 170x40,
+  `mtime` at display column 71 on every row, `size` ending at 66 on the rows
+  drawing `dir` against 65 on the rows drawing `file`. Both rows end at the
+  same column, which is why the capture above is padded to one width: trimmed
+  to the name alone it looks as though the `mtime` were the one that moved.
+  Ragged and readable is the trade against the stated `width = 0` that `setup`
+  refuses outright.
 
 ### `b u` — a `width` function that returns `0`
 
