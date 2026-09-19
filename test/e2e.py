@@ -247,10 +247,9 @@ def clean_run(r: Run) -> None:
     r.session.press("c", "2")
     r.shot("theme-swapped")
 
-    r.session.press("q")
     # Explicit rather than left to the teardown: the checks read what Yazi
     # wrote, so it has to be gone before they run.
-    r.session.kill()
+    r.session.quit("q")
 
 
 def broken_run(r: Run) -> None:
@@ -326,8 +325,7 @@ def broken_run(r: Run) -> None:
     r.session.press("T")
     r.session.press("T")
 
-    r.session.press("q")
-    r.session.kill()
+    r.session.quit("q")
 
 
 #: Each colour linemode: the folder it is read in, the `c` key that reaches
