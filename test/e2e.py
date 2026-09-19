@@ -43,6 +43,7 @@ from harness import (
     require_python,
     run,
     yazi_env,
+    yazi_log,
 )
 
 #: The window every capture is taken in. Wide enough that the three panes all
@@ -170,8 +171,10 @@ def clean_run(r: Run) -> None:
         r.session.press("m", n)
         # Switching linemode does not re-peek the preview; move the hover to
         # force one, so the preview pane is drawn under the mode now active.
-        r.session.press("j")
-        r.session.press("k")
+        # One press rather than two: `keys` sends the pair in a single
+        # `send-keys` and the settle after it covers the peek landing, where
+        # two presses wait out a stable window over a screen nothing reads.
+        r.session.press("j", "k")
         r.shot(f"m{n}")
 
     # The colour linemodes, for the reason the loop above exists: an
@@ -208,7 +211,7 @@ def clean_run(r: Run) -> None:
     # taken under. Back to m1 first, so a `size` column and an `mtime` one are
     # both on screen to be recoloured.
     r.session.press("m", "1")
-    r.shots["theme-before"] = r.session.capture(colour=True)
+    r.shot("theme-before")
 
     # Both shapes at once, for the reason `THEME_EDIT` gives: a ramp resolved
     # once and cached past the reload would hold its old endpoints with the
@@ -220,7 +223,7 @@ def clean_run(r: Run) -> None:
         body = body.replace(old, new)
     theme.write_text(body)
     r.session.press("T")
-    r.shots["theme-after"] = r.session.capture(colour=True)
+    r.shot("theme-after")
 
     # Last of all, because it replaces `theme.toml` wholesale and every check
     # above reads a capture taken against the file this run had been editing in
@@ -232,7 +235,7 @@ def clean_run(r: Run) -> None:
     # change, with no way to tell a plugin that ignored the reload from a copy
     # that never ran. So the file is compared as well as the screen.
     r.session.press("c", "2")
-    r.shots["theme-swapped"] = r.session.capture(colour=True)
+    r.shot("theme-swapped")
 
     r.session.press("q")
     # Explicit rather than left to the teardown: the checks read what Yazi
@@ -280,14 +283,25 @@ def broken_run(r: Run) -> None:
     seen: list[str] = []
     began = time.monotonic()
     deadline = began + 60
-    while time.monotonic() < deadline:
+    drained = False
+    while not drained and time.monotonic() < deadline:
         seen.append(r.session.capture())
         union = "\n".join(seen)
-        if all(f"`{c}`" in union for c in wanted):
-            break
-        time.sleep(0.25)
+        drained = all(f"`{c}`" in union for c in wanted)
+        if not drained:
+            time.sleep(0.25)
     waited = time.monotonic() - began
-    print(f"e2e: the reports drained to the screen in {waited:.0f}s")
+    if drained:
+        print(f"e2e: the reports drained to the screen in {waited:.0f}s")
+    else:
+        # Said here rather than left to `check_reports`, which can only see
+        # that a report is missing from the union and reads that as a column
+        # that never reported. The deadline running out is the other reason
+        # for the same union, and it is this loop that knows which happened.
+        print(
+            f"e2e: the reports had not all drained in {waited:.0f}s",
+            file=sys.stderr,
+        )
     r.shots["broken"] = "\n".join(seen)
     (r.dir / "screen-broken.txt").write_text(r.shots["broken"])
 
@@ -334,6 +348,14 @@ THEME_EDIT = (
     ("#ff8800", "#00ccff"),
     ("#0b3d91 -> #7fd4ff", "#1a5e00 -> #9bff66"),
 )
+
+#: The two ends of the themed ramp, before `T` is pressed. Split off the table
+#: above rather than written again: `check_ramp` reads them off a capture
+#: taken before the rewrite and `check_theme` reads them off one taken after,
+#: to say they left -- so the same pair spelled twice would have one of the
+#: two asserting on a colour nothing wrote, which is the drift the table's own
+#: comment exists to stop.
+THEMED_RAMP = THEME_EDIT[1][0].split(" -> ")
 
 #: A name only the folder behind each `g` key holds, so the press can be waited
 #: on rather than slept through.
@@ -584,21 +606,23 @@ def check_owner(k: Checks, capture: str) -> None:
             return ""
         return next(iter(cells))
 
+    # Guarded rather than given an arm of its own: an empty answer is
+    # `agreed` having already said what was wrong, and the user and group
+    # halves below are asked either way.
     seen = agreed("owner cell", {r.owner for r in rows})
-    dots = seen.count("…")
-    if not seen:
-        pass  # `agreed` has already said so
-    elif seen == who:
-        k.ok(f"m2: the owner column holds `{who}` whole, with no ellipsis")
-    elif dots != 1:
-        k.fail(
-            f"m2: the owner cell carries {dots} ellipses, wanted one -- "
-            f"`{seen}`"
-        )
-    elif sc.is_cut_of(who, seen):
-        k.ok(f"m2: the owner column cuts `{who}` with one ellipsis")
-    else:
-        k.fail(f"m2: the owner cell `{seen}` is not a cut of `{who}`")
+    if seen:
+        dots = seen.count("…")
+        if seen == who:
+            k.ok(f"m2: the owner column holds `{who}` whole, with no ellipsis")
+        elif dots != 1:
+            k.fail(
+                f"m2: the owner cell carries {dots} ellipses, wanted one -- "
+                f"`{seen}`"
+            )
+        elif sc.is_cut_of(who, seen):
+            k.ok(f"m2: the owner column cuts `{who}` with one ellipsis")
+        else:
+            k.fail(f"m2: the owner cell `{seen}` is not a cut of `{who}`")
 
     # `user` and `group` draw those same two names again, eight cells each
     # rather than twelve shared, so each is cut on its own length and on most
@@ -735,9 +759,17 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     # A pane key has to hold for every row of the preview pane, not just the
     # one Yazi marks `in_preview` -- it sets that on the previewed folder's
     # cursor row alone, so a check that passes on one row proves nothing about
-    # the second.
+    # the second. How many rows that is comes off m6's bare preview rather
+    # than a literal here: it is the same folder under a mode that draws
+    # nothing into it, so it answers the count without this file restating
+    # what the fixture put in `nested/`.
     drew = sc.marked(sc.preview_of(shots["m8"]))
-    k.same(drew, 2, f"m8: preview pane drawn, both rows (drew {drew})")
+    rows = sc.drawn(bare_preview)
+    k.same(
+        drew,
+        rows,
+        f"m8: every preview-pane row carries the marker ({drew} of {rows})",
+    )
 
     # Both of them, now that one reader answers either pane. The label had
     # claimed both edges while reading the right-hand one alone.
@@ -794,12 +826,13 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str) -> None:
     #
     # `colour/ramp` cannot do it: 64 rows, a window that shows the first 37 of
     # them, and the high end at the bottom.
+    low, high = THEMED_RAMP
     k.holds(
         shots["colour-m1"],
-        sc.sgr(38, "#0b3d91"),
+        sc.sgr(38, low),
         "a themed ramp draws its low end",
     )
-    k.holds(shots["colour-m1"], sc.sgr(38, "#7fd4ff"), "... and its high end")
+    k.holds(shots["colour-m1"], sc.sgr(38, high), "... and its high end")
 
     def rows_hold(label: str, ramp: list[sc.RampRow], monotone: bool) -> None:
         """Enough rows, and no fault in the sequence."""
@@ -1178,8 +1211,8 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("theme")
 
-    (flat_old, flat_new), (ramp_old, ramp_new) = THEME_EDIT
-    old_ends = ramp_old.split(" -> ")
+    (flat_old, flat_new), (_, ramp_new) = THEME_EDIT
+    old_ends = THEMED_RAMP
     new_ends = ramp_new.split(" -> ")
 
     def cells(shot: str, *hexes: str) -> list[int]:
@@ -1195,8 +1228,8 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # that capture now proves nothing. A reload still does: it is
     # `ps.sub("theme", build)` that repaints what is already on screen, and a
     # plugin without it holds the old colour.
-    (before,) = cells("theme-before", flat_old)
-    stale, after = cells("theme-after", flat_old, flat_new)
+    (before,) = cells("colour-theme-before", flat_old)
+    stale, after = cells("colour-theme-after", flat_old, flat_new)
     if before > 0:
         k.ok(f"the themed base colour is drawn ({before} cells)")
     else:
@@ -1215,8 +1248,8 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # out of the string. Both new ends have to be on screen and neither old one
     # left anywhere -- a ramp cached past the reload would keep its old
     # endpoints with the flat colour beside it already correct.
-    old = cells("theme-after", *old_ends)
-    new = cells("theme-after", *new_ends)
+    old = cells("colour-theme-after", *old_ends)
+    new = cells("colour-theme-after", *new_ends)
     if min(new) > 0 and max(old) == 0:
         k.ok("... and rebuilds a ramp, not only a flat colour")
     else:
@@ -1239,7 +1272,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # [ "shell ... --confirm", "app:theme" ] the two race and the reload wins
     # -- measured on 26.9.1, `theme.toml` ends up correct on disk with the old
     # colours still on screen, and `--block` does not change it.
-    swapped, kept = cells("theme-swapped", "#5d0b91", new_ends[0])
+    swapped, kept = cells("colour-theme-swapped", "#5d0b91", new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
         dir / "themes" / "alt.toml"
     ).read_bytes()
@@ -1291,10 +1324,8 @@ def main(argv: list[str]) -> int:
 
         k = Checks()
         init = (r.dir / "config" / "init.lua").read_text()
-        check_log(k, r.dir / "state" / "yazi" / "yazi.log")
-        check_reports(
-            k, r.dir / "state-broken" / "yazi" / "yazi.log", r.shots["broken"]
-        )
+        check_log(k, yazi_log(r.dir, "state"))
+        check_reports(k, yazi_log(r.dir, "state-broken"), r.shots["broken"])
         check_rows_present(k, r.shots)
         check_columns(k, r.shots)
         check_panes(k, r.shots)
