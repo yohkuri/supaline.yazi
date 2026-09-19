@@ -16,6 +16,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 #: The oldest Python these harnesses are written for. Nothing here needs a
 #: newer one, and a version older than this is refused rather than left to
@@ -32,8 +33,14 @@ ROOT = Path(__file__).resolve().parent.parent
 REFUSED = 2
 
 
-def refuse(message: str) -> None:
-    """Stop before doing anything, saying what was missing."""
+def refuse(message: str) -> NoReturn:
+    """Stop before doing anything, saying what was missing.
+
+    `NoReturn` rather than `None`, because every caller depends on it raising:
+    the line after a `refuse` here and in `setup.py` reads a name the arm
+    before it never bound, and annotated as returning it looks like a bug to
+    be repaired with a fallback -- which is a refusal learning to continue.
+    """
     print(message, file=sys.stderr)
     raise SystemExit(REFUSED)
 
@@ -99,6 +106,19 @@ def yazi_env(dir: Path, state: str) -> dict[str, str]:
     }
 
 
+def yazi_log(dir: Path, state: str) -> Path:
+    """Where Yazi writes its log under the state directory `yazi_env` names.
+
+    Beside that function because it is the other half of the same fact: what
+    `XDG_STATE_HOME` is set to is here, and so is the path Yazi lays out
+    beneath it. Written out by its readers instead, moving the state directory
+    would have `manual.py` print a path that does not exist while `e2e.py`
+    reported a log the broken run never wrote -- a layout change wearing the
+    shape of a plugin fault.
+    """
+    return dir / state / "yazi" / "yazi.log"
+
+
 def need(*tools: str) -> None:
     """Refuse to start without every binary the run is about to reach for."""
     missing = [tool for tool in tools if shutil.which(tool) is None]
@@ -129,23 +149,29 @@ class Checks:
         print(f"  FAIL {label}", file=sys.stderr)
         self.failed.append(label)
 
-    def that(self, held: bool, label: str) -> bool:
-        """`label` states what is true when it passes, so it reads either way."""
+    def that(self, held: bool, label: str) -> None:
+        """`label` states what is true when it passes, so it reads either way.
+
+        None of the four answers a verdict, deliberately. A returned bool is
+        an invitation to write `if k.that(...)`, and a check that doubles as a
+        branch is this object back to being an assert -- where the whole of
+        why it exists is that a change moving one column moves a handful of
+        checks, and the shape of that handful is what says where to look.
+        """
         if held:
             self.ok(label)
         else:
             self.fail(label)
-        return held
 
-    def same(self, got: object, want: object, label: str) -> bool:
-        return self.that(got == want, label)
+    def same(self, got: object, want: object, label: str) -> None:
+        self.that(got == want, label)
 
-    def differs(self, got: object, unwanted: object, label: str) -> bool:
-        return self.that(got != unwanted, label)
+    def differs(self, got: object, unwanted: object, label: str) -> None:
+        self.that(got != unwanted, label)
 
-    def holds(self, text: str, pattern: str, label: str) -> bool:
+    def holds(self, text: str, pattern: str, label: str) -> None:
         """A literal substring, which is what every screen claim here wants."""
-        return self.that(pattern in text, label)
+        self.that(pattern in text, label)
 
     def section(self, name: str) -> None:
         print(f"== {name} ==")
@@ -290,15 +316,21 @@ class Session:
         *keys: str,
         until: Callable[[str], bool] | None = None,
         what: str = "",
-        stable: float = 0.4,
-    ) -> str:
+    ) -> None:
         """Send keys and wait for the screen to answer.
 
         `until` where the run knows what the press should produce, and the
         settle otherwise. Both are bounded, so neither can hang the run.
+
+        The settle after an `until` is the short one on purpose: the screen
+        has already said the thing waited for arrived, and what is left is the
+        repaint behind it. There is no window to pass in -- a caller that
+        could name one silently got 0.2 on this arm, which is a weaker wait
+        arriving as a stronger-looking argument.
         """
         self.keys(*keys)
         if until is not None:
             self.wait_for(until, what or "the screen to answer")
-            return self.settle(stable=0.2)
-        return self.settle(stable=stable)
+            self.settle(stable=0.2)
+        else:
+            self.settle()
