@@ -260,6 +260,49 @@ class Session:
         )
         self.started = False
 
+    def alive(self) -> bool:
+        """Whether tmux still holds this session, asked without refusing.
+
+        `run` is the wrong caller for this one question: a session that has
+        gone is the answer here rather than a failure, and `has-session` says
+        so with a non-zero exit like any other.
+        """
+        done = subprocess.run(
+            ["tmux", "has-session", "-t", self.name],
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+        return done.returncode == 0
+
+    def quit(self, *keys: str, grace: float = 1.0) -> None:
+        """Send the keys that end the program, and take the session down.
+
+        Not `press`: what is sent here ends the only window in the session, so
+        the settle behind a press goes on reading a screen tmux may already
+        have destroyed -- and a `capture-pane` against a session that has gone
+        exits non-zero, which `run` reports as a harness that could not start,
+        over a run that in fact passed. Reproduced on its own: a session whose
+        command exits on the key refuses the very next capture, 0.02s in, and
+        the harness exits 2.
+
+        What has held that off here is a timeout rather than a margin. A
+        detached tmux never answers Yazi's terminal probe, and 26.9.1 waits
+        five seconds for it on the way out -- measured 5.02, 5.03 and 5.04s
+        against the 0.49s the press took, so the race was never close and
+        would be lost outright by a Yazi that stopped waiting.
+
+        `grace` is what the program gets to finish writing, since the checks
+        read the log it leaves; twice what the settle gave it, and a session
+        that goes sooner ends the wait at once. Nothing reads the screen after
+        this, which is the other half of why there is no settle here.
+        """
+        self.keys(*keys)
+        deadline = time.monotonic() + grace
+        while self.alive() and time.monotonic() < deadline:
+            time.sleep(self.POLL)
+        self.kill()
+
     def capture(self, *, colour: bool = False) -> str:
         args = ["capture-pane", "-t", self.name, "-p"]
         if colour:
