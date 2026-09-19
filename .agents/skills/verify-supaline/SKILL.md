@@ -138,11 +138,13 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   the most worth moving rather than the least: it is the one thing a capture
   written by hand can state exactly.
 - A fact about **what the fixture spells** belongs in a reader over
-  `test/fixture/init.lua` — `ground_hex`, `ramp_ends` and `broken_columns` are
-  the three — and `TheFixtureItReads` calls those readers rather than
-  re-spelling their patterns. A copy of a pattern goes on passing while the
-  reader beside it has quietly stopped matching, and `e2e.py` is not in CI to
-  say so.
+  `test/fixture/init.lua` — `ground_hex`, `ramp_ends`, `broken_columns`,
+  `band_width` and `c_bg_grounds` are the five — and `TheFixtureItReads` calls
+  those readers rather than re-spelling their patterns. A copy of a pattern
+  goes on passing while the reader beside it has quietly stopped matching, and
+  `e2e.py` is not in CI to say so. A pattern anchored on stylua's indentation
+  is the one most worth moving: re-nesting a table is all it takes to leave a
+  sweep passing over nothing.
 - What is left for `e2e.py` is driving Yazi and holding the parsed answer
   against what this machine says: `pwd`, `grp`, a file on disk, a colour read
   out of the fixture.
