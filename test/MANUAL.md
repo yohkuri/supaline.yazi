@@ -192,13 +192,20 @@ the same in all three; the difference is at the edges.
   **both** rows: Yazi's `in_preview` is true for the hovered row alone, so a
   pane bug here shows up on the second row and nowhere else.
 
+`e2e.py` reads the marker off every row of whichever pane the mode named — the
+middle pane in all three, the left pane in `m 7`, both rows of the right pane
+in `m 8` — and off neither edge in `m 6`. What it cannot ask is the next
+paragraph: whether one cell is the right size of column for a pane an eighth of
+the terminal wide. That is a judgement about the screen, and it is yours.
+
 One cell, and not a built-in, on purpose. Yazi gives the linemode priority over
 the file name, and the parent pane is an eighth of the terminal — 21 cells at
 170 columns, 10 at 80. `size` and `mtime` together are 19, which leaves nothing
 at all for the name; even `mtime` alone does not fit an 80-column parent pane.
 Every built-in is 5 to 12 cells wide, so what belongs at the edges is a narrow
 marker, and there is no built-in that narrow to demonstrate it with. `mark` is
-the fixture's own, defined in `setup.py` beside the m9 columns.
+the fixture's own, defined in `test/fixture/init.lua` beside the m9
+columns.
 
 The preview pane keeps whatever its last peek drew, so switching between these
 without moving the hover leaves the right pane showing the previous mode. Move
@@ -414,8 +421,8 @@ Catppuccin Mocha's `#1e1e2e`: correct, drawn on every row, and invisible to
 anyone reading on one. Both of the ones there now were chosen by measuring that
 distance instead of guessing it — against seven terminal grounds, the 64 steps
 above them, and the colours this fixture itself draws, with the two grounds held
-apart from each other as well. `setup.py` writes down all three sets, both sets
-of numbers, and that last distance.
+apart from each other as well. `test/fixture/init.lua` writes down all three
+sets, both sets of numbers, and that last distance.
 
 - The background has to be there on **every** row and the same on every row.
   One row without it is a step that lost its ground.

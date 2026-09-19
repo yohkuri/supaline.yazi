@@ -475,25 +475,32 @@ def bold_over_ramp(capture: str) -> int:
     return sum(1 for field in current_fields(capture) if dated.search(field))
 
 
-def marked_in_preview(capture: str) -> int:
-    """Preview rows ending in the trio's one column: a `d` or an `f`."""
-    return sum(1 for row in preview_of(capture) if re.search(r" [df]$", row))
+def marked(rows: list[str]) -> int:
+    """Rows of one pane ending in the trio's one column: a `d` or an `f`.
 
+    Given a pane's rows rather than the capture, because the claim is the same
+    in all three and the trio exists to ask it of each -- `pane_cur` of the
+    middle pane, `pane_par` of the left, `pane_prev` of the right. It was two
+    readers with two patterns, and two patterns is two chances for one pane to
+    end up asked something weaker than the others: the parent pane was asked
+    only that it had *changed*, which a hover that moved would satisfy.
 
-def marked_in_current(capture: str) -> int:
-    """The same in the current pane, where the marker is not last on the row.
+    The marker is not always last on the row. The hovered row carries a
+    powerline glyph after it and the others a space before the divider, in the
+    parent pane as much as in the current one, so anything but a letter or a
+    digit may follow -- which still refuses a row ending in a file name.
 
-    The hovered row carries a powerline glyph after it and the others a space
-    before the divider, so anything but a letter or a digit may follow -- which
-    still refuses a row ending in a file name.
+    Measured across all three panes of m6, m7, m8 and me on 26.9.1: this
+    counts every row the stricter `[df]$` counted in the preview pane, and the
+    five parent rows it read as unmarked.
     """
-    return sum(
-        1
-        for row in current_of(capture)
-        if re.search(r" [df][^A-Za-z0-9]*$", row)
-    )
+    return sum(1 for row in rows if re.search(r" [df][^A-Za-z0-9]*$", row))
 
 
-def rows_in_current(capture: str) -> int:
-    """Current-pane rows carrying anything at all."""
-    return sum(1 for row in current_of(capture) if row.strip(" "))
+def drawn(rows: list[str]) -> int:
+    """Rows of one pane carrying anything at all.
+
+    The denominator under `marked`: a pane where nothing was drawn has no
+    marked rows either, and `0 == 0` is a claim about nothing.
+    """
+    return sum(1 for row in rows if row.strip(" "))
