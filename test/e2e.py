@@ -144,19 +144,28 @@ class Run:
         (self.dir / f"color-{label}.txt").write_text(colour)
 
     def goto(self, key: str) -> None:
-        """Press a `g` key and wait until the folder it names is on screen.
+        """Press a `g` key and wait until the current pane is the folder it names.
 
         The predicate is a name only that folder holds, so this says the `cd`
         arrived rather than that a second went by. Every `g` key in this run
         gets one, and the name comes out of `FOLDERS` rather than from the
         caller: a pair that could disagree is a wait on the wrong folder.
+
+        The **current pane** rather than the screen, because the other two
+        panes draw the folders either side of this one and a name they hold is
+        on screen before the `cd` that makes it current. Measured on 26.9.1:
+        `inner-a.txt` is in the preview pane throughout `data/` and
+        `exactly-1k.bin` is in the parent pane throughout `nested/`, so seven
+        of this run's thirteen `g` presses had their predicate satisfied before
+        the key was sent. A wait that is already over is the fixed sleep this
+        was written to replace, spelled as though it were the stronger thing.
         """
         expect = FOLDERS[key]
         self.session.press(
             "g",
             key,
-            until=lambda s: expect in s,
-            what=f"`{expect}` after g {key}",
+            until=lambda s: any(expect in f for f in sc.current_fields(s)),
+            what=f"`{expect}` in the current pane after g {key}",
         )
 
 
