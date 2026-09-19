@@ -592,5 +592,4 @@ jobs:
 #
 # What *is* here is the half of `e2e.py` that needs neither: `test/screen.py`
 # reads a capture and is tested by `test/test_screen.py` in the `Unit tests`
-# job. That is new ground rather than a restatement -- those parsers were
-# `awk` and had no test at all.
+# job, where that step says why it is worth one.
