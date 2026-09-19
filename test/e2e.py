@@ -179,16 +179,7 @@ def clean_run(r: Run) -> None:
     # over one folder draw the *same text* in different colours, so there is no
     # plain-text predicate to write and the colour capture is what the checks
     # read.
-    for folder, key, label in (
-        ("3", "r", "c_ramp"),
-        ("3", "b", "c_band"),
-        ("3", "h", "c_hue"),
-        ("3", "g", "c_bg"),
-        ("3", "a", "c_bold"),
-        ("4", "s", "c_scale"),
-        ("5", "e", "c_edge"),
-        ("1", "t", "c_theme"),
-    ):
+    for folder, key, label in COLOUR_MODES:
         r.goto(folder, FOLDERS[folder])
         r.session.press("c", key)
         r.shot(label)
@@ -305,6 +296,22 @@ def broken_run(r: Run) -> None:
 
     r.session.press("q")
     r.session.kill()
+
+
+#: Each colour linemode: the folder it is read in, the `c` key that reaches
+#: it, and the label its captures are kept under. One table because two
+#: readers need it -- written twice, a mode added to the presses alone would
+#: be drawn, asserted on by nobody, and green.
+COLOUR_MODES = (
+    ("3", "r", "c_ramp"),
+    ("3", "b", "c_band"),
+    ("3", "h", "c_hue"),
+    ("3", "g", "c_bg"),
+    ("3", "a", "c_bold"),
+    ("4", "s", "c_scale"),
+    ("5", "e", "c_edge"),
+    ("1", "t", "c_theme"),
+)
 
 
 #: A name only the folder behind each `g` key holds, so the press can be waited
@@ -459,17 +466,8 @@ def check_rows_present(k: Checks, shots: dict[str, str]) -> None:
     # the three it was is not worth telling apart: nothing else in this run
     # visits those folders.
     have(
-        "the eight colour modes all have rows",
-        [
-            "c_ramp",
-            "c_band",
-            "c_hue",
-            "c_bg",
-            "c_bold",
-            "c_scale",
-            "c_edge",
-            "c_theme",
-        ],
+        f"the {len(COLOUR_MODES)} colour modes all have rows",
+        [label for _, _, label in COLOUR_MODES],
     )
 
 
@@ -1018,23 +1016,14 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # Both new ends have to be on screen and neither old one left anywhere -- a
     # ramp cached past the reload would keep its old endpoints with the flat
     # colour beside it already correct.
-    ends = {
-        name: lines_with(shots["theme-after"], sc.sgr(38, name))
-        for name in ("#0b3d91", "#7fd4ff", "#1a5e00", "#9bff66")
-    }
-    if (
-        ends["#1a5e00"] > 0
-        and ends["#9bff66"] > 0
-        and ends["#0b3d91"] == 0
-        and ends["#7fd4ff"] == 0
-    ):
+    def ends(*names: str) -> list[int]:
+        return [lines_with(shots["theme-after"], sc.sgr(38, n)) for n in names]
+
+    old, new = ends("#0b3d91", "#7fd4ff"), ends("#1a5e00", "#9bff66")
+    if min(new) > 0 and max(old) == 0:
         k.ok("... and rebuilds a ramp, not only a flat colour")
     else:
-        k.fail(
-            "a theme reload did not rebuild the ramp "
-            f"(old={ends['#0b3d91']}/{ends['#7fd4ff']} "
-            f"new={ends['#1a5e00']}/{ends['#9bff66']})"
-        )
+        k.fail(f"a theme reload did not rebuild the ramp (old={old} new={new})")
 
     # `c 2` should have put `themes/alt.toml` where Yazi reads its theme from.
     # This is the fixture's own plumbing rather than the plugin's, and it is
