@@ -556,6 +556,16 @@ local BROKEN = "!"
 -- reader from `b w` straight to `b u` precisely because nothing on the screen
 -- tells those two apart. The sentences agreeing is the whole of that
 -- comparison, so they are not two sentences.
+--
+-- Both readers pass it to `string.format` as an argument rather than
+-- concatenating it into the format string, and that is a rule rather than a
+-- style: this is one string precisely so that it gets edited, and a `%` in it
+-- -- "keeps its place 100% of the time", an escape, a borrowed `%s` -- turns a
+-- format string carrying it into a raise. `bad_width`'s raise would be the
+-- expensive kind. It is called from the width pass, which sits outside the
+-- `pcall` around `resolve_width` and under a linemode's render, so the throw
+-- this file's longest docblock is written against would come from the line
+-- reporting a lesser one.
 local UNPADDED = "this column draws unpadded: everything else on the line keeps its place and "
 	.. "this one is ragged rather than absent"
 
@@ -692,7 +702,7 @@ local function bad_width(col, why)
 		return
 	end
 
-	local said = string.format("%s. Until it does, " .. UNPADDED, why)
+	local said = string.format("%s. Until it does, %s", why, UNPADDED)
 	report(said)
 end
 
