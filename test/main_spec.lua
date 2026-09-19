@@ -2,7 +2,7 @@
 --- refuses, how the columns are joined, and which panes a linemode reaches.
 ---
 --- The rendering itself is stubbed, so this says nothing about how any of it
---- looks. `test/e2e.sh` is what answers that.
+--- looks. `test/e2e.py` is what answers that.
 
 ---@type supaline.Main
 local main = require(".main")
@@ -1140,7 +1140,7 @@ test("throwing: a ramp whose `stats` threw is told off once, not twice", functio
 	-- Nor does this one borrow it. A `stats` is read by the column's own
 	-- `render`, so one that needed none of the result draws every cell as it
 	-- would have and the line carries no sign at all -- which is what `b s` in
-	-- `manual.sh` shows, and why this report has to carry the column's name.
+	-- `manual.py` shows, and why this report has to carry the column's name.
 	omits(last_logged(), "filled with", "rather than a marker a `stats` failure never writes")
 end)
 
@@ -1163,7 +1163,7 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 	-- And it words that stage rather than borrowing `render`'s sentence. Every
 	-- cell this column was asked for is drawn; what it has not got is a width to
 	-- pad them to, so a marker in the message sends the reader looking for
-	-- something only a `render` ever writes. `b w` and `b u` in `manual.sh` draw
+	-- something only a `render` ever writes. `b w` and `b u` in `manual.py` draw
 	-- a single screen between them, and the second of them -- `bad_width`, which
 	-- is supaline refusing a number rather than a function throwing -- words that
 	-- screen this same way. Two sentences over one screen is a reader being told
@@ -1350,7 +1350,7 @@ test("told: a column wrong in two kinds says both, once each", function()
 	-- above pins -- because what the reader has to look at there is the column,
 	-- and the first thing of theirs that threw is where they start.
 	--
-	-- `test/setup.sh` splits the fixture into one broken column apiece on this
+	-- `test/setup.py` splits the fixture into one broken column apiece on this
 	-- distinction, and `MANUAL.md` states it, so it is worth something that
 	-- refuses rather than a sentence in two documents.
 	main.column("two_faults", {
