@@ -646,6 +646,44 @@ whether the two halves of it are split where a reader needs them are what the
 rest of this section is for. All three faults found here so far were of that
 kind.
 
+### Reading one
+
+A report is two halves and only the shorter of them is on screen, so this takes
+two terminals. The fixture goes in the first:
+
+```sh
+test/manual.sh
+```
+
+It prints the log's path before it waits for Enter. Point the second terminal
+at that path **before** you press it, because the first report can arrive as
+Yazi opens:
+
+```sh
+tail -F "${TMPDIR:-/tmp}/supaline-manual/state/yazi/yazi.log" | awk '/ ERROR / { sub(/.*log: "/, ""); sub(/"$/, ""); gsub(/\\n/, "\n"); gsub(/\\t/, "    "); gsub(/\\"/, "\""); print; print ""; fflush() }'
+```
+
+One report is one physical line there, with the traceback escaped into it, so a
+plain `tail` hands you a paragraph with no line breaks in it. That `awk` undoes
+the escaping and puts a blank line between reports. To read them after the fact
+instead, drop the `tail -F |` and give `awk` the path.
+
+Then press **one key at a time**, and read the box and the log before the next.
+Two reasons, both measured on 26.9.1. Yazi draws **three** notifications at a
+time and queues the rest, so six keys pressed together expire faster than they
+can be read. And each key changes the linemode, so a batch leaves you unable to
+say which box belongs to which row — which is the whole of what you are here to
+judge.
+
+`b w` and `b u` are the pair that only works in sequence: their cells are
+identical and their sentences are not, so press them in turn and hold the two
+boxes against each other.
+
+Yazi truncates the log when it starts, so a restart gives a clean one and there
+is nothing to delete between runs. A report missed is a report gone, though —
+`told` has already marked that column — and the way back is `q` and
+`test/manual.sh` again.
+
 ### `b r` — a `render` that throws
 
 ```text
