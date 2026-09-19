@@ -33,6 +33,15 @@ DOTTED = "┊"
 ESC = "\x1b"
 BOLD = ESC + "[1m"
 
+#: The same opening, as a pattern matches it. Every pattern below starts
+#: here, and a `[` left unescaped in one of them opens a character class
+#: instead.
+OPEN = re.escape(ESC) + r"\["
+
+#: And bold as a pattern matches it, which is not `BOLD` either: read as a
+#: regex, `[1m` is a character class and matches one character.
+BOLD_OPEN = OPEN + "1m"
+
 
 def sgr(layer: int, colour: str) -> str:
     """A truecolor SGR body as tmux writes it: `38;2;R;G;Bm`.
@@ -219,7 +228,7 @@ def scale_rows(capture: str) -> list[ScaleRow]:
     the current pane: see the note on `BAR`.
     """
     cell_re = re.compile(
-        rf"{re.escape(ESC)}\[({_BODY.format(layer=38)}) *([0-9.]+[A-Za-z]?)"
+        rf"{OPEN}({_BODY.format(layer=38)}) *([0-9.]+[A-Za-z]?)"
     )
 
     out = []
@@ -268,11 +277,11 @@ def edge_rows(capture: str) -> list[EdgeRow]:
     `38;2` alone would count it as a column this plugin coloured.
     """
     body = _BODY.format(layer=38)
-    gap = rf"{re.escape(ESC)}\[[0-9;]*m "
+    gap = rf"{OPEN}[0-9;]*m "
     row_re = re.compile(
-        rf"{re.escape(ESC)}\[({body}) *([^\x1b ]+)"
-        rf"{gap}{re.escape(ESC)}\[({body}) *[01]\.\d\d"
-        rf"{gap}{re.escape(ESC)}\[({body})\d\d/\d\d"
+        rf"{OPEN}({body}) *([^\x1b ]+)"
+        rf"{gap}{OPEN}({body}) *[01]\.\d\d"
+        rf"{gap}{OPEN}({body})\d\d/\d\d"
     )
 
     out = []
@@ -406,7 +415,7 @@ def bold_pairs(capture: str) -> tuple[int, int]:
 
     Answers `(agreed, disagreed)`, counted over every row that had two cells.
     """
-    cell_re = re.compile(rf"{re.escape(ESC)}\[(38;2;\d+;\d+;\d+m) *[01]\.\d\d")
+    cell_re = re.compile(rf"{OPEN}({_BODY.format(layer=38)}) *[01]\.\d\d")
 
     agreed = disagreed = 0
     for field in current_fields(capture):
@@ -426,6 +435,44 @@ def bold_pairs(capture: str) -> tuple[int, int]:
         else:
             disagreed += 1
     return agreed, disagreed
+
+
+def bold_over_paint(capture: str) -> int:
+    """Current-pane rows where a bold opens two separately-coloured characters.
+
+    `permissions` is the only column that paints its own cells, so a bold
+    written for it has to reach those characters *without* replacing the
+    colours they already carry: `perm_spans` patches the column's style into
+    each character's own, and that style has no colour of its own to overwrite
+    them with.
+
+    Both halves are read at once, because neither discriminates alone -- the
+    bold opening the run, and two characters after it each opening a colour of
+    its own. A cell that had stepped aside for the attribute would draw the
+    whole run under one escape, passing the first half and failing the second.
+    What it does not ask is that the two colours *differ*; the claim is that
+    the column painted per character, not what it painted.
+
+    Those colours are the palette's rather than a ramp's, so the body asked
+    for is a plain number -- a truecolor one carries `;` and cannot be read as
+    one.
+    """
+    painted = re.compile(rf"{BOLD_OPEN}{OPEN}\d*m.{OPEN}\d*m.")
+    return sum(1 for field in current_fields(capture) if painted.search(field))
+
+
+def bold_over_ramp(capture: str) -> int:
+    """Current-pane rows where a bold sits immediately before a ramp's date.
+
+    `c_theme`'s `mtime` writes `{ bold = true }` in a spec over a ramp the
+    theme wrote: the colour is the theme's and the weight the spec's, on one
+    cell, which is the case the two layers exist for. Read as the bold
+    immediately before a truecolor escape opening a date -- which is where
+    tmux puts it, and where a patch that landed in the wrong order would not
+    be.
+    """
+    dated = re.compile(rf"{BOLD_OPEN}{OPEN}{_BODY.format(layer=38)}\d\d/")
+    return sum(1 for field in current_fields(capture) if dated.search(field))
 
 
 def marked_in_preview(capture: str) -> int:

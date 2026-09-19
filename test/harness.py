@@ -50,7 +50,6 @@ def run(
     args: list[str],
     *,
     timeout: float = 20,
-    check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     """A subprocess with a deadline on it, and its output captured.
 
@@ -70,12 +69,34 @@ def run(
         )
     except subprocess.TimeoutExpired:
         refuse(f"{args[0]}: no answer in {timeout}s -- {' '.join(args)}")
-    if check and done.returncode != 0:
+    if done.returncode != 0:
         refuse(
             f"{args[0]} exited {done.returncode}: {' '.join(args)}\n"
             f"{done.stderr.strip()}"
         )
     return done
+
+
+def yazi_env(dir: Path, state: str) -> dict[str, str]:
+    """The environment both harnesses open the fixture's Yazi in.
+
+    Here rather than in either of them because they open the same Yazi and had
+    said so twice, in two spellings -- a shell string for tmux and a dict for
+    `execve` -- with the paths `setup.py` owns written out on both sides.
+
+    `YAZI_LOG` because a report is two halves and only the shorter one is a
+    notification, and there is no log at all unless this is set before Yazi
+    starts. `debug` costs three lines over `error` across a short run,
+    measured on 26.9.1. `XDG_STATE_HOME` is under the scratch directory, so
+    `--clean` takes the log with it, and it is named rather than fixed because
+    `e2e.py` gives its two runs one each: the clean run's log is read for the
+    absence of the errors the broken run is full of.
+    """
+    return {
+        "YAZI_CONFIG_HOME": str(dir / "config"),
+        "XDG_STATE_HOME": str(dir / state),
+        "YAZI_LOG": "debug",
+    }
 
 
 def need(*tools: str) -> None:
@@ -149,12 +170,10 @@ class Session:
         self.name = name
         self.started = False
 
-    def tmux(self, *args: str, timeout: float = 20) -> str:
-        return run(["tmux", *args], timeout=timeout).stdout
+    def tmux(self, *args: str) -> str:
+        return run(["tmux", *args]).stdout
 
-    def start(
-        self, command: str, *, width: int = 170, height: int = 40
-    ) -> None:
+    def start(self, command: str, *, width: int, height: int) -> None:
         """Open the session. `set -e`'s replacement is `run`'s own exit."""
         self.tmux(
             "new-session",

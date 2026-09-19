@@ -27,12 +27,14 @@ import os
 import pwd
 import re
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import screen as sc
+import setup as fixture
 from harness import (
     ROOT,
     Checks,
@@ -40,6 +42,7 @@ from harness import (
     need,
     require_python,
     run,
+    yazi_env,
 )
 
 #: The window every capture is taken in. Wide enough that the three panes all
@@ -73,9 +76,7 @@ class Run:
         # harness left that marker, so the guard passes and the removal takes
         # the other run's fixture out from under its Yazi.
         pid = os.getpid()
-        self.dir = (
-            Path(os.environ.get("TMPDIR", "/tmp")) / f"supaline-e2e.{pid}"
-        )
+        self.dir = Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
         self.session = Session(f"supaline-e2e-{pid}")
         self.keep = keep
         self.shots: dict[str, str] = {}
@@ -83,7 +84,13 @@ class Run:
     # --- the fixture -------------------------------------------------------
 
     def setup(self) -> None:
-        run([sys.executable, str(ROOT / "test" / "setup.py"), str(self.dir)])
+        """Imported and called, the way `manual.py` calls it.
+
+        A subprocess would be the same fixture and a worse refusal: `setup.py`
+        prints its own sentence and exits 2, and `run` would print a second,
+        emptier one over the top of it.
+        """
+        fixture.main([str(self.dir)])
 
     def teardown(self) -> None:
         self.session.kill()
@@ -92,28 +99,23 @@ class Run:
         if self.keep:
             print(f"kept: {self.dir}")
             return
-        run(
-            [
-                sys.executable,
-                str(ROOT / "test" / "setup.py"),
-                "--clean",
-                str(self.dir),
-            ]
-        )
+        fixture.main(["--clean", str(self.dir)])
 
     # --- driving -----------------------------------------------------------
 
     def open_yazi(self, state: str) -> None:
         """Start Yazi on `data/`, with a state directory of its own.
 
-        `YAZI_LOG` because a report is two halves and only the shorter one is a
-        notification -- and there is no log at all unless this is set before
-        Yazi starts.
+        The environment is `harness.yazi_env`, which `manual.py` opens the
+        same fixture with; spelled out here as an `env` prefix because what
+        tmux takes is a command line rather than a mapping.
         """
+        env = " ".join(
+            f"{name}='{value}'"
+            for name, value in yazi_env(self.dir, state).items()
+        )
         self.session.start(
-            f"env YAZI_CONFIG_HOME='{self.dir}/config' "
-            f"XDG_STATE_HOME='{self.dir}/{state}' YAZI_LOG=debug "
-            f"yazi '{self.dir}/fixture/data'",
+            f"env {env} yazi '{self.dir}/fixture/data'",
             width=WIDTH,
             height=HEIGHT,
         )
@@ -140,18 +142,21 @@ class Run:
         (self.dir / f"screen-{label}.txt").write_text(plain)
         (self.dir / f"color-{label}.txt").write_text(colour)
 
-    def goto(self, key: str, expect: str) -> None:
+    def goto(self, key: str) -> None:
         """Press a `g` key and wait until the folder it names is on screen.
 
         The predicate is a name only that folder holds, so this says the `cd`
         arrived rather than that a second went by. Every `g` key in this run
-        gets one.
+        gets one, and the name comes out of `FOLDERS` rather than from the
+        caller: a pair that could disagree is a wait on the wrong folder.
         """
-        self.session.keys("g", key)
-        self.session.wait_for(
-            lambda s: expect in s, f"`{expect}` after g {key}"
+        expect = FOLDERS[key]
+        self.session.press(
+            "g",
+            key,
+            until=lambda s: expect in s,
+            what=f"`{expect}` after g {key}",
         )
-        self.session.settle(stable=0.2)
 
 
 def clean_run(r: Run) -> None:
@@ -186,7 +191,7 @@ def clean_run(r: Run) -> None:
     # plain-text predicate to write and the colour capture is what the checks
     # read.
     for folder, key, label in COLOUR_MODES:
-        r.goto(folder, FOLDERS[folder])
+        r.goto(folder)
         r.session.press("c", key)
         r.shot(label)
 
@@ -195,9 +200,9 @@ def clean_run(r: Run) -> None:
     # does. `bind`'s per-folder cache key is the piece most likely to get that
     # wrong.
     r.session.press("m", "3")
-    r.goto("2", FOLDERS["2"])
+    r.goto("2")
     r.shot("m3-nested")
-    r.goto("1", FOLDERS["1"])
+    r.goto("1")
 
     # Last of everything, because it rewrites the theme every capture above was
     # taken under. Back to m1 first, so a `size` column and an `mtime` one are
@@ -205,18 +210,15 @@ def clean_run(r: Run) -> None:
     r.session.press("m", "1")
     r.shots["theme-before"] = r.session.capture(colour=True)
 
-    # Both shapes a `[supaline]` value can take, because they are rebuilt by
-    # different code: a flat colour is one `ui.Style` and a ramp is `STEPS` of
-    # them, built from endpoints parsed out of the string. A ramp resolved once
-    # and cached past the reload would hold its old endpoints with the flat
-    # colour beside it already correct, and the flat half alone would not
+    # Both shapes at once, for the reason `THEME_EDIT` gives: a ramp resolved
+    # once and cached past the reload would hold its old endpoints with the
+    # flat colour beside it already correct, and the flat half alone would not
     # notice.
     theme = r.dir / "config" / "theme.toml"
-    theme.write_text(
-        theme.read_text()
-        .replace("#ff8800", "#00ccff")
-        .replace("#0b3d91 -> #7fd4ff", "#1a5e00 -> #9bff66")
-    )
+    body = theme.read_text()
+    for old, new in THEME_EDIT:
+        body = body.replace(old, new)
+    theme.write_text(body)
     r.session.press("T")
     r.shots["theme-after"] = r.session.capture(colour=True)
 
@@ -260,7 +262,7 @@ def broken_run(r: Run) -> None:
     # `b f` draws the counting pair and breaks nothing by itself; `g 6` is what
     # throws the `refresh`. Last, because every `cd` after it throws again.
     r.session.press("b", "f")
-    r.goto("6", FOLDERS["6"])
+    r.goto("6")
 
     # A union over many captures, not one capture, because six reports do not
     # fit on the screen at once. Measured on 26.9.1: Yazi draws **three**
@@ -295,8 +297,8 @@ def broken_run(r: Run) -> None:
     # presses, since a theme event rebuilds every column and the gate has to
     # survive being recompiled. Nothing here is checked on its own -- it is the
     # same per-column count below that answers all of it, by still being 1.
-    r.goto("1", FOLDERS["1"])
-    r.goto("2", FOLDERS["2"])
+    r.goto("1")
+    r.goto("2")
     r.session.press("T")
     r.session.press("T")
 
@@ -319,6 +321,19 @@ COLOUR_MODES = (
     ("1", "t", "c_theme"),
 )
 
+
+#: The edit `T` is pressed against, and the colours either side of it. One
+#: table because two readers need it -- the rewrite that makes the change and
+#: the check that reads it off the screen, nine hundred lines apart -- and a
+#: pair written twice is a pair that drifts into asserting on a colour nothing
+#: wrote. Both shapes a `[supaline]` value can take are here, because they are
+#: rebuilt by different code: a flat colour is one `ui.Style` and a ramp is
+#: `STEPS` of them, built from endpoints parsed out of the string. These are
+#: the values `themes/default.toml` spells, which says so beside them.
+THEME_EDIT = (
+    ("#ff8800", "#00ccff"),
+    ("#0b3d91 -> #7fd4ff", "#1a5e00 -> #9bff66"),
+)
 
 #: A name only the folder behind each `g` key holds, so the press can be waited
 #: on rather than slept through.
@@ -942,10 +957,17 @@ def check_bands(k: Checks, capture: str, init: str) -> None:
     # in one direction: a grounded column added to `c_bg` would be drawn, read
     # by nobody, and green. Every flat ground the fixture writes there has to
     # have been asked for by name, and the refusal says what to write.
+    # The guard every other sweep here carries: the pattern is anchored on
+    # stylua's indentation, and an empty string put through `findall` is a
+    # sweep that passes over nothing while looking exactly like one that swept.
     block = re.search(r"c_bg = \{.*?\n\t\t\},", init, re.DOTALL)
-    for name in re.findall(
-        r"bg = ([A-Z_]+)[ ,}]", block.group(0) if block else ""
-    ):
+    if not block:
+        k.fail(
+            "c_bg: the fixture's init.lua has no `c_bg` block this sweep can "
+            "find, so a ground added there would be read by nobody"
+        )
+        return
+    for name in re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0)):
         if not ground_hex(init, name):
             continue
         if name not in asked:
@@ -974,35 +996,38 @@ def check_bold(k: Checks, shots: dict[str, str]) -> None:
             f"({agreed} rows)"
         )
 
-    # `permissions` is the only column that paints its own cell, so a bold
-    # written for it reaches the characters without replacing the colours they
-    # already have: `perm_spans` patches the column's style into each
-    # character's own, and that style carries no colour of its own to overwrite
-    # them with. The pattern asks for both halves at once: the bold opening a
-    # run, and two characters after it in *different* colours of their own. A
-    # cell that had stepped aside for the attribute would draw in one colour
-    # and fail the second half while passing the first.
+    # Both of these read an escape rather than a parsed cell, and both are in
+    # `screen.py` for it: an escape is the one thing a hand-written capture can
+    # state exactly, so the pattern is pinned in CI where the run around it
+    # cannot go. `bold_over_paint` is the column that paints per character and
+    # `bold_over_ramp` the spec's weight over the theme's colour; each
+    # docstring says what its two halves discriminate between. Scoped to the
+    # current pane, like every other colour claim in this run.
     k.that(
-        re.search(
-            r"\x1b\[1m\x1b\[[0-9]*m.\x1b\[[0-9]*m.", shots["colour-c_bold"]
-        )
-        is not None,
+        sc.bold_over_paint(shots["colour-c_bold"]) > 0,
         "c_bold: the bold reaches the characters permissions paints, "
         "colours kept",
     )
-
-    # `c_theme`'s `mtime` writes `{ bold = true }` in the spec over a ramp the
-    # theme wrote: the colour is the theme's and the weight the spec's, on one
-    # cell, which is the case the layers exist for. Read as the bold
-    # immediately before a ramp colour that opens a date.
     k.that(
-        re.search(
-            r"\x1b\[1m\x1b\[38;2;[0-9]*;[0-9]*;[0-9]*m[0-9][0-9]/",
-            shots["colour-c_theme"],
-        )
-        is not None,
+        sc.bold_over_ramp(shots["colour-c_theme"]) > 0,
         "c_theme: a spec's bold over the theme's ramp",
     )
+
+
+def cool_ends(k: Checks, init: str, who: str) -> tuple[str, str]:
+    """The ramp `c_scale` and `c_edge` are both measured against, or empties.
+
+    Shared because both want it and a guard written twice is two sentences
+    that drift apart; `who` is what makes the one sentence say which check
+    went looking, which neither copy of it did.
+    """
+    low, high = ramp_ends(init, "COOL")
+    if not low:
+        k.fail(
+            f"{who}: the fixture's init.lua binds no `local COOL` to a "
+            "two-ended ramp, so there is nothing to measure against"
+        )
+    return low, high
 
 
 def check_scale(k: Checks, capture: str, init: str) -> None:
@@ -1014,14 +1039,10 @@ def check_scale(k: Checks, capture: str, init: str) -> None:
     left column reads as a gradient *to a reader* is `MANUAL.md`'s question
     and stays there.
     """
-    low, _ = ramp_ends(init, "COOL")
-    rows = sc.scale_rows(capture)
+    low, _ = cool_ends(k, init, "c_scale")
     if not low:
-        k.fail(
-            "the fixture's init.lua binds no `local COOL` to a two-ended "
-            "ramp, so this check has no low end to measure against"
-        )
         return
+    rows = sc.scale_rows(capture)
     if len(rows) < SCALE_FLOOR:
         k.fail(
             f"c_scale: only {len(rows)} row(s) carried a pair either side of "
@@ -1082,14 +1103,10 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
     What nothing here should draw is a step in between: a gradient over this
     folder is a ratio that divided by a range of zero.
     """
-    low, high = ramp_ends(init, "COOL")
-    rows = sc.edge_rows(capture)
+    low, high = cool_ends(k, init, "c_edge")
     if not low:
-        k.fail(
-            "the fixture's init.lua binds no `local COOL` to a two-ended "
-            "ramp, so this check has no ends to measure against"
-        )
         return
+    rows = sc.edge_rows(capture)
 
     # Told apart by what the cell reads rather than by where it sits: a size
     # carries its unit, and a directory's cell holds a count -- or the `-` it
@@ -1147,7 +1164,15 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("theme")
 
-    # `[supaline] size` starts at #ff8800 and the reload made it #00ccff.
+    (flat_old, flat_new), (ramp_old, ramp_new) = THEME_EDIT
+    old_ends = ramp_old.split(" -> ")
+    new_ends = ramp_new.split(" -> ")
+
+    def cells(shot: str, *hexes: str) -> list[int]:
+        """Cells of one capture drawn in each colour, in the order asked."""
+        return [lines_with(shots[shot], sc.sgr(38, h)) for h in hexes]
+
+    # `[supaline] size` is the flat half of the rewrite `clean_run` made.
     #
     # Both halves are needed, and only the second discriminates. Until 26.9.1
     # the user's theme was merged inside the `app:theme` actor alone, so a
@@ -1156,9 +1181,8 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # that capture now proves nothing. A reload still does: it is
     # `ps.sub("theme", build)` that repaints what is already on screen, and a
     # plugin without it holds the old colour.
-    before = lines_with(shots["theme-before"], sc.sgr(38, "#ff8800"))
-    stale = lines_with(shots["theme-after"], sc.sgr(38, "#ff8800"))
-    after = lines_with(shots["theme-after"], sc.sgr(38, "#00ccff"))
+    (before,) = cells("theme-before", flat_old)
+    stale, after = cells("theme-after", flat_old, flat_new)
     if before > 0:
         k.ok(f"the themed base colour is drawn ({before} cells)")
     else:
@@ -1171,17 +1195,14 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
             f"(old={stale} new={after})"
         )
 
-    # The ramp beside it went from `#0b3d91 -> #7fd4ff` to
-    # `#1a5e00 -> #9bff66`. That is a different piece of code reloading: a flat
-    # colour is one `ui.Style` resolved from the value, a ramp is `STEPS` of
-    # them built by `colour.styles` from endpoints parsed out of the string.
-    # Both new ends have to be on screen and neither old one left anywhere -- a
-    # ramp cached past the reload would keep its old endpoints with the flat
-    # colour beside it already correct.
-    def ends(*names: str) -> list[int]:
-        return [lines_with(shots["theme-after"], sc.sgr(38, n)) for n in names]
-
-    old, new = ends("#0b3d91", "#7fd4ff"), ends("#1a5e00", "#9bff66")
+    # The ramp beside it is the other half, and a different piece of code
+    # reloading: a flat colour is one `ui.Style` resolved from the value, a
+    # ramp is `STEPS` of them built by `colour.styles` from endpoints parsed
+    # out of the string. Both new ends have to be on screen and neither old one
+    # left anywhere -- a ramp cached past the reload would keep its old
+    # endpoints with the flat colour beside it already correct.
+    old = cells("theme-after", *old_ends)
+    new = cells("theme-after", *new_ends)
     if min(new) > 0 and max(old) == 0:
         k.ok("... and rebuilds a ramp, not only a flat colour")
     else:
@@ -1196,7 +1217,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # the plugin ignoring the reload.
     #
     # `themes/alt.toml` puts the ramp at `#5d0b91 -> #ffb37f`, where the reload
-    # above had left `#1a5e00 -> #9bff66`. Both halves are asked, because they
+    # above had left `THEME_EDIT`'s new one. Both halves are asked, because they
     # fail separately: the file says the key reached the disk, and the screen
     # says the reload that followed it was not lost on the way.
     #
@@ -1204,8 +1225,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # [ "shell ... --confirm", "app:theme" ] the two race and the reload wins
     # -- measured on 26.9.1, `theme.toml` ends up correct on disk with the old
     # colours still on screen, and `--block` does not change it.
-    swapped = lines_with(shots["theme-swapped"], sc.sgr(38, "#5d0b91"))
-    kept = lines_with(shots["theme-swapped"], sc.sgr(38, "#1a5e00"))
+    swapped, kept = cells("theme-swapped", "#5d0b91", new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
         dir / "themes" / "alt.toml"
     ).read_bytes()
