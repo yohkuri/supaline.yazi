@@ -91,11 +91,75 @@ trap 'exit 143' TERM
 "$ROOT/test/setup.sh" "$DIR"
 echo "$YAZI_VERSION" >"$DIR/yazi-version.txt"
 
+# The divider between two panes. Read out of a variable so this file stays
+# ASCII, like the escapes `sgr` builds further down; every reader of it is down
+# there too, apart from the one immediately below.
+BAR=$(printf '\xe2\x94\x82')
+
+# A Yazi that never drew, said once here rather than as forty failed checks.
+#
+# The `sleep` after each `new-session` is a settle, not a check, and two
+# different failures walk straight past it. A Yazi that exits on startup takes
+# its tmux session with it, so every `send-keys` below goes nowhere. One that
+# comes up and draws nothing keeps its session, so the keys land and the
+# captures are of a blank screen -- and that one is not hypothetical: an error
+# raised under a linemode's render fails the whole `Root` component rather than
+# the row, so the file list, the header and the status bar stop together and
+# what is left is an empty pane rather than a message.
+#
+# The divider is the cheapest thing on the screen that a drawn `Root` puts
+# there and a blank one does not, so it is what gets waited for. Additive on
+# purpose: the settle is untouched and a healthy run clears this on its first
+# look, so nothing that passes today waits a second longer for it.
+#
+# Not `timeout(1)`, which is GNU coreutils and not on a stock macOS -- a
+# harness that needs Homebrew before it can notice a hang is one more thing
+# between a clone and a test run. The loop is the shape the report drain
+# further down already uses.
+#
+# The scratch directory is kept when this fires. The run's log is in it, that
+# log is where a render error goes, and the trap would otherwise delete both at
+# the moment they became worth reading.
+drew() { # <which run>
+	waited=0
+	while [ "$waited" -lt 30 ]; do
+		if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+			KEEP=1
+			echo "e2e: $1: Yazi exited before it drew anything." >&2
+			echo "  Its session went with it, so the failure is on the way" >&2
+			echo "  out rather than on the screen -- the log is the place to" >&2
+			echo "  look, and the same command run by hand is the other." >&2
+			exit 1
+		fi
+		tmux capture-pane -t "$SESSION" -p | grep -q "$BAR" && return 0
+		sleep 1
+		waited=$((waited + 1))
+	done
+	KEEP=1
+	echo "e2e: $1: Yazi is still running and has drawn no pane divider." >&2
+	echo "  A render that throws blanks the whole screen rather than one" >&2
+	echo "  row, so that is what this looks like from here; the scratch" >&2
+	echo "  directory named below holds the log that would say so." >&2
+	# An all-blank pane is the expected shape of this failure, and printing
+	# five empty lines to say so is worse than the sentence. Anything else on
+	# the screen is a surprise and gets shown -- a Yazi that drew a panic, or
+	# one still on its splash.
+	pane=$(tmux capture-pane -t "$SESSION" -p)
+	if [ -z "$(printf '%s' "$pane" | tr -d '[:space:]')" ]; then
+		echo "  The pane is empty, after ${waited}s of waiting." >&2
+	else
+		echo "  The top of the pane, after ${waited}s of waiting:" >&2
+		printf '%s\n' "$pane" | sed -n '1,5p' | sed 's/^/    /' >&2
+	fi
+	exit 1
+}
+
 # --- run -------------------------------------------------------------------
 tmux new-session -d -s "$SESSION" -x 170 -y 40 \
 	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state' YAZI_LOG=debug yazi '$DIR/fixture/data'"
 STARTED=1
 sleep 4
+drew "the clean run"
 
 shot() {
 	tmux capture-pane -t "$SESSION" -p >"$DIR/screen-$1.txt"
@@ -224,6 +288,7 @@ tmux new-session -d -s "$SESSION" -x 170 -y 40 \
 	"env YAZI_CONFIG_HOME='$DIR/config' XDG_STATE_HOME='$DIR/state-broken' YAZI_LOG=debug yazi '$DIR/fixture/data'"
 STARTED=1
 sleep 4
+drew "the broken-column run"
 
 for k in r s w u g; do
 	tmux send-keys -t "$SESSION" b "$k"
@@ -314,10 +379,7 @@ sgr() { # <38|48> <#rrggbb>
 
 # The current pane is the field between the two dividers, which neither `sed`
 # above can take: each anchors on one divider and the middle needs both. `awk`
-# splitting on the divider does, and reading it out of a variable keeps this
-# file ASCII like the escapes above.
-BAR=$(printf '\xe2\x94\x82')
-
+# splitting on the divider does.
 current_of() { sed -n '2,8p' "$DIR/screen-$1.txt" | awk -F"$BAR" '{ print $2 }'; }
 # A row that drew ends in the trio's one column: `mark`, a single "d" or "f"
 # after the name. A bare row ends in the name itself.
