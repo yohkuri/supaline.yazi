@@ -23,6 +23,11 @@ from dataclasses import dataclass
 # `c_scale` and `c_bold` in the fixture use U+250A for their separators.
 BAR = "│"
 
+# U+250A, which `c_scale` and `c_bold` write between two cells holding one
+# number. A separate name from `BAR` because the split it anchors is the
+# opposite one: `BAR` finds the pane, this finds the seam inside a column.
+DOTTED = "┊"
+
 # What tmux writes an attribute or a colour out as, opened by ESC [ and closed
 # by `m`.
 ESC = "\x1b"
@@ -40,9 +45,18 @@ def sgr(layer: int, colour: str) -> str:
 
     `layer` is 38 for a foreground and 48 for a background.
     """
+    return f"{layer};2;{rgb(colour)}m"
+
+
+def rgb(colour: str) -> str:
+    """`#0b3d91` -> `11;61;145`, which is how a parsed cell carries it.
+
+    The layer and the closing `m` say where a colour was used, not which one
+    it is, so a check comparing a cell this module read against a colour the
+    fixture spells wants the triple alone.
+    """
     h = colour.lstrip("#")
-    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
-    return f"{layer};2;{r};{g};{b}m"
+    return ";".join(str(int(h[i : i + 2], 16)) for i in (0, 2, 4))
 
 
 def escaped(layer: int, colour: str) -> str:
@@ -173,6 +187,105 @@ def background_rows(capture: str) -> list[RampRow]:
                 ratio_colour=colour,
                 date_colour=colour,
                 ratio=float(ratio.group(2)),
+            )
+        )
+    return out
+
+
+@dataclass(frozen=True)
+class ScaleRow:
+    """One row of `c_scale`: the same size drawn twice, log then linear."""
+
+    #: The `R;G;B` of the cell `scale = "log"` placed.
+    log_colour: str
+    #: ... and of the `scale = "linear"` cell beside it.
+    linear_colour: str
+    #: What the log cell reads. The linear one has to read the same.
+    log_text: str
+    #: What the linear cell reads.
+    linear_text: str
+
+
+def scale_rows(capture: str) -> list[ScaleRow]:
+    """Every current-pane row of `c_scale`, as the pair it draws.
+
+    The two cells hold one number by construction -- one `size` column twice,
+    differing in `scale` and nothing else -- so they are read off one row
+    rather than swept for separately. Two independent sweeps would pass a
+    capture whose halves had drifted onto different rows, and the whole claim
+    here is about what two scales did to *one* value.
+
+    The seam is `DOTTED` rather than `BAR`, which is what keeps this inside
+    the current pane: see the note on `BAR`.
+    """
+    cell_re = re.compile(
+        rf"{re.escape(ESC)}\[({_BODY.format(layer=38)}) *([0-9.]+[A-Za-z]?)"
+    )
+
+    out = []
+    for field in current_fields(capture):
+        left, seam, right = field.partition(DOTTED)
+        if not seam:
+            continue
+        before, after = cell_re.findall(left), cell_re.findall(right)
+        if not before or not after:
+            continue
+        out.append(
+            ScaleRow(
+                log_colour=_triple(before[-1][0]),
+                linear_colour=_triple(after[0][0]),
+                log_text=before[-1][1],
+                linear_text=after[0][1],
+            )
+        )
+    return out
+
+
+@dataclass(frozen=True)
+class EdgeRow:
+    """One row of `c_edge`: a size, a ratio and a date on one ramp."""
+
+    #: The `R;G;B` of the size cell, which is the one that may have no value.
+    size_colour: str
+    #: ... of the ratio beside it.
+    ratio_colour: str
+    #: ... and of the date after that.
+    date_colour: str
+    #: What the size cell reads: a size, a directory's count, or `-`.
+    size: str
+
+
+def edge_rows(capture: str) -> list[EdgeRow]:
+    """Every current-pane row of `c_edge`, as its three cells at once.
+
+    Matched as one run rather than three searches, because the cells are
+    adjacent and a row is only worth reading if all three are there: the
+    claim is that one ratio reached three columns, and a row that lost one of
+    them has nothing to say about it.
+
+    Reading the run also keeps Yazi's own file icon out. It carries a
+    truecolor escape of its own a few cells to the left, and a sweep for
+    `38;2` alone would count it as a column this plugin coloured.
+    """
+    body = _BODY.format(layer=38)
+    gap = rf"{re.escape(ESC)}\[[0-9;]*m "
+    row_re = re.compile(
+        rf"{re.escape(ESC)}\[({body}) *([^\x1b ]+)"
+        rf"{gap}{re.escape(ESC)}\[({body}) *[01]\.\d\d"
+        rf"{gap}{re.escape(ESC)}\[({body})\d\d/\d\d"
+    )
+
+    out = []
+    for field in current_fields(capture):
+        found = row_re.search(field)
+        if not found:
+            continue
+        out.append(
+            EdgeRow(
+                size_colour=_triple(found.group(1)),
+                ratio_colour=_triple(found.group(3)),
+                date_colour=_triple(found.group(4)),
+                size=found.group(2),
             )
         )
     return out

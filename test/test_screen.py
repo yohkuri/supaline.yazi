@@ -44,6 +44,12 @@ class Colours(unittest.TestCase):
     def test_escaped_opens_it(self):
         self.assertEqual(sc.escaped(38, "#000000"), "\x1b[38;2;0;0;0m")
 
+    def test_rgb_is_the_triple_a_parsed_cell_carries(self):
+        self.assertEqual(sc.rgb("#0b3d91"), "11;61;145")
+        # And it agrees with `sgr` by construction, which is what lets a check
+        # hold a cell this module parsed against a colour the fixture spells.
+        self.assertEqual(sc.sgr(38, "#7fd4ff"), f"38;2;{sc.rgb('#7fd4ff')}m")
+
 
 class Panes(unittest.TestCase):
     def setUp(self):
@@ -255,6 +261,113 @@ class Markers(unittest.TestCase):
         self.assertEqual(sc.rows_in_current(shot), 1)
 
 
+class Scales(unittest.TestCase):
+    """`c_scale` draws one size twice, log then linear, either side of U+250A."""
+
+    def pair(self, log: str, linear: str, text: str = "8B") -> str:
+        return row(
+            "p",
+            f"name {cell(log, text)}\x1b[39m{sc.DOTTED}{cell(linear, text)}",
+            "v",
+        )
+
+    def test_the_cells_either_side_of_the_seam_are_read_as_a_pair(self):
+        shot = capture(self.pair("#112233", "#445566"))
+        (got,) = sc.scale_rows(shot)
+        self.assertEqual(got.log_colour, "17;34;51")
+        self.assertEqual(got.linear_colour, "68;85;102")
+        self.assertEqual((got.log_text, got.linear_text), ("8B", "8B"))
+
+    def test_a_row_with_no_seam_is_skipped(self):
+        shot = capture(row("p", f"name {cell('#112233', '8B')}", "v"))
+        self.assertEqual(sc.scale_rows(shot), [])
+
+    def test_halves_that_drifted_apart_are_reported_rather_than_merged(self):
+        (got,) = sc.scale_rows(capture(self.pair("#112233", "#112233")))
+        self.assertEqual(got.log_text, got.linear_text)
+        shot = capture(
+            row(
+                "p",
+                f"name {cell('#112233', '8B')}\x1b[39m"
+                f"{sc.DOTTED}{cell('#112233', '9B')}",
+                "v",
+            )
+        )
+        (drifted,) = sc.scale_rows(shot)
+        self.assertNotEqual(drifted.log_text, drifted.linear_text)
+
+    def test_the_cell_nearest_the_seam_is_the_log_one(self):
+        # Two things at once, because one of them alone pins nothing. Yazi
+        # colours its own file icon a few cells to the left, and it survives
+        # only because no number follows it -- so the row carries a numeric
+        # cell further left as well, which is what the fixture would grow if a
+        # third scale were ever worth comparing. The log cell is the one
+        # against the seam, and neither of those is it.
+        shot = capture(
+            row(
+                "p",
+                f"{cell('#ff0000', chr(0xE5FF))} name "
+                f"{cell('#010203', '8B')} {cell('#112233', '8B')}"
+                f"\x1b[39m{sc.DOTTED}{cell('#445566', '8B')}",
+                "v",
+            )
+        )
+        (got,) = sc.scale_rows(shot)
+        self.assertEqual(got.log_colour, "17;34;51")
+        self.assertEqual(got.linear_colour, "68;85;102")
+
+
+class Edges(unittest.TestCase):
+    """`c_edge` draws a size, a ratio and a date, all off one ratio."""
+
+    def line(self, size_colour: str, rest: str, size: str = "3B") -> str:
+        return row(
+            "p",
+            f"name {cell(size_colour, size)}\x1b[39m "
+            f"{cell(rest, '1.00')}\x1b[39m {cell(rest, '12/25  2023')}",
+            "v",
+        )
+
+    def test_the_three_cells_are_read_as_one_run(self):
+        (got,) = sc.edge_rows(capture(self.line("#7fd4ff", "#7fd4ff")))
+        self.assertEqual(got.size_colour, "127;212;255")
+        self.assertEqual(got.ratio_colour, "127;212;255")
+        self.assertEqual(got.date_colour, "127;212;255")
+        self.assertEqual(got.size, "3B")
+
+    def test_a_directory_keeps_its_own_colour_on_the_size_cell(self):
+        # The rule the whole mode exists for: no value, so the low end, while
+        # the ratio and the date beside it are still at the high one.
+        (got,) = sc.edge_rows(
+            capture(self.line("#0b3d91", "#7fd4ff", size="-"))
+        )
+        self.assertEqual(got.size_colour, "11;61;145")
+        self.assertEqual(got.ratio_colour, "127;212;255")
+        self.assertEqual(got.size, "-")
+
+    def test_a_row_missing_one_of_the_three_is_skipped(self):
+        # Not half-read: the claim is that one ratio reached three columns,
+        # and a row that lost one has nothing to say about it.
+        shot = capture(row("p", f"name {cell('#7fd4ff', '3B')}\x1b[39m ", "v"))
+        self.assertEqual(sc.edge_rows(shot), [])
+
+    def test_the_file_icon_is_not_the_size_cell(self):
+        # The same trap as above, and the reason the run is matched whole: a
+        # sweep for `38;2` alone would count Yazi's icon as a column.
+        shot = capture(
+            row(
+                "p",
+                f"{cell('#89e051', chr(0xF0219))} name "
+                f"{cell('#7fd4ff', '3B')}\x1b[39m "
+                f"{cell('#7fd4ff', '1.00')}\x1b[39m "
+                f"{cell('#7fd4ff', '12/25  2023')}",
+                "v",
+            )
+        )
+        (got,) = sc.edge_rows(shot)
+        self.assertEqual(got.size_colour, "127;212;255")
+
+
 class TheFixtureItReads(unittest.TestCase):
     """The colours `e2e.py` asserts on are the ones the fixture spells.
 
@@ -273,6 +386,18 @@ class TheFixtureItReads(unittest.TestCase):
                 self.assertRegex(
                     init, rf'(?m)^local {name} = "#[0-9a-fA-F]{{6}}"$'
                 )
+
+    def test_cool_is_the_two_ended_ramp_c_scale_and_c_edge_read(self):
+        # `check_scale` and `check_edge` take both ends out of this line.
+        # Written as one colour, or under another name, and each of them
+        # refuses rather than measuring against an empty string.
+        init = (
+            Path(__file__).resolve().parent / "fixture" / "init.lua"
+        ).read_text()
+        self.assertRegex(
+            init,
+            r'(?m)^local COOL = "#[0-9a-fA-F]{6} -> #[0-9a-fA-F]{6}"$',
+        )
 
 
 if __name__ == "__main__":

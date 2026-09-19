@@ -53,6 +53,12 @@ WIDTH, HEIGHT = 170, 40
 #: no terminal this runs in shows fewer.
 RAMP_FLOOR = 24
 
+#: The floor under `c_scale`, which reads `colour/scale` rather than
+#: `colour/ramp`. That folder holds 21 files and all 21 fit a 40-row window,
+#: so this sits well under it: what would drop it is a column that stopped
+#: drawing, not a window that got shorter.
+SCALE_FLOOR = 16
+
 #: What counts as an error in a Yazi log, on either side of the run.
 TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
 
@@ -834,6 +840,8 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str) -> None:
         True,
     )
     check_bold(k, shots)
+    check_scale(k, shots["colour-c_scale"], init)
+    check_edge(k, shots["colour-c_edge"], init)
 
 
 def ground_hex(init: str, name: str) -> str:
@@ -847,6 +855,21 @@ def ground_hex(init: str, name: str) -> str:
         rf'^local {name} = "(#[0-9a-fA-F]{{6}})"$', init, re.MULTILINE
     )
     return found.group(1) if found else ""
+
+
+def ramp_ends(init: str, name: str) -> tuple[str, str]:
+    """The two endpoints of a ramp `init.lua` binds to a name, or two empties.
+
+    Read out of the fixture for the reason `ground_hex` is read out of it: a
+    hex written here as well is the copy that goes stale, and a recoloured
+    ramp would then report as a plugin that stopped drawing.
+    """
+    found = re.search(
+        rf'^local {name} = "(#[0-9a-fA-F]{{6}}) -> (#[0-9a-fA-F]{{6}})"$',
+        init,
+        re.MULTILINE,
+    )
+    return (found.group(1), found.group(2)) if found else ("", "")
 
 
 def check_bands(k: Checks, capture: str, init: str) -> None:
@@ -980,6 +1003,145 @@ def check_bold(k: Checks, shots: dict[str, str]) -> None:
         is not None,
         "c_theme: a spec's bold over the theme's ramp",
     )
+
+
+def check_scale(k: Checks, capture: str, init: str) -> None:
+    """`c_scale` draws one folder's sizes twice, log then linear.
+
+    The numbers are identical -- one `size` column written twice, differing in
+    `scale` and in nothing else -- so anything that differs on screen is the
+    scale, and that is the whole of what can be asserted here. Whether the
+    left column reads as a gradient *to a reader* is `MANUAL.md`'s question
+    and stays there.
+    """
+    low, _ = ramp_ends(init, "COOL")
+    rows = sc.scale_rows(capture)
+    if not low:
+        k.fail(
+            "the fixture's init.lua binds no `local COOL` to a two-ended "
+            "ramp, so this check has no low end to measure against"
+        )
+        return
+    if len(rows) < SCALE_FLOOR:
+        k.fail(
+            f"c_scale: only {len(rows)} row(s) carried a pair either side of "
+            f"the seam, wanted {SCALE_FLOOR}"
+        )
+        return
+
+    # The premise under both checks below. A row whose halves read differently
+    # is a fixture that moved, and the colours would then be two scales
+    # compared over two different numbers -- which is not a comparison at all.
+    drifted = [r for r in rows if r.log_text != r.linear_text]
+    if drifted:
+        k.fail(
+            f"c_scale: {len(drifted)} row(s) draw a different number either "
+            f"side of the seam -- `{drifted[0].log_text}` against "
+            f"`{drifted[0].linear_text}`"
+        )
+        return
+    k.ok(f"c_scale: the two scales draw one number ({len(rows)} rows)")
+
+    # The sizes double down the folder, so a log ratio spaces them evenly and
+    # a linear one cannot. Said as the two extremes rather than as a
+    # threshold on the difference: log takes a step it has not taken before on
+    # every row.
+    steps = len({r.log_colour for r in rows})
+    k.same(
+        steps,
+        len(rows),
+        f"c_scale: log takes a step per row ({steps} of {len(rows)})",
+    )
+
+    # ... and linear leaves most of them on the ramp's own low end. Not a
+    # number picked to pass: with sizes at 2^0 to 2^20 and the ramp in 38
+    # steps, a linear ratio rounds to step 0 for every size under 2^14, which
+    # is 14 of the folder's 21 files. A majority is that with room, and what
+    # would break it is a ratio that stopped being linear.
+    floor = sum(1 for r in rows if r.linear_colour == sc.rgb(low))
+    if floor * 2 <= len(rows):
+        k.fail(
+            f"c_scale: linear holds only {floor} of {len(rows)} rows at the "
+            "low end -- it should hold most of them there"
+        )
+    else:
+        k.ok(
+            f"c_scale: linear holds {floor} of {len(rows)} at the low end, "
+            "where log holds one"
+        )
+
+
+def check_edge(k: Checks, capture: str, init: str) -> None:
+    """`c_edge` draws a folder in which every value is the same.
+
+    `hi == lo`, so `ratio` answers 1 rather than dividing by nothing, and
+    every row with a value draws the ramp's **high** end -- not its low one,
+    and not the flat ground underneath it. A directory has no size, so its
+    cell draws the low end instead, which puts both rules on one screen.
+
+    What nothing here should draw is a step in between: a gradient over this
+    folder is a ratio that divided by a range of zero.
+    """
+    low, high = ramp_ends(init, "COOL")
+    rows = sc.edge_rows(capture)
+    if not low:
+        k.fail(
+            "the fixture's init.lua binds no `local COOL` to a two-ended "
+            "ramp, so this check has no ends to measure against"
+        )
+        return
+
+    # Told apart by what the cell reads rather than by where it sits: a size
+    # carries its unit, and a directory's cell holds a count -- or the `-` it
+    # shows until the preview has read it, which is the same row either way.
+    sized = re.compile(r"[0-9.]+[A-Za-z]")
+    files = [r for r in rows if sized.fullmatch(r.size)]
+    dirs = [r for r in rows if not sized.fullmatch(r.size)]
+    if not files or not dirs:
+        # Both kinds are the point: one of them alone leaves half the claim
+        # passing over nothing, quietly.
+        k.fail(
+            f"c_edge: {len(files)} row(s) with a size and {len(dirs)} "
+            "without, wanted some of each; this check is reading nothing"
+        )
+        return
+
+    bad = [
+        r for r in files if {r.size_colour, r.ratio_colour} != {sc.rgb(high)}
+    ]
+    if bad:
+        k.fail(
+            f"c_edge: {len(bad)} of {len(files)} row(s) with a value did not "
+            f"draw the ramp's high end -- `{bad[0].size}` at {bad[0].size_colour}"
+        )
+    else:
+        k.ok(
+            f"c_edge: every row with a value is at the high end ({len(files)})"
+        )
+
+    astray = [r for r in dirs if r.size_colour != sc.rgb(low)]
+    if astray:
+        k.fail(
+            f"c_edge: {len(astray)} of {len(dirs)} directory row(s) did not "
+            f"draw the low end -- `{astray[0].size}` at {astray[0].size_colour}"
+        )
+    else:
+        k.ok(f"c_edge: a directory draws the low end ({len(dirs)} rows)")
+
+    # And the claim the two above cannot make between them: nothing anywhere
+    # drew a step. Read over all three cells of every row, so a column that
+    # started interpolating is caught even where the two ends are still right.
+    seen = {
+        c for r in rows for c in (r.size_colour, r.ratio_colour, r.date_colour)
+    }
+    between = seen - {sc.rgb(low), sc.rgb(high)}
+    if between:
+        k.fail(
+            f"c_edge: {len(between)} colour(s) on screen are neither end of "
+            f"the ramp -- {' '.join(sorted(between))}"
+        )
+    else:
+        k.ok("c_edge: the two ends and no step between them")
 
 
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
