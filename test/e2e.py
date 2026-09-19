@@ -39,6 +39,7 @@ from harness import (
     ROOT,
     Checks,
     Session,
+    catch_term,
     need,
     require_python,
     run,
@@ -1321,6 +1322,9 @@ def yazi_version() -> str:
 def main(argv: list[str]) -> int:
     require_python()
     need("tmux", "yazi")
+    # Before there is anything to clean up, since what it buys is the `finally`
+    # at the foot of this function running on the way out.
+    catch_term()
 
     r = Run(keep=argv[:1] == ["--keep"])
     version = yazi_version()
