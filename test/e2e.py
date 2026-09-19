@@ -884,6 +884,32 @@ def ramp_ends(init: str, name: str) -> tuple[str, str]:
     return (found.group(1), found.group(2)) if found else ("", "")
 
 
+def band_width(init: str, name: str) -> int:
+    """The width a `c_bg` column states beside the ground it names, or 0.
+
+    A trailing space, comma or close brace, because a style writes the name
+    with one of the three after it. It costs nothing and it is what a ground
+    named after another one would need.
+    """
+    found = re.search(rf".*bg = {name}[ ,}}].*width = (\d+)", init)
+    return int(found.group(1)) if found else 0
+
+
+def c_bg_grounds(init: str) -> list[str] | None:
+    """Every name `c_bg` writes under a `bg`, or `None` if the block is gone.
+
+    The two answers are different failures and the caller says so differently.
+    A block with no grounds in it is a fixture nobody has given one; a block
+    this cannot find at all is a sweep that would pass over nothing while
+    looking exactly like one that swept -- and the pattern is anchored on
+    stylua's indentation, so re-nesting that table is all it takes.
+    """
+    block = re.search(r"c_bg = \{.*?\n\t\t\},", init, re.DOTALL)
+    if not block:
+        return None
+    return re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0))
+
+
 def check_bands(k: Checks, capture: str, init: str) -> None:
     """`c_bg` draws the same ramp over a ground, and over nothing.
 
@@ -912,19 +938,15 @@ def check_bands(k: Checks, capture: str, init: str) -> None:
         # Recorded before anything can fail, so the sweep below reads what was
         # asked for rather than what passed.
         asked.append(name)
-        # A trailing space, comma or close brace, because a style writes the
-        # name with one of the three after it. It costs nothing and it is what
-        # a ground named after another one would need.
-        width = re.search(rf".*bg = {name}[ ,}}].*width = (\d+)", init)
+        want = band_width(init, name)
         hexes = ground_hex(init, name)
-        if not width or not hexes:
+        if not want or not hexes:
             k.fail(
                 f"{label}: the fixture's init.lua has no flat `local {name}` "
                 "under a `bg` with a stated width, so there is no band to "
                 "measure"
             )
             return
-        want = int(width.group(1))
         got = sc.bands(capture, sc.escaped(48, hexes), want)
         if got.drawn < RAMP_FLOOR:
             k.fail(
@@ -954,17 +976,14 @@ def check_bands(k: Checks, capture: str, init: str) -> None:
     # in one direction: a grounded column added to `c_bg` would be drawn, read
     # by nobody, and green. Every flat ground the fixture writes there has to
     # have been asked for by name, and the refusal says what to write.
-    # The guard every other sweep here carries: the pattern is anchored on
-    # stylua's indentation, and an empty string put through `findall` is a
-    # sweep that passes over nothing while looking exactly like one that swept.
-    block = re.search(r"c_bg = \{.*?\n\t\t\},", init, re.DOTALL)
-    if not block:
+    grounds = c_bg_grounds(init)
+    if grounds is None:
         k.fail(
             "c_bg: the fixture's init.lua has no `c_bg` block this sweep can "
             "find, so a ground added there would be read by nobody"
         )
         return
-    for name in re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0)):
+    for name in grounds:
         if not ground_hex(init, name):
             continue
         if name not in asked:
@@ -1105,12 +1124,10 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
         return
     rows = sc.edge_rows(capture)
 
-    # Told apart by what the cell reads rather than by where it sits: a size
-    # carries its unit, and a directory's cell holds a count -- or the `-` it
-    # shows until the preview has read it, which is the same row either way.
-    sized = re.compile(r"[0-9.]+[A-Za-z]")
-    files = [r for r in rows if sized.fullmatch(r.size)]
-    dirs = [r for r in rows if not sized.fullmatch(r.size)]
+    # Told apart by what the cell reads rather than by where it sits, which is
+    # `sc.is_size`'s claim and is pinned in CI beside it.
+    files = [r for r in rows if sc.is_size(r.size)]
+    dirs = [r for r in rows if not sc.is_size(r.size)]
     if not files or not dirs:
         # Both kinds are the point: one of them alone leaves half the claim
         # passing over nothing, quietly.

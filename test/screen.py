@@ -280,7 +280,7 @@ def edge_rows(capture: str) -> list[EdgeRow]:
     gap = rf"{OPEN}[0-9;]*m "
     row_re = re.compile(
         rf"{OPEN}({body}) *([^\x1b ]+)"
-        rf"{gap}{OPEN}({body}) *[01]\.\d\d"
+        rf"{gap}{OPEN}({body}) *{_RATIO}"
         rf"{gap}{OPEN}({body})\d\d/\d\d"
     )
 
@@ -362,17 +362,31 @@ def is_cut_of(name: str, cell: str) -> bool:
     return name.startswith(cell.removesuffix("…"))
 
 
+def is_size(cell: str) -> bool:
+    """Whether a size cell holds a size, as against a count or a `-`.
+
+    What tells the two apart is the unit rather than where the cell sits: a
+    size carries one, and a directory's cell holds the count of what is in it
+    -- or the `-` it shows until the preview has read it, which is the same
+    row either way. Here rather than beside the check that partitions on it,
+    because it is a claim about what the screen reads and `test_screen.py` can
+    put both kinds through it.
+    """
+    return re.fullmatch(r"[0-9.]+[A-Za-z]", cell) is not None
+
+
 #: What tmux writes a truecolor SGR body as, with the layer left to fill in.
 _BODY = "{layer};2;\\d+;\\d+;\\d+m"
 
+#: And a ratio cell's number, between 0.00 and 1.00. Three readers match it
+#: and each captures it differently, so it is the number alone that is held
+#: here -- a file name cannot match it, and neither can the date beside it.
+_RATIO = r"[01]\.\d\d"
+
 
 def _ratio_re(layer: int) -> re.Pattern[str]:
-    """A ratio cell: an escape followed by a number between 0.00 and 1.00.
-
-    A file name cannot match it -- digit, dot, two digits -- and neither can
-    the date beside it.
-    """
-    return re.compile(rf"({_BODY.format(layer=layer)}) *([01]\.\d\d)")
+    """A ratio cell: an escape followed by the number, captured separately."""
+    return re.compile(rf"({_BODY.format(layer=layer)}) *({_RATIO})")
 
 
 def _triple(body: str) -> str:
@@ -477,7 +491,7 @@ def bold_pairs(capture: str) -> tuple[int, int]:
 
     Answers `(agreed, disagreed)`, counted over every row that had two cells.
     """
-    cell_re = re.compile(rf"{OPEN}({_BODY.format(layer=38)}) *[01]\.\d\d")
+    cell_re = re.compile(rf"{OPEN}({_BODY.format(layer=38)}) *{_RATIO}")
 
     agreed = disagreed = 0
     for field in current_fields(capture):
