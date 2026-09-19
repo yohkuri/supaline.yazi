@@ -9,7 +9,8 @@ description: >-
   spec's calls into the plugin are actually checked against, how to plant a
   value that is wrong on purpose without the probe being what gets refused,
   what the unit suite can and cannot prove, the fixture the e2e and manual
-  runs share, and the two ways a headless tmux behaves unlike a real terminal.
+  runs share, and the three ways a headless tmux behaves unlike a real
+  terminal.
 ---
 
 # Working on the test harness
@@ -266,5 +267,13 @@ test/manual.py --clean      # discard the manual fixture
 - Yazi queries the terminal on startup and aborts if nothing answers, so
   `script`-style pseudo-terminals do not work. Use tmux, which is a real
   terminal emulator.
+- The probe nothing answers also holds the exit open. 26.9.1 waits five
+  seconds for it after `q` -- 5.02, 5.03 and 5.04s measured -- and only then
+  does the process leave and tmux destroy the session with it. So a capture
+  taken in that window succeeds, which is a timeout standing in for a
+  guarantee rather than one: `Session.quit` waits for the session to go
+  instead of the screen to settle, because a `capture-pane` against a session
+  that has gone exits non-zero and the harness reports that as a refusal to
+  start.
 
-Both are already handled inside `e2e.py`. They matter when you change it.
+All three are already handled inside `e2e.py`. They matter when you change it.
