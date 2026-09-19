@@ -123,13 +123,11 @@ this needs no remembering.
 
 ## The second unit suite, and where a fact belongs
 
-`test/screen.py` reads a `tmux capture-pane` — which pane a row belongs to,
-which step of a ramp a cell drew in, how wide a background band came out — and
-`test/test_screen.py` puts captures written by hand through it. Those two are
-**pure**: no process, no file, no clock. That is what puts them in CI while
-`e2e.py` around them stays out of it, and it is a rule rather than an accident.
-A `subprocess` or a `Path.read_text` added to `screen.py` takes the whole file
-out of CI with it.
+`AGENTS.md` says what that suite is and what it runs on. What it does not say
+is that the purity is a **rule** rather than an accident: a `subprocess` or a
+`Path.read_text` added to `screen.py` takes the whole file out of CI with it,
+and the arithmetic that decides whether a ramp climbed goes back to being
+checked only by a run nobody can make a runner do.
 
 So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
 
@@ -155,10 +153,6 @@ handful of checks and the shape of that handful is what says where to look.
 And give a check a guard wherever an empty list or an unmatched pattern would
 let it pass over nothing — a sweep that read nothing looks exactly like a sweep
 that found nothing wrong.
-
-**Python 3.11 or newer**, nothing outside the standard library, and
-`harness.py` refuses an older one with a sentence rather than a traceback, the
-way `test/run.lua` refuses the wrong Lua.
 
 ## The fixture, shared by both harnesses
 
