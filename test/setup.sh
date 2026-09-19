@@ -681,11 +681,18 @@ supaline.column("name_line", {
 -- user wrote it after `setup` had run. A theme file and a `c` key would reach
 -- it, in the shape `c 1` to `c 3` already have.
 --
--- They sit on a leader of their own, `b`, and `e2e.sh` presses none of it.
--- That is forced rather than chosen: `report` writes to `yazi.log` as well as
--- to the screen, and `e2e.sh` fails a run in which Yazi logged an error at
--- all. So this is the one part of the fixture the headless run cannot stand
--- behind, and `MANUAL.md` says so where it says how to add a case.
+-- They sit on a leader of their own, `b`, and `e2e.sh` presses all of it --
+-- in a second Yazi with a log of its own, started once the run that is meant
+-- to be clean has been torn down. That shape is forced: `report` writes to
+-- `yazi.log` as well as to the screen, and `e2e.sh` fails the clean run for
+-- logging an error at all, so these keys cannot be pressed in it. Two logs
+-- rather than one exception.
+--
+-- Which columns that run expects is read out of *this file*, by a `sed` over
+-- the `supaline.column("torn_` lines below. So a seventh registered here
+-- turns the suite red until a key for it is pressed there too, and that is
+-- the direction the list is meant to grow in. `MANUAL.md` says the same where
+-- it says how to add a case.
 --
 -- One report per column per session, which is the plugin rather than the
 -- fixture: `told` marks a column the first time it is reported and drops every
