@@ -547,6 +547,63 @@ class TheFixtureItReads(unittest.TestCase):
         # like.
         self.assertTrue(e2e.broken_columns())
 
+    def test_both_grounds_state_a_width_beside_the_name(self):
+        # `check_bands` measures the band against this number, so a width
+        # nothing finds is a band measured against zero cells.
+        for name in ("GROUND", "LINE_GROUND"):
+            with self.subTest(ground=name):
+                self.assertGreater(e2e.band_width(self.init, name), 0)
+
+    def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
+        # `HUE` is bound and drawn, and nothing writes it under a `bg`. That
+        # is the half the anchor has to get right: a reader answering the
+        # width of some other line would measure a band against it.
+        self.assertEqual(e2e.band_width(self.init, "HUE"), 0)
+
+    def test_the_c_bg_block_is_found_and_names_both_grounds(self):
+        # The sweep that catches a ground added to `c_bg` and read by nobody.
+        # Its pattern is anchored on stylua's indentation, so re-nesting that
+        # table would leave it sweeping over nothing -- and this is what says
+        # so, since `e2e.py` is not in CI to.
+        grounds = e2e.c_bg_grounds(self.init)
+        self.assertIsNotNone(grounds)
+        assert grounds is not None
+        self.assertLessEqual({"GROUND", "LINE_GROUND"}, set(grounds))
+
+    def test_a_file_with_no_c_bg_block_is_told_from_one_with_no_grounds(self):
+        # The two are different failures and `check_bands` says them
+        # differently, so `None` has to mean the block and not the grounds.
+        self.assertIsNone(e2e.c_bg_grounds('local GROUND = "#112233"\n'))
+
+
+class Sizes(unittest.TestCase):
+    """`is_size` tells a size cell from a directory's, which `c_edge` needs.
+
+    The two draw different ends of the ramp, so a cell sorted into the wrong
+    half is compared against the wrong colour -- and `check_edge`'s guard that
+    it saw some of each goes on passing while it does.
+    """
+
+    def test_a_size_carries_its_unit(self):
+        for cell in ("1024B", "1.5K", "12.3M", "9G"):
+            with self.subTest(cell=cell):
+                self.assertTrue(sc.is_size(cell))
+
+    def test_a_directory_count_is_a_bare_number(self):
+        self.assertFalse(sc.is_size("2"))
+        self.assertFalse(sc.is_size("64"))
+
+    def test_a_cell_the_preview_has_not_read_yet_is_a_dash(self):
+        self.assertFalse(sc.is_size("-"))
+
+    def test_an_empty_cell_is_not_a_size(self):
+        self.assertFalse(sc.is_size(""))
+
+    def test_a_name_that_happens_to_end_in_a_letter_is_not_one(self):
+        # `fullmatch` rather than a search: a size cell is the whole cell.
+        self.assertFalse(sc.is_size("step-00.txt"))
+        self.assertFalse(sc.is_size("1024B  "))
+
 
 if __name__ == "__main__":
     unittest.main()
