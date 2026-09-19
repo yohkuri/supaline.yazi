@@ -1,0 +1,225 @@
+# The fixture's keymap, copied to `config/keymap.toml` by `test/setup.py`.
+#
+# The scratch directory is substituted into the paths below as this is copied,
+# so every one of them comes out absolute. That is what binding navigation is
+# for: a `cd` key lands the same way wherever it is pressed from, and reaching
+# `nested/` by going to the top of the listing and pressing `l` instead would
+# quietly make every check that needs that folder depend on what else happens
+# to sort above it in `data/`.
+#
+# Yazi's own linemode leader is `m`, and it only binds letters, so the digits
+# are free. `m s` and `m n` still reach Yazi's built-ins, which is what makes
+# them worth comparing against.
+#
+# The order climbs: m0 to m2 are the built-in columns at increasing richness,
+# m3 to m5 the layout decisions, m6 to m8 the panes, and m9 extensibility.
+
+[[mgr.prepend_keymap]]
+on   = "T"
+run  = "app:theme"
+desc = "Reload the theme"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "0" ]
+run  = "linemode plain"
+desc = "supaline: one column, to compare against m s"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "1" ]
+run  = "linemode default"
+desc = "supaline: size + mtime"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "2" ]
+run  = "linemode everything"
+desc = "supaline: every built-in column"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "3" ]
+run  = "linemode widths"
+desc = "supaline: fixed vs auto width"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "4" ]
+run  = "linemode overflow"
+desc = "supaline: ellipsis / clip / grow"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "5" ]
+run  = "linemode seps"
+desc = "supaline: separators"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "6" ]
+run  = "linemode pane_cur"
+desc = "supaline: the current pane alone"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "7" ]
+run  = "linemode pane_par"
+desc = "supaline: current + parent"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "8" ]
+run  = "linemode pane_prev"
+desc = "supaline: current + preview"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "9" ]
+run  = "linemode custom"
+desc = "supaline: user-written columns"
+
+# A letter rather than a digit only because the digits are spoken for. `e` is
+# free in Yazi's own `m` table, which holds `n`, `s`, `p`, `b`, `m` and `o`.
+[[mgr.prepend_keymap]]
+on   = [ "m", "e" ]
+run  = "linemode pane_each"
+desc = "supaline: a column set per pane"
+
+# The broken columns, on a leader of their own. `b` binds nothing at all in
+# Yazi's own `mgr` table -- the `b` that is bound is `m b`, its btime linemode
+# -- so nothing here shadows anything, the way the digits under `m` do not.
+#
+# A leader rather than six more keys under `m`, because these are not cases of
+# the thing that table is about. Every one of them is a *report* supaline can
+# put on the screen, and the column under it exists only to cause one.
+#
+# `b f` draws the pair of counting columns and does not by itself break
+# anything. What breaks it is `g 6`, which is where the comment beside that key
+# says why.
+[[mgr.prepend_keymap]]
+on   = [ "b", "r" ]
+run  = "linemode b_render"
+desc = "supaline: a `render` that throws"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "s" ]
+run  = "linemode b_stats"
+desc = "supaline: a `stats` that throws"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "w" ]
+run  = "linemode b_width"
+desc = "supaline: a `width` function that throws"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "u" ]
+run  = "linemode b_zero"
+desc = "supaline: a `width` function returning no usable number"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "g" ]
+run  = "linemode b_range"
+desc = "supaline: a ramp whose `stats` found no extremes"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "f" ]
+run  = "linemode b_tick"
+desc = "supaline: two columns counting their own refreshes"
+
+# --- where you are, and how it is coloured ---------------------------------
+# Two leaders, because a colour case has two halves that move independently.
+# `g` says **where you are**, which is the spread of values a ramp is stretched
+# over; `c` says **how it is coloured**, which is the linemode or the theme. A
+# treatment key deliberately does not move you, so flipping between two of them
+# holds the folder, the scroll position and the hover still and changes exactly
+# one thing -- which is the whole of what comparing two colour treatments is.
+#
+# `g` and `c` are both Yazi's own leaders and both bind only letters under
+# themselves, so the digits are free the way they are under `m`. The four
+# letters `c` does take -- `c c`, `c d`, `c f`, `c n`, all of them copying a
+# path to the clipboard -- are avoided rather than shadowed, since there is no
+# reason to spend them; `prepend_keymap` would win if they were.
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "1" ]
+run  = "cd @DIR@/fixture/data"
+desc = "supaline: go to the layout fixture"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "2" ]
+run  = "cd @DIR@/fixture/data/nested"
+desc = "supaline: go to a folder whose widest size differs"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "3" ]
+run  = "cd @DIR@/fixture/colour/ramp"
+desc = "supaline: go to one file per ramp step"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "4" ]
+run  = "cd @DIR@/fixture/colour/scale"
+desc = "supaline: go to sizes doubling from 1B"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "5" ]
+run  = "cd @DIR@/fixture/colour/edge"
+desc = "supaline: go to the degenerate distributions"
+
+# The one folder in the fixture whose only purpose is to break something.
+# Arriving here throws the `refresh` hook of `torn_tick`, and every `cd` after
+# it throws again -- so the count that column draws stops climbing while the
+# sound one beside it goes on, which is the two halves of what that report
+# claims, on screen.
+#
+# A `cd` key rather than a linemode key, because `refresh` is not reached by
+# choosing a linemode. The comment beside `torn_tick` has the rest of it.
+[[mgr.prepend_keymap]]
+on   = [ "g", "6" ]
+run  = "cd @DIR@/fixture/broken"
+desc = "supaline: go to the folder that breaks a `refresh`"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "r" ]
+run  = "linemode c_ramp"
+desc = "supaline: a ramp that climbs in every channel"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "h" ]
+run  = "linemode c_hue"
+desc = "supaline: a ramp that turns in hue"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "b" ]
+run  = "linemode c_band"
+desc = "supaline: a ramp derived from one colour"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "g" ]
+run  = "linemode c_bg"
+desc = "supaline: a ramp over a background"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "a" ]
+run  = "linemode c_bold"
+desc = "supaline: a bold over a colour the ramp chose"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "s" ]
+run  = "linemode c_scale"
+desc = "supaline: log beside linear"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "e" ]
+run  = "linemode c_edge"
+desc = "supaline: a ramp with nothing to spread over"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "t" ]
+run  = "linemode c_theme"
+desc = "supaline: the colours the theme decides"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "1" ]
+run  = "shell '@DIR@/theme-key.py default' --confirm"
+desc = "supaline: theme -- the default [supaline]"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "2" ]
+run  = "shell '@DIR@/theme-key.py alt' --confirm"
+desc = "supaline: theme -- every field moved"
+
+[[mgr.prepend_keymap]]
+on   = [ "c", "3" ]
+run  = "shell '@DIR@/theme-key.py bg' --confirm"
+desc = "supaline: theme -- flat colours with backgrounds"

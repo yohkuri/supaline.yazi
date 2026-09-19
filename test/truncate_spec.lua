@@ -102,7 +102,7 @@ test("Line:truncate: an empty ellipsis still costs a cell", function()
 	eq(t("abcdefgh", 4), "abc…")
 	eq(lt("abcdefgh", 4), "abc…")
 
-	-- `test/e2e.sh` renders `exactly-1k.bin` (fourteen cells) through columns
+	-- `test/e2e.py` renders `exactly-1k.bin` (fourteen cells) through columns
 	-- of twelve, and has one that hands back a Line rather than a string
 	-- precisely so this cell is on screen to be checked.
 	eq(lt("exactly-1k.bin", 12), "exactly-1k.…")

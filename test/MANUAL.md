@@ -1,18 +1,18 @@
 # Manual testing
 
-`test/e2e.sh` asserts that the columns are *there*. It cannot tell you they
+`test/e2e.py` asserts that the columns are *there*. It cannot tell you they
 look right: whether a column is one cell out, whether a truncation lands mid
 character, whether two colours fight each other. That is what this is for.
 
 ```sh
-test/manual.sh
+test/manual.py
 ```
 
-It builds a throwaway configuration and fixture with `test/setup.sh` — the same
-ones `e2e.sh` uses, so what you see here is what the headless run checks — and
+It builds a throwaway configuration and fixture with `test/setup.py` — the same
+ones `e2e.py` uses, so what you see here is what the headless run checks — and
 opens Yazi on them. Your own Yazi configuration is neither read nor touched.
 
-Quit with `q`. `test/manual.sh --clean` throws the fixture away.
+Quit with `q`. `test/manual.py --clean` throws the fixture away.
 
 ## The keys
 
@@ -99,7 +99,7 @@ Every row ends with a size, right-aligned in seven cells.
 - The owner column is twelve cells and holds your own `user:group`, so what to
   look for depends on its length: over twelve it ends in **exactly one** `…`,
   and under twelve it pads with none. Two ellipses in a row is what can go
-  wrong here, and `e2e.sh` counts them off the capture — it reads the cell,
+  wrong here, and `e2e.py` counts them off the capture — it reads the cell,
   holds it against `id`, and refuses a second ellipsis or a cut that is not a
   prefix of the name. So this one is covered rather than yours.
 - `user` and `group` follow it, eight cells each, and hold the two halves of
@@ -153,7 +153,7 @@ The same name, four ways, against a column of twelve.
   `exactly-1k.` until the cell asked for that cell back.
 - The **fourth** runs past twelve and pushes the file name over.
 - Every truncating column must land on a character boundary; half a character,
-  or a column one cell short, is a bug. `e2e.sh` asserts that on both wide
+  or a column one cell short, is a bug. `e2e.py` asserts that on both wide
   names — `日本語のファイル名.txt` and `絵文字🎨のなまえ.txt` — the padding
   after each ellipsis cell included, which is the space a boundary miss takes
   away. They are not one case twice: `🎨` is four bytes where `日` is three and
@@ -198,7 +198,7 @@ the file name, and the parent pane is an eighth of the terminal — 21 cells at
 at all for the name; even `mtime` alone does not fit an 80-column parent pane.
 Every built-in is 5 to 12 cells wide, so what belongs at the edges is a narrow
 marker, and there is no built-in that narrow to demonstrate it with. `mark` is
-the fixture's own, defined in `setup.sh` beside the m9 columns.
+the fixture's own, defined in `setup.py` beside the m9 columns.
 
 The preview pane keeps whatever its last peek drew, so switching between these
 without moving the hover leaves the right pane showing the previous mode. Move
@@ -289,7 +289,7 @@ where a colour written wins over `[supaline]`'s, so they hold still while
 
 ### Before Yazi opens
 
-`manual.sh` prints every ramp the fixture can draw, whole, before it hands over
+`manual.py` prints every ramp the fixture can draw, whole, before it hands over
 the screen: two lines each, one cell per step.
 
 The **solid** line is the gradient by itself. A band, a reversal, or a stretch
@@ -326,7 +326,7 @@ consecutive steps.
   `mtime` draws as `MM/DD  YYYY`, so the only thing that differs down the
   column is the colour. The step number is in the name instead.
 - Adjacent rows are exactly one step apart, and this is the question no machine
-  can ask. `e2e.sh` can measure one step in 64 and an eye cannot see it, so
+  can ask. `e2e.py` can measure one step in 64 and an eye cannot see it, so
   what you are judging is how far apart two rows have to be before they read as
   two colours rather than one.
 - The number is `ctx.ratio` and both columns carry the same ramp, so the two
@@ -336,7 +336,7 @@ consecutive steps.
 - Scroll. The whole ramp is 64 rows and no terminal shows them all at once;
   the line printed before Yazi opened is the one that does.
 
-`e2e.sh` reads exactly these rows, top to bottom, and takes every step from the
+`e2e.py` reads exactly these rows, top to bottom, and takes every step from the
 first to wherever the window cuts off — about 38 of the 64. It refuses a step
 that goes backwards in any channel, one that repeats the row above it, and a
 row whose two cells disagree. So what is left here is only ever visibility: it
@@ -352,9 +352,9 @@ endpoints derived.
 
 The two columns are the same band asked for two ways: the first takes the name
 off the key it is written under, the second writes `<-> both` and names it. They
-have to be indistinguishable, and `e2e.sh` reads both with one check.
+have to be indistinguishable, and `e2e.py` reads both with one check.
 
-- **Is the spread worth drawing?** `e2e.sh` already knows every step differs
+- **Is the spread worth drawing?** `e2e.py` already knows every step differs
   from the one above it, the same way it knows for `c r`. What it cannot ask is
   whether a band this wide separates the rows enough to be read as a gradient,
   or whether the derivation merely produced 64 shades of one colour.
@@ -381,7 +381,7 @@ In `g 3`, the same rows on `#0b3d91 -> #ffd400`. Navy to yellow, which crosses
 the middle of Oklab rather than climbing one side of it.
 
 Only half the ramp check can be aimed at this one, which is why it is here.
-`e2e.sh` refuses a sequence that goes backwards in any colour channel — a
+`e2e.py` refuses a sequence that goes backwards in any colour channel — a
 property of a ramp climbing all three at once, and this one reverses a channel
 on 49 of its 63 transitions, so that half would go red on a gradient that is
 perfectly correct. It is not asked. The other half is, and holds for any ramp
@@ -414,7 +414,7 @@ Catppuccin Mocha's `#1e1e2e`: correct, drawn on every row, and invisible to
 anyone reading on one. Both of the ones there now were chosen by measuring that
 distance instead of guessing it — against seven terminal grounds, the 64 steps
 above them, and the colours this fixture itself draws, with the two grounds held
-apart from each other as well. `setup.sh` writes down all three sets, both sets
+apart from each other as well. `setup.py` writes down all three sets, both sets
 of numbers, and that last distance.
 
 - The background has to be there on **every** row and the same on every row.
@@ -430,7 +430,7 @@ of numbers, and that last distance.
   column that returns a Line is padded by putting a second span beside it, and
   what has to cover that span is the style applied to the Line around both,
   after the text was measured. The two widths differ so that a glance can tell
-  which band is which; nothing in `e2e.sh` needs them to.
+  which band is which; nothing in `e2e.py` needs them to.
 - Legibility is a different question here than anywhere else: the text is being
   read against that ground rather than against the terminal's, so a step that
   was fine in the strip before Yazi opened can be wrong here. The name is drawn
@@ -449,7 +449,7 @@ of numbers, and that last distance.
   unchosen foreground can cross. The endpoints are yours to move, and what
   you are choosing between is which end you can read.
 
-`e2e.sh` reads both bands off the capture — that each is there, that it is its
+`e2e.py` reads both bands off the capture — that each is there, that it is its
 own stated width rather than the width of its text, and that no second column
 picked that ground up — and that `ratio`'s background climbs a step per row. It
 also refuses a grounded column added here that nothing asks it about, so the
@@ -478,14 +478,14 @@ colour: the columns here are meant to differ in exactly one way.
   ramp, which is not a bug in supaline and is worth knowing about your own
   terminal before reading `c r` beside it.
 
-`e2e.sh` reads the first two off the capture — the pair on each row, and a bold
+`e2e.py` reads the first two off the capture — the pair on each row, and a bold
 opening a run of differently coloured characters. The third it cannot see.
 
 ### `c s` — log beside linear
 
 In `g 4`. The same size twice, `scale = "log"` then `scale = "linear"`, on one
 ramp and with a `┊` between them because they hold the same number. A
-different character from `m 5`'s `│`, which is the one `e2e.sh` splits a
+different character from `m 5`'s `│`, which is the one `e2e.py` splits a
 capture on to find the current pane.
 
 ```text
@@ -557,20 +557,23 @@ anything: 26.9.1 applies the user's theme before any plugin code runs.
 A fourth folder is three edits, and a fourth treatment of an existing folder is
 two:
 
-1. the folder, in the colour section of `test/setup.sh`;
-2. the linemode, in the `linemodes` table of the `init.lua` that file writes;
-3. the key, in the `c`/`g` heredoc below it.
+1. the folder, in `build_colour` in `test/setup.py`;
+2. the linemode, in the `linemodes` table of `test/fixture/init.lua`;
+3. the key, in the `c`/`g` section of `test/fixture/keymap.toml`, and a name
+   only that folder holds in `FOLDERS` in `test/e2e.py`, so the press can be
+   waited on rather than slept through.
 
-Then add it to the `colour_shot` list in `test/e2e.sh`. That does not judge it
+Then add it to the colour loop in `test/e2e.py`. That does not judge it
 — judging is what this document is for — but an unregistered linemode name is
 drawn as literal text and one that threw takes the rows with it, and without
-that line the first person to find out is whoever next runs `manual.sh`.
+that line the first person to find out is whoever next runs `manual.py`.
 
 A case under `b` takes a different line, and takes it in the second Yazi
-`e2e.sh` starts for exactly these — the run that is meant to be clean fails for
+`e2e.py` starts for exactly these — the run that is meant to be clean fails for
 logging an error at all, and a column that is wrong on purpose makes it log
 one. Register the column and send its key in that run's loop. Which columns
-that run expects is read out of `setup.sh` rather than written in `e2e.sh`, so
+that run expects is read out of `test/fixture/init.lua` rather than written in
+`e2e.py`, so
 a seventh registered and never pressed is a red suite rather than a case
 nobody checks. [Broken columns](#broken-columns) has the rest of it.
 
@@ -610,7 +613,7 @@ the next.
 
 It is the shorter half. What the fault cost the rest of the line, and the
 traceback naming the function that threw and the line it threw on, go to the
-log instead — `manual.sh` prints its path before it opens Yazi, and `--clean`
+log instead — `manual.py` prints its path before it opens Yazi, and `--clean`
 takes it away with the fixture. Reading the two against each other is the only
 way to judge the split, which is the whole of what `report` in `main.lua` is
 for. Outside this harness there is no log at all unless `YAZI_LOG` was set
@@ -623,7 +626,7 @@ extremes, a `width` supaline will not take, or a throw from any of the four
 stages — and drops every later report of that kind from that column, which is
 what keeps a per-row failure from redrawing its own notification once a second
 for ever. So a `b` key pressed twice draws the cells the second time and says
-nothing. Restart `manual.sh` to see a report again.
+nothing. Restart `manual.py` to see a report again.
 
 The kinds are separate, so one column can still say two different things: a
 column whose `stats` found no extremes *and* whose `width` returned `0` reports
@@ -631,7 +634,7 @@ both, once each. Each column here is wrong in one way, so each is worth exactly
 one sentence — and four of the six share the throw kind, which is why a column
 carrying two of them would report only the first.
 
-`e2e.sh` presses all of this, in a second Yazi it starts once the run that is
+`e2e.py` presses all of this, in a second Yazi it starts once the run that is
 meant to be clean has been torn down. That second run has a log of its own,
 which is what lets the first go on failing for logging an error at all: two
 logs read for opposite things rather than one taught an exception. It counts
@@ -652,7 +655,7 @@ A report is two halves and only the shorter of them is on screen, so this takes
 two terminals. The fixture goes in the first:
 
 ```sh
-test/manual.sh
+test/manual.py
 ```
 
 It prints the log's path before it waits for Enter. Point the second terminal
@@ -682,7 +685,7 @@ boxes against each other.
 Yazi truncates the log when it starts, so a restart gives a clean one and there
 is nothing to delete between runs. A report missed is a report gone, though —
 `told` has already marked that column — and the way back is `q` and
-`test/manual.sh` again.
+`test/manual.py` again.
 
 ### `b r` — a `render` that throws
 
@@ -772,7 +775,7 @@ Press `g 6`, and the folder it takes you to breaks the left one:
   come back, which is `told` doing its job: a hook that throws throws again at
   every folder you walk into, and one sentence is the right number.
 - `g 6` is the only thing that arms it and nothing else in the fixture goes
-  there. A hook that threw unconditionally would throw during `e2e.sh` too.
+  there. A hook that threw unconditionally would throw during `e2e.py` too.
 
 ## The fixture
 
@@ -812,7 +815,7 @@ each for the things a ramp can be asked to do:
 | `edge/`  | Four files of equal size and mtime, and two directories           |
 
 The count in `ramp/` is read out of `colour.lua` when the fixture is built, so
-"one file per step" stays true if `STEPS` moves. A `setup.sh` that could not
+"one file per step" stays true if `STEPS` moves. A `setup.py` that could not
 find it stops rather than building a folder that quietly means something else.
 
 ## Not bugs
@@ -838,14 +841,14 @@ find it stops rather than building a folder that quietly means something else.
   under this leader shadows anything.
 - **The theme you left behind does not survive.** `c 1` to `c 3` overwrite
   `config/theme.toml`, and every run rebuilds the whole directory from
-  `setup.sh`, so the next one opens on the default whatever you pressed.
+  `setup.py`, so the next one opens on the default whatever you pressed.
 
 ## If something looks wrong
 
-Note which linemode, which row, and what you expected. `test/e2e.sh --keep`
+Note which linemode, which row, and what you expected. `test/e2e.py --keep`
 leaves its captures in `$TMPDIR/supaline-e2e.<pid>` and prints the path on the
 way out — `screen-mN.txt` is the plain text and `color-mN.txt` keeps the escape
 sequences, which is how to tell a colour problem from a layout one.
 
 A regression worth keeping should end up in `test/run.lua` if it is about the
-logic, or as a check in `test/e2e.sh` if it is about what reaches the screen.
+logic, or as a check in `test/e2e.py` if it is about what reaches the screen.

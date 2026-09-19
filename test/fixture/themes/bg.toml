@@ -1,0 +1,13 @@
+# Backgrounds, and the one thing the theme grammar cannot say. A style table
+# carries `bg` through to the column, so `size` and `owner` here are drawn on a
+# ground of their own. `mtime` cannot be: a ramp has to be written as a string,
+# a string has no room for a second colour, and a themed ramp is patched onto
+# an empty ground -- so it comes out with no background at all while the
+# columns either side of it have one. A ramp over a background is a `style` in
+# the spec, which is what `c g` shows.
+
+[supaline]
+size  = { fg = "#ffe9d6", bg = "#7a2d00" }
+mtime = "#0b3d91 -> #7fd4ff"
+owner = { fg = "#d6e9ff", bg = "#00337a" }
+ext   = "magenta"

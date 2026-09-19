@@ -1,0 +1,11 @@
+# The fixture's Yazi configuration, copied to `config/yazi.toml` by
+# `test/setup.py`.
+
+[mgr]
+linemode    = "default"
+show_hidden = true
+# Stated rather than left to the default, so that what a reader sees in the
+# manual run is what the captures were read against. No check depends on it:
+# `e2e.py` reaches every folder it visits by a `g` key bound to an absolute
+# path, which is what that spelling is for.
+sort_dir_first = true
