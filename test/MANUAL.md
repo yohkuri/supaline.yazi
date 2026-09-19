@@ -618,10 +618,18 @@ before Yazi started, which is why the notification says the traceback *goes*
 to the log rather than that it is in one.
 
 **Each of these is worth one look per session.** `told` in `main.lua` marks a
-column the first time it is reported and drops every report from that column
-afterwards, which is what keeps a per-row failure from redrawing its own
-notification once a second for ever. So a `b` key pressed twice draws the cells
-the second time and says nothing. Restart `manual.sh` to see a report again.
+column against the kind of thing it was told off for — a `stats` with no
+extremes, a `width` supaline will not take, or a throw from any of the four
+stages — and drops every later report of that kind from that column, which is
+what keeps a per-row failure from redrawing its own notification once a second
+for ever. So a `b` key pressed twice draws the cells the second time and says
+nothing. Restart `manual.sh` to see a report again.
+
+The kinds are separate, so one column can still say two different things: a
+column whose `stats` found no extremes *and* whose `width` returned `0` reports
+both, once each. Each column here is wrong in one way, so each is worth exactly
+one sentence — and four of the six share the throw kind, which is why a column
+carrying two of them would report only the first.
 
 `e2e.sh` presses all of this, in a second Yazi it starts once the run that is
 meant to be clean has been torn down. That second run has a log of its own,
