@@ -348,10 +348,24 @@ fi
 # a terminal.
 echo "== the reports =="
 if [ -z "$BROKEN_COLUMNS" ]; then
-	# The guard the counts below inherit. An empty list makes every one of them
-	# pass over nothing, quietly, which is the one way this check could be
-	# worth less than the `grep` it sits beside.
+	# One of the two guards the counts below inherit. An empty list makes every
+	# one of them pass over nothing, quietly, which is one of the two ways this
+	# check could be worth less than the `grep` it sits beside.
 	fail "no broken column is registered in test/setup.sh; this check is reading nothing"
+elif [ ! -f "$BROKEN_LOG" ]; then
+	# The other, and it has to be a guard rather than left to the counts,
+	# because a missing file does not reach them as a zero. `grep -c` on one
+	# writes nothing to stdout, so `got` and `logged` come back empty and
+	# `[ "" -ne 6 ]` errors rather than answering -- which `if` reads as false,
+	# taking the success branch of both. The screen half goes on matching,
+	# since a notification needs no log to be drawn, so every column would
+	# print "reported once, to the log and to the screen" and the run would
+	# exit 0 having asserted a file that was never written.
+	#
+	# Reachable rather than theoretical: there is no log at all unless
+	# `YAZI_LOG` was set before Yazi started, and the path is Yazi's to lay out
+	# under `XDG_STATE_HOME`.
+	fail "the broken run wrote no log at $BROKEN_LOG; this check is reading nothing"
 else
 	# A total beside the per-column counts, so the pair is closed: each name
 	# exactly once and this many lines in all leaves no room for a line naming
