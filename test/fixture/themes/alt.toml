@@ -1,0 +1,10 @@
+# Every field different, and the ramp's endpoints furthest of all: a reload
+# that rebuilt the flat colours and kept a cached ramp looks almost right, so
+# what tells the two apart is a ramp whose new ends share nothing with its old
+# ones.
+
+[supaline]
+size  = { fg = "#00ccff" }
+mtime = "#5d0b91 -> #ffb37f"
+owner = "green"
+ext   = "yellow"

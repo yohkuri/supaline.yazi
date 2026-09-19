@@ -9,7 +9,7 @@
 --- -- which has no upstream test suite to copy -- against what a real Yazi put
 --- on screen and against the contract `column.cell` relies on.
 ---
---- What the stubs cannot cover is exactly what `test/e2e.sh` is for: rendering,
+--- What the stubs cannot cover is exactly what `test/e2e.py` is for: rendering,
 --- fetchers, and `ya.sync`.
 
 -- The stubs deliberately implement only what the plugin touches, so LuaLS
@@ -472,7 +472,7 @@ function M.style_of(x) return getmetatable(x) == Span and x._style or nil end
 --- say otherwise. Read off `yazi-binding/src/elements/line.rs` at 26.9.1,
 --- where a Line taken into another has `line.style.patch(s.style)` set on
 --- each of its spans, and off ratatui's `Cell::set_style`, which patches a
---- span's style over what the line put in the cell. `test/e2e.sh` sees it on
+--- span's style over what the line put in the cell. `test/e2e.py` sees it on
 --- screen: a bold written for `permissions` opens a run of characters in
 --- colours of their own.
 ---@param x any
@@ -1004,7 +1004,7 @@ function M.install(root)
 		-- nowhere else. A spec that can read only the notification can therefore
 		-- say nothing about the half a reader is sent to the log for -- and that
 		-- half carried one stage's sentence for three of them, unseen by the
-		-- suite, until `manual.sh` put the three on a screen.
+		-- suite, until `manual.py` put the three on a screen.
 		--
 		-- `msg` and `...` as Yazi declares them, and every argument kept: the
 		-- plugin passes one, and a stub that folded the rest away would take a

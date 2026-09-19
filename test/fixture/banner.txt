@@ -1,35 +1,3 @@
-#!/bin/sh
-# Open the test fixture in a real, interactive Yazi, so you can look at the
-# columns yourself.
-#
-#     test/manual.sh          build the fixture and open it
-#     test/manual.sh --clean  throw the fixture away and stop
-#
-# The configuration and the fixture come from `test/setup.sh`, which `e2e.sh`
-# also uses, so what you see here is what the headless run asserts on. Your own
-# Yazi configuration is not read and not touched.
-
-set -eu
-
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
-DIR="${TMPDIR:-/tmp}/supaline-manual"
-
-if [ "${1:-}" = "--clean" ]; then
-	# `setup.sh` owns the marker file and the "is this ours" guard, so it owns
-	# the removal too.
-	"$ROOT/test/setup.sh" --clean "$DIR"
-	echo "manual: removed $DIR"
-	exit 0
-fi
-
-command -v yazi >/dev/null 2>&1 || {
-	echo "manual: yazi is not on PATH" >&2
-	exit 2
-}
-
-"$ROOT/test/setup.sh" "$DIR"
-
-cat <<'EOF'
 supaline manual test
 ────────────────────────────────────────────────────────────────────────────
   m 0   one column                      press against m s to compare
@@ -96,62 +64,5 @@ supaline manual test
   The preview pane keeps its last peek, so m 6 to m 8 only reach it once the
   hover has moved.
 
-  Quit with q. `test/manual.sh --clean` throws the fixture away.
+  Quit with q. `test/manual.py --clean` throws the fixture away.
   What to look for: test/MANUAL.md
-EOF
-
-# The log's path has to be expanded, so it cannot sit in the quoted heredoc
-# above -- and it is worth printing rather than describing, because the half of
-# a report that never reaches the screen is the half a reader has to be told
-# where to find.
-cat <<EOF
-
-  What a report says past its one sentence -- what the fault cost, and the
-  traceback -- goes to the log rather than to the screen. This run keeps one:
-  $DIR/state/yazi/yazi.log
-────────────────────────────────────────────────────────────────────────────
-EOF
-
-# Every ramp whole, before Yazi takes the screen. A linemode can only show the
-# steps some folder's values land on -- `colour/ramp` is built to land on all
-# of them and even there you scroll -- so this is the only place all sixty-four
-# sit side by side, and it is in the same terminal, on the same background, as
-# the columns are about to be.
-#
-# `setup.sh` lists what it wrote, so nothing here has to know how a ramp is
-# spelled. A list built by reading this repository's source instead would go
-# stale in one of two directions, both quiet: showing a ramp the fixture no
-# longer draws, or leaving out one it does.
-ramps=$(cat "$DIR/ramps.txt")
-if [ -z "$ramps" ]; then
-	echo "  note: the fixture wrote no ramp, so there is none to print"
-elif ! command -v lua >/dev/null 2>&1; then
-	echo "  note: lua is not on PATH, so the ramps are not printed here"
-	echo "        run test/ramp.lua yourself to see them"
-elif ! (
-	# A subshell, so the word splitting this needs is scoped to the one call:
-	# newlines alone, since a ramp has spaces in it, and globbing off so nothing
-	# in a colour string is taken for a pattern. `set --` would do it too, and
-	# would overwrite the arguments this script reads at the top -- the
-	# caller's, when it is sourced.
-	set -f
-	IFS='
-'
-	# shellcheck disable=SC2086 # splitting on the IFS above is the point
-	exec lua "$ROOT/test/ramp.lua" $ramps
-); then
-	echo "  note: a ramp above could not be resolved -- the message says which"
-fi
-
-printf 'Press Enter to open Yazi... '
-# Tolerate a closed stdin, so the script can be sourced by something else.
-read -r _ || true
-
-# `YAZI_LOG` because a report is two halves and only the shorter one is a
-# notification -- and there is no log at all unless this is set before Yazi
-# starts, so without it the reports point at a file that was never written.
-# `debug` is the spelling `e2e.sh` uses, and measured on 26.9.1 it costs three
-# lines over `error` across a short run. `XDG_STATE_HOME` is the throwaway
-# directory, so `--clean` takes the log with it.
-YAZI_CONFIG_HOME="$DIR/config" XDG_STATE_HOME="$DIR/state" YAZI_LOG=debug \
-	exec yazi "$DIR/fixture/data"

@@ -19,9 +19,9 @@ permissions:
 
 jobs:
   test:
-    # 5.5, because that is the Lua Yazi runs. No other version has a claim on
-    # this code: the plugin is only ever loaded by Yazi, and the tests exist to
-    # say something about the plugin.
+    # Two suites in two languages, for the two things under `test/`. 5.5,
+    # because that is the Lua Yazi runs: no other version has a claim on the
+    # plugin, which is only ever loaded by Yazi.
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +30,23 @@ jobs:
         with:
           luaVersion: "5.5"
       - run: lua test/run.lua
+      - name: The screen parsers
+        # `test/screen.py` is the arithmetic that decides whether a ramp
+        # climbed, a band covered its padding, and a bold landed on the right
+        # side. It is pure -- no process, no file, no clock -- which is why it
+        # is a file of its own and why this step can exist at all: `e2e.py`
+        # around it needs a real Yazi and a real terminal and is not here.
+        #
+        # Before that split those parsers were `awk` inside the shell harness
+        # and nothing tested them, which is the quietest hole a test harness
+        # can have: a parser that stopped matching reports no faults, and no
+        # faults reads as a ramp that climbed.
+        #
+        # The runner's own `python3` is enough. These import nothing outside
+        # the standard library, deliberately -- a harness that needed a lock
+        # file to run would be one more thing between a contributor and the
+        # suite.
+        run: python3 -m unittest discover -s test -p 'test_*.py'
 
   format:
     name: stylua
@@ -163,7 +180,11 @@ jobs:
       # `.githooks` holds hooks and nothing else -- a README there would
       # fail this step on SC2148 rather than be skipped, which is the right
       # way round for a directory git executes every file in.
-      - run: shellcheck test/*.sh .githooks/*
+      #
+      # The hooks are the only shell this repository keeps. `test/` was shell
+      # too until the harnesses were rewritten in Python; what lints them now
+      # is the ruff step in `Documents and skills`.
+      - run: shellcheck .githooks/*
 
   docs:
     # Not `markdownlint` any more: it runs that, then the skills against the
@@ -200,7 +221,7 @@ jobs:
         # repository's own, and the script says which is which and why, beside
         # each rule. Do not keep a second copy of that list here.
         run: uv run .github/scripts/skills.py
-      - name: ruff, over the one Python file here
+      - name: ruff, over the Python here
         # The lint, and then the shape. `ruff.toml` holds the rules and the
         # 80-column wrap; unlike `stylua.toml` beside it, that file is this
         # repository's own rather than upstream's, and says so.
@@ -211,11 +232,11 @@ jobs:
         # more than one check accumulates into `rc` for the same reason; the
         # ones that run a single command have nothing to lose after it.
         #
-        # `.github/scripts` rather than the tree every other linter here is
-        # given, because the two halves of ruff do not walk the same tree:
-        # `check .` reaches one file, and `format --check .` reaches fifteen
-        # -- it formats the Python inside a fenced block, so the documents
-        # would be markdownlint's and ruff's at once. Measured on 0.16.7.
+        # Two paths rather than the tree every other linter here is given,
+        # because the two halves of ruff do not walk the same tree: `check .`
+        # reaches the Python, and `format --check .` reaches the documents too
+        # -- it formats the Python inside a fenced block, so those would be
+        # markdownlint's and ruff's at once. Measured on 0.16.7.
         #
         # `uvx` rather than `uv run`: ruff is a tool this repository runs, not
         # something `skills.py` imports, so the pin belongs on the command and
@@ -224,8 +245,8 @@ jobs:
         # touched.
         run: |
           rc=0
-          uvx ruff@0.16.7 check .github/scripts || rc=1
-          uvx ruff@0.16.7 format --check .github/scripts || rc=1
+          uvx ruff@0.16.7 check test .github/scripts || rc=1
+          uvx ruff@0.16.7 format --check test .github/scripts || rc=1
           exit $rc
       - name: Every skill is reachable from .claude/skills
         # Claude Code reads `.claude/skills`; the skills live under
@@ -564,7 +585,12 @@ jobs:
           fi
           exit $rc
 
-# `test/e2e.sh` and `test/manual.sh` are deliberately not here. They need a real
-# Yazi binary and a real terminal, and what they check -- rendering, and how
-# wide a cell came out -- is not what a runner is good at. Run them locally
+# `test/e2e.py` and `test/manual.py` are deliberately not here. They need a
+# real Yazi binary and a real terminal, and what they check -- rendering, and
+# how wide a cell came out -- is not what a runner is good at. Run them locally
 # before saying that anything about the screen works.
+#
+# What *is* here is the half of `e2e.py` that needs neither: `test/screen.py`
+# reads a capture and is tested by `test/test_screen.py` in the `Unit tests`
+# job. That is new ground rather than a restatement -- those parsers were
+# `awk` and had no test at all.

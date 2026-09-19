@@ -14,3 +14,11 @@ lua = "5.5.1"
 # not measured here -- move the pin and regenerate the lock in the same change,
 # and the question does not come up.
 uv = "0.11.19"
+
+# `test/e2e.py`, `test/manual.py` and the unit suite beside them. Nothing there
+# imports anything outside the standard library, on purpose -- a harness that
+# needed a lock file to run would be one more thing between a contributor and
+# the suite -- so this pin is a convenience rather than a requirement.
+# `test/harness.py` states the floor and refuses anything under it; CI runs on
+# whatever `python3` the runner has.
+python = "3.14"

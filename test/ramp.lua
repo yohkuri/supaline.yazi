@@ -15,7 +15,7 @@
 --- with no definition earns tells the reader to paste -- so what they see here
 --- first is what they were just told to write.
 ---
---- `manual.sh` runs this before it opens Yazi, over every ramp the fixture can
+--- `manual.py` runs this before it opens Yazi, over every ramp the fixture can
 --- draw, so the whole of each one is on screen at once and in the terminal the
 --- colours are about to be judged in.
 ---
@@ -27,7 +27,7 @@
 ---
 --- What it cannot say is whether supaline puts a row on the right step: it
 --- never asks the plugin, only the arithmetic underneath it. That half is
---- `e2e.sh`'s, and the two look at different halves deliberately.
+--- `e2e.py`'s, and the two look at different halves deliberately.
 
 local HERE = (arg[0] or "test/ramp.lua"):match("^(.*)[/\\]") or "."
 
