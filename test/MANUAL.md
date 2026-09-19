@@ -506,6 +506,11 @@ bottom step at all.
 - This is the pair to look at before changing how a ratio is computed. The
   numbers are identical, so anything you can see is the scale.
 
+`e2e.py` reads the pair off every row: that the two halves hold one number,
+that log takes a step it has not taken before on each of them, and that linear
+leaves most of them on the ramp's low end. What it cannot ask is the first
+bullet above — whether the left column reads as a gradient to you at all.
+
 ### `c e` — nothing to spread over
 
 In `g 5`. Every value in the folder is the same.
@@ -528,6 +533,11 @@ In `g 5`. Every value in the folder is the same.
   a count and the next one does not. The colour is the same either way.
 - Nothing on this screen draws a step in between. A gradient here means a ratio
   that divided by a range of zero.
+
+`e2e.py` reads all three cells of every row: the high end wherever there is a
+value, the low end on both directories, and no third colour anywhere on screen.
+The last of those is the one that catches a range of zero divided by anyway —
+the other two would both still pass with a step drawn between them.
 
 ### `c t` — the theme
 
@@ -563,7 +573,8 @@ two:
    only that folder holds in `FOLDERS` in `test/e2e.py`, so the press can be
    waited on rather than slept through.
 
-Then add it to the colour loop in `test/e2e.py`. That does not judge it
+Then add it to `COLOUR_MODES` in `test/e2e.py`, which is both what presses the
+key and what asserts the capture came back. That does not judge it
 — judging is what this document is for — but an unregistered linemode name is
 drawn as literal text and one that threw takes the rows with it, and without
 that line the first person to find out is whoever next runs `manual.py`.
