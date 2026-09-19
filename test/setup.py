@@ -16,9 +16,10 @@ forgets it.
 The configuration itself is not written from here. It sits under
 `test/fixture/` as the files Yazi reads -- an `init.lua` that stylua formats
 and `lua-language-server` type-checks along with the plugin, and TOML that is
-TOML rather than a heredoc. `@DIR@` in any of them is replaced with the
-scratch directory as it is copied, which is the whole of what this script does
-to them.
+TOML rather than a heredoc, and a `theme-key.py` that ruff reads along with
+this file. `@DIR@` in any of them is replaced with the scratch directory as it
+is copied, and the script is given a shebang, which is the whole of what this
+script does to them.
 """
 
 from __future__ import annotations
@@ -302,34 +303,19 @@ def copy_config(target: Path) -> None:
     # takes any directory a person names -- would have to survive both
     # quotings, and one of them is Yazi's own template parser. One `argv` here,
     # and the keymap carries a name.
+    # Why it emits the reload itself is in its own docstring, beside the line
+    # that does it.
     #
-    # The reload is emitted from in there, and that is not a preference. A
-    # keymap `run` of [ "shell ... --confirm", "app:theme" ] does not wait:
-    # measured on 26.9.1, the copy lands on disk and `app:theme` has already
-    # re-read the file before it, so the screen keeps the theme it had and
-    # `theme.toml` on disk says otherwise -- which looks exactly like a plugin
-    # that ignored the reload. `--block` does not fix it either. `ya emit`
-    # after the copy does, because then the ordering is that script's.
+    # The shebang is the interpreter this harness is itself running under,
+    # rather than an `env python3` that would resolve against whatever PATH
+    # Yazi's `shell` template happens to hand it. It is prepended here rather
+    # than written into the fixture file, which carries none: a shebang there
+    # would make ruff ask for the executable bit, and a source file that
+    # declares an interpreter nothing can run is worse than one that declares
+    # none.
     key = target / "theme-key.py"
     key.write_text(
-        # The interpreter this harness is itself running under, rather than a
-        # `env python3` that would resolve against whatever PATH Yazi's `shell`
-        # template happens to hand it.
-        f"#!{sys.executable}\n"
-        '"""Put one of the fixture\'s themes where Yazi reads it, and reload.\n'
-        "\n"
-        "Called from the `c 1` to `c 3` keys.\n"
-        '"""\n'
-        "\n"
-        "import shutil\n"
-        "import subprocess\n"
-        "import sys\n"
-        "from pathlib import Path\n"
-        "\n"
-        "here = Path(__file__).resolve().parent\n"
-        'shutil.copyfile(here / "themes" / f"{sys.argv[1]}.toml",\n'
-        '                here / "config" / "theme.toml")\n'
-        'subprocess.run(["ya", "emit", "app:theme"], check=True)\n'
+        f"#!{sys.executable}\n" + (FIXTURE / "theme-key.py").read_text()
     )
     key.chmod(0o755)
 

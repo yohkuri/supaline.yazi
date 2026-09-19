@@ -19,6 +19,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import e2e
 import screen as sc
 
 
@@ -368,6 +369,56 @@ class Edges(unittest.TestCase):
         self.assertEqual(got.size_colour, "127;212;255")
 
 
+class Bolds(unittest.TestCase):
+    """The two claims `c_bold` and `c_theme` make about where a bold landed."""
+
+    #: A run `permissions` painted per character: each one opens a colour of
+    #: its own, under a bold that reached them without replacing either.
+    PAINTED = f"{sc.BOLD}\x1b[32mr\x1b[33mw"
+
+    #: A date on a ramp step, with the spec's weight in front of the theme's
+    #: colour -- the order tmux writes it in.
+    DATED = f"{sc.BOLD}{cell('#7fd4ff', '12/25  2023')}"
+
+    def test_a_bold_over_separately_coloured_characters_is_counted(self):
+        shot = capture(row("p", f"name {self.PAINTED}", "v"))
+        self.assertEqual(sc.bold_over_paint(shot), 1)
+
+    def test_a_bold_that_took_the_colours_with_it_is_not(self):
+        # One escape covering the whole run, which is what a cell that stepped
+        # aside for the attribute draws. The bold is there either way, so this
+        # is the half that discriminates.
+        shot = capture(row("p", f"name {sc.BOLD}\x1b[32mrw", "v"))
+        self.assertEqual(sc.bold_over_paint(shot), 0)
+
+    def test_the_painted_run_without_its_bold_is_not(self):
+        shot = capture(row("p", "name \x1b[32mr\x1b[33mw", "v"))
+        self.assertEqual(sc.bold_over_paint(shot), 0)
+
+    def test_neither_reader_leaves_the_current_pane(self):
+        # Every other colour claim in the run is scoped to this pane, and these
+        # two were the exception: read over the whole capture they are
+        # satisfied by the parent pane, the header or the status line.
+        painted = capture(row(self.PAINTED, "name", "v"))
+        dated = capture(row(self.DATED, "name", "v"))
+        self.assertEqual(sc.bold_over_paint(painted), 0)
+        self.assertEqual(sc.bold_over_ramp(dated), 0)
+
+    def test_a_bold_before_a_ramps_date_is_counted(self):
+        shot = capture(row("p", f"name {self.DATED}", "v"))
+        self.assertEqual(sc.bold_over_ramp(shot), 1)
+
+    def test_a_bold_that_landed_after_the_colour_is_not(self):
+        shot = capture(
+            row("p", f"name {sc.escaped(38, '#7fd4ff')}{sc.BOLD}12/25", "v")
+        )
+        self.assertEqual(sc.bold_over_ramp(shot), 0)
+
+    def test_the_ramps_date_without_its_bold_is_not(self):
+        shot = capture(row("p", f"name {cell('#7fd4ff', '12/25')}", "v"))
+        self.assertEqual(sc.bold_over_ramp(shot), 0)
+
+
 class TheFixtureItReads(unittest.TestCase):
     """The colours `e2e.py` asserts on are the ones the fixture spells.
 
@@ -375,29 +426,40 @@ class TheFixtureItReads(unittest.TestCase):
     can go stale without anybody touching Python: recolour a ground in
     `init.lua` and `e2e.py` finds no band at all, which reads on the screen as
     a plugin that stopped drawing.
+
+    It calls `e2e.py`'s own readers rather than re-spelling their patterns. A
+    copy here would go on passing against the shape the fixture had when it
+    was written while the reader beside it had quietly stopped matching, and
+    `e2e.py` is not in CI, so nothing else would have said so.
     """
 
-    def test_both_grounds_are_flat_colours_the_fixture_binds(self):
-        init = (
+    HEX = r"^#[0-9a-fA-F]{6}$"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.init = (
             Path(__file__).resolve().parent / "fixture" / "init.lua"
         ).read_text()
+
+    def test_both_grounds_are_flat_colours_the_fixture_binds(self):
         for name in ("GROUND", "LINE_GROUND"):
             with self.subTest(ground=name):
-                self.assertRegex(
-                    init, rf'(?m)^local {name} = "#[0-9a-fA-F]{{6}}"$'
-                )
+                self.assertRegex(e2e.ground_hex(self.init, name), self.HEX)
 
     def test_cool_is_the_two_ended_ramp_c_scale_and_c_edge_read(self):
         # `check_scale` and `check_edge` take both ends out of this line.
         # Written as one colour, or under another name, and each of them
         # refuses rather than measuring against an empty string.
-        init = (
-            Path(__file__).resolve().parent / "fixture" / "init.lua"
-        ).read_text()
-        self.assertRegex(
-            init,
-            r'(?m)^local COOL = "#[0-9a-fA-F]{6} -> #[0-9a-fA-F]{6}"$',
-        )
+        low, high = e2e.ramp_ends(self.init, "COOL")
+        self.assertRegex(low, self.HEX)
+        self.assertRegex(high, self.HEX)
+
+    def test_the_columns_broken_on_purpose_are_found_by_name(self):
+        # The third reader of that file, and the one whose empty answer is
+        # quietest: a run that found no broken column presses no `b` key and
+        # reads a log it expected to be empty, which is what a green run looks
+        # like.
+        self.assertTrue(e2e.broken_columns())
 
 
 if __name__ == "__main__":

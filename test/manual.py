@@ -15,14 +15,15 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import setup as fixture
-from harness import ROOT, need, require_python
+from harness import ROOT, need, require_python, yazi_env
 
-DIR = Path(os.environ.get("TMPDIR", "/tmp")) / "supaline-manual"
+DIR = Path(tempfile.gettempdir()) / "supaline-manual"
 
 
 def print_ramps(target: Path) -> None:
@@ -99,23 +100,15 @@ def main(argv: list[str]) -> int:
     except EOFError:
         print()
 
-    # `YAZI_LOG` because a report is two halves and only the shorter one is a
-    # notification -- and there is no log at all unless this is set before Yazi
-    # starts, so without it the reports point at a file that was never written.
-    # `debug` is the spelling `e2e.py` uses, and measured on 26.9.1 it costs
-    # three lines over `error` across a short run. `XDG_STATE_HOME` is the
-    # throwaway directory, so `--clean` takes the log with it.
+    # The environment is `harness.yazi_env`, which says why each of the three
+    # is set. Here rather than written out, so what a person opens and what
+    # `e2e.py` asserts on are the same Yazi in that respect too.
     yazi = shutil.which("yazi")
     assert yazi is not None  # `need` above has already said so
     os.execve(
         yazi,
         [yazi, str(DIR / "fixture" / "data")],
-        {
-            **os.environ,
-            "YAZI_CONFIG_HOME": str(DIR / "config"),
-            "XDG_STATE_HOME": str(DIR / "state"),
-            "YAZI_LOG": "debug",
-        },
+        {**os.environ, **yazi_env(DIR, "state")},
     )
     # `execve` replaces this process, so nothing below it ever runs. The
     # `return` is here because a checker reading the function cannot know that.
