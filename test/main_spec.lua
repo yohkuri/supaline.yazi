@@ -1336,6 +1336,54 @@ test("width: a function returning no usable number is reported as itself", funct
 	eq(first, "x")
 end)
 
+test("told: a column wrong in two kinds says both, once each", function()
+	-- The gate is keyed by column *and kind*, and every other spec here gives a
+	-- column one fault, so all of them pass on a gate that was per column
+	-- alone. This is the one that tells the two apart.
+	--
+	-- Which is the difference the reader gets: a `stats` with no extremes and a
+	-- `width` supaline will not take are two different things about the same
+	-- column, and one of them suppressing the other would leave a reader
+	-- repairing the ramp and then finding the ragged row still there with
+	-- nothing said about it. The throws are the other way round -- all four
+	-- stages share the kind `threw`, which `broke` says outright and the spec
+	-- above pins -- because what the reader has to look at there is the column,
+	-- and the first thing of theirs that threw is where they start.
+	--
+	-- `test/setup.sh` splits the fixture into one broken column apiece on this
+	-- distinction, and `MANUAL.md` states it, so it is worth something that
+	-- refuses rather than a sentence in two documents.
+	main.column("two_faults", {
+		width = function() return 0 end,
+		stats = function() return {} end,
+		style = { fg = "#000080 -> #ff8800" },
+		render = function(_, ctx) return "x", ctx.style_at(ctx.ratio(1)) end,
+	})
+
+	local was = reports()
+	setup { detail = { "two_faults" } }
+	for _, file in ipairs(CURRENT.files) do
+		draw("detail", file)
+	end
+
+	eq(reports() - was, 2, "both kinds said, and neither twice over the rows")
+
+	-- Named rather than counted, so a pass cannot come from the same kind
+	-- reported twice.
+	local kinds = { extremes = 0, width = 0 }
+	for i = was + 1, reports() do
+		local said = stub.notified[i].content
+		mentions(said, "`two_faults`", "and each names the column")
+		if said:find("no `min` and `max`", 1, true) then
+			kinds.extremes = kinds.extremes + 1
+		elseif said:find("returned `0`", 1, true) then
+			kinds.width = kinds.width + 1
+		end
+	end
+	eq(kinds.extremes, 1, "the ramp with nothing to place a row in, once")
+	eq(kinds.width, 1, "and the width supaline will not take, once")
+end)
+
 test("width: a `max_width` outlives the function that failed, as a cap", function()
 	-- A cap is not a width. The column whose `width` function failed draws
 	-- unpadded -- which is what its notification says -- and padding every cell

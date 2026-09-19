@@ -694,16 +694,21 @@ supaline.column("name_line", {
 -- the direction the list is meant to grow in. `MANUAL.md` says the same where
 -- it says how to add a case.
 --
--- One report per column per session, which is the plugin rather than the
--- fixture: `told` marks a column the first time it is reported and drops every
--- later report from it, which is what keeps a per-row failure from redrawing
--- itself once a second for ever. So each key here is worth one look, and
--- pressing it again draws the cells without the sentence. Restart `manual.sh`
--- to see one a second time.
+-- One report per column per kind per session, which is the plugin rather than
+-- the fixture: `told` marks a column against the kind it was told off for --
+-- `stats`, `width`, or a throw from any of the four stages -- and drops every
+-- later report of that kind from that column, which is what keeps a per-row
+-- failure from redrawing itself once a second for ever. So each key here is
+-- worth one look, and pressing it again draws the cells without the sentence.
+-- Restart `manual.sh` to see one a second time.
 --
--- A column each rather than one column with six faults, for that same reason:
--- `told` is per column, so two faults in one would report whichever happened
--- first and say nothing at all about the other.
+-- A column each rather than one column with six faults, and the reason is that
+-- the throws share a kind rather than that the kinds share a column: `b r`,
+-- `b s`, `b w` and `b f` are all "threw", so a column carrying two of them
+-- would report whichever happened first and say nothing at all about the
+-- other. `b g` and `b u` are their own kinds and would report beside it -- but
+-- a column that is wrong in two ways is also one nobody can read a single
+-- report against, which is the other half of why these are six.
 
 -- `b r`. A `render` that throws, once per row. The only one of the four that
 -- leaves anything on the line: the cell cannot be drawn, so `column.cell`
