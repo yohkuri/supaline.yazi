@@ -300,6 +300,68 @@ def edge_rows(capture: str) -> list[EdgeRow]:
     return out
 
 
+@dataclass(frozen=True)
+class OwnerRow:
+    """The four cells `permissions`, `owner`, `user` and `group` put on a row.
+
+    Read as one row rather than four greps, because the three name columns
+    say the same two names in different widths and the interesting claim is
+    how each of them *cut* them -- which cannot be asked of a cell found on
+    its own.
+    """
+
+    #: The permissions field, which is what the row is found by.
+    permissions: str
+    #: `user:group` in one twelve-cell column, cut if it did not fit.
+    owner: str
+    #: The same two names again, eight cells each, cut on their own lengths.
+    user: str
+    group: str
+
+
+def owner_cells(capture: str) -> list[OwnerRow]:
+    """Every current-pane row m2 drew those four columns on.
+
+    Anchored on the permissions field, as a pattern rather than a literal:
+    a different umask draws a different one, and `[-dl]` then nine of
+    `rwxsStT-` is the shape rather than the value. What follows it is the
+    three name cells, delimited by the columns' own padding -- none of the
+    three can hold a space, so no width arithmetic is needed and none is
+    done.
+
+    The current pane alone. Yazi draws no permissions field in the parent
+    pane, measured on 26.9.1, and the greedy left anchor this replaces was
+    there to answer the *last* field on a row that carried two.
+    """
+    found_re = re.compile(r"([-dl][rwxsStT-]{9}) +([^ ]+) +([^ ]+) +([^ ]+) +")
+    out = []
+    for row in current_of(capture):
+        found = found_re.search(row)
+        if not found:
+            continue
+        out.append(
+            OwnerRow(
+                permissions=found.group(1),
+                owner=found.group(2),
+                user=found.group(3),
+                group=found.group(4),
+            )
+        )
+    return out
+
+
+def is_cut_of(name: str, cell: str) -> bool:
+    """Whether `cell` is what a column left of `name` after cutting it.
+
+    The text up to the ellipsis has to be a prefix of the name, and a cell
+    that fitted carries no ellipsis to strip -- so a whole cell answers true
+    as well, and so does a bare prefix that was cut without being marked.
+    That last one is why the caller counts the ellipses too: this says the
+    text is consistent with the name, not that the cut was declared.
+    """
+    return name.startswith(cell.removesuffix("…"))
+
+
 #: What tmux writes a truecolor SGR body as, with the layer left to fill in.
 _BODY = "{layer};2;\\d+;\\d+;\\d+m"
 
