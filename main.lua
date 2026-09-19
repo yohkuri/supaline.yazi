@@ -557,6 +557,15 @@ local BROKEN = "!"
 -- tells those two apart. The sentences agreeing is the whole of that
 -- comparison, so they are not two sentences.
 --
+-- It says which side moves because only one of them does, and the earlier
+-- wording -- "everything else on the line keeps its place" -- was half right
+-- in a way that sent a reader to the wrong side. Measured on 26.9.1 at 170x40,
+-- at `b w` in the fixture, in display columns: `mtime`, after the ragged
+-- column, sits at 71 on every row, while `size`, before it, ends at 66 on the
+-- rows drawing `dir` and 65 on the rows drawing `file`. Yazi draws the
+-- linemode flush right, so the columns after this one are anchored and the
+-- ones before it take up the slack.
+--
 -- Both readers pass it to `string.format` as an argument rather than
 -- concatenating it into the format string, and that is a rule rather than a
 -- style: this is one string precisely so that it gets edited, and a `%` in it
@@ -566,8 +575,8 @@ local BROKEN = "!"
 -- `pcall` around `resolve_width` and under a linemode's render, so the throw
 -- this file's longest docblock is written against would come from the line
 -- reporting a lesser one.
-local UNPADDED = "this column draws unpadded: everything else on the line keeps its place and "
-	.. "this one is ragged rather than absent"
+local UNPADDED = "this column draws unpadded: the line is drawn flush right, so the columns "
+	.. "after it keep their place and the ones before it shift -- ragged rather than absent"
 
 -- What the throw cost, worded per stage, for the middle of the sentence
 -- `broke` builds. A sentence each, because what a throw costs differs by
