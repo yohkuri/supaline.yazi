@@ -566,9 +566,13 @@ Then add it to the `colour_shot` list in `test/e2e.sh`. That does not judge it
 drawn as literal text and one that threw takes the rows with it, and without
 that line the first person to find out is whoever next runs `manual.sh`.
 
-A case under `b` is the exception and takes no such line: `e2e.sh` fails a run
-in which Yazi logged an error at all, and a column that is wrong on purpose
-makes it log one. [Broken columns](#broken-columns) has the rest of it.
+A case under `b` takes a different line, and takes it in the second Yazi
+`e2e.sh` starts for exactly these — the run that is meant to be clean fails for
+logging an error at all, and a column that is wrong on purpose makes it log
+one. Register the column and send its key in that run's loop. Which columns
+that run expects is read out of `setup.sh` rather than written in `e2e.sh`, so
+a seventh registered and never pressed is a red suite rather than a case
+nobody checks. [Broken columns](#broken-columns) has the rest of it.
 
 ## Broken columns
 
@@ -619,10 +623,20 @@ afterwards, which is what keeps a per-row failure from redrawing its own
 notification once a second for ever. So a `b` key pressed twice draws the cells
 the second time and says nothing. Restart `manual.sh` to see a report again.
 
-`e2e.sh` presses none of this, and that is forced rather than an oversight:
-`report` writes to `yazi.log` as well as to the screen, and `e2e.sh` fails a
-run in which Yazi logged an error at all. These six are the one part of the
-fixture the headless run cannot stand behind.
+`e2e.sh` presses all of this, in a second Yazi it starts once the run that is
+meant to be clean has been torn down. That second run has a log of its own,
+which is what lets the first go on failing for logging an error at all: two
+logs read for opposite things rather than one taught an exception. It counts
+each of the six off both halves — exactly one line in that log, and at least
+one appearance on the screen — and that many lines in all, so a report that
+went missing, doubled, or never reached the notification is caught without
+anybody looking.
+
+What it cannot read is the sentence. Whether a report names the right column,
+whether what it says the fault cost matches the cells underneath it, and
+whether the two halves of it are split where a reader needs them are what the
+rest of this section is for. All three faults found here so far were of that
+kind.
 
 ### `b r` — a `render` that throws
 
