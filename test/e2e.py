@@ -553,49 +553,41 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
 def check_owner(k: Checks, capture: str) -> None:
     """`owner`, `user` and `group` against this machine's own names.
 
-    The owner column holds this machine's `user:group`, so what its cell should
-    say cannot be written down here -- it depends on how long that is. Read the
-    cell off the screen and hold it against the names instead: the text is
-    whatever fits, and an ellipsis is there exactly when something was dropped.
+    Those columns hold this machine's `user:group`, so what their cells should
+    say cannot be written down here -- it depends on how long that is. The
+    cells come off the screen through `screen.owner_cells`, which is where the
+    shape of an m2 row is now stated and unit-tested; what is left here is
+    holding them against `pwd` and `grp`, which is the half only a real
+    machine can answer.
     """
     who = (
         f"{pwd.getpwuid(os.geteuid()).pw_name}:"
         f"{grp.getgrgid(os.getegid()).gr_name}"
     )
-    rows = sc.current_of(capture)
+    rows = sc.owner_cells(capture)
+    if not rows:
+        k.fail("m2: no permissions field on screen, and no cells behind one")
+        return
 
-    def cell_of(what: str, pattern: str) -> str:
+    def agreed(what: str, cells: set[str]) -> str:
         """The one cell every m2 row agrees on, or empty with a fault said.
 
-        The permissions field the search anchors on is a pattern rather than a
-        literal, because a different umask draws a different one. What follows
-        it is the owner text: a `user:group` carries no space, so the column's
-        own padding delimits it, and no width arithmetic is needed.
+        Every row lists a file this run created, so all of them carry the same
+        two names; a set with two things in it is a column reading something
+        per row that it should be reading per machine.
         """
-        found = {m for row in rows if (m := match_one(pattern, row))}
-        if not found:
-            k.fail(f"m2: no {what} on screen")
+        if len(cells) > 1:
+            k.fail(
+                f"m2: the rows disagree on the {what}: "
+                f"{' '.join(sorted(cells))}"
+            )
             return ""
-        if len(found) > 1:
-            k.fail(f"m2: the rows disagree on the {what}: {' '.join(found)}")
-            return ""
-        return found.pop()
+        return next(iter(cells))
 
-    def is_cut_of(name: str, cell: str) -> bool:
-        """Whether `cell` is what is left of `name` once the column cut it.
-
-        The text up to the ellipsis has to be a prefix of the name, and a cell
-        that fits carries no ellipsis to strip.
-        """
-        return name.startswith(cell.removesuffix("…"))
-
-    seen = cell_of(
-        "owner cell behind a permissions field",
-        r".*[-dl][rwxsStT-]{9} ([^ ]+) ",
-    )
+    seen = agreed("owner cell", {r.owner for r in rows})
     dots = seen.count("…")
     if not seen:
-        pass  # `cell_of` has already said so
+        pass  # `agreed` has already said so
     elif seen == who:
         k.ok(f"m2: the owner column holds `{who}` whole, with no ellipsis")
     elif dots != 1:
@@ -603,47 +595,30 @@ def check_owner(k: Checks, capture: str) -> None:
             f"m2: the owner cell carries {dots} ellipses, wanted one -- "
             f"`{seen}`"
         )
-    elif is_cut_of(who, seen):
+    elif sc.is_cut_of(who, seen):
         k.ok(f"m2: the owner column cuts `{who}` with one ellipsis")
     else:
         k.fail(f"m2: the owner cell `{seen}` is not a cut of `{who}`")
 
     # `user` and `group` draw those same two names again, eight cells each
     # rather than twelve shared, so each is cut on its own length and on most
-    # machines the pair comes out whole where `owner` beside it did not. Read
-    # as one capture -- they are adjacent, and a pattern that found only one of
-    # them would not say which -- and held against the names half by half,
-    # since either may be the one that had to be cut. The halves come off the
-    # same string, so the two blocks cannot measure against different names.
-    pair = cell_of(
-        "user and group cells behind the owner one",
-        r".*[-dl][rwxsStT-]{9} [^ ]+ +([^ ]+) +([^ ]+) +",
-    )
-    if pair:
-        want_user, want_group = who.split(":", 1)
-        got_user, got_group = pair.split(":", 1)
+    # machines the pair comes out whole where `owner` beside it did not. Both
+    # halves come off one row of one reader, so the two cannot end up measured
+    # against different names -- and each is held against its own half, since
+    # either may be the one that had to be cut.
+    want_user, want_group = who.split(":", 1)
+    got_user = agreed("user cell", {r.user for r in rows})
+    got_group = agreed("group cell", {r.group for r in rows})
+    if got_user and got_group:
         bad = []
-        if not is_cut_of(want_user, got_user):
+        if not sc.is_cut_of(want_user, got_user):
             bad.append(f"`{got_user}` is not a cut of `{want_user}`")
-        if not is_cut_of(want_group, got_group):
+        if not sc.is_cut_of(want_group, got_group):
             bad.append(f"`{got_group}` is not a cut of `{want_group}`")
         if bad:
             k.fail("m2: " + " ".join(bad))
         else:
             k.ok(f"m2: the user and group columns hold the halves of `{who}`")
-
-
-def match_one(pattern: str, row: str) -> str:
-    """The groups of `pattern` in `row`, joined with a colon; empty on no match.
-
-    Greedy from the left, so a row carrying two permissions fields answers the
-    last -- which is what the `sed` this replaces did, and what the current
-    pane's own field needs.
-    """
-    found = re.match(pattern, row)
-    if not found:
-        return ""
-    return ":".join(found.groups())
 
 
 def check_overflow(k: Checks, capture: str) -> None:

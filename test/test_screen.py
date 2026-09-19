@@ -277,6 +277,77 @@ class Markers(unittest.TestCase):
         self.assertEqual(sc.drawn(sc.current_of(shot)), 1)
 
 
+class Owners(unittest.TestCase):
+    """m2's three name columns, read off one row rather than grepped for."""
+
+    def line(
+        self,
+        perm: str = "-rw-r--r--",
+        owner: str = "me:mine",
+        user: str = "me",
+        group: str = "mine",
+    ) -> str:
+        # The padding is the fixture's: the three name columns are twelve,
+        # eight and eight cells, and it is that padding rather than any width
+        # arithmetic that delimits them.
+        return row(
+            " broken",
+            f" name.txt   {perm} {owner:<12} {user:<8} {group:<8}"
+            "      1B 09/19 22:55  ",
+            " inner-a.txt",
+        )
+
+    def test_the_four_cells_come_off_one_row(self):
+        (got,) = sc.owner_cells(capture(self.line()))
+        self.assertEqual(got.permissions, "-rw-r--r--")
+        self.assertEqual(
+            (got.owner, got.user, got.group), ("me:mine", "me", "mine")
+        )
+
+    def test_a_directory_field_is_found_as_readily_as_a_file_one(self):
+        # `[-dl]` then nine of `rwxsStT-`: the shape, not the value, because a
+        # different umask draws a different field.
+        rows = sc.owner_cells(capture(self.line(perm="drwxr-sr-t")))
+        self.assertEqual([r.permissions for r in rows], ["drwxr-sr-t"])
+
+    def test_a_cut_cell_is_read_whole_with_its_ellipsis(self):
+        # The branch this machine happens not to run: whether the owner cell
+        # fits depends on how long `$USER:$GROUP` is, so without this only one
+        # of the two ever gets read anywhere.
+        rows = sc.owner_cells(capture(self.line(owner="yohkuri:sta…")))
+        self.assertEqual([r.owner for r in rows], ["yohkuri:sta…"])
+
+    def test_a_row_with_no_permissions_field_is_skipped(self):
+        shot = capture(row(current=" name.txt   1B 09/19 22:55"))
+        self.assertEqual(sc.owner_cells(shot), [])
+
+    def test_a_field_in_another_pane_is_not_read(self):
+        # Yazi draws none there on 26.9.1, and the greedy left anchor this
+        # replaced was for a row that carried two.
+        shot = capture(
+            row(" -rw-r--r-- root:wheel   root     wheel   ", " name.txt", "v")
+        )
+        self.assertEqual(sc.owner_cells(shot), [])
+
+
+class Cuts(unittest.TestCase):
+    """What `check_owner` holds a cell against, once it has one."""
+
+    def test_a_cell_that_fitted_is_a_cut_of_its_name(self):
+        self.assertTrue(sc.is_cut_of("me:mine", "me:mine"))
+
+    def test_a_cell_cut_with_an_ellipsis_is_too(self):
+        self.assertTrue(sc.is_cut_of("yohkuri:staff", "yohkuri:sta…"))
+
+    def test_a_different_name_is_not(self):
+        self.assertFalse(sc.is_cut_of("yohkuri:staff", "root:wheel"))
+
+    def test_it_says_nothing_about_the_ellipsis_being_there(self):
+        # Which is why the check counts them as well: a column that cut
+        # without marking the cut answers true here, and that is a fault.
+        self.assertTrue(sc.is_cut_of("yohkuri:staff", "yohkuri:sta"))
+
+
 class Scales(unittest.TestCase):
     """`c_scale` draws one size twice, log then linear, either side of U+250A."""
 
