@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import setup as fixture
-from harness import ROOT, need, require_python, yazi_env
+from harness import ROOT, need, require_python, yazi_env, yazi_log
 
 DIR = Path(tempfile.gettempdir()) / "supaline-manual"
 
@@ -88,7 +88,7 @@ def main(argv: list[str]) -> int:
     print("  What a report says past its one sentence -- what the fault cost,")
     print("  and the traceback -- goes to the log rather than to the screen.")
     print("  This run keeps one:")
-    print(f"  {DIR}/state/yazi/yazi.log")
+    print(f"  {yazi_log(DIR, 'state')}")
     print(rule)
 
     print_ramps(DIR)
