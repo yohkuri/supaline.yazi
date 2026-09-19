@@ -725,8 +725,8 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     # the other two panes against m6. A `pane_cur`, `pane_par` and `pane_prev`
     # drawing nothing where they were asked to would pass the rest of the run.
     for n in "678":
-        drew = sc.marked_in_current(shots[f"m{n}"])
-        rows = sc.rows_in_current(shots[f"m{n}"])
+        drew = sc.marked(sc.current_of(shots[f"m{n}"]))
+        rows = sc.drawn(sc.current_of(shots[f"m{n}"]))
         k.same(
             drew,
             rows,
@@ -734,10 +734,24 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
             f"({drew} of {rows})",
         )
 
+    # And the same claim of the pane m7 is *for*, which had been the weak half
+    # of this section: `differs` against m6's bare pane passes on any
+    # difference at all -- a hover that moved, a name Yazi truncated
+    # differently, a pane drawing nothing but the file names it draws anyway.
+    # The parent pane is where that costs most. A linemode child being called
+    # for parent-pane rows is one of the four traps `AGENTS.md` says nothing
+    # pins, and this is the row window where it would show.
+    drew = sc.marked(sc.parent_of(shots["m7"]))
+    rows = sc.drawn(sc.parent_of(shots["m7"]))
+    k.same(
+        drew,
+        rows,
+        f"m7: every parent-pane row carries the marker ({drew} of {rows})",
+    )
+
     # The pass and fail arms are inverted between neighbouring checks here,
     # which is exactly the shape that hides a mistake when it is spelled out
     # five times.
-    k.differs(sc.parent_of(shots["m7"]), bare_parent, "m7: parent pane drawn")
     k.same(sc.parent_of(shots["m8"]), bare_parent, "m8: parent pane left alone")
     k.same(
         sc.preview_of(shots["m7"]), bare_preview, "m7: preview pane left alone"
@@ -747,9 +761,17 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     # one Yazi marks `in_preview` -- it sets that on the previewed folder's
     # cursor row alone, so a check that passes on one row proves nothing about
     # the second.
-    drew = sc.marked_in_preview(shots["m8"])
+    drew = sc.marked(sc.preview_of(shots["m8"]))
     k.same(drew, 2, f"m8: preview pane drawn, both rows (drew {drew})")
-    k.same(sc.marked_in_preview(shots["m6"]), 0, "m6: both edges left alone")
+
+    # Both of them, now that one reader answers either pane. The label had
+    # claimed both edges while reading the right-hand one alone.
+    k.same(
+        sc.marked(sc.parent_of(shots["m6"]))
+        + sc.marked(sc.preview_of(shots["m6"])),
+        0,
+        "m6: both edges left alone",
+    )
 
     # `me` names the same two panes as m7 and gives each a list of its own.
     # Read against m7, which hands one list to both, so it says the two agree

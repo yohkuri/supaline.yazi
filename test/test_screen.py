@@ -243,11 +243,13 @@ class Bold(unittest.TestCase):
 
 
 class Markers(unittest.TestCase):
+    """One reader over any pane's rows, because m6 to m8 ask all three."""
+
     def test_a_preview_row_is_marked_when_it_ends_in_the_letter(self):
         shot = capture(row(preview=" inner-a.txt   d"), row(preview=" bare"))
-        self.assertEqual(sc.marked_in_preview(shot), 1)
+        self.assertEqual(sc.marked(sc.preview_of(shot)), 1)
 
-    def test_a_current_row_may_carry_a_glyph_after_the_marker(self):
+    def test_a_row_may_carry_a_glyph_after_the_marker(self):
         # The hovered row carries a powerline glyph and the others a space, so
         # anything but a letter or a digit may follow.
         shot = capture(
@@ -255,11 +257,24 @@ class Markers(unittest.TestCase):
             row(current="name f"),
             row(current="name.txt"),
         )
-        self.assertEqual(sc.marked_in_current(shot), 2)
+        self.assertEqual(sc.marked(sc.current_of(shot)), 2)
 
-    def test_an_empty_current_pane_row_is_not_a_row(self):
+    def test_the_parent_pane_is_read_by_that_same_reader(self):
+        # The pane `pane_par` exists for, and the one that had no reader of
+        # its own. Its rows end the way the current pane's do -- a trailing
+        # space, or a powerline glyph on the hovered one -- which is why a
+        # pattern anchored on the letter read all five of them as bare and
+        # left the pane asserted on by nothing but "it changed".
+        shot = capture(
+            row(parent="sibling-one    d "),
+            row(parent="data           d"),
+            row(parent="untouched.txt"),
+        )
+        self.assertEqual(sc.marked(sc.parent_of(shot)), 2)
+
+    def test_an_empty_pane_row_is_not_a_row(self):
         shot = capture(row(current="   "), row(current="a"), "no divider")
-        self.assertEqual(sc.rows_in_current(shot), 1)
+        self.assertEqual(sc.drawn(sc.current_of(shot)), 1)
 
 
 class Scales(unittest.TestCase):
