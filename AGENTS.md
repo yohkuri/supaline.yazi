@@ -238,22 +238,33 @@ calls supaline makes into a column's own code are contained and pinned, but a
 ## Commands
 
 ```sh
-lua test/run.lua                  # unit tests
+lua test/run.lua                  # unit tests, over the plugin
 lua test/run.lua column           # ... just the specs matching "column"
-test/e2e.sh                       # render in a real Yazi, headless
-test/manual.sh                    # ... interactively, for a human to look at
+test/e2e.py                       # render in a real Yazi, headless
+test/manual.py                    # ... interactively, for a human to look at
 stylua --check .                  # Lua formatting
 lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
 uv run .github/scripts/skills.py  # Agent Skills
 
-uvx ruff@0.16.7 check .github/scripts           # that script's own lint
-uvx ruff@0.16.7 format --check .github/scripts  # ... and its formatting
+python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers
+
+uvx ruff@0.16.7 check test .github/scripts           # the Python lint
+uvx ruff@0.16.7 format --check test .github/scripts  # ... and its shape
 ```
 
 The unit suite runs on **Lua 5.5**, the version Yazi embeds, and `test/run.lua`
 refuses any other. Any 5.5 does: `mise.toml` pins 5.5.1 for whoever uses mise,
 and CI installs its own — nothing here requires a version manager.
+
+There is a second unit suite, in Python, and it is not about the plugin at all.
+`test/screen.py` reads a `tmux capture-pane`: which pane a row belongs to,
+which step of a ramp a cell drew in, how wide a background band came out.
+`test/test_screen.py` puts captures written by hand through it. Those two are
+pure — no process, no file, no clock — which is why both are in CI while
+`e2e.py` around them is not. **Python 3.11 or newer**, nothing outside the
+standard library, and `harness.py` refuses an older one with a sentence rather
+than a traceback, the way `test/run.lua` refuses the wrong Lua.
 
 `lua-language-server --check .` type-checks the plugin against Yazi's own
 annotations, which `.luarc.json` expects at
@@ -279,22 +290,24 @@ uses mise, as it does Lua; CI installs its own. The specification's half of the
 check is that library, the one the specification points at for this; the rest
 is this repository's, and the script says which is which beside each rule.
 
-`uvx ruff@0.16.7` lints that file and checks its shape, under the rules and the
-80-column wrap `ruff.toml` sets. The pin sits on the command rather than in
-`ruff.toml` because ruff is a tool this repository runs, not something the
-script imports. It is given a path rather than the tree the other linters get:
-`ruff format` reformats the Python inside a fenced block, and the documents are
-markdownlint's.
+`uvx ruff@0.16.7` lints every Python file here and checks its shape, under the
+rules and the 80-column wrap `ruff.toml` sets. The pin sits on the command
+rather than in `ruff.toml` because ruff is a tool this repository runs, not
+something any of those files imports. It is given two paths rather than the
+tree the other linters get: `ruff format` reformats the Python inside a fenced
+block, and the documents are markdownlint's.
 
-`test/e2e.sh` and `test/manual.sh` need a real Yazi and a real terminal and are
+`test/e2e.py` and `test/manual.py` need a real Yazi and a real terminal and are
 deliberately not in CI. Run them yourself before claiming anything about the
 screen — and note that a green exit is worth more than the screen looking
 right, because a broken fetcher shows up nowhere on it.
 
-Running them needs nothing else. `.agents/skills/verify-supaline/SKILL.md` is
-for **changing** the harness — writing a spec, adding a stub, or editing one of
-the shell scripts — and says what a stub owes Yazi in fidelity, what the unit
-suite can and cannot prove, and how a headless run differs from a terminal.
+Running them needs nothing else — no lock file, no virtual environment, no uv.
+`.agents/skills/verify-supaline/SKILL.md` is for **changing** the harness —
+writing a spec, adding a stub, or editing one of the Python harnesses — and
+says what a stub owes Yazi in fidelity, what the unit suite can and cannot
+prove, where the fixture lives now, and how a headless run differs from a
+terminal.
 
 ## Formatting
 

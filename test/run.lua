@@ -4,7 +4,7 @@
 --- the built-in formatters.
 ---
 --- They stub the Yazi globals, so they say nothing about rendering, fetchers or
---- `ya.sync`. Run `test/e2e.sh` for those.
+--- `ya.sync`. Run `test/e2e.py` for those.
 ---
 ---     lua test/run.lua            every spec
 ---     lua test/run.lua column     the specs whose name contains "column"

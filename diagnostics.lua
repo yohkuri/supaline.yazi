@@ -245,7 +245,7 @@ function M.new(sink)
 	-- `default` is what a stage nobody has worded gets, and it claims nothing
 	-- about the cells. A shared sentence that did is the fault this table was
 	-- carrying: three stages borrowed `render`'s, and two of them draw something
-	-- else. Read on a screen, at `b r`, `b s` and `b w` in `manual.sh`.
+	-- else. Read on a screen, at `b r`, `b s` and `b w` in `manual.py`.
 	local COST = {
 		render = string.format(
 			"Everything else on the line goes on drawing, and a cell this column cannot draw at all "

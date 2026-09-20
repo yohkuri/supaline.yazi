@@ -199,14 +199,14 @@ it: a `render` handing back `renderable, style` has that style put on the Line,
 so a column that styled its own spans keeps them. One column in the tree takes
 that path — the fixture's `name_line`, which exists for the truncation a
 renderable forces and carries no colour worth reading back — so nothing in
-`test/e2e.sh` witnesses the merge. Taking the measurement means giving a
+`test/e2e.py` witnesses the merge. Taking the measurement means giving a
 Line-and-style column a colour of its own in the fixture and reading the run
 back out of a capture.
 
 `permissions` is **not** an instance of this, and was written up here as one.
 Its `render` returns a bare `ui.Line` and no style beside it, and `perm_spans`
 patches the column's style into each character's own with `Style:patch` before
-the Line is built — so what `e2e.sh`'s `c_bold` check sees, a bold opening a
+the Line is built — so what `e2e.py`'s `c_bold` check sees, a bold opening a
 run of characters in colours of their own, is that patch rather than this
 merge. The check is right about what reaches the screen; only its account of
 how was wrong. `builtin.lua` says why the column patches instead of layering:
@@ -295,7 +295,7 @@ Comment out `ps.sub("theme", build)` and each goes red on its own.
 `test/main_spec.lua` sets the section, runs `setup`, changes the section, and
 fires `theme`. Changing it *after* setup is what makes the test say anything: a
 section that never changed would also pass for a plugin that never subscribed.
-`test/e2e.sh` does the same against a real Yazi, rewriting `theme.toml` on
+`test/e2e.py` does the same against a real Yazi, rewriting `theme.toml` on
 disk, where the unit stub's model cannot be the thing that is wrong.
 
 ## A fetcher that returns a boolean

@@ -1,4 +1,5 @@
-# ruff, over `.github/scripts` -- the one place this repository keeps Python.
+# ruff, over the two places this repository keeps Python: `test/`, which is
+# both e2e harnesses and the parsers under them, and `.github/scripts`.
 #
 # `stylua.toml` next to this is upstream's and stays verbatim; nothing
 # upstream exists to copy for Python, so this file is ours and every line in
@@ -6,26 +7,38 @@
 #
 # Pinned on the command rather than here, as `AGENTS.md` and `check.yml` say:
 #
-#     uvx ruff@0.16.7 check .github/scripts
-#     uvx ruff@0.16.7 format --check .github/scripts
+#     uvx ruff@0.16.7 check test .github/scripts
+#     uvx ruff@0.16.7 format --check test .github/scripts
 #
-# `format` is given a path rather than the tree because it reformats the
-# Python inside a fenced block, and the documents are markdownlint's.
+# Both halves are given paths rather than the tree, because `format` reformats
+# the Python inside a fenced block and the documents are markdownlint's.
 
 # The wrap every document here keeps, and `.markdownlint-cli2.yaml` enforces.
 # ruff's own default is 88.
 line-length = 80
 
+# The floor `harness.MINIMUM` refuses below, said again here because ruff has
+# no way to read it: there is no `pyproject.toml` in this repository, so ruff
+# falls back to its own default, under which a module 3.11 added to the
+# standard library is not in it. Sorting `tomllib` into an import block of its
+# own, as though it came from somewhere else, is how that was found.
+target-version = "py311"
+
 [lint]
 # The default is E4, E7, E9 and F -- syntax, imports, and names that are not
 # there. Four families on top of it, and not all four for the same reason.
 #
-# C4 and PLW each refused something in the only Python file here: a
-# comprehension that copied a list, and a module-level `global`. I and RET
-# never had anything to say about it -- measured with
+# C4 and PLW each refused something in `skills.py`, which was the only Python
+# file here when this was written: a comprehension that copied a list, and a
+# module-level `global`. I and RET had nothing to say about it -- measured with
 # `ruff check --isolated --select I,RET` over that file as it stood, which
-# passed while `--select C4,PLW` found two. They are on anyway, because the
+# passed while `--select C4,PLW` found two. They were on anyway, because the
 # order of an import block and the shape of a `return` are worth settling by a
 # tool in a repository where the next Python file may be written by an agent
 # that has not read this one.
+#
+# That bet came in. The harnesses under `test/` arrived later and RET refused
+# a `main` that ended in an `execve` -- correctly, since nothing can see that
+# the call never returns -- and I sorted three import blocks. Neither was
+# argued about, which is the whole of what a settled rule buys.
 extend-select = ["C4", "I", "PLW", "RET"]

@@ -132,7 +132,7 @@ cannot be read from Lua at all, so this is the only way in.
 reproduces both habits rather than repairing them -- a stub that quietly did
 the right thing would let the correction be deleted with the suite still green
 -- and `test/column_spec.lua` pins the corrected cut in both directions. On the
-screen side, `test/e2e.sh` runs one column that hands back a string and one
+screen side, `test/e2e.py` runs one column that hands back a string and one
 that hands back a Line through the same name and width, and fails unless the
 two read identically.
 

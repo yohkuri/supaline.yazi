@@ -65,7 +65,7 @@ local M = {}
 -- per *magnitude*, whose boundaries fall on 1K and 1M rather than on 1/64ths
 -- of whatever the folder happened to hold.
 --
--- The pure colour module exports the count used by the fixture too.
+-- The number itself is in `colour.lua`, on a line `test/setup.py` reads.
 local STEPS = colour.STEPS
 
 -- What separates one endpoint from the next in the string form. The string

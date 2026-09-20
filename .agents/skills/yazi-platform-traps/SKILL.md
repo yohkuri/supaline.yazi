@@ -80,7 +80,7 @@ refuses such a name, and `column_spec.lua` pins both halves of the rule,
 including the three spellings Yazi's own "snake-case" message implies it
 refuses and in fact accepts. `references/probes.md` has the measurement.
 
-Pinned twice, by `test/main_spec.lua` and by `test/e2e.sh` against a real Yazi,
+Pinned twice, by `test/main_spec.lua` and by `test/e2e.py` against a real Yazi,
 and both pins discriminate.
 
 ## Fetchers return a function, not a boolean

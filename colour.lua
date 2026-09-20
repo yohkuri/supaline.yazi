@@ -1,8 +1,19 @@
 --- @since 26.9.1
 --- Pure sRGB/Oklab arithmetic. Parsing style syntax belongs to style.lua.
 ---@class supaline.ColourModule
-local M = { STEPS = 64 }
-local STEPS = M.STEPS
+local M = {}
+
+-- How many styles a ramp is quantised into. Why 64 rather than some other
+-- number is beside the `local STEPS` in `style.lua` that reads this one; what
+-- is here is the line, and the line is read from outside Lua.
+--
+-- `test/setup.py` takes the number off it with a regular expression, to build
+-- one file per step, so the *shape* of this line is load-bearing: a trailing
+-- comment, a `<const>`, or folding it back into the module table above each
+-- break the read. It stops the harness loudly and says so, but it says it
+-- about the fixture.
+local STEPS = 64
+M.STEPS = STEPS
 
 --- Decode a literal endpoint, without consulting a terminal palette.
 ---@param value string

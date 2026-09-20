@@ -3,13 +3,14 @@ name: verify-supaline
 description: >-
   What this plugin's test harness can and cannot say, and the rules for
   changing it. Read when writing or changing anything under `test/` -- a spec,
-  a stub, or one of the shell harnesses -- and not for running the tests, which
+  a stub, or one of the Python harnesses -- and not for running the tests, which
   AGENTS.md lists and which need nothing from here. Covers stub fidelity and
   why the stubs deliberately fail loudly where Yazi fails silently, what a
   spec's calls into the plugin are actually checked against, how to plant a
   value that is wrong on purpose without the probe being what gets refused,
   what the unit suite can and cannot prove, the fixture the e2e and manual
-  runs share, and the two ways a headless tmux behaves unlike a real terminal.
+  runs share, and the three ways a headless tmux behaves unlike a real
+  terminal.
 ---
 
 # Working on the test harness
@@ -105,7 +106,7 @@ the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
 blanket disable there grows to cover code nobody meant to exempt.
 
-## What the unit suite can prove
+## What the Lua unit suite can prove
 
 Pure logic — normalisation, layout, the ratio contract, the built-in
 formatters — and, through the stub's fidelity, most of the constraints in the
@@ -121,41 +122,80 @@ means the NUL byte on 5.1 and the letter `z` from 5.2 on, and `utf8` arrived in
 5.3. `test/run.lua` refuses any other version and says where to get one, so
 this needs no remembering.
 
+## The second unit suite, and where a fact belongs
+
+`AGENTS.md` says what that suite is and what it runs on. What it does not say
+is that the purity is a **rule** rather than an accident: a `subprocess` or a
+`Path.read_text` added to `screen.py` takes the whole file out of CI with it,
+and the arithmetic that decides whether a ramp climbed goes back to being
+checked only by a run nobody can make a runner do.
+
+So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
+
+- A fact about **what the screen looks like** belongs in `screen.py`, with a
+  hand-written capture in `test_screen.py` beside it. A raw escape sequence is
+  the most worth moving rather than the least: it is the one thing a capture
+  written by hand can state exactly.
+- A fact about **what the fixture spells** belongs in a reader over
+  `test/fixture/init.lua` — `ground_hex`, `ramp_ends`, `broken_columns`,
+  `band_width` and `c_bg_grounds` are the five — and `TheFixtureItReads` calls
+  those readers rather than re-spelling their patterns. A copy of a pattern
+  goes on passing while the reader beside it has quietly stopped matching, and
+  `e2e.py` is not in CI to say so. A pattern anchored on stylua's indentation
+  is the one most worth moving: re-nesting a table is all it takes to leave a
+  sweep passing over nothing.
+- What is left for `e2e.py` is driving Yazi and holding the parsed answer
+  against what this machine says: `pwd`, `grp`, a file on disk, a colour read
+  out of the fixture.
+
+Two habits the harness keeps throughout. Never `assert`: `Checks` counts named
+failures and the run exits once, because a change that moves one column moves a
+handful of checks and the shape of that handful is what says where to look.
+And give a check a guard wherever an empty list or an unmatched pattern would
+let it pass over nothing — a sweep that read nothing looks exactly like a sweep
+that found nothing wrong.
+
 ## The fixture, shared by both harnesses
 
-`e2e.sh` and `manual.sh` both build their configuration and fixture with
-`test/setup.sh`, so what a person looks at and what the headless run asserts on
-cannot drift apart.
+The configuration Yazi is given sits under `test/fixture/` as the files Yazi
+reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, and
+`banner.txt`, which is what `manual.py` prints. `test/setup.py` copies them
+into a scratch tree and replaces `@DIR@` with it, and that is the whole of what
+it does to them. `e2e.py` and `manual.py` both call it, so what a person looks
+at and what the headless run asserts on cannot drift apart.
 
-`fixture_spec.lua` is the third reader of that file, and the one that changes
-what you have to remember when you edit it. It lifts the fixture's `init.lua`
-out of the heredoc `setup.sh` writes it from and puts that through `setup`
-under the stub, so a refusal that turns the fixture's own configuration away
-fails in the unit suite rather than in a headless Yazi minutes later. Two
-things follow. Rename or requote that heredoc and the extraction stops
-matching — which is why the spec asserts it found a `setup` call and a
-`column` registration rather than trusting a pattern, since a spec reading the
-empty string compiles, runs and refuses nothing. And it says nothing about the
-screen: `setup` took the configuration is the whole of the claim, and `e2e.sh`
+They are real files rather than heredocs, and that buys three readers the
+fixture did not have: `stylua` formats `init.lua`, `lua-language-server`
+type-checks it along with the plugin, and `fixture_spec.lua` opens it instead
+of pattern-matching somebody else's quoting.
+
+`fixture_spec.lua` puts that `init.lua` through `setup` under the stub, so a
+refusal that turns the fixture's own configuration away fails in the unit suite
+rather than in a headless Yazi minutes later. It still asserts it found a
+`setup` call and a `column` registration rather than trusting the read: a file
+that is present and empty compiles, runs and refuses nothing, which is a spec
+exiting 0 over a configuration it never saw. And it says nothing about the
+screen — `setup` took the configuration is the whole of the claim, and `e2e.py`
 is still what says the configuration draws what `MANUAL.md` describes.
 
-The same file holds the fixture's **key set** together. Four places name that
-set — the keymap, `manual.sh`'s banner, `test/MANUAL.md`, and `e2e.sh`'s
-capture loops — and the banner is the only one whose reader is a person, so it
-is the one that can fall behind with everything still green. The keymap is the
-authority and the spec names no key of its own: it reads the `on` lines, then
-asks whether the banner offers each and whether `MANUAL.md` spells each. A key
-the banner offers and nothing binds is refused as well, unless `NOT_BOUND` says
-whose it is — `m s` is Yazi's — and an entry there has to still be offered, so
-that table cannot fill up with keys the banner has dropped.
+The same spec holds the fixture's **key set** together. Four places name that
+set — `test/fixture/keymap.toml`, `test/fixture/banner.txt`, `test/MANUAL.md`,
+and `e2e.py`'s capture loops — and the banner is the only one whose reader is a
+person, so it is the one that can fall behind with everything still green. The
+keymap is the authority and the spec names no key of its own: it reads the `on`
+lines, then asks whether the banner offers each and whether `MANUAL.md` spells
+each. A key the banner offers and nothing binds is refused as well, unless
+`NOT_BOUND` says whose it is — `m s` is Yazi's — and an entry there has to
+still be offered, so that table cannot fill up with keys the banner has
+dropped.
 
 Two things to know before editing that half. The authority is the only side
 that has to prove it was read: a reader side that comes back empty fails loudly
 with every bound key named at once, while an empty authority would let all
-three comparisons pass over nothing. So it is checked against `setup.sh`'s own
+three comparisons pass over nothing. So it is checked against the keymap's own
 shape — one `on` line per `[[mgr.prepend_keymap]]` block — rather than against
 a count written in the spec, which would be a fifth place holding the size of
-the set. And `e2e.sh` is left out on purpose: it presses `c 2` and neither
+the set. And `e2e.py` is left out on purpose: it presses `c 2` and neither
 `c 1` nor `c 3`, because that key replaces `theme.toml` wholesale and one swap
 is all a run whose earlier captures were taken against that file can afford.
 Comparing against it would need a list of which keys are exempt, and that list
@@ -170,7 +210,7 @@ look for in each. Yazi's own `m s` and `m n` still work, which is what makes
 them worth comparing against.
 
 A third leader, `b`, draws the columns that are wrong on purpose -- one per
-report supaline can put on a screen. `e2e.sh` presses all of them, in a
+report supaline can put on a screen. `e2e.py` presses all of them, in a
 **second Yazi with a log of its own**, started once the first has been torn
 down. The clean run's log check is untouched and unfiltered: it still says that
 run logged no error at all. The second log is read for the opposite thing --
@@ -178,7 +218,7 @@ one line per broken column, and that many lines in all, so a line naming
 anything else has nowhere to sit.
 
 The shape is decided by what it must not be. `report` writes to `yazi.log` as
-well as to the screen, and `e2e.sh` fails a run in which Yazi logged an error,
+well as to the screen, and `e2e.py` fails a run in which Yazi logged an error,
 so pressing a `b` key in *that* run turns the suite red. The repair is not to
 teach the log check an exception -- an allowlist there is the one check that
 reads the log learning to ignore the errors it was written to find. Two logs
@@ -212,8 +252,8 @@ seconds is long enough to read it. That, `fixture_spec.lua` taking the whole of
 stands behind the family.
 
 ```sh
-test/e2e.sh --keep          # leave the scratch directory behind
-test/manual.sh --clean      # discard the manual fixture
+test/e2e.py --keep          # leave the scratch directory behind
+test/manual.py --clean      # discard the manual fixture
 ```
 
 ## A headless run is not a terminal
@@ -221,11 +261,19 @@ test/manual.sh --clean      # discard the manual fixture
 - A detached tmux never answers the terminal probe, so `rt.term.light()` stays
   `nil` and a flavor that varies by terminal background cannot resolve. The
   user's `theme.toml` is applied regardless: 26.9.1 fires `theme` by itself a
-  couple of milliseconds after `init.lua`, probe or no probe, so `e2e.sh` does
+  couple of milliseconds after `init.lua`, probe or no probe, so `e2e.py` does
   not have to send `app:theme` before capturing. The first half of its theme
   check would catch the day that changes back.
 - Yazi queries the terminal on startup and aborts if nothing answers, so
   `script`-style pseudo-terminals do not work. Use tmux, which is a real
   terminal emulator.
+- The probe nothing answers also holds the exit open. 26.9.1 waits five
+  seconds for it after `q` -- 5.02, 5.03 and 5.04s measured -- and only then
+  does the process leave and tmux destroy the session with it. So a capture
+  taken in that window succeeds, which is a timeout standing in for a
+  guarantee rather than one: `Session.quit` waits for the session to go
+  instead of the screen to settle, because a `capture-pane` against a session
+  that has gone exits non-zero and the harness reports that as a refusal to
+  start.
 
-Both are already handled inside `e2e.sh`. They matter when you change it.
+All three are already handled inside `e2e.py`. They matter when you change it.
