@@ -343,6 +343,85 @@ jobs:
           done < <(git ls-files -z '*.lua' ':!:test/*')
           exit $rc
 
+  globals:
+    # Which of Yazi's globals a file may name is what the separation of
+    # lifetimes is actually made of, and nothing said so until this job.
+    # `main.lua` is the adapter: it reads `cx`, subscribes with `ps`, installs
+    # on `Linemode`, and hands everything else down as an argument -- the
+    # theme reaches `style.resolve` as a parameter, the Linemode test reaches
+    # `config.compile` as `is_yazis`, and the screen reaches
+    # `diagnostics.new` as a sink. That arrangement is the whole reason a
+    # theme reload can be exercised in `lifecycle_spec.lua` at all: the trap
+    # arrives as a value a spec can pass rather than as a global it would
+    # have to stand up first.
+    #
+    # `builtin.lua` sits on the far side of that interface rather than inside
+    # the framework. A built-in column is registered the way a user's is and
+    # may read what a user's may, and one that could not would be a
+    # privileged path pointing the other way. It still may not subscribe or
+    # install: those happen once, at load and in `setup`, so that a repeated
+    # `setup` replaces the active session instead of stacking onto it.
+    #
+    # `ui` is not here and is allowed everywhere. It is the output
+    # vocabulary rather than state -- `layout`, `style` and `runtime` build
+    # with it, the stub models it in full, and naming it costs a spec
+    # nothing.
+    #
+    # Nothing below is caught by the suite. `lifecycle_spec.lua` pins that
+    # the colour arithmetic needs no globals, which is one module of seven; a
+    # *new* `cx.active` written into `runtime.lua` passes every test green
+    # and takes the folder back out of the caller's hands, which is the one
+    # thing separating the lifetimes was for.
+    #
+    # What it does not reach is an alias -- `local c = cx` and then `c.active`
+    # goes past it, the way an absolute path goes past a Bash permission rule.
+    # It refuses the spelling the mistake is made in. `ya.sync` is the job
+    # above's, which is stricter and is about where in a file the call sits
+    # rather than about which file it is in.
+    name: Yazi globals outside the adapter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Only the adapter names them
+        run: |
+          rc=0
+          # Line comments go first, and a leading backtick takes out the
+          # rest: every mention of one of these in a message or a docblock
+          # here is written `like this`. It is the same bet the `sync` job
+          # makes when it insists on a `(`, and a check that fires on prose
+          # is one nobody keeps.
+          guard='(^|[^A-Za-z0-9_.`])'
+          # A use rather than a mention: the name has to be indexed or called.
+          use='[[:space:]]*(\.|\[|:)'
+
+          only() { # <files that may> <name pattern> <what to write instead>
+            while IFS= read -r -d '' f; do
+              case " $1 " in *" $f "*) continue ;; esac
+              hits=$(sed 's/--.*//' "$f" | grep -nE "$guard$2$use" || true)
+              [ -n "$hits" ] || continue
+              printf '%s:\n%s\n%s\n\n' "$f" "$3" "$hits"
+              rc=1
+            done < <(git ls-files -z '*.lua' ':!:test/*')
+          }
+
+          only 'main.lua builtin.lua' '(cx|th|ya)' \
+            '  `cx`, `th` and `ya` belong to the adapter and to a column, not
+            to the framework: a module that names one cannot be exercised
+            without standing up that much of Yazi, and the four traps no test
+            reaches all sit on that surface. main.lua passes down what is
+            needed -- the theme to `style.resolve`, the Linemode test to
+            `config.compile` as `is_yazis`, the screen to `diagnostics.new`
+            as a sink. Take it as a parameter here too.'
+
+          only 'main.lua' '(ps|Linemode)' \
+            '  `ps` and `Linemode` are the adapter alone. Subscribing and
+            installing happen once -- at load, and in `setup` -- so that a
+            repeated `setup` replaces the active session rather than stacking
+            a second subscription onto it. A column, built-in or written by a
+            user, neither subscribes nor installs.'
+
+          exit $rc
+
   spellings:
     # Two Yazi APIs whose obvious use is the wrong one, and which this plugin
     # therefore never uses. Both checks are refusals with a reason rather than
