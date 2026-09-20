@@ -10,12 +10,13 @@ milliseconds after `init.lua` and without being asked, which the first half of
 
 from __future__ import annotations
 
+import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import FrameType
 from typing import NoReturn
@@ -147,6 +148,17 @@ def yazi_log(dir: Path, state: str) -> Path:
     return dir / state / "yazi" / "yazi.log"
 
 
+def yazi_data(dir: Path) -> Path:
+    """The folder both harnesses open that Yazi on, inside the fixture.
+
+    The third of these and here for the reason the other two are: `setup.py`
+    lays the fixture out, this is the one directory in it either harness
+    names, and it had been written out on both sides -- in two spellings, one
+    of them inside an f-string building a shell command.
+    """
+    return dir / "fixture" / "data"
+
+
 def need(*tools: str) -> None:
     """Refuse to start without every binary the run is about to reach for."""
     missing = [tool for tool in tools if shutil.which(tool) is None]
@@ -227,8 +239,29 @@ class Session:
     def tmux(self, *args: str) -> str:
         return run(["tmux", *args]).stdout
 
-    def start(self, command: str, *, width: int, height: int) -> None:
-        """Open the session. `set -e`'s replacement is `run`'s own exit."""
+    def start(
+        self,
+        argv: Sequence[str],
+        *,
+        env: dict[str, str],
+        width: int,
+        height: int,
+    ) -> None:
+        """Open the session on `argv`, in `env`.
+
+        `set -e`'s replacement is `run`'s own exit.
+
+        The two are taken apart rather than as the one string tmux wants,
+        because putting them together means quoting them, and a caller that
+        did that would be the one place outside this file that has to know a
+        shell is involved at all. What it would be quoting is the scratch
+        path, which is `tempfile.gettempdir()`'s to choose -- the same hazard
+        `setup.py` designs around where the keymap's `shell` template names
+        that directory, one layer down.
+        """
+        command = shlex.join(
+            ["env", *(f"{name}={value}" for name, value in env.items()), *argv]
+        )
         self.tmux(
             "new-session",
             "-d",

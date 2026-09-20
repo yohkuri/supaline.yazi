@@ -43,6 +43,7 @@ from harness import (
     need,
     require_python,
     run,
+    yazi_data,
     yazi_env,
     yazi_log,
 )
@@ -108,16 +109,14 @@ class Run:
     def open_yazi(self, state: str) -> None:
         """Start Yazi on `data/`, with a state directory of its own.
 
-        The environment is `harness.yazi_env`, which `manual.py` opens the
-        same fixture with; spelled out here as an `env` prefix because what
-        tmux takes is a command line rather than a mapping.
+        Both halves come out of `harness`, which `manual.py` opens the same
+        fixture through -- the environment from `yazi_env` and the folder
+        from `yazi_data`. Neither is spelled here, and neither is quoted
+        here: `Session.start` is where a shell is known about.
         """
-        env = " ".join(
-            f"{name}='{value}'"
-            for name, value in yazi_env(self.dir, state).items()
-        )
         self.session.start(
-            f"env {env} yazi '{self.dir}/fixture/data'",
+            ["yazi", str(yazi_data(self.dir))],
+            env=yazi_env(self.dir, state),
             width=WIDTH,
             height=HEIGHT,
         )
