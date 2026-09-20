@@ -545,7 +545,7 @@ class TheFixtureItReads(unittest.TestCase):
         # quietest: a run that found no broken column presses no `b` key and
         # reads a log it expected to be empty, which is what a green run looks
         # like.
-        self.assertTrue(e2e.broken_columns())
+        self.assertTrue(e2e.broken_columns(self.init))
 
     def test_both_grounds_state_a_width_beside_the_name(self):
         # `check_bands` measures the band against this number, so a width

@@ -16,7 +16,7 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from types import FrameType
 from typing import NoReturn
@@ -376,6 +376,55 @@ class Session:
             time.sleep(self.POLL)
             screen = self.capture()
         return screen
+
+    def gather(
+        self,
+        needles: Iterable[str],
+        what: str,
+        *,
+        every: float | None = None,
+        timeout: float = 15,
+    ) -> str:
+        """Collect screens until each of `needles` has been on one of them.
+
+        `wait_for` answers with a single screen, which is the wrong shape for
+        anything the screen cannot hold at once -- and Yazi's notifications
+        are that: it draws three at a time and queues the rest, so what says
+        six of them arrived is the union of the screens taken while they
+        drained rather than any one of those screens.
+
+        A needle is looked for once, on the capture it could first appear in,
+        and the union is built at the end. Over the union every pass instead,
+        the work is quadratic in the captures taken -- for a question every
+        earlier pass has already answered.
+
+        `every` for a caller that knows what it is waiting on stays up longer
+        than `POLL`; the poll is what a caller with nothing to say gets.
+
+        A deadline it reaches returns what it has, with a note, for the reason
+        `wait_for` gives -- and for one of its own here: the checks ahead can
+        see that a report is missing from the union and read that as a column
+        that never reported, where the wait having run out is the other
+        explanation and only this loop can tell them apart.
+        """
+        wait = self.POLL if every is None else every
+        missing = set(needles)
+        seen: list[str] = []
+        deadline = time.monotonic() + timeout
+        while True:
+            screen = self.capture()
+            seen.append(screen)
+            missing -= {n for n in missing if n in screen}
+            if not missing:
+                break
+            if time.monotonic() > deadline:
+                print(
+                    f"  note: waited {timeout}s and never saw {what}",
+                    file=sys.stderr,
+                )
+                break
+            time.sleep(wait)
+        return "\n".join(seen)
 
     def settle(self, *, stable: float = 0.4, timeout: float = 15) -> str:
         """Poll until the screen has held still for `stable` seconds.
