@@ -53,12 +53,27 @@ def refuse(message: str) -> NoReturn:
     raise SystemExit(REFUSED)
 
 
-def require_python() -> None:
-    """Stop with a sentence rather than a traceback on too old a Python."""
+def _require_python() -> None:
+    """Stop with a sentence rather than a traceback on too old a Python.
+
+    Called just below rather than from each `main`, because a `main` runs
+    after its own module's imports are done: `e2e.py` reads the fixture's
+    themes with `tomllib`, which is 3.11's, so on 3.10 a `main` that asked
+    first would never be reached at all. Importing this module is the one
+    moment every entry here has in common -- both harnesses, `setup.py`, and
+    `test_screen.py`, which has no `main` to put a call in and is the one of
+    the four that CI runs.
+
+    `test/run.lua` refuses the wrong Lua from its own first lines, and for the
+    same reason: a refusal that a later failure can get in front of is not one.
+    """
     if sys.version_info < MINIMUM:
         want = ".".join(str(n) for n in MINIMUM)
         have = ".".join(str(n) for n in sys.version_info[:3])
         refuse(f"this harness needs Python {want} or newer, and this is {have}")
+
+
+_require_python()
 
 
 def _terminated(number: int, frame: FrameType | None) -> NoReturn:

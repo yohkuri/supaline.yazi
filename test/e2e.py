@@ -29,7 +29,6 @@ import re
 import sys
 import tempfile
 import time
-import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -42,7 +41,6 @@ from harness import (
     Session,
     catch_term,
     need,
-    require_python,
     run,
     yazi_data,
     yazi_env,
@@ -376,6 +374,12 @@ def theme_values(dir: Path, name: str) -> tuple[str, str]:
     three keys under `c` put their themes and where `check_theme` already
     reads `alt.toml` from to say the swap reached the disk.
     """
+    # Imported here rather than at the top of the file. `tomllib` is
+    # 3.11's, the top of the file is read before `harness` is imported, and an
+    # older Python would therefore raise `ModuleNotFoundError` over the
+    # sentence that module is there to print.
+    import tomllib
+
     body = (dir / "themes" / f"{name}.toml").read_text()
     theme = tomllib.loads(body)["supaline"]
     return theme["size"]["fg"], theme["mtime"]
@@ -1349,7 +1353,6 @@ def yazi_version() -> str:
 
 
 def main(argv: list[str]) -> int:
-    require_python()
     need("tmux", "yazi")
     # Before there is anything to clean up, since what it buys is the `finally`
     # at the foot of this function running on the way out.

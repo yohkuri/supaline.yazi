@@ -19,8 +19,9 @@ line-length = 80
 
 # The floor `harness.MINIMUM` refuses below, said again here because ruff has
 # no way to read it: there is no `pyproject.toml` in this repository, so ruff
-# falls back to its own default and sorts `tomllib` -- 3.11's -- into a block
-# of its own as though it came from somewhere else.
+# falls back to its own default, under which a module 3.11 added to the
+# standard library is not in it. Sorting `tomllib` into an import block of its
+# own, as though it came from somewhere else, is how that was found.
 target-version = "py311"
 
 [lint]
