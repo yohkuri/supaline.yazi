@@ -235,6 +235,28 @@ no fetcher yet. The last of the four is the same shape as the first: the four
 calls supaline makes into a column's own code are contained and pinned, but a
 **new** call into it is not, and the suite goes on passing either way.
 
+## Layering
+
+Yazi's globals belong to `main.lua`. It reads `cx`, `th` and `ya` and hands
+down what it read — the theme reaches `style.resolve` as an argument, the
+`Linemode` name test reaches `config.compile` as `is_yazis`, the screen
+reaches `diagnostics.new` as a sink — so a module under it takes a parameter
+where it would otherwise have named a global. `ps` and `Linemode` are not
+handed down at all, because subscribing and installing happen once, so that a
+repeated `setup` replaces the running session rather than stacking a second
+one onto it. `builtin.lua` is exempt for the first three and not for the last
+two: a built-in column is registered the way a user's is and may read what a
+user's may. `ui` is on neither list and allowed everywhere — it is the output
+vocabulary rather than state.
+
+That arrangement is what puts the first of the four above within reach of a
+spec, since a theme reload arrives as a value the spec passes rather than as
+a global it would have to stand up. `Yazi globals outside the adapter` in
+`.github/workflows/check.yml` refuses a module that names one and prints what
+to take as a parameter instead — a layering violation rather than a twelfth
+trap. What it does not reach is an alias: `local c = cx` and then `c.active`
+goes past it.
+
 ## Commands
 
 ```sh
