@@ -34,7 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from harness import ROOT, refuse, require_python
+from harness import ROOT, refuse
 
 #: Left behind in a directory this script built, and asked for before anything
 #: is removed.
@@ -404,8 +404,6 @@ def build(target: Path) -> None:
 
 
 def main(argv: list[str]) -> None:
-    require_python()
-
     clean = argv[:1] == ["--clean"]
     rest = argv[1:] if clean else argv
     if len(rest) != 1:
