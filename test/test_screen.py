@@ -523,9 +523,8 @@ class TheFixtureItReads(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.init = (
-            Path(__file__).resolve().parent / "fixture" / "init.lua"
-        ).read_text()
+        cls.fixture = Path(__file__).resolve().parent / "fixture"
+        cls.init = (cls.fixture / "init.lua").read_text()
 
     def test_both_grounds_are_flat_colours_the_fixture_binds(self):
         for name in ("GROUND", "LINE_GROUND"):
@@ -546,6 +545,22 @@ class TheFixtureItReads(unittest.TestCase):
         # reads a log it expected to be empty, which is what a green run looks
         # like.
         self.assertTrue(e2e.broken_columns(self.init))
+
+    def test_the_theme_is_a_flat_colour_and_a_ramp_under_the_names_read(self):
+        # `clean_run` rewrites the theme by replacing what this answers, and
+        # `check_theme` and `check_ramp` read the screen against it. A field
+        # renamed or given the other shape -- a ramp is a string and a flat
+        # colour a table -- takes all three with it, and what a reader would
+        # see is a reload that appeared to change nothing.
+        #
+        # Both themes, because the swap `c 2` makes is read the same way.
+        for name in ("default", "alt"):
+            with self.subTest(theme=name):
+                flat, ramp = e2e.theme_values(self.fixture, name)
+                self.assertRegex(flat, self.HEX)
+                low, high = ramp.split(" -> ")
+                self.assertRegex(low, self.HEX)
+                self.assertRegex(high, self.HEX)
 
     def test_both_grounds_state_a_width_beside_the_name(self):
         # `check_bands` measures the band against this number, so a width

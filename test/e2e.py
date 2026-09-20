@@ -29,6 +29,7 @@ import re
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -237,13 +238,13 @@ def clean_run(r: Run) -> None:
     r.session.press("m", "1")
     r.shot("theme-before")
 
-    # Both shapes at once, for the reason `THEME_EDIT` gives: a ramp resolved
+    # Both shapes at once, for the reason `THEME_NEW` gives: a ramp resolved
     # once and cached past the reload would hold its old endpoints with the
     # flat colour beside it already correct, and the flat half alone would not
     # notice.
     theme = r.dir / "config" / "theme.toml"
     body = theme.read_text()
-    for old, new in THEME_EDIT:
+    for old, new in zip(theme_values(r.dir, "default"), THEME_NEW):
         body = body.replace(old, new)
     theme.write_text(body)
     r.session.press("T")
@@ -349,26 +350,36 @@ COLOUR_MODES = (
 )
 
 
-#: The edit `T` is pressed against, and the colours either side of it. One
-#: table because two readers need it -- the rewrite that makes the change and
-#: the check that reads it off the screen, nine hundred lines apart -- and a
-#: pair written twice is a pair that drifts into asserting on a colour nothing
-#: wrote. Both shapes a `[supaline]` value can take are here, because they are
-#: rebuilt by different code: a flat colour is one `ui.Style` and a ramp is
-#: `STEPS` of them, built from endpoints parsed out of the string. These are
-#: the values `themes/default.toml` spells, which says so beside them.
-THEME_EDIT = (
-    ("#ff8800", "#00ccff"),
-    ("#0b3d91 -> #7fd4ff", "#1a5e00 -> #9bff66"),
-)
+#: What `T` is pressed against: the flat colour and the ramp the rewrite puts
+#: in place of whatever the theme already said. One table because two readers
+#: need it -- the rewrite that makes the change and the check that reads it off
+#: the screen, nine hundred lines apart -- and a pair written twice is a pair
+#: that drifts into asserting on a colour nothing wrote. Both shapes a
+#: `[supaline]` value can take are here, because they are rebuilt by different
+#: code: a flat colour is one `ui.Style` and a ramp is `STEPS` of them, built
+#: from endpoints parsed out of the string.
+#:
+#: Only this half is written here. What is being replaced is the fixture's, and
+#: `theme_values` reads it.
+THEME_NEW = ("#00ccff", "#1a5e00 -> #9bff66")
 
-#: The two ends of the themed ramp, before `T` is pressed. Split off the table
-#: above rather than written again: `check_ramp` reads them off a capture
-#: taken before the rewrite and `check_theme` reads them off one taken after,
-#: to say they left -- so the same pair spelled twice would have one of the
-#: two asserting on a colour nothing wrote, which is the drift the table's own
-#: comment exists to stop.
-THEMED_RAMP = THEME_EDIT[1][0].split(" -> ")
+
+def theme_values(dir: Path, name: str) -> tuple[str, str]:
+    """`size`'s flat colour and `mtime`'s ramp, out of one of the themes.
+
+    Read for the reason `ground_hex` and `ramp_ends` read `init.lua`: a hex
+    written here as well is the copy that goes stale, and a recoloured fixture
+    then reports as a plugin that stopped drawing. These are TOML files rather
+    than a heredoc now, so reading them is `tomllib` and no pattern at all.
+
+    The copy in the scratch directory, not the source, which is where the
+    three keys under `c` put their themes and where `check_theme` already
+    reads `alt.toml` from to say the swap reached the disk.
+    """
+    body = (dir / "themes" / f"{name}.toml").read_text()
+    theme = tomllib.loads(body)["supaline"]
+    return theme["size"]["fg"], theme["mtime"]
+
 
 #: A name only the folder behind each `g` key holds, so the press can be waited
 #: on rather than slept through.
@@ -829,22 +840,23 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     )
 
 
-def check_ramp(k: Checks, shots: dict[str, str], init: str) -> None:
+def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
     k.section("the ramp")
 
     # The ends and the steps between them are read in different folders,
     # because no one folder shows both well.
     #
     # The ends are read off `m 1` in `data/`, where the ramp is the *themed*
-    # one: `[supaline] mtime` is `#0b3d91 -> #7fd4ff`, and the fixture's mtimes
-    # run from 2020 to today, so the oldest row draws the low end and a file
-    # the fixture just created draws the high one. A column that resolved the
-    # ramp string as a flat colour, or failed to resolve it at all, can only
-    # put one colour on screen, and this is where that is caught.
+    # one -- `[supaline] mtime`, taken off the theme rather than restated
+    # here. The fixture's mtimes run from 2020 to today, so the oldest row
+    # draws the low end and a file the fixture just created draws the high
+    # one. A column that resolved the ramp string as a flat colour, or failed
+    # to resolve it at all, can only put one colour on screen, and this is
+    # where that is caught.
     #
     # `colour/ramp` cannot do it: 64 rows, a window that shows the first 37 of
     # them, and the high end at the bottom.
-    low, high = THEMED_RAMP
+    low, high = theme_values(dir, "default")[1].split(" -> ")
     k.holds(
         shots["colour-m1"],
         sc.sgr(38, low),
@@ -1231,8 +1243,9 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("theme")
 
-    (flat_old, flat_new), (_, ramp_new) = THEME_EDIT
-    old_ends = THEMED_RAMP
+    flat_old, ramp_old = theme_values(dir, "default")
+    flat_new, ramp_new = THEME_NEW
+    old_ends = ramp_old.split(" -> ")
     new_ends = ramp_new.split(" -> ")
 
     def rows(shot: str, *hexes: str) -> list[int]:
@@ -1288,16 +1301,17 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # when it breaks is a colour that did not change -- indistinguishable from
     # the plugin ignoring the reload.
     #
-    # `themes/alt.toml` puts the ramp at `#5d0b91 -> #ffb37f`, where the reload
-    # above had left `THEME_EDIT`'s new one. Both halves are asked, because they
-    # fail separately: the file says the key reached the disk, and the screen
-    # says the reload that followed it was not lost on the way.
+    # `themes/alt.toml` puts its own ramp where the reload above had left
+    # `THEME_NEW`'s, and shares neither end with it. Both halves are asked,
+    # because they fail separately: the file says the key reached the disk,
+    # and the screen says the reload that followed it was not lost on the way.
     #
     # The second half is not hypothetical. Spelled as a keymap `run` of
     # [ "shell ... --confirm", "app:theme" ] the two race and the reload wins
     # -- measured on 26.9.1, `theme.toml` ends up correct on disk with the old
     # colours still on screen, and `--block` does not change it.
-    swapped, kept = rows("colour-theme-swapped", "#5d0b91", new_ends[0])
+    alt_low = theme_values(dir, "alt")[1].split(" -> ")[0]
+    swapped, kept = rows("colour-theme-swapped", alt_low, new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
         dir / "themes" / "alt.toml"
     ).read_bytes()
