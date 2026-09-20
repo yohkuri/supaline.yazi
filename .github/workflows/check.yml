@@ -529,6 +529,53 @@ jobs:
           done
           exit $rc
 
+  merges:
+    # A branch that merged main into itself cannot be rebase merged at all.
+    # GitHub answers `rebaseable: false`, greys the button out and says
+    # nothing about why -- measured on a pull request here whose head was
+    # such a merge. This is that sentence, printed while the branch can
+    # still be rebased.
+    #
+    # Only what the pull request added is read. `$BASE..$HEAD` is the
+    # branch's own commits, so a branch is never failed for a merge commit
+    # it inherited rather than made.
+    name: No merge commit on a branch
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The default shallow clone has neither end of the range.
+          fetch-depth: 0
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # `run:` is `bash -e`, so both substitutions are guarded: an
+          # unguarded one that failed would abort the step in the middle and
+          # report nothing, which is the shape of a check that checks nothing.
+          merges=$(git rev-list --merges "$BASE..$HEAD") || merges=
+          seen=$(git rev-list --count "$BASE..$HEAD") || seen=0
+
+          if [ -z "$merges" ]; then
+            echo "$seen commit(s) read, and none of them a merge."
+            exit 0
+          fi
+
+          for rev in $merges; do
+            echo "${rev:0:8} is a merge commit:"
+            git log -1 --format='  %s' "$rev"
+          done
+          echo
+          echo 'A pull request here lands by rebase, so a branch is brought'
+          echo 'up to date the same way: `git fetch origin` and then'
+          echo '`git rebase origin/main`, force-pushed. Merging main into the'
+          echo 'branch instead takes the rebase away -- GitHub refuses to'
+          echo 'replay a resolution it cannot reconstruct, and the button it'
+          echo 'greys out carries no reason. AGENTS.md `Landing a change` has'
+          echo 'what this costs a branch stacked on another.'
+          exit 1
+
   landed:
     # The counterpart of `commits` above, and the reason that job can stay on
     # pull requests alone: what it reads is only ever read there, so a commit
@@ -536,15 +583,19 @@ jobs:
     # `.githooks/pre-push` refuses the push that would do it; this is what a
     # clone that never installed the hooks runs into, after the fact.
     #
+    # It also refuses a merge commit outright, whatever that commit belongs
+    # to. A pull request here lands by rebase, so main is a line -- and that
+    # settles the one commit `commits` never reads, since it walks
+    # `--no-merges` and nothing on main is one.
+    #
     # Three things are asked of every commit that lands, because "a pull
     # request exists" is weaker than it sounds: the pull request it came from
     # has to be *merged* (an open one also reports the association, so a
     # branch pushed straight to main while its own pull request sat open would
     # otherwise pass), it has to have targeted main, and `Commit messages` has
     # to have concluded `success` on its head. Nothing here reads a merge
-    # commit's own message -- `commits` skips those deliberately -- but a
-    # merge commit still has to belong to a merged pull request, which is what
-    # a `git pull` merge pushed to main would not.
+    # commit's own message, and it does not have to: a merge commit is
+    # refused above before its message is anybody's question.
     #
     # An API that does not answer is reported as itself rather than as a
     # violation. The distinction matters: this job runs on main, where a red
@@ -602,6 +653,23 @@ jobs:
 
           for rev in $revs; do
             seen=$((seen + 1))
+
+            # Which button was pressed, read off the commit rather than
+            # asked of the API. Two parents means the merge button.
+            parents=$(git log -1 --format='%P' "$rev") || parents=
+            case "$parents" in
+              *' '*)
+                echo "${rev:0:8} is a merge commit:"
+                git log -1 --format='  %s' "$rev"
+                echo '  Main is a line here: a pull request lands by rebase,'
+                echo '  and `No merge commit on a branch` keeps the other'
+                echo '  half of that promise on the branch. AGENTS.md'
+                echo '  `Landing a change` says what rebasing costs a'
+                echo '  stacked branch, which is the reason to reach for the'
+                echo '  merge button and the one it does not answer.'
+                rc=1
+                ;;
+            esac
 
             # The association can lag a merge by a moment, which is what the
             # attempts are for; the sleep is between them, not after the last.

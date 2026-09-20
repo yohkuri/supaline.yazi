@@ -137,6 +137,30 @@ make this repository public` to both (measured 2026-09-08). Turn one on when
 the repository opens, and keep these three as the half that runs before a push
 rather than after it.
 
+A pull request lands by **rebase**, and `main` is a line with no merge commit
+on it. That is worth keeping for a reason beyond the shape of a `git log`:
+`Commit messages` walks `git rev-list --no-merges`, and commitlint ignores a
+merge by itself — measured on @commitlint/cli 21, which took
+`Merge branch 'main' into a-branch` without a word and found two problems in a
+plain `Bad subject here` — so a merge commit's own message is the one thing
+here that nothing reads.
+
+Two checks hold that, one on each side, so it is not this paragraph enforcing
+it either. `No merge commit on a branch` refuses a branch that merged main
+into itself, because doing that takes the rebase away: GitHub answers
+`rebaseable: false`, greys the button out, and gives no reason for it. Bring a
+branch up to date with `git rebase origin/main` and a force-push instead.
+`Commits on main came from a pull request` refuses a merge commit that reached
+main, which is the other button.
+
+What rebasing costs is a branch stacked on the one that lands. Replaying the
+commits gives them new hashes, so the child's base stops being an ancestor of
+main, and the child turns `CONFLICTING` the moment the parent merges — a
+squash does the same thing for the same reason, and a merge commit is the only
+method that would not. Rebase the child onto main and force-push it. Whether
+there is one at all is worth knowing before the merge rather than after, and
+`gh pr list --base <branch>` is what answers that.
+
 Who merges it is a separate question, and the answer is not the agent that
 wrote it. An agent's work ends with the pull request open and its checks
 reported; whether to merge it, and what to do next, is the maintainer's. The
