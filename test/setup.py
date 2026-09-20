@@ -70,10 +70,23 @@ def owned(path: Path) -> bool:
 
 
 def clear(path: Path) -> None:
-    """Remove the fixture, having asked whether it is ours to remove."""
+    """Remove the fixture, having asked whether it is ours to remove.
+
+    A path that is not there is not a failure: both forms arrive here that
+    way, `--clean` twice and every first build. Anything else is -- a
+    permission, an immutable flag, a file another process still holds -- and
+    `ignore_errors` would swallow all of them, leaving both callers saying the
+    opposite of what happened: `--clean` reporting the fixture gone, and a
+    build writing into what is left of the last one.
+    """
     if not owned(path):
         refuse(f"setup: {path} exists and is not ours; move it aside")
-    shutil.rmtree(path, ignore_errors=True)
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        refuse(f"setup: {path} would not go away: {error}")
 
 
 def stamp(path: Path, when: str) -> None:
