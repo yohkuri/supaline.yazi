@@ -28,6 +28,18 @@
 --- `M.stops` would take, where Yazi's own preset answers with a name and would
 --- have to be refused from inside a `theme` handler. Undesigned, not
 --- impossible.
+---
+--- Two of the functions below run at a different time from the rest, and the
+--- file is deliberately not split along that seam. `M.snapshot` and `M.bands`
+--- are read once, while `setup` compiles a plan; everything else runs again on
+--- every `theme` event, from `M.resolve` down. Each of the two is defined by
+--- what the far side does with what it hands back -- `snapshot` keeps a
+--- callable table intact so that `M.layer` can refuse the constructor by name,
+--- and `M.bands` produces exactly the table a `<->` is later resolved against
+--- -- and the two of them share `RESERVED`, `RECOMMENDED_AS_WRITTEN`,
+--- `COLOURS` and `ATTRS` with the half they would be split from, so the split
+--- is three files rather than two. What makes this one long is comment: more
+--- than half of these lines are one.
 
 --- The module table. Declared for the same reason `supaline.ColumnModule` is:
 --- `require(".style")` resolves to this tree and the signatures below are read
