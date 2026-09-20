@@ -742,8 +742,9 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     # the other two panes against m6. A `pane_cur`, `pane_par` and `pane_prev`
     # drawing nothing where they were asked to would pass the rest of the run.
     for n in "678":
-        drew = sc.marked(sc.current_of(shots[f"m{n}"]))
-        rows = sc.drawn(sc.current_of(shots[f"m{n}"]))
+        pane = sc.current_of(shots[f"m{n}"])
+        drew = sc.marked(pane)
+        rows = sc.drawn(pane)
         k.same(
             drew,
             rows,
@@ -792,8 +793,7 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     # Both of them, now that one reader answers either pane. The label had
     # claimed both edges while reading the right-hand one alone.
     k.same(
-        sc.marked(sc.parent_of(shots["m6"]))
-        + sc.marked(sc.preview_of(shots["m6"])),
+        sc.marked(bare_parent) + sc.marked(bare_preview),
         0,
         "m6: both edges left alone",
     )
@@ -907,6 +907,12 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str) -> None:
     check_edge(k, shots["colour-c_edge"], init)
 
 
+#: A six-digit hex colour, as `init.lua` writes one. Held here because the
+#: two readers below build their patterns as f-strings, where it has to be
+#: spelled `{{6}}` -- three times, in a repeat nobody would read as one thing.
+HEX = "#[0-9a-fA-F]{6}"
+
+
 def ground_hex(init: str, name: str) -> str:
     """The flat colour a name in `init.lua` is bound to, or empty.
 
@@ -914,9 +920,7 @@ def ground_hex(init: str, name: str) -> str:
     answers nothing. `ratio` writes `bg = COOL` and `COOL` is a ramp: that is
     not a ground, and this is what tells them apart rather than a list.
     """
-    found = re.search(
-        rf'^local {name} = "(#[0-9a-fA-F]{{6}})"$', init, re.MULTILINE
-    )
+    found = re.search(rf'^local {name} = "({HEX})"$', init, re.MULTILINE)
     return found.group(1) if found else ""
 
 
@@ -928,9 +932,7 @@ def ramp_ends(init: str, name: str) -> tuple[str, str]:
     ramp would then report as a plugin that stopped drawing.
     """
     found = re.search(
-        rf'^local {name} = "(#[0-9a-fA-F]{{6}}) -> (#[0-9a-fA-F]{{6}})"$',
-        init,
-        re.MULTILINE,
+        rf'^local {name} = "({HEX}) -> ({HEX})"$', init, re.MULTILINE
     )
     return (found.group(1), found.group(2)) if found else ("", "")
 
@@ -1233,8 +1235,13 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     old_ends = THEMED_RAMP
     new_ends = ramp_new.split(" -> ")
 
-    def cells(shot: str, *hexes: str) -> list[int]:
-        """Cells of one capture drawn in each colour, in the order asked."""
+    def rows(shot: str, *hexes: str) -> list[int]:
+        """Rows of one capture drawing each colour, in the order asked.
+
+        Rows rather than cells, which is what `lines_with` counts and what
+        every claim below is written against -- a row holding two cells of
+        one colour is one row here.
+        """
         return [lines_with(shots[shot], sc.sgr(38, h)) for h in hexes]
 
     # `[supaline] size` is the flat half of the rewrite `clean_run` made.
@@ -1246,14 +1253,14 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # that capture now proves nothing. A reload still does: it is
     # `ps.sub("theme", build)` that repaints what is already on screen, and a
     # plugin without it holds the old colour.
-    (before,) = cells("colour-theme-before", flat_old)
-    stale, after = cells("colour-theme-after", flat_old, flat_new)
+    (before,) = rows("colour-theme-before", flat_old)
+    stale, after = rows("colour-theme-after", flat_old, flat_new)
     if before > 0:
-        k.ok(f"the themed base colour is drawn ({before} cells)")
+        k.ok(f"the themed base colour is drawn ({before} rows)")
     else:
         k.fail("the themed base colour never reached the screen")
     if after > 0 and stale == 0:
-        k.ok(f"a theme reload rebuilds the columns ({after} cells recoloured)")
+        k.ok(f"a theme reload rebuilds the columns ({after} rows recoloured)")
     else:
         k.fail(
             f"a theme reload did not rebuild the columns "
@@ -1266,8 +1273,8 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # out of the string. Both new ends have to be on screen and neither old one
     # left anywhere -- a ramp cached past the reload would keep its old
     # endpoints with the flat colour beside it already correct.
-    old = cells("colour-theme-after", *old_ends)
-    new = cells("colour-theme-after", *new_ends)
+    old = rows("colour-theme-after", *old_ends)
+    new = rows("colour-theme-after", *new_ends)
     if min(new) > 0 and max(old) == 0:
         k.ok("... and rebuilds a ramp, not only a flat colour")
     else:
@@ -1290,7 +1297,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # [ "shell ... --confirm", "app:theme" ] the two race and the reload wins
     # -- measured on 26.9.1, `theme.toml` ends up correct on disk with the old
     # colours still on screen, and `--block` does not change it.
-    swapped, kept = cells("colour-theme-swapped", "#5d0b91", new_ends[0])
+    swapped, kept = rows("colour-theme-swapped", "#5d0b91", new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
         dir / "themes" / "alt.toml"
     ).read_bytes()
