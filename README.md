@@ -22,7 +22,7 @@ be written in the spec or come from your theme.
 
 Whether supaline ships status columns of its own — version control, dotfile
 management — is undecided. Nothing here depends on the answer: such a column
-would go through `column.register` like any other.
+would go through the same column registry as any other.
 
 ## Requirements
 
@@ -258,7 +258,11 @@ about the folder is what changed.
 
 ### `ctx`
 
-`render` is handed one context table per column, reused across rows:
+`render` is handed a context for that column in the folder and pane being
+drawn. Rows in one cached folder reuse it; another folder or pane has its own.
+Treat the context and its options as read-only. Keeping a reference does not
+make it follow navigation: a later folder, cache invalidation or successful
+theme reload creates a new context instead of rebinding the old one.
 
 | Field          | Meaning                                                     |
 | -------------- | ----------------------------------------------------------- |
@@ -277,6 +281,14 @@ column that styles its own spans can still set the ground under them. That
 ground is the cell rather than the text: a renderable narrower than its column
 is padded inside the style, the way a string is, so a `bg` reaches the cells
 the padding added and not only the ones the text filled.
+
+`setup` snapshots the configuration structures it interprets: column lists,
+layout options, style tables, separators and named bands. Editing those inputs
+or re-registering a column takes effect on the next successful `setup`, not on
+a theme reload. Style functions are still called again on each theme event,
+so functions that read `th` continue to follow the theme. Functions and opaque
+values under a column's declared options are retained by reference; supaline
+does not recursively copy arbitrary user state.
 
 ## Built-in columns
 
@@ -961,6 +973,31 @@ What none of this reaches is the cell at the very start of the row. That space
 is Yazi's own, added before the linemode is asked for anything, so a
 background running from one edge of the linemode to the other still begins one
 cell in.
+
+## Implementation
+
+Configuration, theme appearance and folder preparation have separate
+lifetimes. `setup` compiles a `Plan`, resolves an `Appearance`, and creates a
+runtime before replacing the active configuration. A theme event reuses the
+plan and replaces only the appearance and runtime; a failed resolution leaves
+the old runtime intact. Notification gates belong to the setup and survive
+theme changes.
+
+The runtime caches each folder's prepared columns and their contexts, with at
+most eight folder entries and a full clear when a ninth is added. Drawing a row
+selects that prepared state without changing a shared column's context.
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `main.lua` | Public API, Yazi events, pane selection and Linemode installation. |
+| `config.lua` | Validate setup and pane structures; compile the complete plan. |
+| `column.lua` | Explicit registries, column inheritance and plans, and `extremes`. |
+| `runtime.lua` | Folder statistics, effective widths, contexts, caching and callback containment. |
+| `layout.lua` | Measure, truncate, pad and style cells. |
+| `style.lua` | Interpret and merge style sources; resolve theme appearances. |
+| `colour.lua` | Yazi-independent RGB, Oklab, bands and 64-step interpolation. |
+| `diagnostics.lua` | Validation messages and setup-scoped notification gates. |
+| `builtin.lua` | Create built-in definitions for the ordinary registry. |
 
 ## Caveats
 

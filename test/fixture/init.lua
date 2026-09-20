@@ -189,7 +189,7 @@ supaline.column("name_line", {
 -- report against, which is the other half of why these are six.
 
 -- `b r`. A `render` that throws, once per row. The only one of the four that
--- leaves anything on the line: the cell cannot be drawn, so `column.cell`
+-- leaves anything on the line: the cell cannot be drawn, so `runtime`
 -- fills its width with `!` rather than with spaces, and the columns either
 -- side keep their places.
 supaline.column("torn_render", {
@@ -436,7 +436,7 @@ supaline:setup {
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,
 		-- beside the same ramp over no ground at all -- and `ratio`, which
 		-- carries the ramp painted *as* the background, under the row's own
-		-- text. `colour.build` sets every step on the ground, so the `bg` is
+		-- text. `style.build` sets every step on the ground, so the `bg` is
 		-- meant to survive under sixty-four colours that know nothing about it;
 		-- and `bg` takes a gradient exactly as `fg` does, which is what `ratio`
 		-- shows. A theme cannot ask for either -- `themes/bg.toml` is where

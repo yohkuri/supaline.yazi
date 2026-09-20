@@ -50,7 +50,7 @@ Where those two lightnesses come from is a **name**. `band` in `setup` holds
 bands by name; a `<->` takes the band called after the key it was written
 under, `fg` or `bg`, or names another after the marker. **No name has a
 default and none is built in**, so a `<->` with no band behind it is refused
-rather than drawn. `colour.lua` carries a pair it recommends and every refusal
+rather than drawn. `style.lua` carries a pair it recommends and every refusal
 quotes it, which is not the same thing: the two ends are a claim about the
 ground the column is drawn on, that ground is the reader's, and a pair applied
 to whoever said nothing would be a guess that draws rather than a question that

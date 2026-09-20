@@ -2,6 +2,15 @@
 --- two width shapes that are derived from the listing.
 
 local column = require(".column")
+---@type supaline.ColumnCases
+local cases = dofile(ROOT .. "/test/column_case.lua")
+local registry = column.new_registry()
+local register = registry.register
+local cell, for_folder, resolve_width = cases.cell, cases.for_folder, cases.width
+---@param spec supaline.ColumnSpec
+---@param cfg supaline.Cfg
+---@return supaline.ColumnCase
+local function prepare(spec, cfg) return cases.prepare(registry, spec, cfg) end
 
 local CFG = { scale = "linear" }
 
@@ -10,19 +19,19 @@ local CFG = { scale = "linear" }
 ---@param file table?
 ---@return string
 local function cell(spec, file)
-	local col = column.normalize(spec, CFG)
-	return text_of(column.cell(col, file or stub.file {}))
+	local col = prepare(spec, CFG)
+	return text_of(cases.cell(col, file or stub.file {}))
 end
 
 -- --- spec shapes -----------------------------------------------------------
 
 test("normalize: a registered column by name", function()
-	column.register("fixed", { width = 4, render = function() return "ab" end })
+	register("fixed", { width = 4, render = function() return "ab" end })
 	eq(cell("fixed"), "  ab")
 end)
 
 test("normalize: a name with its options overridden", function()
-	column.register("fixed", { width = 4, align = "right", render = function() return "ab" end })
+	register("fixed", { width = 4, align = "right", render = function() return "ab" end })
 	eq(cell { "fixed", width = 5, align = "left" }, "ab   ")
 end)
 
@@ -32,10 +41,10 @@ test("normalize: a use site may override the definition's `render`", function()
 	-- `pick`. Pinned because nothing else says so, and because the shape reads
 	-- as a definition -- a definition is the other table that writes a
 	-- `render`, and what tells the two apart is the name at `[1]`.
-	column.register("over", { width = 6, align = "left", render = function() return "def" end })
+	register("over", { width = 6, align = "left", render = function() return "def" end })
 	eq(cell { "over", render = function() return "spec" end }, "spec  ")
 	eq(
-		column.normalize({ "over", render = function() return "spec" end }, CFG).name,
+		prepare({ "over", render = function() return "spec" end }, CFG).plan.name,
 		"over",
 		"and the name the theme is looked up under is still the definition's"
 	)
@@ -45,9 +54,9 @@ test("normalize: an option written on the definition survives, `false` and all",
 	-- A separator is the only option whose meaningful value is `false`, and the
 	-- `opts[k] == nil and def[k] or opts[k]` idiom collapsed it to nil, so a
 	-- definition that said `separator = false` still got a separator drawn.
-	column.register("tight", { width = 3, separator = false, render = function() return "x" end })
-	eq(column.normalize("tight", CFG).sep, false)
-	eq(column.normalize({ "tight", separator = "|" }, CFG).sep.text, "|", "the use site still wins")
+	register("tight", { width = 3, separator = false, render = function() return "x" end })
+	eq(prepare("tight", CFG).paint.sep, false)
+	eq(prepare({ "tight", separator = "|" }, CFG).paint.sep.text, "|", "the use site still wins")
 end)
 
 test("normalize: a bare function", function()
@@ -67,16 +76,16 @@ test("normalize: the two bare spellings are the tables they desugar to", functio
 	-- `cell` alone would go on passing if a desugared spec picked up a
 	-- different alignment or lost its name, since neither shows in three
 	-- characters of text.
-	column.register("sz", { width = 4, align = "right", render = function() return "ab" end })
-	local bare, table_ = column.normalize("sz", CFG), column.normalize({ "sz" }, CFG)
-	for _, key in ipairs { "name", "fixed", "align", "overflow", "scale" } do
-		eq(bare[key], table_[key], "a bare name and `{ name }` disagree on `" .. key .. "`")
+	register("sz", { width = 4, align = "right", render = function() return "ab" end })
+	local bare, table_ = prepare("sz", CFG), prepare({ "sz" }, CFG)
+	for _, key in ipairs { "name", "align", "overflow", "scale" } do
+		eq(bare.plan[key], table_.plan[key], "a bare name and `{ name }` disagree on `" .. key .. "`")
 	end
 
 	local fn = function() return "x" end
-	local loose, wrapped = column.normalize(fn, CFG), column.normalize({ render = fn }, CFG)
-	for _, key in ipairs { "name", "fixed", "align", "overflow", "scale", "needs_pass" } do
-		eq(loose[key], wrapped[key], "a bare function and `{ render = fn }` disagree on `" .. key .. "`")
+	local loose, wrapped = prepare(fn, CFG), prepare({ render = fn }, CFG)
+	for _, key in ipairs { "name", "align", "overflow", "scale", "needs_pass" } do
+		eq(loose.plan[key], wrapped.plan[key], "a bare function and `{ render = fn }` disagree on `" .. key .. "`")
 	end
 end)
 
@@ -85,17 +94,17 @@ test("normalize: one refusal per mistake, whichever spelling wrote it", function
 	-- was written out twice, once for the bare spelling and once for the table,
 	-- and a reword that reached one and missed the other would answer the same
 	-- mistake two ways. Nothing but this says they are one string.
-	throws(function() column.normalize("nope", CFG) end, "unknown column `nope`")
-	throws(function() column.normalize({ "nope" }, CFG) end, "unknown column `nope`")
+	throws(function() prepare("nope", CFG) end, "unknown column `nope`")
+	throws(function() prepare({ "nope" }, CFG) end, "unknown column `nope`")
 
 	-- The wrong value is the test. A spec carries a class now, so the checker
 	-- refuses it as well, and the suppression sits on the line rather than at
 	-- the top of the file: the blanket `param-type-mismatch` disable that used
 	-- to be there was measured to cover this one site and nothing else.
 	---@diagnostic disable-next-line: param-type-mismatch
-	throws(function() column.normalize(42, CFG) end, "must be a name, a function, or a table with `render`")
-	throws(function() column.normalize({}, CFG) end, "must be a name, a function, or a table with `render`")
-	throws(function() column.normalize({ x = 1 }, CFG) end, "must be a name, a function, or a table with `render`")
+	throws(function() prepare(42, CFG) end, "must be a name, a function, or a table with `render`")
+	throws(function() prepare({}, CFG) end, "must be a name, a function, or a table with `render`")
+	throws(function() prepare({ x = 1 }, CFG) end, "must be a name, a function, or a table with `render`")
 end)
 
 --- A column that declares an option, for the tests that write one at a use
@@ -106,7 +115,7 @@ local function timed(extra)
 	for k, v in pairs(extra or {}) do
 		def[k] = v
 	end
-	column.register("timed", def)
+	register("timed", def)
 end
 
 test("normalize: a key nobody claimed is refused by name", function()
@@ -115,28 +124,25 @@ test("normalize: a key nobody claimed is refused by name", function()
 	-- constructor is past what the checker reads against a class. So a column
 	-- whose cap was written `max_widht` draws at its natural width, and this
 	-- is the only thing that says so.
-	column.register("fixed", { width = 4, render = function() return "ab" end })
-	throws(function() column.normalize({ "fixed", max_widht = 2 }, CFG) end, "`max_widht` is not a column key")
+	register("fixed", { width = 4, render = function() return "ab" end })
+	throws(function() prepare({ "fixed", max_widht = 2 }, CFG) end, "`max_widht` is not a column key")
 	-- The message carries what to write instead, because the right spelling is
 	-- not guessable from the wrong one.
-	throws(function() column.normalize({ "fixed", max_widht = 2 }, CFG) end, "`max_width`")
+	throws(function() prepare({ "fixed", max_widht = 2 }, CFG) end, "`max_width`")
 
 	-- Every key at once, sorted: `pairs` gives them in whatever order the hash
 	-- does, so naming the first found reports the same mistake differently
 	-- from one run to the next and costs a second run to find the rest.
-	throws(
-		function() column.normalize({ "fixed", algin = 1, widht = 2 }, CFG) end,
-		"`algin`, `widht` are not column keys"
-	)
+	throws(function() prepare({ "fixed", algin = 1, widht = 2 }, CFG) end, "`algin`, `widht` are not column keys")
 
 	-- An inline definition is the same table as its own spec, so it is swept
 	-- the same way.
 	throws(function()
-		column.normalize({ render = function() return "x" end, overflw = "clip" }, CFG)
+		prepare({ render = function() return "x" end, overflw = "clip" }, CFG)
 	end, "`overflw` is not a column key")
 
 	-- A second element is a column written where no second column is read.
-	throws(function() column.normalize({ "fixed", "mtime" }, CFG) end, "`2` is not a column key")
+	throws(function() prepare({ "fixed", "mtime" }, CFG) end, "`2` is not a column key")
 end)
 
 test("normalize: a value the shared keys do not take is refused", function()
@@ -144,7 +150,7 @@ test("normalize: a value the shared keys do not take is refused", function()
 	-- nobody claims is refused by name, while a *value* nobody accepts was
 	-- accepted by being ignored. `align = "centre"` fell through to the `or`
 	-- that defaults it and drew a right-aligned column without a word.
-	column.register("fixed", { width = 4, render = function() return "ab" end })
+	register("fixed", { width = 4, render = function() return "ab" end })
 
 	-- Bound once rather than written out per assertion: the value is wrong on
 	-- purpose, so each spelling of it costs a suppression, and three of them
@@ -152,20 +158,20 @@ test("normalize: a value the shared keys do not take is refused", function()
 	-- writes into the spec it is handed, so one table answers all three.
 	---@diagnostic disable-next-line: assign-type-mismatch
 	local centred = { "fixed", align = "centre" }
-	throws(function() column.normalize(centred, CFG) end, "`align` of column `fixed`")
-	throws(function() column.normalize(centred, CFG) end, "must be `left` or `right`")
+	throws(function() prepare(centred, CFG) end, "`align` of column `fixed`")
+	throws(function() prepare(centred, CFG) end, "must be `left` or `right`")
 	-- What was written comes back in the message. The right spelling is not
 	-- guessable from the wrong one, and neither is which of several columns
 	-- carried it.
-	throws(function() column.normalize(centred, CFG) end, "got `centre`")
+	throws(function() prepare(centred, CFG) end, "got `centre`")
 
 	throws(
 		---@diagnostic disable-next-line: assign-type-mismatch
-		function() column.normalize({ "fixed", overflow = "elipsis" }, CFG) end,
+		function() prepare({ "fixed", overflow = "elipsis" }, CFG) end,
 		"must be `ellipsis`, `clip` or `grow`"
 	)
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", scale = "LOG" }, CFG) end, "must be `linear` or `log`")
+	throws(function() prepare({ "fixed", scale = "LOG" }, CFG) end, "must be `linear` or `log`")
 
 	-- `false` rather than a wrong string, because `scale` is the one key of
 	-- the three whose sources are read with an `or` chain rather than through
@@ -173,17 +179,17 @@ test("normalize: a value the shared keys do not take is refused", function()
 	-- fall past `M.one_of` to the next source and be defaulted, which is the
 	-- whole mistake the refusals here were written to end.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", scale = false }, CFG) end, "must be `linear` or `log`")
+	throws(function() prepare({ "fixed", scale = false }, CFG) end, "must be `linear` or `log`")
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", align = false }, CFG) end, "must be `left` or `right`")
+	throws(function() prepare({ "fixed", align = false }, CFG) end, "must be `left` or `right`")
 
 	-- A number is shown as written too, because a width is worth reading back.
 	-- What is named by its type rather than shown is everything that is worth
 	-- showing neither way.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", align = 42 }, CFG) end, "got `42`")
+	throws(function() prepare({ "fixed", align = 42 }, CFG) end, "got `42`")
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", align = {} }, CFG) end, "got a table")
+	throws(function() prepare({ "fixed", align = {} }, CFG) end, "got a table")
 end)
 
 test("normalize: a key that is called rather than read must be a function", function()
@@ -199,32 +205,32 @@ test("normalize: a key that is called rather than read must be a function", func
 	-- Both are knowable while `setup` runs, and that is the line the skill
 	-- draws -- refuse what can be refused there, contain only what cannot be
 	-- known until a render.
-	column.register("fixed", { width = 4, render = function() return "ab" end })
+	register("fixed", { width = 4, render = function() return "ab" end })
 
 	---@diagnostic disable-next-line: assign-type-mismatch
 	local counted = { "fixed", stats = 42 }
-	throws(function() column.normalize(counted, CFG) end, "`stats` of column `fixed`")
-	throws(function() column.normalize(counted, CFG) end, "must be a function, got `42`")
+	throws(function() prepare(counted, CFG) end, "`stats` of column `fixed`")
+	throws(function() prepare(counted, CFG) end, "must be a function, got `42`")
 
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", refresh = 42 }, CFG) end, "`refresh` of column `fixed`")
+	throws(function() prepare({ "fixed", refresh = 42 }, CFG) end, "`refresh` of column `fixed`")
 	-- Named by its type rather than shown, the way the sets name one.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", refresh = {} }, CFG) end, "got a table")
+	throws(function() prepare({ "fixed", refresh = {} }, CFG) end, "got a table")
 
 	-- The third, and the one that was checked on one of its two ways in.
 	-- `register` holds a definition to a `render` that is a function; a use
 	-- site may write one over the definition's, and that one went unread until
-	-- `column.cell` tried to call it.
+	-- `layout.cell` tried to call it.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "fixed", render = "nope" }, CFG) end, "`render` of column `fixed`")
+	throws(function() prepare({ "fixed", render = "nope" }, CFG) end, "`render` of column `fixed`")
 
 	-- A definition's own, for the reason the alignment above gives: `pick`
 	-- reads the spec and then the definition, so a check on the spec alone
 	-- leaves exactly the half a reader of the use site cannot see.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	column.register("untidy", { width = 4, refresh = 42, render = function() return "ab" end })
-	throws(function() column.normalize("untidy", CFG) end, "`refresh` of column `untidy`")
+	register("untidy", { width = 4, refresh = 42, render = function() return "ab" end })
+	throws(function() prepare("untidy", CFG) end, "`refresh` of column `untidy`")
 end)
 
 test("normalize: a definition's own wrong value is refused too", function()
@@ -233,9 +239,9 @@ test("normalize: a definition's own wrong value is refused too", function()
 	-- every use of that column draw it silently -- the worse of the two, since
 	-- the reader of a use site cannot see the definition.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	column.register("bent", { width = 4, align = "centre", render = function() return "ab" end })
-	throws(function() column.normalize("bent", CFG) end, "`align` of column `bent`")
-	throws(function() column.normalize({ "bent" }, CFG) end, "`align` of column `bent`")
+	register("bent", { width = 4, align = "centre", render = function() return "ab" end })
+	throws(function() prepare("bent", CFG) end, "`align` of column `bent`")
+	throws(function() prepare({ "bent" }, CFG) end, "`align` of column `bent`")
 end)
 
 test("normalize: a width that would draw nothing is refused", function()
@@ -243,70 +249,70 @@ test("normalize: a width that would draw nothing is refused", function()
 	-- taken, carried through `cap` and laid out, and the column drew as the
 	-- empty string on every row -- which reads as a column that is not there
 	-- rather than as a width that was wrong.
-	column.register("plain", { render = function() return "ab" end })
+	register("plain", { render = function() return "ab" end })
 
 	for _, w in ipairs { 0, -3 } do
-		throws(function() column.normalize({ "plain", width = w }, CFG) end, "`width` of column `plain`")
-		throws(function() column.normalize({ "plain", width = w }, CFG) end, "must be a whole number of cells, 1 or more")
+		throws(function() prepare({ "plain", width = w }, CFG) end, "`width` of column `plain`")
+		throws(function() prepare({ "plain", width = w }, CFG) end, "must be a whole number of cells, 1 or more")
 	end
-	throws(function() column.normalize({ "plain", max_width = 0 }, CFG) end, "`max_width` of column `plain`")
-	throws(function() column.normalize({ "plain", max_width = -1 }, CFG) end, "got `-1`")
+	throws(function() prepare({ "plain", max_width = 0 }, CFG) end, "`max_width` of column `plain`")
+	throws(function() prepare({ "plain", max_width = -1 }, CFG) end, "got `-1`")
 
 	-- Not floored. Rounding is a guess about which of two whole numbers was
 	-- meant, made silently on a value the reader had already got wrong.
-	throws(function() column.normalize({ "plain", width = 3.7 }, CFG) end, "got `3.7`")
-	throws(function() column.normalize({ "plain", max_width = 2.5 }, CFG) end, "got `2.5`")
+	throws(function() prepare({ "plain", width = 3.7 }, CFG) end, "got `3.7`")
+	throws(function() prepare({ "plain", max_width = 2.5 }, CFG) end, "got `2.5`")
 
 	-- `max_width` had no check of any kind: a string reached `cap`, which
 	-- compares it against a number, and the reader got `attempt to compare
 	-- string with number` out of a line of `column.lua` rather than anything
 	-- naming the key they wrote.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "plain", max_width = "x" }, CFG) end, "`max_width` of column `plain`")
+	throws(function() prepare({ "plain", max_width = "x" }, CFG) end, "`max_width` of column `plain`")
 
 	-- Measured on 5.5.1: `math.tointeger("3")` answers 3, so the type has to be
 	-- asked before the conversion or a width written as a string passes as one.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "plain", max_width = "3" }, CFG) end, "`max_width` of column `plain`")
+	throws(function() prepare({ "plain", max_width = "3" }, CFG) end, "`max_width` of column `plain`")
 	-- `width` keeps its own message for a value that is no kind of width,
 	-- because it takes two more shapes than `max_width` does.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "plain", width = "3" }, CFG) end, 'must be a number, "auto", or a function')
+	throws(function() prepare({ "plain", width = "3" }, CFG) end, 'must be a number, "auto", or a function')
 end)
 
 test("normalize: a width it does take still goes through", function()
-	column.register("plain", { render = function() return "ab" end })
-	eq(column.normalize({ "plain", width = 6 }, CFG).fixed, 6)
+	register("plain", { render = function() return "ab" end })
+	eq(prepare({ "plain", width = 6 }, CFG).plan.width.value, 6)
 	-- An integral float is not the mistake the refusal is about -- `3.0` is 3
 	-- -- so it is taken, and narrowed to an integer on the way past.
-	eq(column.normalize({ "plain", width = 6.0 }, CFG).fixed, 6)
-	eq(math.type(column.normalize({ "plain", width = 6.0 }, CFG).fixed), "integer")
-	eq(column.normalize({ "plain", max_width = 4.0 }, CFG).max_width, 4)
+	eq(prepare({ "plain", width = 6.0 }, CFG).plan.width.value, 6)
+	eq(math.type(prepare({ "plain", width = 6.0 }, CFG).plan.width.value), "integer")
+	eq(prepare({ "plain", max_width = 4.0 }, CFG).plan.max_width, 4)
 	-- And the cap still applies to the stated width, which is the one thing
 	-- these two keys do together.
-	eq(column.normalize({ "plain", width = 9, max_width = 4 }, CFG).fixed, 4)
+	eq(prepare({ "plain", width = 9, max_width = 4 }, CFG).plan.width.value, 4)
 end)
 
 test("normalize: nothing written still reaches the default", function()
 	-- Nil is not a value. Every one of these keys has a default, and a check
 	-- that refused nil would refuse every column that wrote none of them --
 	-- which is most of them.
-	column.register("plain", { render = function() return "ab" end })
-	local col = column.normalize("plain", CFG)
-	eq(col.align, "right")
-	eq(col.overflow, "ellipsis")
-	eq(col.scale, "linear")
+	register("plain", { render = function() return "ab" end })
+	local col = prepare("plain", CFG)
+	eq(col.plan.align, "right")
+	eq(col.plan.overflow, "ellipsis")
+	eq(col.plan.scale, "linear")
 
 	-- And every value they do take still passes, which is what says the check
 	-- is a list and not a wall.
 	for _, v in ipairs { "left", "right" } do
-		eq(column.normalize({ "plain", align = v }, CFG).align, v)
+		eq(prepare({ "plain", align = v }, CFG).plan.align, v)
 	end
 	for _, v in ipairs { "ellipsis", "clip", "grow" } do
-		eq(column.normalize({ "plain", overflow = v }, CFG).overflow, v)
+		eq(prepare({ "plain", overflow = v }, CFG).plan.overflow, v)
 	end
 	for _, v in ipairs { "linear", "log" } do
-		eq(column.normalize({ "plain", scale = v }, CFG).scale, v)
+		eq(prepare({ "plain", scale = v }, CFG).plan.scale, v)
 	end
 end)
 
@@ -315,8 +321,8 @@ test("normalize: every key a column takes passes the sweep", function()
 	-- left out of the allow-list: a spelling that works is refused by nothing
 	-- else here, so without this the sweep could quietly turn a real option
 	-- into an error and every test above would still pass.
-	column.register("wide", { width = 4, render = function() return "ab" end })
-	local col = column.normalize({
+	register("wide", { width = 4, render = function() return "ab" end })
+	local col = prepare({
 		"wide",
 		align = "left",
 		overflow = "clip",
@@ -328,8 +334,8 @@ test("normalize: every key a column takes passes the sweep", function()
 		width = 5,
 		scale = "log",
 	}, CFG)
-	eq(col.align, "left")
-	eq(col.scale, "log")
+	eq(col.plan.align, "left")
+	eq(col.plan.scale, "log")
 end)
 
 test("normalize: a column's own options are claimed, and only that column's", function()
@@ -338,14 +344,14 @@ test("normalize: a column's own options are claimed, and only that column's", fu
 	-- on the column that reads it. The definition declares them, which is what
 	-- lets a misspelling of one be refused rather than ignored.
 	timed()
-	eq(column.normalize({ "timed", format = "%c" }, CFG).name, "timed")
-	throws(function() column.normalize({ "timed", fromat = "%c" }, CFG) end, "`fromat` is not a column key")
+	eq(prepare({ "timed", format = "%c" }, CFG).plan.name, "timed")
+	throws(function() prepare({ "timed", fromat = "%c" }, CFG) end, "`fromat` is not a column key")
 	-- And the message says what that column takes beyond the shared keys.
-	throws(function() column.normalize({ "timed", fromat = "%c" }, CFG) end, "also takes `format`")
+	throws(function() prepare({ "timed", fromat = "%c" }, CFG) end, "also takes `format`")
 
 	-- Declared by one column, so it is not a key on the next.
-	column.register("bare", { width = 4, render = function() return "ab" end })
-	throws(function() column.normalize({ "bare", format = "%c" }, CFG) end, "`format` is not a column key")
+	register("bare", { width = 4, render = function() return "ab" end })
+	throws(function() prepare({ "bare", format = "%c" }, CFG) end, "`format` is not a column key")
 end)
 
 test("normalize: `options` and `name` are the definition's to write", function()
@@ -353,19 +359,19 @@ test("normalize: `options` and `name` are the definition's to write", function()
 	-- a key nobody reads. `options` is the worse of the two: it looks like it
 	-- declares something, and what it declared was refused on the next line
 	-- as a key the column does not take.
-	column.register("plainer", { width = 4, render = function() return "ab" end })
-	throws(function() column.normalize({ "plainer", options = { "pad" } }, CFG) end, "`options` goes on the definition")
-	throws(function() column.normalize({ "plainer", name = "other" }, CFG) end, "read by nobody")
+	register("plainer", { width = 4, render = function() return "ab" end })
+	throws(function() prepare({ "plainer", options = { "pad" } }, CFG) end, "`options` goes on the definition")
+	throws(function() prepare({ "plainer", name = "other" }, CFG) end, "read by nobody")
 
 	-- The same two keys on the table that *is* the definition are its own.
 	-- `normalize` reads `spec.name` in that shape, and nowhere else.
-	local col = column.normalize({
+	local col = prepare({
 		name = "inline",
 		options = { "pad" },
 		pad = 2,
 		render = function() return "ab" end,
 	}, CFG)
-	eq(col.name, "inline")
+	eq(col.plan.name, "inline")
 	eq(col.ctx.opts.pad, 2)
 end)
 
@@ -377,11 +383,11 @@ test("register: an inline definition's `options` is checked too", function()
 	-- left standing on the key the sweep introduced.
 	throws(function()
 		local options = "format" ---@type any
-		column.normalize({ render = function() return "x" end, options = options }, CFG)
+		prepare({ render = function() return "x" end, options = options }, CFG)
 	end, "declares `options` as a string")
 	throws(function()
 		local options = { "width" } ---@type any
-		column.normalize({ render = function() return "x" end, options = options }, CFG)
+		prepare({ render = function() return "x" end, options = options }, CFG)
 	end, "which every column takes")
 end)
 
@@ -392,14 +398,14 @@ test("register: a name supaline answers for is not a column's to declare", funct
 	-- one place the plugin says why a column cannot own a fetcher would never
 	-- be reached.
 	throws(function()
-		column.register("async", { options = { "fetch" }, render = function() return "x" end })
+		register("async", { options = { "fetch" }, render = function() return "x" end })
 	end, "`fetch`, which supaline answers for itself")
 
 	-- Read off the same table the hints are: a fourth name worth explaining is
 	-- reserved by being explained, rather than by a second list to keep level.
 	throws(function()
 		local options = { "fetch" } ---@type any
-		column.normalize({ render = function() return "x" end, options = options }, CFG)
+		prepare({ render = function() return "x" end, options = options }, CFG)
 	end, "which supaline answers for itself")
 end)
 
@@ -411,7 +417,7 @@ test("register: `options` is a list, gaps and keys of its own included", functio
 	-- is whichever border Lua happens to find.
 	throws(function()
 		local options = { [1] = "a", [3] = "b" } ---@type any
-		column.register("holed", { options = options, render = function() return "x" end })
+		register("holed", { options = options, render = function() return "x" end })
 	end, "a table with a gap in it")
 
 	-- A name written as a key rather than as an entry is the same mistake
@@ -419,14 +425,14 @@ test("register: `options` is a list, gaps and keys of its own included", functio
 	-- straight past.
 	throws(function()
 		local options = { "a", extra = "b" } ---@type any
-		column.register("keyed", { options = options, render = function() return "x" end })
+		register("keyed", { options = options, render = function() return "x" end })
 	end, "or with keys of its own")
 
 	-- And a list with neither is what a column declares, so the check has to
 	-- let it through: a refusal that caught this would refuse every column
 	-- that reads an option at all.
-	column.register("padded", { options = { "pad", "trim" }, render = function() return "x" end })
-	eq(column.normalize({ "padded", pad = 2, trim = true }, CFG).ctx.opts.trim, true)
+	register("padded", { options = { "pad", "trim" }, render = function() return "x" end })
+	eq(prepare({ "padded", pad = 2, trim = true }, CFG).ctx.opts.trim, true)
 end)
 
 test("normalize: `ctx.opts` holds the declared options and nothing else", function()
@@ -435,7 +441,7 @@ test("normalize: `ctx.opts` holds the declared options and nothing else", functi
 	-- `opts.width` the stated width rather than the effective one `ctx.width`
 	-- already carries. Both are a different thing wearing the same name.
 	timed()
-	local ctx = column.normalize({ "timed", format = "%c", width = 9, style = "cyan" }, CFG).ctx
+	local ctx = prepare({ "timed", format = "%c", width = 9, style = "cyan" }, CFG).ctx
 	eq(ctx.opts.format, "%c")
 	eq(ctx.opts.width, nil, "the effective width is `ctx.width`")
 	eq(ctx.opts.style, nil, "and the merged style is `ctx.style`")
@@ -443,28 +449,28 @@ test("normalize: `ctx.opts` holds the declared options and nothing else", functi
 
 	-- A column that declared none gets a table rather than nil, so a
 	-- third-party `ctx.opts.anything` reads as nothing written.
-	column.register("bare", { width = 4, render = function() return "ab" end })
-	eq(next(column.normalize("bare", CFG).ctx.opts), nil)
+	register("bare", { width = 4, render = function() return "ab" end })
+	eq(next(prepare("bare", CFG).ctx.opts), nil)
 end)
 
 test("normalize: a definition may default an option it declares", function()
 	-- What narrowing `ctx.opts` buys: handed the spec verbatim, a column would
 	-- never see a default its own definition wrote.
 	timed { options = { "format", "pad" }, format = "%F", pad = false }
-	eq(column.normalize("timed", CFG).ctx.opts.format, "%F", "the definition's, with no spec over it")
-	eq(column.normalize({ "timed", format = "%c" }, CFG).ctx.opts.format, "%c", "and the use site still wins")
+	eq(prepare("timed", CFG).ctx.opts.format, "%F", "the definition's, with no spec over it")
+	eq(prepare({ "timed", format = "%c" }, CFG).ctx.opts.format, "%c", "and the use site still wins")
 
 	-- Read with an explicit nil test, the way `pick` reads the shared keys, so
 	-- a declared option whose meaningful value is `false` is not collapsed.
-	eq(column.normalize("timed", CFG).ctx.opts.pad, false)
-	eq(column.normalize({ "timed", pad = true }, CFG).ctx.opts.pad, true)
+	eq(prepare("timed", CFG).ctx.opts.pad, false)
+	eq(prepare({ "timed", pad = true }, CFG).ctx.opts.pad, true)
 end)
 
 test("register: a definition is swept the same way, and `options` is checked", function()
 	-- Worse than a spec's, because it is read again for every spec that names
 	-- the column.
 	throws(function()
-		column.register("bad", { render = function() return "x" end, algin = "left" })
+		register("bad", { render = function() return "x" end, algin = "left" })
 	end, "`algin` is not a column key")
 
 	throws(function()
@@ -473,19 +479,19 @@ test("register: a definition is swept the same way, and `options` is checked", f
 		-- reflow is a suppression that stops covering what it was put there
 		-- for -- and this one would then fail the type check, not the suite.
 		local options = "format" ---@type any
-		column.register("odd", { render = function() return "x" end, options = options })
+		register("odd", { render = function() return "x" end, options = options })
 	end, "declares `options` as a string")
 	throws(function()
-		column.register("odd", { render = function() return "x" end, options = {} })
+		register("odd", { render = function() return "x" end, options = {} })
 	end, "as an empty list")
 	throws(function()
 		local options = { 42 } ---@type any
-		column.register("odd", { render = function() return "x" end, options = options })
+		register("odd", { render = function() return "x" end, options = options })
 	end, "a list holding a number")
 	-- Declaring one changes nothing and reads as though the column had taken
 	-- it over.
 	throws(function()
-		column.register("odd", { render = function() return "x" end, options = { "width" } })
+		register("odd", { render = function() return "x" end, options = { "width" } })
 	end, "which every column takes")
 end)
 
@@ -496,19 +502,19 @@ test("register: `register` names the column, so `name` beside it is not read", f
 	-- `[1]` drew nothing -- the silence the sweep exists to end, left standing
 	-- in the one table that is read again for every spec naming the column.
 	throws(function()
-		column.register("real", { render = function() return "x" end, name = "alias" })
+		register("real", { render = function() return "x" end, name = "alias" })
 	end, "read by nobody")
-	eq(column._registry["alias"], nil, "and nothing was ever registered under it")
+	throws(function() prepare("alias", CFG) end, "unknown column `alias`")
 
 	throws(function()
 		local entry = { "alias", render = function() return "x" end } ---@type any
-		column.register("regd", entry)
+		register("regd", entry)
 	end, "`1` is not a column key")
 	-- And the hint says where `[1]` *is* read, because "not a column key" is
 	-- true of it here and false of it on a spec.
 	throws(function()
 		local entry = { "alias", render = function() return "x" end } ---@type any
-		column.register("regd", entry)
+		register("regd", entry)
 	end, "where a spec names the column it uses")
 end)
 
@@ -523,7 +529,7 @@ test("normalize: a `render` at `[1]` is refused, and says where it goes", functi
 	-- under test, and planting one is what this test is.
 	local at_one = function()
 		---@diagnostic disable-next-line: assign-type-mismatch
-		column.normalize({ function() return "ab" end, width = 6 }, CFG)
+		prepare({ function() return "ab" end, width = 6 }, CFG)
 	end
 	throws(at_one, "goes under `render`, not at `[1]`")
 	-- The spelling itself, because the right one is not guessable from the
@@ -532,18 +538,18 @@ test("normalize: a `render` at `[1]` is refused, and says where it goes", functi
 
 	-- The shape it points at, with the keys only a definition writes read where
 	-- they are written.
-	local col = column.normalize({
+	local col = prepare({
 		render = function() return "ab" end,
 		name = "written",
 		options = { "pad" },
 		pad = 2,
 	}, CFG)
-	eq(col.name, "written", "and the name is the one the theme is looked up under")
+	eq(col.plan.name, "written", "and the name is the one the theme is looked up under")
 	eq(col.ctx.opts.pad, 2)
 
 	-- What it declared is still all it may read.
 	throws(function()
-		column.normalize({ render = function() return "ab" end, options = { "pad" }, pda = 2 }, CFG)
+		prepare({ render = function() return "ab" end, options = { "pad" }, pda = 2 }, CFG)
 	end, "`pda` is not a column key")
 end)
 
@@ -553,22 +559,22 @@ test("normalize: `[1]` beside an inline `render` is read by nobody", function()
 	-- read by nothing once it does.
 	throws(function()
 		local entry = { [1] = true, render = function() return "x" end } ---@type any
-		column.normalize(entry, CFG)
+		prepare(entry, CFG)
 	end, "`1` is not a column key")
 end)
 
 test("normalize: an unusable width is refused", function()
 	throws(function()
 		---@diagnostic disable-next-line: assign-type-mismatch
-		column.normalize({ render = function() return "" end, width = "wide" }, CFG)
+		prepare({ render = function() return "" end, width = "wide" }, CFG)
 	end, 'must be a number, "auto", or a function')
 end)
 
 test("register: a column needs a render function", function()
 	---@diagnostic disable-next-line: missing-fields
-	throws(function() column.register("bad", {}) end, "needs a `render` function")
+	throws(function() register("bad", {}) end, "needs a `render` function")
 	throws(function()
-		column.register("", { render = function() end })
+		register("", { render = function() end })
 	end, "non-empty name")
 end)
 
@@ -581,7 +587,7 @@ test("register: a name a theme field cannot hold is refused here", function()
 	-- than months later by a theme that takes their other colours with it.
 	local function reg(name)
 		return function()
-			column.register(name, { render = function() return "" end })
+			register(name, { render = function() return "" end })
 		end
 	end
 
@@ -595,8 +601,7 @@ test("register: a name a theme field cannot hold is refused here", function()
 	-- is the boundary and it is inclusive.
 	for _, name in ipairs { "_x", "x_", "2x", "a", ("a"):rep(20) } do
 		reg(name)()
-		eq(type(column._registry[name]), "table")
-		column._registry[name] = nil
+		eq(prepare(name, CFG).plan.name, name)
 	end
 end)
 
@@ -613,19 +618,19 @@ test("register: the same name rule reaches a definition that names itself", func
 	-- name is as unthemeable written this way.
 	local r = function() return "" end
 	for _, name in ipairs { "my-col", "MyCol", ("a"):rep(21) } do
-		throws(function() column.normalize({ render = r, name = name }, CFG) end, "cannot be a column name")
+		throws(function() prepare({ render = r, name = name }, CFG) end, "cannot be a column name")
 	end
 
 	-- Nil is not a name and is not refused: an inline definition need not name
 	-- itself, and one that does not has no theme layer to reach.
-	eq(type(column.normalize({ render = r }, CFG)), "table")
+	eq(type(prepare({ render = r }, CFG)), "table")
 
 	-- What makes the refusal worth having, rather than a rule for its own sake.
 	with(
 		stub.th,
 		"supaline",
 		{ my_col = ui.Style():fg("#ff0000") },
-		function() eq(column.normalize({ render = r, name = "my_col" }, CFG).ctx.style.fg, "#FF0000") end
+		function() eq(prepare({ render = r, name = "my_col" }, CFG).ctx.style.fg, "#FF0000") end
 	)
 end)
 
@@ -637,16 +642,16 @@ test("register: a column may not own asynchronous state", function()
 	-- never goes through `register`, and would otherwise keep its `fetch` in
 	-- silence.
 	throws(function()
-		column.register("async", { render = function() return "" end, fetch = function() end })
+		register("async", { render = function() return "" end, fetch = function() end })
 	end, "has to be built into supaline itself")
 	throws(function()
-		column.normalize({ render = function() return "x" end, fetch = function() end }, CFG)
+		prepare({ render = function() return "x" end, fetch = function() end }, CFG)
 	end, "has to be built into supaline itself")
 end)
 
 -- --- separators ------------------------------------------------------------
 
-column.register("plain", { width = 2, render = function() return "x" end })
+register("plain", { width = 2, render = function() return "x" end })
 
 --- The record `normalize` puts on a column for the separator written at
 --- `value`. Read through a column rather than through `setup` because a
@@ -658,8 +663,8 @@ column.register("plain", { width = 2, render = function() return "x" end })
 local function separator(value)
 	-- Cast because a column's `sep` is `false` where the column drops the
 	-- separator before it, and that is the one value nothing below writes:
-	-- every call here hands in a separator for `column.separator` to read.
-	return column.normalize({ "plain", separator = value }, CFG).sep --[[@as supaline.Sep]]
+	-- every call here hands in a separator for `style.separator` to read.
+	return prepare({ "plain", separator = value }, CFG).paint.sep --[[@as supaline.Sep]]
 end
 
 --- Assert that a separator is refused, with a message mentioning `pattern`.
@@ -711,7 +716,7 @@ test("separator: a style written as a function is called", function()
 end)
 
 test("separator: what a separator is refused for", function()
-	-- Every one of these would be silence without `column.separator`: a
+	-- Every one of these would be silence without `style.separator`: a
 	-- column's own goes through no other check, and the rest are shapes only
 	-- the table form can hold.
 	refuses_sep(42, "`separator` of column `plain`")
@@ -729,7 +734,7 @@ end)
 test("separator: every key nobody claimed, in an order two runs agree on", function()
 	-- `pairs` walks a table in whatever order the hash gives, so naming
 	-- whichever came up first would hide the second misspelling until the first
-	-- was fixed. The same sentence `panes_of` and `colour.layer` are both
+	-- was fixed. The same sentence `panes_of` and `style.layer` are both
 	-- written under.
 	refuses_sep({ "|", styel = 1, colour = 2 }, "`colour`, `styel`")
 end)
@@ -830,23 +835,23 @@ test("cell: a span drawn a second time is refused, the way Yazi refuses it", fun
 	-- spans and caching the styles, and caching the spans is what a column
 	-- drawing one character at a time invites.
 	local kept = { ui.Span("a"), ui.Span("b") }
-	local col = column.normalize({ render = function() return ui.Line(kept) end, width = 2 }, CFG)
+	local col = prepare({ render = function() return ui.Line(kept) end, width = 2 }, CFG)
 
-	eq(text_of(column.cell(col, stub.file {})), "ab")
-	throws(function() column.cell(col, stub.file {}) end, "already been put in a Line")
+	eq(text_of(cases.cell(col, stub.file {})), "ab")
+	throws(function() cases.cell(col, stub.file {}) end, "already been put in a Line")
 end)
 
 test("cell: a whole Line drawn a second time is refused too", function()
 	-- Not only the spans inside it. Measured on 26.9.1: `ui.Line(line)` takes
 	-- the line the same way, so a render caching one finished Line raises on
 	-- the second row exactly as a render caching its spans does -- and
-	-- `column.cell` puts whatever comes back through `ui.Line`, so there is no
+	-- `layout.cell` puts whatever comes back through `ui.Line`, so there is no
 	-- shape of cached renderable that escapes it.
 	local kept = ui.Line { ui.Span("a"), ui.Span("b") }
-	local col = column.normalize({ render = function() return kept end, width = 2 }, CFG)
+	local col = prepare({ render = function() return kept end, width = 2 }, CFG)
 
-	eq(text_of(column.cell(col, stub.file {})), "ab")
-	throws(function() column.cell(col, stub.file {}) end, "already been put in a Line")
+	eq(text_of(cases.cell(col, stub.file {})), "ab")
+	throws(function() cases.cell(col, stub.file {}) end, "already been put in a Line")
 end)
 
 test("cell: a truncated renderable is padded back to width", function()
@@ -854,9 +859,8 @@ test("cell: a truncated renderable is padded back to width", function()
 	-- wide character straddling the edge comes back a cell short. Left
 	-- unpadded, every column after this one shifts.
 	for _, mode in ipairs { "ellipsis", "clip" } do
-		local col =
-			column.normalize({ render = function() return ui.Line("你好，世界") end, width = 4, overflow = mode }, CFG)
-		eq(stub.str_width(text_of(column.cell(col, stub.file {}))), 4, mode)
+		local col = prepare({ render = function() return ui.Line("你好，世界") end, width = 4, overflow = mode }, CFG)
+		eq(stub.str_width(text_of(cases.cell(col, stub.file {}))), 4, mode)
 	end
 end)
 
@@ -871,14 +875,14 @@ test("cell: a renderable's padding is inside the column's style", function()
 	-- every part rather than the first: `first_style` would stop at the text
 	-- and never reach the cells this is about.
 	for _, align in ipairs { "left", "right" } do
-		local col = column.normalize({
+		local col = prepare({
 			render = function(_, ctx) return ui.Line("ab"), ctx.style end,
 			width = 5,
 			align = align,
 			style = { bg = "#112233" },
 		}, CFG)
 
-		local parts = stub.drawn_styles(column.cell(col, stub.file {}))
+		local parts = stub.drawn_styles(cases.cell(col, stub.file {}))
 		eq(#parts, 2, align .. ": the text and the pad")
 		for i, style in ipairs(parts) do
 			eq(style and style.bg, "#112233", string.format("%s-aligned, part %d", align, i))
@@ -887,17 +891,16 @@ test("cell: a renderable's padding is inside the column's style", function()
 end)
 
 test("cell: a renderable is truncated too, to the same width as a string", function()
-	local col = column.normalize({ render = function() return ui.Line("abcdefgh") end, width = 4 }, CFG)
-	eq(text_of(column.cell(col, stub.file {})), "abc…")
+	local col = prepare({ render = function() return ui.Line("abcdefgh") end, width = 4 }, CFG)
+	eq(text_of(cases.cell(col, stub.file {})), "abc…")
 
 	-- `Line:truncate` drops the character that lands exactly on `max` to make
 	-- room for the ellipsis, and goes on doing it when the ellipsis is empty:
 	-- asked for four cells of these eight it returns three, where the same
 	-- string cut as a string returns four. A column that hands back a
 	-- renderable is not a narrower column, so `cell` asks for the cell back.
-	local clipped =
-		column.normalize({ render = function() return ui.Line("abcdefgh") end, width = 4, overflow = "clip" }, CFG)
-	eq(text_of(column.cell(clipped, stub.file {})), "abcd")
+	local clipped = prepare({ render = function() return ui.Line("abcdefgh") end, width = 4, overflow = "clip" }, CFG)
+	eq(text_of(cases.cell(clipped, stub.file {})), "abcd")
 end)
 
 test("cell: a renderable Yazi thinks fits is cut anyway", function()
@@ -906,11 +909,9 @@ test("cell: a renderable Yazi thinks fits is cut anyway", function()
 	-- `max` cuts it to exactly four. Coming back a cell short is fine, because
 	-- short is padded; coming back long is what shifts the columns after it.
 	for _, mode in ipairs { "ellipsis", "clip" } do
-		local col = column.normalize(
-			{ render = function() return ui.Line("\u{2764}\u{FE0F}abc") end, width = 4, overflow = mode },
-			CFG
-		)
-		eq(stub.str_width(text_of(column.cell(col, stub.file {}))), 4, mode)
+		local col =
+			prepare({ render = function() return ui.Line("\u{2764}\u{FE0F}abc") end, width = 4, overflow = mode }, CFG)
+		eq(stub.str_width(text_of(cases.cell(col, stub.file {}))), 4, mode)
 	end
 end)
 
@@ -921,8 +922,8 @@ end)
 ---@param scale string?
 ---@return table
 local function bound(stats, scale)
-	local col = column.normalize({ render = function() return "" end, scale = scale }, CFG)
-	column.bind(col, { stats = stats })
+	local col = prepare({ render = function() return "" end, scale = scale }, CFG)
+	for_folder(col, { stats = stats })
 	return col.ctx
 end
 
@@ -957,12 +958,12 @@ test("ratio: the log scale lifts the small end", function()
 end)
 
 test("bind: rebinding swaps the extremes and the width", function()
-	local col = column.normalize({ render = function() return "" end }, CFG)
-	column.bind(col, { stats = { min = 0, max = 10 }, width = 6 })
+	local col = prepare({ render = function() return "" end }, CFG)
+	for_folder(col, { stats = { min = 0, max = 10 }, width = 6 })
 	eq(col.ctx.width, 6)
 	eq(col.ctx.ratio(5), 0.5)
 
-	column.bind(col, { stats = { min = 0, max = 100 }, width = 3 })
+	for_folder(col, { stats = { min = 0, max = 100 }, width = 3 })
 	eq(col.ctx.width, 3)
 	eq(col.ctx.ratio(5), 0.05)
 end)
@@ -981,7 +982,7 @@ local BLUES = "#0b3d91 -> #7fd4ff"
 local function coloured(opts)
 	opts.render = function() return "" end
 	opts.stats = opts.stats or function() return nil end
-	return column.normalize(opts, CFG).ctx
+	return prepare(opts, CFG).ctx
 end
 
 test("style: a gradient's endpoints sit at the ends of the range", function()
@@ -1020,13 +1021,13 @@ test("style: a NaN ratio is clamped too, where a comparison would let it past", 
 	local ctx = coloured { style = BLUES }
 	eq(ctx.style_at(0 / 0).fg, "#0b3d91")
 
-	local col = column.normalize({
+	local col = prepare({
 		render = function() return "" end,
 		stats = function() return { min = -10, max = 100 } end,
 		scale = "log",
 		style = BLUES,
 	}, CFG)
-	column.bind(col, { stats = { min = -10, max = 100 } })
+	for_folder(col, { stats = { min = -10, max = 100 } })
 	local r = col.ctx.ratio(5)
 	assert(r ~= r, "a log scale over a negative minimum is where the NaN comes from")
 	eq(col.ctx.style_at(r).fg, "#0b3d91", "and the cell is still coloured")
@@ -1036,14 +1037,14 @@ test("style: `false` turns the style off, whatever the layers beneath say", func
 	-- The spelling a column's `separator` already uses, and the only way to
 	-- drop a style the definition or the theme would otherwise supply --
 	-- every key of it, not the colour alone.
-	column.register("hue3", {
+	register("hue3", {
 		render = function() return "" end,
 		stats = function() return nil end,
 		style = { fg = BLUES, bold = true },
 	})
-	eq(column.normalize("hue3", CFG).ctx.style.fg, "#0b3d91", "the definition's gradient, without it")
+	eq(prepare("hue3", CFG).ctx.style.fg, "#0b3d91", "the definition's gradient, without it")
 
-	local ctx = column.normalize({ "hue3", style = false }, CFG).ctx
+	local ctx = prepare({ "hue3", style = false }, CFG).ctx
 	eq(ctx.style_at(1), ctx.style, "no gradient left to index")
 	-- `rawget`, because reading `.fg` off a style that has none hands back the
 	-- setter rather than nil -- on a real Yazi as here.
@@ -1053,20 +1054,20 @@ test("style: `false` turns the style off, whatever the layers beneath say", func
 end)
 
 test("style: one key can be turned off on its own, and the rest is kept", function()
-	column.register("hue3b", { render = function() return "" end, style = { fg = "red", bg = "blue", bold = true } })
-	local ctx = column.normalize({ "hue3b", style = { fg = false } }, CFG).ctx
+	register("hue3b", { render = function() return "" end, style = { fg = "red", bg = "blue", bold = true } })
+	local ctx = prepare({ "hue3b", style = { fg = false } }, CFG).ctx
 	eq(rawget(ctx.style, "fg"), nil, "the colour is gone")
 	eq(ctx.style.bg, "blue", "and the rest of the definition's is kept")
 	eq(ctx.style.bold, true)
 	eq(ctx.fg_written, true)
 
 	eq(
-		rawget(column.normalize({ "hue3b", style = { bold = false } }, CFG).ctx.style, "bold"),
+		rawget(prepare({ "hue3b", style = { bold = false } }, CFG).ctx.style, "bold"),
 		false,
 		"an attribute off is a removal"
 	)
 	eq(
-		column.normalize("hue3b", CFG).ctx.fg_written,
+		prepare("hue3b", CFG).ctx.fg_written,
 		true,
 		"and with nothing written over it, the definition's colour is still a colour written"
 	)
@@ -1088,7 +1089,7 @@ test("style: a gradient may sit under `bg`, and needs extremes as one under `fg`
 	eq(ctx.fg_written, true)
 
 	throws(function()
-		column.normalize({ render = function() return "" end, style = { bg = BLUES } }, CFG)
+		prepare({ render = function() return "" end, style = { bg = BLUES } }, CFG)
 	end, "`bg` is a gradient, but that column has no `stats`")
 end)
 
@@ -1098,19 +1099,16 @@ test("style: a column with no extremes to place a value between is refused", fun
 	-- nothing else to report it, so `normalize` does -- and names the writer,
 	-- since a theme's gradient reaches a spec that wrote nothing of its own.
 	throws(function()
-		column.normalize({ render = function() return "" end, style = BLUES }, CFG)
+		prepare({ render = function() return "" end, style = BLUES }, CFG)
 	end, "the `style` of column `?`: `fg` is a gradient, but that column has no `stats`")
 	throws(function()
-		column.normalize({ render = function() return "" end, style = BLUES }, CFG)
+		prepare({ render = function() return "" end, style = BLUES }, CFG)
 	end, "Give the column a `stats` function, or write a flat colour")
 
-	column.register("hue2b", { render = function() return "" end })
+	register("hue2b", { render = function() return "" end })
 	with(stub.th, "supaline", { hue2b = BLUES }, function()
-		throws(
-			function() column.normalize("hue2b", CFG) end,
-			"the `[supaline] hue2b` field in your theme: `fg` is a gradient"
-		)
-		throws(function() column.normalize("hue2b", CFG) end, "Write a flat colour there instead")
+		throws(function() prepare("hue2b", CFG) end, "the `[supaline] hue2b` field in your theme: `fg` is a gradient")
+		throws(function() prepare("hue2b", CFG) end, "Write a flat colour there instead")
 	end)
 end)
 
@@ -1163,7 +1161,7 @@ test("style: an inline column is one writer, read once and read as the definitio
 	-- returned -- and the table beat the theme, which is the one layer written
 	-- to reach a definition.
 	local calls, answers = 0, { { bg = "#112233" }, { fg = "#445566" } }
-	local ctx = column.normalize({
+	local ctx = prepare({
 		render = function() return "" end,
 		name = "inline1",
 		style = function()
@@ -1177,15 +1175,15 @@ test("style: an inline column is one writer, read once and read as the definitio
 	-- So the theme reaches it, the way it reaches any other definition's style.
 	with(stub.th, "supaline", { inline2 = "red" }, function()
 		local named = { render = function() return "" end, name = "inline2", style = "cyan" }
-		eq(column.normalize(named, CFG).ctx.style.fg, "red", "the theme is nearer than a definition")
+		eq(prepare(named, CFG).ctx.style.fg, "red", "the theme is nearer than a definition")
 	end)
 
 	-- A use of a column defined elsewhere still writes the spec's layer, which
 	-- is the half that has to go on beating the theme.
-	column.register("inline3", { render = function() return "" end })
+	register("inline3", { render = function() return "" end })
 	with(stub.th, "supaline", { inline3 = "red" }, function()
-		eq(column.normalize({ "inline3", style = "cyan" }, CFG).ctx.style.fg, "cyan", "the spec is nearer")
-		local off = column.normalize({ "inline3", style = false }, CFG).ctx
+		eq(prepare({ "inline3", style = "cyan" }, CFG).ctx.style.fg, "cyan", "the spec is nearer")
+		local off = prepare({ "inline3", style = false }, CFG).ctx
 		eq(rawget(off.style, "fg"), nil, "and a spec's `false` still reaches the layer it turns off")
 		eq(off.fg_written, true)
 	end)
@@ -1206,16 +1204,16 @@ test("style: the spec is the nearest layer, key by key", function()
 	-- Each key goes to the nearest of the three that wrote it, so a spec that
 	-- writes a colour keeps the theme's attribute and the definition's ground.
 	-- A themed table field is planted as the `ui.Style` Yazi hands a plugin.
-	column.register("hue4", { render = function() return "" end, style = { bg = "#101010", italic = true } })
+	register("hue4", { render = function() return "" end, style = { bg = "#101010", italic = true } })
 	with(stub.th, "supaline", { hue4 = ui.Style():fg("#00ccff"):bold() }, function()
-		local ctx = column.normalize({ "hue4", style = function() return "#ff8800" end }, CFG).ctx
+		local ctx = prepare({ "hue4", style = function() return "#ff8800" end }, CFG).ctx
 		eq(ctx.style.fg, "#ff8800", "the spec's colour")
 		eq(ctx.style.bold, true, "the theme's bold")
 		eq(ctx.style.bg, "#101010", "the definition's ground")
 		eq(ctx.style.italic, true)
 		eq(ctx.fg_written, true, "which is also what tells `permissions` to stop colouring itself")
 
-		eq(column.normalize("hue4", CFG).ctx.fg_written, true, "and with no spec, the theme wrote one")
+		eq(prepare("hue4", CFG).ctx.fg_written, true, "and with no spec, the theme wrote one")
 	end)
 end)
 
@@ -1223,9 +1221,9 @@ test("style: a theme's gradient keeps its colour under a spec's attribute", func
 	-- The case the three layers exist for: the colour comes from the theme and
 	-- the weight from the spec, on one cell, so a flavor's gradient can be
 	-- given a bold without copying its endpoints into `init.lua`.
-	column.register("att1", { render = function() return "" end, stats = function() return { min = 1, max = 9 } end })
+	register("att1", { render = function() return "" end, stats = function() return { min = 1, max = 9 } end })
 	with(stub.th, "supaline", { att1 = BLUES }, function()
-		local ctx = column.normalize({ "att1", style = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
+		local ctx = prepare({ "att1", style = { bold = true, bg = "#1e1e2e" } }, CFG).ctx
 		eq(ctx.fg_written, true, "and the colour that was written is the theme's, which is the whole point")
 		eq(ctx.style_at(0).fg, "#0b3d91")
 		eq(ctx.style_at(1).fg, "#7fd4ff")
@@ -1237,9 +1235,9 @@ end)
 test("style: a theme's attribute reaches a column with no colour claimed", function()
 	-- The other half of the same case: a theme may say `{ bold = true }` and
 	-- keep the colour, in the one file a flavor author writes.
-	column.register("att2", { render = function() return "" end })
+	register("att2", { render = function() return "" end })
 	with(stub.th, "supaline", { att2 = ui.Style():bold() }, function()
-		local ctx = column.normalize("att2", CFG).ctx
+		local ctx = prepare("att2", CFG).ctx
 		eq(ctx.style.bold, true)
 		eq(rawget(ctx.style, "fg"), nil)
 		eq(ctx.fg_written, false, "nobody wrote a colour, so a column that paints its own goes on doing so")
@@ -1250,9 +1248,9 @@ test("style: an empty string in the theme is nothing written", function()
 	-- A field cleared rather than deleted, which is how a value goes away in a
 	-- file someone else's flavor also writes. Read as nothing written, so the
 	-- definition beneath it stands.
-	column.register("blank", { render = function() return "" end, style = { fg = "cyan", bold = true } })
+	register("blank", { render = function() return "" end, style = { fg = "cyan", bold = true } })
 	with(stub.th, "supaline", { blank = "" }, function()
-		local ctx = column.normalize("blank", CFG).ctx
+		local ctx = prepare("blank", CFG).ctx
 		eq(ctx.style.fg, "cyan", "the definition's colour survives it")
 		eq(ctx.style.bold, true)
 		eq(ctx.fg_written, true, "written by the definition, since the theme wrote nothing")
@@ -1262,65 +1260,65 @@ test("style: an empty string in the theme is nothing written", function()
 	-- Yazi does not accept, and a spec that wants no colour has `false` and
 	-- has leaving the key out. Pinned on both sides, because an allowance that
 	-- spreads to the other layers is one nobody would notice spreading.
-	throws(function() column.normalize({ "blank", style = "" }, CFG) end, "is not a colour Yazi accepts")
+	throws(function() prepare({ "blank", style = "" }, CFG) end, "is not a colour Yazi accepts")
 end)
 
 test("style: a nearer `true` wins over a farther `false`, and the other way round", function()
 	-- A theme that says `bold = false` is a theme stripping a bold off whatever
 	-- is beneath; a spec that then asks for one is the nearer writer, and wins,
 	-- the way a spec's colour wins over a theme's everywhere else.
-	column.register("att3", { render = function() return "" end, style = { bold = true } })
+	register("att3", { render = function() return "" end, style = { bold = true } })
 	-- Suppressed on the line: `types.yazi` declares `bold` without the removal
 	-- flag 26.9.1's takes, and the flag is what this line plants.
 	---@diagnostic disable-next-line: redundant-parameter
 	with(stub.th, "supaline", { att3 = ui.Style():bold(true) }, function()
-		eq(rawget(column.normalize("att3", CFG).ctx.style, "bold"), false, "the theme strips the definition's")
-		eq(column.normalize({ "att3", style = { bold = true } }, CFG).ctx.style.bold, true, "and the spec puts it back")
+		eq(rawget(prepare("att3", CFG).ctx.style, "bold"), false, "the theme strips the definition's")
+		eq(prepare({ "att3", style = { bold = true } }, CFG).ctx.style.bold, true, "and the spec puts it back")
 	end)
 end)
 
 test("style: a function that fails is reported in terms of the file it was written in", function()
-	-- Two ways to fail and one mechanism for both. A value `colour.layer` would
+	-- Two ways to fail and one mechanism for both. A value `style.layer` would
 	-- refuse is named for the function rather than for `style`, because the
 	-- line holding the function is not the line to change -- and a definition
 	-- may carry one, where the reader has no `style` of their own to look at.
 	-- Suppressed on the line: the class refuses this at check time, and the
 	-- refusal under test is the runtime one.
 	---@diagnostic disable-next-line: return-type-mismatch
-	column.register("hue5", { render = function() return "" end, style = function() return 42 end })
-	throws(function() column.normalize("hue5", CFG) end, "what the default `style` function of column `hue5` returned")
+	register("hue5", { render = function() return "" end, style = function() return 42 end })
+	throws(function() prepare("hue5", CFG) end, "what the default `style` function of column `hue5` returned")
 
 	-- The call raising is the likelier half: a flavor with no such section, a
 	-- field that moved. Lua's own message for it carries no column at all. On
 	-- a column of its own, because every layer is read: a definition's
 	-- function that fails is refused whatever the spec wrote over it.
-	column.register("hue5b", { render = function() return "" end })
+	register("hue5b", { render = function() return "" end })
 	throws(function()
-		column.normalize({ "hue5b", style = function() return th.nosuch.field end }, CFG)
+		prepare({ "hue5b", style = function() return th.nosuch.field end }, CFG)
 	end, "the `style` function of column `hue5b` raised")
 end)
 
 test("style: a value Yazi would refuse says which column it was", function()
-	column.register("hue", { render = function() return "" end, style = "nosuchcolour" })
-	throws(function() column.normalize("hue", CFG) end, "the default `style` of column `hue`")
+	register("hue", { render = function() return "" end, style = "nosuchcolour" })
+	throws(function() prepare("hue", CFG) end, "the default `style` of column `hue`")
 
-	column.register("hue2", {
+	register("hue2", {
 		render = function() return "" end,
 		stats = function() return nil end,
 		style = "cyan -> #7fd4ff",
 	})
-	throws(function() column.normalize("hue2", CFG) end, "column `hue2`")
+	throws(function() prepare("hue2", CFG) end, "column `hue2`")
 
-	column.register("att5", { render = function() return "" end })
+	register("att5", { render = function() return "" end })
 	throws(
-		function() column.normalize({ "att5", style = { fgg = "cyan" } }, CFG) end,
+		function() prepare({ "att5", style = { fgg = "cyan" } }, CFG) end,
 		"the `style` of column `att5`: `fgg` is not a style key"
 	)
 	-- Suppressed on the line rather than at the top of the file: the class
 	-- refuses this at check time, and the refusal under test is the runtime one
 	-- -- the only one a user's `init.lua` ever meets, since no check reads it.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() column.normalize({ "att5", style = 42 }, CFG) end, "the `style` of column `att5` is a number")
+	throws(function() prepare({ "att5", style = 42 }, CFG) end, "the `style` of column `att5` is a number")
 end)
 
 -- --- derived widths --------------------------------------------------------
@@ -1332,49 +1330,49 @@ local FILES = {
 }
 
 test("width: a stated number is used as is", function()
-	local col = column.normalize({ render = function() return "" end, width = 4 }, CFG)
-	eq(column.resolve_width(col, FILES, nil), 4)
-	eq(col.needs_pass, false, "a stated width needs no pass over the folder")
+	local col = prepare({ render = function() return "" end, width = 4 }, CFG)
+	eq(resolve_width(col, FILES, nil), 4)
+	eq(col.plan.needs_pass, false, "a stated width needs no pass over the folder")
 end)
 
 test("width: a stated width still takes the pass when stats are declared", function()
 	-- Gating the folder pass on whoever consumes the result left a column whose
 	-- `render` reads `ctx.stats` directly with nothing to read.
-	local col = column.normalize({
+	local col = prepare({
 		render = function() return "" end,
 		width = 4,
 		stats = function() return { min = 1, max = 2 } end,
 	}, CFG)
-	eq(col.needs_pass, true)
+	eq(col.plan.needs_pass, true)
 end)
 
 test("width: a function is handed the folder's statistics", function()
-	local col = column.normalize({
+	local col = prepare({
 		render = function() return "" end,
 		stats = function() return { min = 1, max = 100000 } end,
 		width = function(st) return #ya.readable_size(st.max) end,
 	}, CFG)
-	eq(column.resolve_width(col, FILES, { min = 1, max = 100000 }), 5)
-	eq(col.needs_pass, true)
+	eq(resolve_width(col, FILES, { min = 1, max = 100000 }), 5)
+	eq(col.plan.needs_pass, true)
 end)
 
 test('width: "auto" takes the widest rendered cell', function()
-	local col = column.normalize({
+	local col = prepare({
 		render = function(file) return ya.readable_size(file:size()) end,
 		width = "auto",
 	}, CFG)
 	-- 1B / 97.7K / 1000B -> the widest is "1000B"
-	eq(column.resolve_width(col, FILES, nil), 5)
-	eq(col.needs_pass, true)
+	eq(resolve_width(col, FILES, nil), 5)
+	eq(col.plan.needs_pass, true)
 end)
 
 test('width: max_width caps "auto"', function()
-	local col = column.normalize({
+	local col = prepare({
 		render = function(file) return ya.readable_size(file:size()) end,
 		width = "auto",
 		max_width = 3,
 	}, CFG)
-	eq(column.resolve_width(col, FILES, nil), 3)
+	eq(resolve_width(col, FILES, nil), 3)
 end)
 
 test("width: a width function that returns no usable number is refused", function()
@@ -1382,7 +1380,7 @@ test("width: a width function that returns no usable number is refused", functio
 	-- truncation, and a cell free to push into the file name.
 	---@param w any
 	local function returning(w)
-		return column.normalize({
+		return prepare({
 			render = function() return "abcdefgh" end,
 			name = "wonky",
 			width = function() return w end,
@@ -1399,7 +1397,7 @@ test("width: a width function that returns no usable number is refused", functio
 	---@param w any
 	---@return string # why it was refused
 	local function refusal(w)
-		local got, why = column.resolve_width(returning(w), FILES, nil)
+		local got, why = resolve_width(returning(w), FILES, nil)
 		eq(got, nil, "a width nobody can use came back as a width")
 		assert(why, "a width was refused with no reason beside it")
 		return why
@@ -1422,14 +1420,14 @@ test("width: a width function that returns no usable number is refused", functio
 
 	-- And what it may return still comes back, an integral float narrowed, with
 	-- nothing in the second return to mistake for a refusal.
-	eq(column.resolve_width(returning(6), FILES, nil), 6)
-	eq(column.resolve_width(returning(6.0), FILES, nil), 6)
-	eq(select(2, column.resolve_width(returning(6), FILES, nil)), nil)
+	eq(resolve_width(returning(6), FILES, nil), 6)
+	eq(resolve_width(returning(6.0), FILES, nil), 6)
+	eq(select(2, resolve_width(returning(6), FILES, nil)), nil)
 
 	-- And a column that simply states no width is nil without being refused --
 	-- the reason beside it is what tells the two apart.
-	local plain = column.normalize({ render = function() return "x" end }, CFG)
-	eq(select(2, column.resolve_width(plain, FILES, nil)), nil)
+	local plain = prepare({ render = function() return "x" end }, CFG)
+	eq(select(2, resolve_width(plain, FILES, nil)), nil)
 end)
 
 test('width: "auto" over an empty folder is zero', function()
@@ -1438,6 +1436,6 @@ test('width: "auto" over an empty folder is zero', function()
 	-- there is no row for the empty column to be drawn on. What the refusals
 	-- above are about is a width the reader stated, which is a claim rather
 	-- than a measurement.
-	local col = column.normalize({ render = function() return "x" end, width = "auto" }, CFG)
-	eq(column.resolve_width(col, {}, nil), 0)
+	local col = prepare({ render = function() return "x" end, width = "auto" }, CFG)
+	eq(resolve_width(col, {}, nil), 0)
 end)

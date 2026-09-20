@@ -2,7 +2,22 @@
 --- value it wants is not there.
 
 local column = require(".column")
-require(".builtin")
+---@type supaline.ColumnCases
+local cases = dofile(ROOT .. "/test/column_case.lua")
+local registry = column.new_registry()
+local register = registry.register
+local cell, for_folder, resolve_width = cases.cell, cases.for_folder, cases.width
+---@param spec supaline.ColumnSpec
+---@param cfg supaline.Cfg
+---@return supaline.ColumnCase
+local function prepare(spec, cfg) return cases.prepare(registry, spec, cfg) end
+local definitions = require(".builtin").definitions()
+for name, def in pairs(definitions) do
+	register(name, def)
+	if def.refresh then
+		def.refresh()
+	end
+end
 
 local CFG = { scale = "linear" }
 -- A `setup` that said nothing about scale, which is the only way a column
@@ -51,7 +66,7 @@ local function render(name, file, opts)
 	for k, v in pairs(opts or {}) do
 		spec[k] = v
 	end
-	return text_of(column.cell(column.normalize(spec, CFG), file))
+	return text_of(cell(prepare(spec, CFG), file))
 end
 
 -- --- size ------------------------------------------------------------------
@@ -172,11 +187,11 @@ local function perm_styles(file, opts)
 	for k, v in pairs(opts or {}) do
 		spec[k] = v
 	end
-	local col = column.normalize(spec, CFG)
+	local col = prepare(spec, CFG)
 
 	local out = with(stub.th, "status", STATUS, function()
-		col.refresh()
-		return column.cell(col, file)
+		col.plan.refresh()
+		return cell(col, file)
 	end)
 
 	return stub.drawn_styles(out)
@@ -244,9 +259,7 @@ end)
 
 test(
 	"permissions: a theme with no `[status]` at all still draws the text",
-	function()
-		eq(text_of(column.cell(column.normalize({ "permissions" }, CFG), stub.file { perm = "drwxr-xr-x" })), "drwxr-xr-x")
-	end
+	function() eq(text_of(cell(prepare({ "permissions" }, CFG), stub.file { perm = "drwxr-xr-x" })), "drwxr-xr-x") end
 )
 
 test("permissions: a colour written for the column takes the theme's place", function()
@@ -330,10 +343,10 @@ test("permissions: a column's own keys beat the theme's, which is why they go ov
 		for k, v in pairs(opts or {}) do
 			spec[k] = v
 		end
-		local col = column.normalize(spec, CFG)
+		local col = prepare(spec, CFG)
 		local out = with(stub.th, "status", LOUD, function()
-			col.refresh()
-			return column.cell(col, file)
+			col.plan.refresh()
+			return cell(col, file)
 		end)
 		return assert(stub.drawn_styles(out)[2], "the `r` lost its style")
 	end
@@ -367,19 +380,19 @@ end)
 
 test("permissions: `refresh` is what follows a theme that moved", function()
 	local file = stub.file { perm = "drwxr-xr-x" }
-	local col = column.normalize({ "permissions" }, CFG)
+	local col = prepare({ "permissions" }, CFG)
 
 	-- The body reassigns the section, and what `with` puts back is what was
 	-- there on the way in rather than what the body left.
 	with(stub.th, "status", STATUS, function()
-		col.refresh()
-		eq(stub.first_style(column.cell(col, file)).fg, "#000011")
+		col.plan.refresh()
+		eq(stub.first_style(cell(col, file)).fg, "#000011")
 
 		-- The flavor arriving after `init.lua`, and a later `app:theme`, look
 		-- the same from here: the section is different and the hook runs again.
 		stub.th.status = { perm_type = ui.Style():fg("#ff00ff") }
-		col.refresh()
-		eq(stub.first_style(column.cell(col, file)).fg, "#ff00ff")
+		col.plan.refresh()
+		eq(stub.first_style(cell(col, file)).fg, "#ff00ff")
 	end)
 end)
 
@@ -490,7 +503,7 @@ test("stats: extremes skip the values that are not there", function()
 	-- that was never registered and `stats` returns nil for a listing with
 	-- nothing to measure, so each assert names which one went missing instead
 	-- of failing as "attempt to index a nil value" two lines later.
-	local def = assert(column._registry["size"], "the `size` column is not registered")
+	local def = assert(definitions["size"], "the `size` column is not registered")
 	local st = assert(
 		def.stats {
 			stub.file { size = 100 },
@@ -505,7 +518,7 @@ test("stats: extremes skip the values that are not there", function()
 end)
 
 test("stats: a folder with nothing to measure has no extremes", function()
-	local def = assert(column._registry["size"], "the `size` column is not registered")
+	local def = assert(definitions["size"], "the `size` column is not registered")
 	eq(def.stats { stub.file { size = nil } }, nil)
 end)
 
@@ -518,10 +531,10 @@ test("size: the scale is logarithmic unless something says otherwise", function(
 	-- Three sources in order, and all three are asked: the definition's own is
 	-- only what a column falls back to. `{}` is a `setup` that said nothing
 	-- about scale, which is the only way to see the definition's.
-	eq(column.normalize("size", NO_SCALE).scale, "log", "nobody said, so the definition's")
-	eq(column.normalize("size", CFG).scale, "linear", "a scale written in `setup` outranks it")
-	eq(column.normalize({ "size", scale = "log" }, CFG).scale, "log", "and the spec outranks that")
-	eq(column.normalize("mtime", NO_SCALE).scale, "linear", "a column that states none falls back to linear")
+	eq(prepare("size", NO_SCALE).plan.scale, "log", "nobody said, so the definition's")
+	eq(prepare("size", CFG).plan.scale, "linear", "a scale written in `setup` outranks it")
+	eq(prepare({ "size", scale = "log" }, CFG).plan.scale, "log", "and the spec outranks that")
+	eq(prepare("mtime", NO_SCALE).plan.scale, "linear", "a column that states none falls back to linear")
 end)
 
 -- --- what none of them writes ----------------------------------------------
@@ -538,7 +551,7 @@ test("no built-in names a colour", function()
 	-- `register` stores the table it was handed, so a field assigned to it
 	-- afterwards is as live as one written inside the literal.
 	local seen = 0
-	for name, def in pairs(column._registry) do
+	for name, def in pairs(definitions) do
 		seen = seen + 1
 		eq(def.style, nil, name .. ": a built-in leaves its cell unstyled, so the flavor's colour reaches it")
 	end

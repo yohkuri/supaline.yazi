@@ -1286,7 +1286,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
 
     # The ramp beside it is the other half, and a different piece of code
     # reloading: a flat colour is one `ui.Style` resolved from the value, a
-    # ramp is `STEPS` of them built by `colour.styles` from endpoints parsed
+    # ramp is `STEPS` of them built by `style.build` from endpoints parsed
     # out of the string. Both new ends have to be on screen and neither old one
     # left anywhere -- a ramp cached past the reload would keep its old
     # endpoints with the flat colour beside it already correct.

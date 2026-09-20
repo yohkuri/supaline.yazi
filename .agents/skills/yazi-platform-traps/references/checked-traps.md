@@ -121,7 +121,7 @@ and goes on doing it when the ellipsis is empty, so a Line cut to twelve cells
 is eleven where the same string is twelve. And because it counts characters, a
 line it decides already fits comes back **wider** than `max`: `❤️abc` at
 `max = 4` is returned untouched, five cells. There is no `max` that cuts that
-line to four, which is why `column.cell` asks for one cell more than the column
+line to four, which is why `layout.cell` asks for one cell more than the column
 has and then cuts again while the result is still too wide.
 
 Two more things it does, worth knowing before reaching for it: it mutates the
