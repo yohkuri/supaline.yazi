@@ -21,7 +21,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import setup as fixture
-from harness import ROOT, need, require_python, yazi_env, yazi_log
+from harness import (
+    ROOT,
+    need,
+    require_python,
+    yazi_data,
+    yazi_env,
+    yazi_log,
+)
 
 DIR = Path(tempfile.gettempdir()) / "supaline-manual"
 
@@ -77,7 +84,7 @@ def main(argv: list[str]) -> int:
     need("yazi")
     fixture.main([str(DIR)])
 
-    print((ROOT / "test" / "fixture" / "banner.txt").read_text())
+    print((fixture.FIXTURE / "banner.txt").read_text())
 
     # The log's path has to be filled in, so it cannot sit in the banner -- and
     # it is worth printing rather than describing, because the half of a report
@@ -100,14 +107,14 @@ def main(argv: list[str]) -> int:
     except EOFError:
         print()
 
-    # The environment is `harness.yazi_env`, which says why each of the three
-    # is set. Here rather than written out, so what a person opens and what
-    # `e2e.py` asserts on are the same Yazi in that respect too.
+    # The environment is `harness.yazi_env` and the folder is `yazi_data`,
+    # which say why each is what it is. Here rather than written out, so what
+    # a person opens and what `e2e.py` asserts on are the same Yazi.
     yazi = shutil.which("yazi")
     assert yazi is not None  # `need` above has already said so
     os.execve(
         yazi,
-        [yazi, str(DIR / "fixture" / "data")],
+        [yazi, str(yazi_data(DIR))],
         {**os.environ, **yazi_env(DIR, "state")},
     )
     # `execve` replaces this process, so nothing below it ever runs. The
