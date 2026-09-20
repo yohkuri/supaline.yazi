@@ -24,7 +24,6 @@ import setup as fixture
 from harness import (
     ROOT,
     need,
-    require_python,
     yazi_data,
     yazi_env,
     yazi_log,
@@ -72,8 +71,6 @@ def print_ramps(target: Path) -> None:
 
 
 def main(argv: list[str]) -> int:
-    require_python()
-
     if argv[:1] == ["--clean"]:
         # `setup.py` owns the marker file and the "is this ours" guard, so it
         # owns the removal too.
