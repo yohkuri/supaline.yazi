@@ -130,18 +130,33 @@ class Run:
             timeout=30,
         )
 
-    def shot(self, label: str) -> None:
-        """Keep both captures of the screen as it stands, in memory and on disk.
+    def store(self, label: str, plain: str, colour: str = "") -> None:
+        """Hold a capture under `label`, in memory and on disk.
+
+        Not `keep`, which is the flag that decides whether the directory
+        written to here survives the run.
 
         On disk because `--keep` is for reading them afterwards, and a check
         that failed is answered by the capture it failed on.
+
+        Taken apart from `shot` for the one capture this run does not take in
+        a single tmux call: the broken run's screen is a union of many, and
+        writing it out beside the others rather than through them would be
+        the naming convention held in two places.
         """
-        plain = self.session.capture()
-        colour = self.session.capture(colour=True)
         self.shots[label] = plain
-        self.shots[f"colour-{label}"] = colour
         (self.dir / f"screen-{label}.txt").write_text(plain)
-        (self.dir / f"color-{label}.txt").write_text(colour)
+        if colour:
+            self.shots[f"colour-{label}"] = colour
+            (self.dir / f"color-{label}.txt").write_text(colour)
+
+    def shot(self, label: str) -> None:
+        """Keep both captures of the screen as it stands."""
+        self.store(
+            label,
+            self.session.capture(),
+            self.session.capture(colour=True),
+        )
 
     def goto(self, key: str) -> None:
         """Press a `g` key and wait until the current pane is the folder it names.
@@ -251,7 +266,7 @@ def clean_run(r: Run) -> None:
     r.session.quit("q")
 
 
-def broken_run(r: Run) -> None:
+def broken_run(r: Run, init: str) -> None:
     """A second Yazi, with a log of its own, for the columns that are wrong.
 
     The separate log is the whole design rather than a convenience: the check
@@ -287,31 +302,22 @@ def broken_run(r: Run) -> None:
     # each report reached the screen, not that they were ever there together.
     # The deadline is generous against the drain it is waiting for, which is
     # bounded by those twenty seconds.
-    wanted = broken_columns()
-    seen: list[str] = []
+    wanted = [f"`{column}`" for column in broken_columns(init)]
     began = time.monotonic()
-    deadline = began + 60
-    drained = False
-    while not drained and time.monotonic() < deadline:
-        seen.append(r.session.capture())
-        union = "\n".join(seen)
-        drained = all(f"`{c}`" in union for c in wanted)
-        if not drained:
-            time.sleep(0.25)
+    # Coarser than `POLL`, because a notification stays up for twenty
+    # seconds and a tenth of a second between captures would be two hundred
+    # of them for the same answer -- and finer than that fact alone would
+    # ask, because this interval is also the lag on the answer: measured on
+    # 26.9.1, the drain reports 21s at a quarter-second and 22s at a second,
+    # and the run is a second longer for it. The deadline is generous against
+    # the drain, which those twenty seconds bound.
+    union = r.session.gather(
+        wanted, "every report on the screen", every=0.25, timeout=60
+    )
     waited = time.monotonic() - began
-    if drained:
+    if all(report in union for report in wanted):
         print(f"e2e: the reports drained to the screen in {waited:.0f}s")
-    else:
-        # Said here rather than left to `check_reports`, which can only see
-        # that a report is missing from the union and reads that as a column
-        # that never reported. The deadline running out is the other reason
-        # for the same union, and it is this loop that knows which happened.
-        print(
-            f"e2e: the reports had not all drained in {waited:.0f}s",
-            file=sys.stderr,
-        )
-    r.shots["broken"] = "\n".join(seen)
-    (r.dir / "screen-broken.txt").write_text(r.shots["broken"])
+    r.store("broken", union)
 
     # Everything after the capture is there to make one report come back if the
     # gates that hold it down let go. Two more `cd`s, since a `refresh` that
@@ -376,16 +382,21 @@ FOLDERS = {
 }
 
 
-def broken_columns() -> list[str]:
+def broken_columns(init: str) -> list[str]:
     """The columns the fixture registers as wrong on purpose.
 
     Read out of the fixture rather than written here, the way every colour
     asserted on below is a hex string that file spells verbatim. Register a
     seventh and this run goes red until a key for it is pressed above, which is
     the direction the list has to grow in.
+
+    Handed the same `init.lua` its four siblings are, which is the copy in the
+    scratch directory rather than the source under `test/fixture/`. `@DIR@` is
+    filled in on the way there, so the two are the same text only while the
+    file happens to hold no placeholder -- and five readers of one fixture
+    should not be reading two files to find that out.
     """
-    body = (ROOT / "test" / "fixture" / "init.lua").read_text()
-    return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', body, re.MULTILINE)
+    return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
 
 
 def lines_with(text: str, needle: str) -> int:
@@ -410,7 +421,7 @@ def check_log(k: Checks, path: Path) -> None:
         k.ok("clean")
 
 
-def check_reports(k: Checks, path: Path, shown: str) -> None:
+def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
     """The other half of that check, and why it needed no exception.
 
     The one above says the run that is meant to be clean logged nothing; this
@@ -418,7 +429,7 @@ def check_reports(k: Checks, path: Path, shown: str) -> None:
     Two logs, two absolute claims, no line filtered out of either.
     """
     k.section("the reports")
-    wanted = broken_columns()
+    wanted = broken_columns(init)
     if not wanted:
         # One of the two guards the counts inherit. An empty list makes every
         # one of them pass over nothing, quietly.
@@ -1328,18 +1339,23 @@ def main(argv: list[str]) -> int:
     began = time.monotonic()
     try:
         r.setup()
-        (r.dir / "yazi-version.txt").write_text(f"{version}\n")
+        # The fixture's own configuration, as Yazi is about to read it. Six
+        # readers take it from here rather than from `test/fixture/`: that
+        # copy is this one with `@DIR@` filled in, and a reader of the source
+        # would be asserting against a file Yazi never saw.
+        init = (r.dir / "config" / "init.lua").read_text()
         clean_run(r)
-        broken_run(r)
+        broken_run(r, init)
 
         k = Checks()
-        init = (r.dir / "config" / "init.lua").read_text()
         check_log(k, yazi_log(r.dir, "state"))
-        check_reports(k, yazi_log(r.dir, "state-broken"), r.shots["broken"])
+        check_reports(
+            k, yazi_log(r.dir, "state-broken"), r.shots["broken"], init
+        )
         check_rows_present(k, r.shots)
         check_columns(k, r.shots)
         check_panes(k, r.shots)
-        check_ramp(k, r.shots, init)
+        check_ramp(k, r.shots, init, r.dir)
         check_theme(k, r.shots, r.dir)
 
         print()
