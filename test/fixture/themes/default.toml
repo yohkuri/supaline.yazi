@@ -1,6 +1,6 @@
 # What Yazi opens with. `test/setup.py` copies this over `config/theme.toml`,
-# and `test/e2e.py` then rewrites that copy in place -- it greps for these
-# exact values, so change them there too.
+# and `test/e2e.py` then rewrites that copy in place -- reading these values
+# from here to know what to replace, so recolouring this file is enough.
 #
 # One field is a style table and the other three are strings, because the
 # custom theme section accepts either shape and both have to resolve. Add a
