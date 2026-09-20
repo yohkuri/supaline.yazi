@@ -7,7 +7,7 @@
 --- own, and it returns *at most* `max` cells. `truncate_spec.lua` pins the port
 --- against the assertions in Yazi's own test suite, and pins `Line:truncate`
 --- -- which has no upstream test suite to copy -- against what a real Yazi put
---- on screen and against the contract `column.cell` relies on.
+--- on screen and against the contract `layout.cell` relies on.
 ---
 --- What the stubs cannot cover is exactly what `test/e2e.py` is for: rendering,
 --- fetchers, and `ya.sync`.
@@ -578,7 +578,7 @@ local function keep_bytes(parts, bytes)
 end
 
 --- A port of `Line::truncate` from `yazi-binding/src/elements/line.rs`, its
---- three surprises included, because `column.cell` exists to correct the first
+--- three surprises included, because `layout.cell` exists to correct the first
 --- two:
 ---
 ---   * it holds back the ellipsis's width and then drops the character that
@@ -683,7 +683,7 @@ end
 --- `ui.Line` may consume in turn -- also measured.
 ---
 --- Handing it straight back would cost the whole point of the check:
---- `column.cell` calls `ui.Line(out)` on whatever a render returns, so a
+--- `layout.cell` calls `ui.Line(out)` on whatever a render returns, so a
 --- column caching one finished Line would be green here and blank the pane on
 --- the second row.
 function M.Line(x)
@@ -950,7 +950,7 @@ function M.install(root)
 		Span = M.Span,
 		-- A callable table rather than a function, because that is what Yazi
 		-- has: measured on 26.9.1, `type(ui.Style)` is `table` and only
-		-- `ui.Style()` is userdata. It matters now that `colour.layer`
+		-- `ui.Style()` is userdata. It matters now that `style.layer`
 		-- branches on `type`: written as a plain function here, a
 		-- `style = ui.Style` with the call forgotten would be called for its
 		-- colour and come back an empty style, where Yazi refuses the table

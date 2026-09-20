@@ -265,7 +265,7 @@ test("setup: a `scale` it does not take is refused by `setup`'s own name", funct
 	-- spelled right. `scale = "LOG"` used to reach every column and scale none
 	-- of them.
 	--
-	-- Refused here rather than left to `column.normalize`, which sees this
+	-- Refused here rather than left to `registry.compile`, which sees this
 	-- value too. A message from there would name whichever column was
 	-- normalised first, and send the reader to a column they wrote correctly --
 	-- so what this pins is the `setup` in the message, not the refusal.
@@ -991,7 +991,7 @@ end)
 test("stats: extremes that are not numbers are reported rather than raised", function()
 	-- The one that would have cost the whole screen rather than the colour. A
 	-- `stats` carrying both keys passes a test for presence, and then
-	-- `column.bind` does `math.log(st.min + 1)` on a string -- from supaline's
+	-- `runtime.context` does `math.log(st.min + 1)` on a string -- from supaline's
 	-- own folder pass, which is not inside the `pcall` a column's own
 	-- functions go under, so the raise reaches Yazi's redraw.
 	main.column("worded_stats", {

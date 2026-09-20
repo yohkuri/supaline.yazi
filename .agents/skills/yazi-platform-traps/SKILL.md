@@ -137,7 +137,7 @@ allocate as little as possible.
   section below for how much of it. Cache the
   styles, rebuild the rest. Measured on 26.9.1, and refused by the stub —
   `column_spec.lua` "a span drawn a second time is refused" and "a whole Line
-  drawn a second time is refused too". The Line half is the one `column.cell`
+  drawn a second time is refused too". The Line half is the one `layout.cell`
   walks into: every render's output goes through one `ui.Line`.
 
 A linemode name is 1 to 20 characters. An unregistered name renders as literal
@@ -161,12 +161,12 @@ blank screen with no part of this plugin involved.
 
 supaline calls four functions a column may write. Three of them — `stats`, a
 `width` that is one, and `render` — are called inside that redraw, and all
-three are made under `pcall` in `main.lua`, which reports once per column and
-goes on drawing; `broke` there carries the reasoning and `main_spec.lua`'s
-`throwing:` specs pin it. **A new call into a column's code belongs under the
-same containment**, and that is the part no check will tell you: the suite
-stays green either way, because a spec only ever reaches code that already
-exists.
+three are made under `pcall` in `runtime.lua`, which goes on drawing.
+`diagnostics.lua` reports once per column and carries the reasoning;
+`main_spec.lua`'s `throwing:` specs pin it. **A new call into a column's code
+belongs under the same containment**, and that is the part no check will tell
+you: the suite stays green either way, because a spec only ever reaches code
+that already exists.
 
 The fourth is `refresh`, and it is the one that shows the rule is about the
 caller rather than the render. It is not called under a render at all, so a
@@ -193,10 +193,10 @@ there; contain only what cannot be known until a render.
 The containment has one more consequence, and it is easy to walk into:
 **supaline's own refusals inside a contained call must not be raised.** A
 `pcall` cannot tell who threw, so a refusal raised in there comes back out
-worded as the reader's code failing — `column.resolve_width` refusing a
+worded as the reader's code failing — `runtime.width` refusing a
 `width` function's return of `0` would be reported as that function throwing,
-which it did not. It returns `nil, why` instead, and `main.lua` words the two
-differently. Narrowing the `pcall` to the reader's function alone would sort
+which it did not. It returns `nil, why` instead, and `diagnostics.lua` words
+the two differently. Narrowing the `pcall` to the reader's function alone would sort
 them out too, and is the wrong half to take: it puts supaline's own raise back
 on the path that blanks the screen.
 

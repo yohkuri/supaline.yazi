@@ -40,6 +40,7 @@ local SPECS = {
 	"column_spec",
 	"builtin_spec",
 	"main_spec",
+	"lifecycle_spec",
 	"fixture_spec",
 }
 
@@ -123,8 +124,8 @@ _G.ROOT = ROOT
 for _, name in ipairs(SPECS) do
 	if not FILTER or name:find(FILTER, 1, true) then
 		current = name
-		-- A fresh registry per spec: the column registry is module state, and a
-		-- spec that registers its own columns must not leak into the next.
+		-- A fresh main session per spec, including its registry and subscriptions.
+		-- Columns registered by a spec must not leak into the next.
 		stub.install(ROOT)
 		_G.text_of = stub.text_of
 		_G.stub = stub

@@ -9,12 +9,14 @@
 --- The second test here is about a module's shape rather than its type, and is
 --- in this file for that reason.
 
---- Every tracked plugin file, asked for rather than listed. A module added
---- later is the one this test exists for, and a hand-written list would not
---- have it. `git ls-files` for the same reason the `@since` CI job uses it: a
+--- Every plugin file, including additions not staged yet, asked for rather than
+--- listed. A module added later is the one this test exists for, and a
+--- hand-written list would not
+--- have it. Git excludes personal ignored files, as the CI checks do; a
 --- glob of the root would miss one added in a subdirectory.
 local function plugin_files()
-	local pipe = assert(io.popen("git -C '" .. ROOT .. "' ls-files '*.lua' ':!:test/*'"))
+	local pipe =
+		assert(io.popen("git -C '" .. ROOT .. "' ls-files --cached --others --exclude-standard '*.lua' ':!:test/*'"))
 	local out = pipe:read("a")
 	pipe:close()
 
