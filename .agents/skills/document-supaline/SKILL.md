@@ -67,13 +67,12 @@ A check that only says no is half-written. Print the spelling to use and the
 reason: the right one is not guessable from the wrong one, and without it the
 reader goes back to a paragraph and you have written both.
 
-**And when you succeed, the reason goes beside the check.** The habit that
-actually grew `AGENTS.md` was succeeding at making one and writing the
-paragraph anyway, in a second wording that could not see the first. So: the
-reason lives beside the step, the spec or the stub, and the index gets a line
-only when the reader has to know the rule *before* the check would tell them.
-If the check prints the fix when it fires, the index owes its existence and
-not its mechanism.
+**And when you succeed, the reason goes beside the check.** It lives beside
+the step, the spec or the stub, and the index gets a line only when the reader
+has to know the rule *before* the check would tell them. If the check prints
+the fix when it fires, the index owes its existence and not its mechanism. Do
+not write the paragraph as well: a second wording cannot see the first, and the
+two drift apart without either looking wrong.
 
 ### Before you trust one
 
@@ -92,8 +91,8 @@ A step in `check.yml` needs that more than the other two do, because `run:` is
   the checks written after it never run, and nothing in the log says it stopped
   early rather than finished. Write `|| true`.
 
-And a test pins the code that exists, so code written tomorrow can repeat the
-mistake and keep the suite green — which is why some rules here are greps.
+A rule that has to hold for code nobody has written yet is a grep over the
+source rather than a test, because a test pins the code that exists.
 `references/behind-these-rules.md` has the case that made that one a rule.
 
 ## Where a rule belongs
@@ -114,25 +113,23 @@ not a place to keep the only copy of a rule.
 
 ### What the index takes, and how long it may run
 
-That row read "what applies to every session" for as long as the file was
-growing, and on its own that criterion refuses nothing, which is how the file
-reached 381 lines — `references/behind-these-rules.md` has the arithmetic. Ask
-both halves instead:
+"What applies to every session" refuses nothing on its own. Ask both of these
+instead:
 
 1. Would a session that never touches this subject be wrong without it?
 2. Does the reader have to know it **before** a check would tell them?
 
 A no to either sends it to a skill, however every-session the subject sounds.
 A yes to both keeps it here, and the budget is what says how long it may run.
+`references/behind-these-rules.md` has what that criterion cost while it stood
+alone.
 
-`.github/scripts/skills.py` holds that budget: 30 lines for a section, 200 for
-the file, counting what is outside a fenced block and outside the frontmatter.
-A `###` under a long section counts as a section, so the handhold a reader
-wants is the one the budget accepts too. Every `SKILL.md` takes the same 30,
-and 250 rather than 200 for the file — the index is held just above where it
-sits because every session reads it, and a skill is not, so a cap that tight
-here pushes instructions into `references/` rather than evidence. The script
-says which number is which and why.
+`.github/scripts/skills.py` holds that budget, counting what is outside a
+fenced block and outside the frontmatter: 30 lines for a section and 200 for
+the file in `AGENTS.md`, 30 and 250 in every `SKILL.md`. A `###` under a long
+section counts as a section, so the handhold a reader wants is the one the
+budget accepts too. The two file numbers differ, and the script says why
+beside each.
 
 ## What a skill carries
 
@@ -189,8 +186,9 @@ resolves a colour" does that work, and "I can help with themes" none of it.
 The limits are the specification's rather than a preference, and the step above
 refuses all of them. What is worth knowing in advance is only what breaking the
 1024-character cap costs: a strict client refuses the skill and a lenient one
-truncates, taking job 2 first because it is written second. The cap is
-reachable — one description here came within five characters of it.
+truncates, taking job 2 first because it is written second. Treat it as
+reachable rather than as headroom — `references/behind-these-rules.md` has how
+close the descriptions here have come.
 
 Keep a literal `---` out of the description, annotation names included: it
 truncates the listing an agent sees, silently, at the first one.
@@ -198,8 +196,8 @@ truncates the listing an agent sees, silently, at the first one.
 
 ## A claim about the platform names its evidence
 
-Yazi is on CalVer and breaks the plugin API between releases, so a sentence
-about its behaviour is a measurement with a date on it, not a fact.
+A sentence about Yazi's behaviour is a measurement with a version on it rather
+than a fact, for the reason `AGENTS.md`'s `Target platform` gives.
 
 - Name the version and the method: measured on 26.9.1, in a detached tmux, by
   a throwaway plugin that printed the values into Yazi's debug log.
@@ -225,10 +223,9 @@ Adding, removing or moving a platform trap touches, at minimum:
 The counts are spelled as words, so a grep is the only way to sweep them:
 `grep -rn 'eleven\|seven\|the four\|other four' --include='*.md'` reaches
 every Markdown file that carries one today. Sweep with the counts written now
-rather than with the ones this example was written for — it has been stale
-before, which is the mistake it warns about made inside the warning. Expect
-noise: `test/MANUAL.md` counts cells, keys and terminal grounds in the same
-words. The check itself is not Markdown and no grep here reaches it.
+rather than with the ones this example was written for. Expect noise:
+`test/MANUAL.md` counts cells, keys and terminal grounds in the same words. The
+check itself is not Markdown and no grep here reaches it.
 
 A new skill needs one more thing, invisible from inside it:
 `.claude/skills/<name>`, a tracked symlink to `../../.agents/skills/<name>`.
