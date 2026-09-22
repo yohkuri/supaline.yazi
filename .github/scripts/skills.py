@@ -77,7 +77,22 @@ CONTENTS_LIMIT = 100
 INDEX_SECTION_LIMIT = 30
 INDEX_LIMIT = 200
 
+# A skill's, and deliberately the same two numbers, because a reader who has
+# learnt one of these files has learnt the shape of all of them. They do not
+# buy the same thing, though. A skill is opened by the task that needs it
+# rather than by every session, so the file budget here mostly moves evidence
+# into `references/`, which has no budget: the front file gets lighter and the
+# tree does not get smaller. The section budget is the one that pays.
+# `document-supaline` says a section running longer than the thing it tells you
+# to do is carrying evidence, and then left the noticing to whoever happened to
+# be reading. That sentence is this check.
+SKILL_SECTION_LIMIT = 30
+SKILL_LIMIT = 200
+
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# A heading under the title, at any level. The title itself is not one:
+# it would leave every file with an empty opening section.
+SUBHEADING = re.compile(r"#{2,6} ")
 RESERVED = ("anthropic", "claude")
 
 # A Contents entry names its section and may gloss it after one of these.
@@ -238,6 +253,22 @@ def check_skill(directory):
     # nothing here shows it is that MD047 refuses such a file. A count that
     # leans on another linter's rule is a count that breaks when it moves.
     check_length(f, lines)
+    check_budget(
+        f,
+        lines,
+        SKILL_SECTION_LIMIT,
+        SKILL_LIMIT,
+        (
+            "A section this long is carrying its own evidence. Move that to a",
+            "references/ file, or split it where a reader would stop reading",
+            "and go and do the thing.",
+        ),
+        (
+            "This is the file a task loads whole, so every line in it is paid",
+            "for by readers who needed one other line. What is read once goes",
+            "in references/, which is opened on purpose.",
+        ),
+    )
 
     if not lines or lines[0] != "---":
         report(
@@ -386,53 +417,81 @@ def check_reference(f):
 def prose_sections(lines):
     """`[(heading, lines outside a fence)]`, the opening section first.
 
-    The opening one is everything before the first `## `, and its heading is
-    None. Fenced lines are not counted: the command list and the two snippets
-    in `AGENTS.md` are the index doing its job, and a fence is not where a
-    paragraph gets hidden. Prose is what swelled.
+    The opening one is everything before the first heading under the title,
+    and its heading is None. Fenced lines are not counted: the command list
+    and the two snippets in `AGENTS.md` are the index doing its job, and a
+    fence is not where a paragraph gets hidden. Prose is what swelled.
+
+    Frontmatter is not counted either. A description is what the
+    specification asks for, it is capped on its own, and there is nowhere to
+    move it to: charging a budget for it would be asking for the one thing
+    that cannot be paid.
+
+    Any heading from `##` down ends a section, not just `##`. A `###` under a
+    long section is the handhold the budget is asking for, so it has to count
+    as one -- and a budget that saw only `##` would be answered by promoting
+    every subheading, which is the same file with a flatter contents list.
     """
+    if lines and lines[0] == "---" and "---" in lines[1:]:
+        lines = lines[lines.index("---", 1) + 1 :]
+
     out, fence, heading, count = [], False, None, 0
     for line in lines:
         if line.startswith("```"):
             fence = not fence
         elif fence:
             continue
-        elif line.startswith("## "):
+        elif SUBHEADING.match(line):
             out.append((heading, count))
-            heading, count = line[3:], 0
+            heading, count = line.rstrip(), 0
         else:
             count += 1
     out.append((heading, count))
     return out
 
 
+def check_budget(f, lines, section_limit, file_limit, per_section, per_file):
+    """Every section over its budget, and then the file over its own."""
+    sections = prose_sections(lines)
+
+    for heading, count in sections:
+        if count <= section_limit:
+            continue
+        where = f"`{heading}`" if heading else "the opening"
+        report(
+            rel(f),
+            f"{where} is {count} lines, over the {section_limit}-line budget.",
+            *per_section,
+        )
+
+    total = sum(count for _, count in sections)
+    if total > file_limit:
+        report(
+            rel(f),
+            f"is {total} lines, over the {file_limit}-line budget.",
+            *per_file,
+        )
+
+
 def check_index():
     text = read(INDEX)
     if text is None:
         return
-    sections = prose_sections(text.splitlines())
-
-    for heading, count in sections:
-        if count <= INDEX_SECTION_LIMIT:
-            continue
-        where = f"`## {heading}`" if heading else "the opening"
-        report(
-            rel(INDEX),
-            f"{where} is {count} lines, over the"
-            f" {INDEX_SECTION_LIMIT}-line budget.",
+    check_budget(
+        INDEX,
+        text.splitlines(),
+        INDEX_SECTION_LIMIT,
+        INDEX_LIMIT,
+        (
             "The index says what applies to every session and points at the",
             "skill that carries the rest. Move the detail into that skill, or",
             "the evidence into a references/ file beside it.",
-        )
-
-    total = sum(count for _, count in sections)
-    if total > INDEX_LIMIT:
-        report(
-            rel(INDEX),
-            f"is {total} lines, over the {INDEX_LIMIT}-line budget.",
+        ),
+        (
             "Sections that each stay inside their own budget still add up,",
             "which is how this file grew before. Move one of them out.",
-        )
+        ),
+    )
 
 
 def main():

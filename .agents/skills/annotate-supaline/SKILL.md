@@ -35,8 +35,10 @@ does the configuration `setup` is given — the plugin-wide options, a linemode
 spec, and the four shapes a column may be written in — so `cfg.orderr`,
 `opts.linemodess` and `spec.separatorr` are refused.
 
-That last one reaches only so far, and the limit is worth knowing before
-trusting it. A wrong **value** in a spec is refused: `separator = 42` on a
+### Where that reach stops
+
+Two limits are worth knowing before trusting it. The first is the reach of
+that last one. A wrong **value** in a spec is refused: `separator = 42` on a
 linemode, `width = "wide"` on a column inside one. A misspelled **key** in the
 same table is not — a table constructor passed as an argument is not checked
 for keys its class does not declare, and marking those classes `(exact)` was
@@ -51,6 +53,8 @@ loses it for the rest of the loop body — `line:widthh()` on the next line is
 not refused, where the same typo after the loop ends, or outside one, is. `cut`
 in `layout.lua` is that shape, so what covers the `line:width()` inside its
 loop is `column_spec.lua` at runtime and nothing at check time.
+
+### What holds the specs inside it
 
 The specs are inside that reach only because `main.lua` declares
 `supaline.Main` for them to claim. Here and on the CI runner `require(".main")`
@@ -88,6 +92,8 @@ beside the classes: a probe for the four read off `cx`,
 other. A newer Yazi is a reason to run those again and correct them there,
 never to work around them at the call site.
 
+### What declaring one buys
+
 Declaring the fifth is what keeps the call checked, and the difference is
 worth planting once: with `cut` taking its line as `unknown`, `line:truncatee`
 inside it passes the check, and with `supaline.Line` the same typo comes back
@@ -115,6 +121,8 @@ The cast is the price of the subclass and it is worth paying: re-opening
 `fs__File` and `Cha` to write the fields straight onto them removed the casts
 and, in one arrangement, silently stopped refusing a misspelling — a check that
 quietly does nothing is the failure mode this whole job exists to avoid.
+
+### The difference that runs the other way
 
 All seven of those are `types.yazi` describing **less** than Yazi has, and the
 difference runs the other way too — which is the worse direction, because the

@@ -41,6 +41,8 @@ stub reproduces it exactly, name and all. `in_preview` is computed the way
 so a regression fails on the second preview row — which is how it fails on
 screen.
 
+### What a new stub has to carry
+
 The name is not the whole of it; the parameter list counts too. Write the
 parameters the real call takes, `self` included, whether or not the stub reads
 them, and set the fields Yazi always sets — `preview.skip` is one nothing here
@@ -58,14 +60,13 @@ fidelity is still read against a running Yazi.
 
 ## What a spec's calls are checked against
 
-A spec's calls into the plugin are not checked against `main.lua`. Under
-`lua-language-server`, `require(".main")` reaches `types.yazi`'s own `main.lua`
-instead — annotations with no `return`, sitting on `workspace.library` — so
-`main.setup(42, ...)` and `main.columnn(...)` are both accepted unless
-`main.lua` declares `supaline.Main` and each spec claims it at the `require`.
-That is the same repair `supaline.Stub` is for the stub. `.column` is not
-affected: it resolves to this tree, and `column.lua`'s signatures are read
-normally.
+Not `main.lua`. Under `lua-language-server`, `require(".main")` reaches
+`types.yazi`'s own annotations instead, so `main.setup(42, ...)` and
+`main.columnn(...)` are both accepted unless `main.lua` declares
+`supaline.Main` and each spec claims it at the `require`. `annotate-supaline`
+has the mechanism, and its `references/main-collision.md` has what to re-run
+when a checkout or a pin moves; nothing about writing a spec turns on either.
+`.column` is unaffected — it resolves to this tree and is read normally.
 
 Two things follow for anyone writing a spec:
 
@@ -76,13 +77,6 @@ Two things follow for anyone writing a spec:
   added to that class and to `MAIN_EXPORTS` in `module_spec.lua`, which fails
   until you do. A changed *signature* is past what Lua can see at runtime and
   is still read by eye.
-
-Which of the two `main.lua` files wins is a property of the absolute path this
-tree sits at, and it comes out the same way here and on CI. Nothing about
-writing a spec turns on it;
-`annotate-supaline/references/main-collision.md` has the mechanism, what was
-measured, and what to re-run when a checkout, a pin, or the upstream issue
-moves.
 
 ## Planting a value that is wrong on purpose
 
@@ -119,13 +113,12 @@ rather than tests.
 
 Write the test code for **Lua 5.5**, the version Yazi runs: `%z` in a pattern
 means the NUL byte on 5.1 and the letter `z` from 5.2 on, and `utf8` arrived in
-5.3. `test/run.lua` refuses any other version and says where to get one, so
-this needs no remembering.
+5.3. `test/run.lua` refuses any other version and says where to get one.
 
 ## The second unit suite, and where a fact belongs
 
-`AGENTS.md` says what that suite is and what it runs on. What it does not say
-is that the purity is a **rule** rather than an accident: a `subprocess` or a
+`AGENTS.md` lists that suite as the screen parsers. What it does not say is
+that the purity is a **rule** rather than an accident: a `subprocess` or a
 `Path.read_text` added to `screen.py` takes the whole file out of CI with it,
 and the arithmetic that decides whether a ramp climbed goes back to being
 checked only by a run nobody can make a runner do.
@@ -141,19 +134,17 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   `band_width` and `c_bg_grounds` are the five — and `TheFixtureItReads` calls
   those readers rather than re-spelling their patterns. A copy of a pattern
   goes on passing while the reader beside it has quietly stopped matching, and
-  `e2e.py` is not in CI to say so. A pattern anchored on stylua's indentation
-  is the one most worth moving: re-nesting a table is all it takes to leave a
-  sweep passing over nothing.
+  `e2e.py` is not in CI to say so — a pattern anchored on stylua's indentation
+  most of all, since re-nesting a table leaves the sweep passing over nothing.
 - What is left for `e2e.py` is driving Yazi and holding the parsed answer
   against what this machine says: `pwd`, `grp`, a file on disk, a colour read
   out of the fixture.
 
 Two habits the harness keeps throughout. Never `assert`: `Checks` counts named
 failures and the run exits once, because a change that moves one column moves a
-handful of checks and the shape of that handful is what says where to look.
-And give a check a guard wherever an empty list or an unmatched pattern would
-let it pass over nothing — a sweep that read nothing looks exactly like a sweep
-that found nothing wrong.
+handful of checks, and the shape of that handful says where to look. And guard
+any check an empty list or an unmatched pattern would let pass over nothing — a
+sweep that read nothing looks like a sweep that found nothing wrong.
 
 ## The fixture, shared by both harnesses
 
@@ -178,28 +169,7 @@ exiting 0 over a configuration it never saw. And it says nothing about the
 screen — `setup` took the configuration is the whole of the claim, and `e2e.py`
 is still what says the configuration draws what `MANUAL.md` describes.
 
-The same spec holds the fixture's **key set** together. Four places name that
-set — `test/fixture/keymap.toml`, `test/fixture/banner.txt`, `test/MANUAL.md`,
-and `e2e.py`'s capture loops — and the banner is the only one whose reader is a
-person, so it is the one that can fall behind with everything still green. The
-keymap is the authority and the spec names no key of its own: it reads the `on`
-lines, then asks whether the banner offers each and whether `MANUAL.md` spells
-each. A key the banner offers and nothing binds is refused as well, unless
-`NOT_BOUND` says whose it is — `m s` is Yazi's — and an entry there has to
-still be offered, so that table cannot fill up with keys the banner has
-dropped.
-
-Two things to know before editing that half. The authority is the only side
-that has to prove it was read: a reader side that comes back empty fails loudly
-with every bound key named at once, while an empty authority would let all
-three comparisons pass over nothing. So it is checked against the keymap's own
-shape — one `on` line per `[[mgr.prepend_keymap]]` block — rather than against
-a count written in the spec, which would be a fifth place holding the size of
-the set. And `e2e.py` is left out on purpose: it presses `c 2` and neither
-`c 1` nor `c 3`, because that key replaces `theme.toml` wholesale and one swap
-is all a run whose earlier captures were taken against that file can afford.
-Comparing against it would need a list of which keys are exempt, and that list
-is the fifth place again.
+### What it puts on the screen, and what holds that together
 
 The fixture opens on a directory carrying the cases that break width
 arithmetic — CJK, emoji, an over-long name, sizes either side of the 1K
@@ -207,45 +177,23 @@ boundary — with siblings above it and a subdirectory below, so all three panes
 have rows. `m0` to `m9`, and `me` once the digits ran out, switch between the
 linemodes, one per decision worth looking at, and `test/MANUAL.md` says what to
 look for in each. Yazi's own `m s` and `m n` still work, which is what makes
-them worth comparing against.
+them worth comparing against. A third leader, `b`, draws the columns that are
+wrong on purpose, and `e2e.py` presses those in a second Yazi of their own.
 
-A third leader, `b`, draws the columns that are wrong on purpose -- one per
-report supaline can put on a screen. `e2e.py` presses all of them, in a
-**second Yazi with a log of its own**, started once the first has been torn
-down. The clean run's log check is untouched and unfiltered: it still says that
-run logged no error at all. The second log is read for the opposite thing --
-one line per broken column, and that many lines in all, so a line naming
-anything else has nowhere to sit.
+The same spec holds the fixture's **key set** together. Four places name that
+set — `test/fixture/keymap.toml`, `test/fixture/banner.txt`, `test/MANUAL.md`,
+and `e2e.py`'s capture loops — and the banner is the only one whose reader is a
+person, so it is the one that can fall behind with everything still green. The
+keymap is the authority and the spec names no key of its own: it reads the `on`
+lines, then asks whether the banner offers each and whether `MANUAL.md` spells
+each.
 
-The shape is decided by what it must not be. `report` writes to `yazi.log` as
-well as to the screen, and `e2e.py` fails a run in which Yazi logged an error,
-so pressing a `b` key in *that* run turns the suite red. The repair is not to
-teach the log check an exception -- an allowlist there is the one check that
-reads the log learning to ignore the errors it was written to find. Two logs
-and two absolute claims cost one more Yazi and no exception at all.
+`references/editing-the-fixture.md` is what to open before changing either
+half: what that comparison is shaped against, why the broken columns need a
+second Yazi and a second log, and the three things about that run measured on
+26.9.1 rather than reasoned about.
 
-Three things about that run were measured on 26.9.1 rather than reasoned about,
-and each one is why some of the code is shaped the way it is:
-
-- `ya.notify` does reach a `tmux capture-pane`, drawn as a bordered box over
-  the preview pane. That is the half of a report no log can show, and until
-  this run existed nothing outside the stub looked at it.
-- Yazi draws **three** notifications at a time and queues the rest, each for
-  the twenty seconds `report` asks for. Six reports therefore never share a
-  screen, so the check reads the screen until every one has been seen on it
-  rather than taking a single shot. The file it builds is a union, and the
-  claim is that each report reached the screen -- not that they were ever
-  there together.
-- The box title carries a Nerd Font icon between `╭` and the word, so a
-  matcher written as `╭ supaline` matches nothing. What the check anchors on
-  is the column name in backticks, which the first line of the box carries.
-
-The per-column count of exactly 1 is three claims in one number: the column
-reported, `told` held it down across two further `cd`s, and it survived two
-`app:theme` rebuilds without re-arming. The run presses all four for that
-reason and checks none of them separately.
-
-What is left for a person is what none of that can judge -- whether the
+What is left for a person is what none of that can judge — whether the
 sentence reads correctly against the column it is about, and whether twenty
 seconds is long enough to read it. That, `fixture_spec.lua` taking the whole of
 `init.lua` through `setup`, and `MANUAL.md` open beside the screen, are what

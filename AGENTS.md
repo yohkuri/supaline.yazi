@@ -20,9 +20,9 @@ when the task calls for them:
   under `.claude/rules/`
 
 The rest is a comment beside the check that enforces it. A budget in
-`.github/scripts/skills.py` holds this file to that, along with the skills it
-indexes: a section that outgrows it is carrying something one of them should
-have.
+`.github/scripts/skills.py` holds this file and every skill it indexes to the
+same two lengths: a section that outgrows it is carrying something a skill, or
+a `references/` file beside one, should have.
 
 ## What this is
 
