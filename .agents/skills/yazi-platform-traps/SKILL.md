@@ -116,7 +116,9 @@ remember that folder-wide statistics for such a row must come from the parent
 folder, not `cx.active.current`.
 
 Pinned by `test/main_spec.lua` "a pane key opts into the pane it names", which
-covers the code that exists and not a column written tomorrow.
+covers the code that exists and not a column written tomorrow. Measured rather
+than assumed: a fresh column written with `not is_regular` passed the whole
+suite, back when nothing refused that spelling.
 
 ## The rendering budget
 
