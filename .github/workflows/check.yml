@@ -212,14 +212,14 @@ jobs:
         # The same command to run by hand, and the script says what it checks
         # and what it leans on. It walks the skills against the specification,
         # and then `AGENTS.md` and every `SKILL.md` against a budget of its
-        # own: a section over 30 prose lines is carrying what a `references/`
-        # file should, and so is a file over 200 for the index or 250 for a
-        # skill. That half is this repository's rather than the
-        # specification's, which caps a `SKILL.md` at 500 lines and says
-        # nothing about a section or about `AGENTS.md`. Everything is measured
-        # the same way -- outside a fence, outside the frontmatter, a `###`
-        # counting as a section -- and the script says why the two file
-        # numbers differ.
+        # own: a section over it is carrying what a `references/` file should,
+        # and so is a file over it. That half is this repository's rather than
+        # the specification's, which caps a `SKILL.md` at 500 lines and says
+        # nothing about a section or about `AGENTS.md`. The numbers are not
+        # repeated here -- the script holds them and prints them when it
+        # refuses, and `document-supaline` is where a writer reads them before
+        # it does. Everything is measured the same way -- outside a fence,
+        # outside the frontmatter, a `###` counting as a section.
         #
         # `skills.py.lock` beside it pins what the PEP 723 header cannot --
         # `strictyaml`, which is what actually refuses a duplicate key -- and
