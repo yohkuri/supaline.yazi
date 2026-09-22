@@ -131,6 +131,16 @@ If you're editing `README.md`, skim `AGENTS.md`'s "What this is" section
 first. It lists three things about this plugin that are easy to describe
 wrongly.
 
+## Using AI
+
+A lot of this repository was written with an AI agent, and the commits say
+so — look for the `Co-Authored-By` trailer. It seems only fair to mention
+that before saying anything about your tools.
+
+So use whatever helps. The one thing we ask is that you have read what you
+send, run it, and can talk it through. A change nobody can explain is hard
+to review, whoever or whatever wrote it.
+
 ## License
 
 By contributing, you agree your work is licensed under the MIT License,
