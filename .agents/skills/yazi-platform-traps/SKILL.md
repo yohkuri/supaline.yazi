@@ -48,6 +48,8 @@ fires a few milliseconds later, unasked. So "resolve it at setup and it is the
 user's" is true of `theme.toml` and false of a flavor, and the two are
 indistinguishable from Lua: both arrive as `th.<section>.<key>`.
 
+### Where the repair goes
+
 That is also why `style` takes a function. A spec that reads `th` at load time
 freezes what it read and holds it through every reload -- the stored spec is
 re-read on each `theme` event, never evaluated again -- so a user borrowing a
@@ -63,6 +65,8 @@ and build styles inside `ps.sub("theme", ...)`, and run that same builder once
 at setup so the plugin has something to draw with before the first event. One
 subscription answers both halves — the unasked event corrects the flavor, a
 later one the reload — which is why the plugin is not already broken.
+
+### What a section and a field may be called
 
 Custom theme sections are read as `th.<section>`. Section names are normalised
 from kebab-case to snake_case (`[my-plugin]` becomes `th.my_plugin`), field
@@ -161,6 +165,8 @@ So an `error` is the most expensive thing a column can do, and it costs the
 same whoever wrote it. A reader's own `render` raising produced exactly that
 blank screen with no part of this plugin involved.
 
+### Where the containment goes
+
 supaline calls four functions a column may write. Three of them — `stats`, a
 `width` that is one, and `render` — are called inside that redraw, and all
 three are made under `pcall` in `runtime.lua`, which goes on drawing.
@@ -185,6 +191,8 @@ So the rule is not "wrap what is called under a render". It is that a call into
 a column's own code is contained wherever it is made, because the question is
 never whether the throw is survivable — it is who the error would reach, and in
 this plugin the answer has so far always been nobody.
+
+### What must not be contained
 
 What must not be contained this way is a mistake in the *configuration*.
 `setup` runs from `init.lua`, before any component draws, and an error there
