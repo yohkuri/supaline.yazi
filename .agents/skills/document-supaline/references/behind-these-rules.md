@@ -11,6 +11,7 @@ asks you to make.
 - The sweep that works, and the check that does not
 - How the index reached 381 lines
 - A `---` in a description truncates the listing
+- How close a description has come to the 1024-character cap
 - What a test cannot pin, and why some rules are greps
 
 ## A rule that came out the other way — the one paragraph decided as prose
@@ -65,6 +66,16 @@ first of them, so the description's first job survived truncated and its other
 two were gone altogether. Measured by loading the skill both ways and reading
 the listing back. Say "a class or a field annotation" instead — a reader
 deciding whether to open the file does not need the spelling.
+
+## How close a description has come to the 1024-character cap
+
+`SKILL.md` says to treat the cap as reachable. Two measurements say how
+reachable: one description in this tree stands five characters under 1024, and
+another reached 1083 and was refused by the step — which is also what says the
+limit is enforced here rather than only written down. Both got there the same
+way, while a pointer to a `references/` file was added to a description that
+already said everything else it needed to. The cap is reached by the last
+sentence, not by the first.
 
 ## What a test cannot pin, and why some rules are greps
 
