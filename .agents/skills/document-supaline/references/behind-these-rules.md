@@ -13,6 +13,7 @@ asks you to make.
 - A `---` in a description truncates the listing
 - How close a description has come to the 1024-character cap
 - What a test cannot pin, and why some rules are greps
+- What made `.claude/skills` one link per file
 
 ## A rule that came out the other way — the one paragraph decided as prose
 
@@ -85,3 +86,19 @@ That has happened here: one of the traps `AGENTS.md` lists was repeated in a
 column written after the suite, and the whole suite passed, which is why a
 check over the source refuses that spelling now. A rule that has to hold for
 code nobody has written yet needs one of those rather than a test.
+
+## What made `.claude/skills` one link per file
+
+`ya pkg add yohkuri/supaline` installed nothing at all while the entries under
+`.claude/skills` were symlinks to directories. It walks the clone and stops at
+the first one — `the source path is neither a regular file nor a symlink to a
+regular file` — and deploys no plugin. The same tree with a symlink per file
+deployed and said `Done!`.
+
+Measured on ya 26.9.1 (Homebrew 2026-09-01), by pushing each spelling as `main`
+in a throwaway bare repository, pointing the clone under
+`~/.cache/yazi/packages` at it, and running the add against a
+`YAZI_CONFIG_HOME` of its own. `ya pkg add` reuses that clone and resets it to
+the branch named `main`, so a feature branch alone cannot be tested with. What
+was never tried is a symlink pointing out of the repository, and what the
+refusal costs is a check that has to name every file rather than every skill.

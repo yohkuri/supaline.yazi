@@ -272,11 +272,9 @@ jobs:
         # path is neither a regular file nor a symlink to a regular file" --
         # then installs nothing at all, so a link per skill made the plugin
         # uninstallable while saying nothing about it here. A symlink to a
-        # regular file it materializes. Both spellings were measured on ya
-        # 26.9.1, by pushing each as `main` in a throwaway bare repository
-        # and installing into a `YAZI_CONFIG_HOME` of its own -- `ya pkg add`
-        # reuses its clone under ~/.cache and resets it to the branch named
-        # `main`, so a feature branch alone cannot be tested with.
+        # regular file it materializes. Both spellings were measured, in
+        # `document-supaline`'s references/behind-these-rules.md, which also
+        # has why a feature branch alone cannot be tested with.
         run: |
           rc=0
           for f in $(git ls-files .agents/skills); do
