@@ -23,6 +23,20 @@ Everything else is pinned in `mise.toml`, but you don't need mise:
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
 
+## Get the code
+
+Fork the repository on GitHub, then clone your fork and point it back at
+the original:
+
+```sh
+git clone https://github.com/<your-username>/supaline.yazi.git
+cd supaline.yazi
+git remote add upstream https://github.com/yohkuri/supaline.yazi.git
+```
+
+You'll push to `origin` (your fork) and pull from `upstream` to stay in
+step with `main`.
+
 ## Install the git hooks
 
 Once per clone. They catch two mistakes on your machine instead of making
@@ -86,13 +100,18 @@ Everything here is written in English, commit messages included.
 
 ## Open a pull request
 
+For anything bigger than a small fix, please open an issue first so we can
+agree on the shape of it. Finding out that a finished change needs redoing
+is no fun for anyone. For a typo or an obvious bug, just send the pull
+request.
+
 Nobody pushes to `main` — not even the maintainer. The server refuses it.
 Everything goes through a pull request:
 
-1. Branch, commit, push.
+1. Branch off `main`, commit, and push to your fork.
 2. Open the pull request. The template asks you two short questions.
-3. To catch up with `main`, use `git fetch origin` then
-   `git rebase origin/main`, and force-push. Please don't merge `main`
+3. To catch up with `main`, use `git fetch upstream` then
+   `git rebase upstream/main`, and force-push. Please don't merge `main`
    into your branch — a check will turn red if you do.
 4. Once the checks are green, the maintainer merges it.
 
