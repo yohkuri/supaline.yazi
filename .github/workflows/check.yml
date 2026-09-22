@@ -208,9 +208,14 @@ jobs:
       # this one publishes no bare major past v7, and `@v10` is a run that
       # fails to start rather than a job that runs against something newer.
       - uses: astral-sh/setup-uv@v10.1.0
-      - name: Skills match the Agent Skills specification
+      - name: Skills, and the budget on the index
         # The same command to run by hand, and the script says what it checks
-        # and what it leans on. `skills.py.lock` beside it pins what the PEP
+        # and what it leans on. It walks the skills against the specification
+        # and then `AGENTS.md` against a budget of its own: a section over 30
+        # prose lines, or a file over 200, is the index carrying what a skill
+        # or a `references/` file should. That half is this repository's --
+        # `AGENTS.md` is not a skill, and was the only instruction document
+        # here under no budget while every `SKILL.md` had one. `skills.py.lock` beside it pins what the PEP
         # 723 header cannot -- `strictyaml`, which is what actually refuses a
         # duplicate key -- and `uv run` reads it with no flag here or there.
         #
