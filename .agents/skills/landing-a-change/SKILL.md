@@ -11,7 +11,7 @@ description: >-
   a commit message, rebasing onto main, and stopping once the checks are
   reported. Covers why the message checks run on a pull request and nowhere
   else, what the three local checks refuse and the one thing none of them
-  can, why nothing refuses a push at the server yet, why a branch lands by
+  can and what a ruleset on main adds, why a branch lands by
   rebase and what that costs a branch stacked on it, where an agent's work
   ends, and what stands in for a merge gate in Claude Code's own settings.
   The measurements are in references/measurements.md.
@@ -57,12 +57,12 @@ Three checks, and they are deliberately not one:
 `.git/hooks` is not tracked, so the first two are per clone and a fresh clone
 has neither. The third is the net under that, which is why it exists at all.
 
-What none of the three can do is **refuse the push at the server**. Branch
-protection would, and neither it nor the ruleset that replaced it is available
-while this repository is private — measured, with the API's own answer, in
-`references/measurements.md`. Turn one on the day the repository opens, and
-require a review on it; keep these three as the half that runs before a push
-rather than after it.
+What none of the three can do is **refuse the push at the server**. A ruleset
+on `main` does, requiring a pull request and a review, and it is the one to
+reach for first. These three stay underneath it: two in a clone that may never
+have installed them, one after the push has already landed. Whether a ruleset
+is on `main` today is `gh api repos/{owner}/{repo}/rulesets` and not this
+sentence.
 
 ## Why it lands by rebase
 
