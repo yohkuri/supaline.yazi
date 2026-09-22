@@ -13,6 +13,17 @@ case "$SUPALINE_COMMIT_ON_MAIN" in
 *) exit 0 ;;
 esac
 
+# Only for this repository. A fork's `main` is the contributor's own branch --
+# syncing it from upstream and pushing it is an ordinary thing to do -- and
+# refusing that is none of this repository's business. Publication is what made
+# the distinction real: before it there were no forks to get this wrong for.
+# An unreadable remote falls through to the refusal rather than past it.
+origin_url=$(git remote get-url origin 2>/dev/null) || origin_url=
+case "${origin_url%.git}" in
+"" | *github.com[:/]yohkuri/supaline.yazi) ;;
+*) exit 0 ;;
+esac
+
 branch=$(git symbolic-ref --quiet --short HEAD) || exit 0
 [ "$branch" = "main" ] || exit 0
 

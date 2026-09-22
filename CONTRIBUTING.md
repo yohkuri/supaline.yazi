@@ -30,8 +30,9 @@ version manager:
 
 `.git/hooks` is not tracked, so each clone installs them itself. They refuse
 two mistakes locally rather than in CI, which is quicker than hearing it from
-a red check. These two lines work from a linked worktree as well as from the
-clone:
+a red check. They look at the remote before anything else and do nothing
+unless it is this repository, so your fork's own `main` stays yours to push.
+These two lines work from a linked worktree as well as from the clone:
 
 ```sh
 common=$(git rev-parse --path-format=absolute --git-common-dir)

@@ -7,9 +7,26 @@
 # revert, a rebase, a reset -- this is the one place every one of them has to
 # pass to reach the branch other people read, which is what makes it the half
 # of the pair that cannot be walked around by reaching for a different verb.
+#
+# The ruleset on `main` refuses the same push at the server, for everyone and
+# with nothing to install -- `current_user_can_bypass` reads `never` even for
+# the owner. What this keeps is the half the server has no way to give: it
+# refuses before the round trip, and it prints how to undo what is already
+# committed, which GitHub's own refusal does not.
 
 case "$SUPALINE_PUSH_TO_MAIN" in
 "" | 0 | false | no) ;;
+*) exit 0 ;;
+esac
+
+# Only for this repository. A fork's `main` is the contributor's own branch --
+# syncing it from upstream and pushing it is an ordinary thing to do -- and
+# refusing that is none of this repository's business. Publication is what made
+# the distinction real: before it there were no forks to get this wrong for.
+# An unreadable remote falls through to the refusal rather than past it.
+remote_url=${2:-unknown}
+case "${remote_url%.git}" in
+unknown | *github.com[:/]yohkuri/supaline.yazi) ;;
 *) exit 0 ;;
 esac
 
