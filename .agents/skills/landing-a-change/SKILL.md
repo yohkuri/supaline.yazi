@@ -58,11 +58,19 @@ Three checks, and they are deliberately not one:
 has neither. The third is the net under that, which is why it exists at all.
 
 What none of the three can do is **refuse the push at the server**. A ruleset
-on `main` does, requiring a pull request and a review, and it is the one to
-reach for first. These three stay underneath it: two in a clone that may never
-have installed them, one after the push has already landed. Whether a ruleset
-is on `main` today is `gh api repos/{owner}/{repo}/rulesets` and not this
-sentence.
+on `main` does, and it is the one to reach for first. The one here requires a
+pull request, allows `rebase` alone, and reads `current_user_can_bypass` as
+`never` for the owner, so nothing local is what stands between a mistake and
+`main` any more. It requires no approving review: a sole maintainer approving
+their own pull request is a form rather than a check, and a rule that asks for
+one would have to be bypassed on every change.
+
+That leaves the two hooks the half a server rule has no way to give -- a
+refusal before the round trip, and the commands to undo what is already
+committed, which GitHub's own refusal does not print. Both read the remote
+first and stay out of a fork's `main`, which is the contributor's branch and
+not this repository's business. What is on `main` today is
+`gh api repos/{owner}/{repo}/rules/branches/main` and not this sentence.
 
 ## Why it lands by rebase
 
