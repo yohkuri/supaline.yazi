@@ -742,9 +742,12 @@ jobs:
             elif [ "$verdict" != success ]; then
               echo "${rev:0:8} came from #$pr, where \`Commit messages\`"
               echo "  concluded \`$verdict\`. The message on main is one the"
-              echo '  job had already refused; branch protection is what stops'
-              echo '  a merge over a red check, and AGENTS.md says where that'
-              echo '  stands.'
+              echo '  job had already refused, and the ruleset on main lists'
+              echo '  that check as required -- so the merge button had no'
+              echo '  way to do this. Read what stands there now:'
+              echo "    gh api repos/$GITHUB_REPOSITORY/rules/branches/main"
+              echo '  The commit is the symptom; the rule that let it past is'
+              echo '  what changed.'
               rc=1
             fi
           done
