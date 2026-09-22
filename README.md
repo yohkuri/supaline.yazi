@@ -1025,6 +1025,11 @@ selects that prepared state without changing a shared column's context.
   count. A write that changes a file's size without changing the count keeps
   the previous extremes until the next file operation or `cd`.
 
+## Contributing
+
+Bug reports and pull requests are welcome. `CONTRIBUTING.md` has what to
+install, what to run before pushing, and how a change reaches `main`.
+
 ## License
 
 MIT
