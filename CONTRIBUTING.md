@@ -8,9 +8,14 @@ reasoning behind each part. You do not need it to contribute.
 
 ## What you need
 
-Yazi **26.9.1 or newer** — the plugin API breaks between releases, and only
-one version is supported at a time. `mise.toml` pins the rest for whoever uses
-mise, and nothing here requires a version manager:
+Yazi **26.9.1**. Yazi enforces the `--- @since` annotation and refuses to load
+an older one, and 26.9.1 is the version every measurement in this repository
+was taken on. Yazi is on CalVer and breaks the plugin API between releases, so
+a newer one may work and nothing here checks that it does — no CI job starts a
+Yazi at all. Say which one you ran when you report what the screen did.
+
+`mise.toml` pins the rest for whoever uses mise, and nothing here requires a
+version manager:
 
 | For | Version |
 | --- | ------- |

@@ -26,9 +26,11 @@ would go through the same column registry as any other.
 
 ## Requirements
 
-Yazi **26.9.1 or newer**. Older releases refuse to load the plugin: Yazi
-enforces the `--- @since` annotation, and the fetcher and theme APIs this is
-written against did not exist before.
+Yazi **26.9.1**. Older releases refuse to load the plugin: Yazi enforces the
+`--- @since` annotation, and the fetcher and theme APIs this is written
+against did not exist before. Yazi breaks the plugin API between releases, so
+a newer one may work and is untested — 26.9.1 is what everything here was
+measured on.
 
 ## Installation
 
