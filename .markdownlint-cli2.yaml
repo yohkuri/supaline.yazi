@@ -13,9 +13,9 @@ gitignore: true
 
 globs:
   - "**/*.md"
-  # `.claude/skills/*` are tracked symlinks into `.agents/skills`, so linting
-  # both spellings reports every finding twice, the second time under a path
-  # the file does not live at.
+  # Everything under `.claude/skills` is a tracked symlink into
+  # `.agents/skills`, so linting both spellings reports every finding twice,
+  # the second time under a path the file does not live at.
   - "!.claude/skills"
 
 config:

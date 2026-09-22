@@ -1,0 +1,1 @@
+../../../.agents/skills/yazi-platform-traps/SKILL.md
