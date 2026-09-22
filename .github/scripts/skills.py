@@ -77,17 +77,23 @@ CONTENTS_LIMIT = 100
 INDEX_SECTION_LIMIT = 30
 INDEX_LIMIT = 200
 
-# A skill's, and deliberately the same two numbers, because a reader who has
-# learnt one of these files has learnt the shape of all of them. They do not
-# buy the same thing, though. A skill is opened by the task that needs it
-# rather than by every session, so the file budget here mostly moves evidence
-# into `references/`, which has no budget: the front file gets lighter and the
-# tree does not get smaller. The section budget is the one that pays.
+# A skill's. The section number is the index's, because it is the same rule:
 # `document-supaline` says a section running longer than the thing it tells you
 # to do is carrying evidence, and then left the noticing to whoever happened to
-# be reading. That sentence is this check.
+# be reading. That sentence is this check, and it holds wherever prose is
+# written here.
 SKILL_SECTION_LIMIT = 30
-SKILL_LIMIT = 200
+# The file number is not the index's, and matching them was a mistake worth
+# leaving a note about. The index is held just above where it sits because
+# every line in it is read by every session. A skill is opened by the task that
+# needs it, so what a tight cap here buys is not a cheaper session -- it is a
+# push towards `references/`, which has no budget at all. Pushed too hard it
+# moves the wrong things: at 200 this check refused the `|| true` rule going
+# back into `document-supaline`, where its own three questions say an
+# instruction belongs. So it sits far enough above the files that the next rule
+# is a judgement rather than a forced relocation, and near enough that a file
+# drifting towards the specification's 500 still has to answer for it.
+SKILL_LIMIT = 250
 
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 # A heading under the title, at any level. The title itself is not one:
