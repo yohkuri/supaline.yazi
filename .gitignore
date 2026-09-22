@@ -20,6 +20,9 @@ AGENTS.override.md
 .ruff_cache/
 
 # Dropped by `python3 -m unittest discover -s test ...`, which `AGENTS.md`
-# tells every contributor to run. Not a personal file: the project's own
-# command makes it, so the project is what hides it.
-test/__pycache__/
+# tells every contributor to run, and by anything that imports a module under
+# `.github/scripts/`. Not a personal file: the project's own command makes it,
+# so the project is what hides it. Unanchored, because the directory it lands
+# in is whichever one held the module -- `test/` only, until a session
+# importing `skills.py` by hand made a second one and offered it for commit.
+__pycache__/
