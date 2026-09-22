@@ -1,34 +1,14 @@
 # What was measured about the route
 
-Three claims in `SKILL.md` are measurements rather than facts, and each is
+Two claims in `SKILL.md` are measurements rather than facts, and each is
 here with the date, the method and where it stops. A different GitHub, a
 different commitlint or a different Claude Code is a reason to run them again
 rather than to trust the sentence.
 
 ## Contents
 
-- Branch protection is not available while the repository is private
 - commitlint reads a merge commit and says nothing
 - An `ask` rule stops a call an `allow` rule covers
-
-## Branch protection is not available while the repository is private
-
-Measured 2026-09-08, against this repository, through `gh api`. Both the
-branch-protection endpoint and the ruleset endpoint that replaced it answered:
-
-```text
-Upgrade to GitHub Pro or make this repository public
-```
-
-So there is no server-side refusal to be had here at any price short of
-opening the repository, and the three checks in `SKILL.md` are the whole of
-what stands between a mistake and `main`. Two of them live in a clone's
-untracked `.git/hooks`, which is the part worth remembering: the protection
-is opt-in per clone until the day this is turned on.
-
-Where it stops: the answer was read for this repository only. Whether a
-private repository in an organisation with a paid plan answers differently
-was never tested, and the message implies it would.
 
 ## commitlint reads a merge commit and says nothing
 
