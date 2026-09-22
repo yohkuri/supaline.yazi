@@ -255,28 +255,44 @@ jobs:
         # skill and silent at the other end -- the skill is simply never
         # offered. `document-supaline` carried this as a paragraph until it
         # became a check, which is the order that section asks for.
+        #
+        # One link per file rather than one per skill, because `ya pkg add`
+        # walks the clone and refuses a symlink to a directory -- "the source
+        # path is neither a regular file nor a symlink to a regular file" --
+        # then installs nothing at all, so a link per skill made the plugin
+        # uninstallable while saying nothing about it here. A symlink to a
+        # regular file it materializes. Both spellings were measured on ya
+        # 26.9.1, by pushing each as `main` in a throwaway bare repository
+        # and installing into a `YAZI_CONFIG_HOME` of its own -- `ya pkg add`
+        # reuses its clone under ~/.cache and resets it to the branch named
+        # `main`, so a feature branch alone cannot be tested with.
         run: |
           rc=0
-          for d in .agents/skills/*/; do
-            n=$(basename "${d%/}")
-            l=".claude/skills/$n"
+          for f in $(git ls-files .agents/skills); do
+            l=".claude/skills/${f#.agents/skills/}"
+            up=$(printf '%s' "$l" | sed 's|[^/]||g; s|/|../|g')
             if ! git ls-files --error-unmatch "$l" >/dev/null 2>&1; then
-              echo "$l: not tracked. Claude Code will not see \`$n\`."
-              echo "  ln -s ../../.agents/skills/$n $l && git add $l"
+              echo "$l: not tracked. Claude Code will not see it."
+              echo "  mkdir -p $(dirname "$l") && ln -s $up$f $l && git add $l"
               rc=1
               continue
             fi
             t=$(readlink "$l" || true)
-            [ "$t" = "../../.agents/skills/$n" ] || {
-              echo "$l: points at \`$t\`, not \`../../.agents/skills/$n\`."
+            if [ -z "$t" ]; then
+              echo "$l: not a symlink. A copy under here is excluded from"
+              echo "  markdownlint too, so it goes stale unread."
+              echo "  ln -sf $up$f $l"
               rc=1
-            }
+            elif [ "$t" != "$up$f" ]; then
+              echo "$l: points at \`$t\`, not \`$up$f\`."
+              echo "  ln -sf $up$f $l"
+              rc=1
+            fi
           done
-          for l in .claude/skills/*; do
-            [ -L "$l" ] || [ -e "$l" ] || continue
-            n=$(basename "$l")
-            [ -d ".agents/skills/$n" ] || {
-              echo "$l: nothing at .agents/skills/$n for it to point at."
+          for l in $(git ls-files .claude/skills); do
+            f=".agents/skills/${l#.claude/skills/}"
+            git ls-files --error-unmatch "$f" >/dev/null 2>&1 || {
+              echo "$l: nothing tracked at $f for it to point at."
               rc=1
             }
           done
