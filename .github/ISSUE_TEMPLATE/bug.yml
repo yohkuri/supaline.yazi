@@ -1,0 +1,84 @@
+# A bug report, as a form rather than a blank box.
+#
+# Every field below exists because leaving it out costs a round trip. supaline
+# draws into someone else's terminal, from two config files, against one Yazi
+# release -- and a report that names none of those cannot be reproduced. There
+# is no feature form beside this one on purpose: CONTRIBUTING.md asks for an
+# issue before a large change, and that conversation does not fit a form.
+#
+# GitHub validates this file when it renders it, and nothing in CI does. If the
+# form stops appearing under "New issue", this is where to look.
+name: Bug report
+description: Something supaline draws, or refuses to draw, is wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The questions below are all about
+        reproducing what you saw — there's nothing here about the fix.
+
+        If you're not sure it's a bug, open it anyway. A wrong error message
+        or a confusing page is worth the same as a broken column.
+
+  - type: textarea
+    id: env
+    attributes:
+      label: What `ya env` says
+      description: |
+        Run it in the terminal you saw the problem in, and paste the whole
+        thing. It needs a real terminal — `ya env > env.txt` fails with
+        `Inappropriate ioctl for device`, so copy it off the screen.
+
+        This one paste carries your Yazi version, your platform, your
+        emulator and your flavour, which is most of what a colour or width
+        problem turns out to be.
+      render: Shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Which supaline
+      description: The line for it in `ya pkg list`, revision and all.
+      placeholder: "yohkuri/supaline (a1b2c3d)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Your supaline configuration
+      description: |
+        The `require("supaline"):setup { ... }` call from your `init.lua`,
+        plus the `[supaline]` block from your `theme.toml` if you have one.
+        Trim it to the columns involved if it's long.
+      render: Lua
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+      description: |
+        A copy of the row as it drew is worth a lot — even as text, even
+        without the colours. If it's a colour or a width, a screenshot says
+        it faster than a sentence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Anything in the log
+      description: |
+        Only if it's easy. An error raised while a row is drawing takes the
+        whole screen down with it and writes nothing unless `YAZI_LOG` was
+        set **before** Yazi started — so it has to be `YAZI_LOG=debug yazi`,
+        not something you turn on once it misbehaves. The log lands in your
+        state directory, `yazi.log` beside Yazi's own files.
+      render: Shell
+    validations:
+      required: false
