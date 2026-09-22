@@ -7,9 +7,9 @@ description: >-
   `README.md` or `test/MANUAL.md`, which are written for people, and not for
   Lua comments. Covers why a check is worth more than a paragraph and has to
   be seen failing before it is believed, who reads which file, the two
-  questions that route a rule into `AGENTS.md` and the budget that holds it
-  and every skill to the same two lengths, where a check's reason goes once
-  the check exists, what a description owes a reader who has not opened the
+  questions that route a rule into `AGENTS.md` and the budgets that hold it
+  and every skill to a length, where a check's reason goes once the check
+  exists, what a description owes a reader who has not opened the
   skill and the specification's limits on it, the three questions that route
   a paragraph to a skill or to a reference beside it, the standard a claim
   about the platform has to meet, and the places one change has to land in
@@ -83,11 +83,18 @@ back out. Until you have, what you have is something that exits 0, which is
 what a working check and a broken one have in common. Reading it back is not
 the same test — it was written to look correct, and it does.
 
-A step in `check.yml` needs that more than the other two do: `run:` is
-`bash -e`, whose exit status says less than it looks like it does. And a test
-pins the code that exists, so code written tomorrow can repeat the mistake and
-keep the suite green — which is why some rules here are greps.
-`references/behind-these-rules.md` has both.
+A step in `check.yml` needs that more than the other two do, because `run:` is
+`bash -e` and a step's exit status says less than it looks like it does:
+
+- A pipeline's status is its last command's, so a `find` or a `grep` that fails
+  before a `sort` still leaves the step exiting 0 over an empty result.
+- `grep -c` exits 1 when it matches nothing, which aborts the step *mid-way*:
+  the checks written after it never run, and nothing in the log says it stopped
+  early rather than finished. Write `|| true`.
+
+And a test pins the code that exists, so code written tomorrow can repeat the
+mistake and keep the suite green — which is why some rules here are greps.
+`references/behind-these-rules.md` has the case that made that one a rule.
 
 ## Where a rule belongs
 
@@ -120,12 +127,14 @@ A yes to both keeps it here, and the budget is what says how long it may run.
 
 `.github/scripts/skills.py` holds that budget: 30 lines for a section, 200 for
 the file, counting what is outside a fenced block and outside the frontmatter.
-Every `SKILL.md` is held to the same two numbers, and a `###` under a long
-section counts as a section, so the handhold a reader wants is the one the
-budget accepts too. Neither number measures anything — each is set just above
-where the files sit, so the next paragraph is paid for by moving one out.
+A `###` under a long section counts as a section, so the handhold a reader
+wants is the one the budget accepts too. Every `SKILL.md` takes the same 30,
+and 250 rather than 200 for the file — the index is held just above where it
+sits because every session reads it, and a skill is not, so a cap that tight
+here pushes instructions into `references/` rather than evidence. The script
+says which number is which and why.
 
-## What a skill carries, and what sits beside it
+## What a skill carries
 
 Three questions, in this order, for every paragraph of an instruction
 document here — a skill, a reference, or `AGENTS.md`. The order is

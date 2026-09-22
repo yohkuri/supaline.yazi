@@ -11,7 +11,6 @@ asks you to make.
 - The sweep that works, and the check that does not
 - How the index reached 381 lines
 - A `---` in a description truncates the listing
-- Two ways a `bash -e` step exits 0 over nothing
 - What a test cannot pin, and why some rules are greps
 
 ## A rule that came out the other way — the one paragraph decided as prose
@@ -66,18 +65,6 @@ first of them, so the description's first job survived truncated and its other
 two were gone altogether. Measured by loading the skill both ways and reading
 the listing back. Say "a class or a field annotation" instead — a reader
 deciding whether to open the file does not need the spelling.
-
-## Two ways a `bash -e` step exits 0 over nothing
-
-`run:` in `check.yml` is `bash -e`, and a step's exit status says less than it
-looks like it does. Both of these have cost a step here, and both are why
-`SKILL.md` says to plant a violation rather than read the step back.
-
-- A pipeline's status is its last command's, so a `find` or a `grep` that fails
-  before a `sort` still leaves the step exiting 0 over an empty result.
-- `grep -c` exits 1 when it matches nothing, which aborts the step *mid-way*:
-  the checks written after it never run, and nothing in the log says it stopped
-  early rather than finished. Write `|| true`.
 
 ## What a test cannot pin, and why some rules are greps
 
