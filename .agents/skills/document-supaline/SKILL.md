@@ -7,6 +7,8 @@ description: >-
   `README.md` or `test/MANUAL.md`, which are written for people, and not for
   comments inside Lua. Covers why a check is worth more than a paragraph and
   why one has to be seen failing before it is believed, who reads which file,
+  the two questions that route a rule into `AGENTS.md` and the budget that
+  keeps it an index, where a check's reason goes once the check exists,
   what a description owes a reader who has not opened the skill and the
   specification's limits on it, the three questions that decide whether a
   paragraph belongs in a skill or in a reference file beside it, the standard
@@ -91,6 +93,16 @@ A check that only says no is half-written. Print the spelling to use and the
 reason, because the right one is not guessable from the wrong one; otherwise
 the reader goes straight back to a paragraph and you have written both.
 
+**And when you succeed, the reason goes beside the check.** This section is
+about failing to make one; the habit that actually grew `AGENTS.md` was
+succeeding at it and writing the paragraph anyway. Six `ci:` commits added
+99 lines to that file explaining jobs whose own `run:` comments already said
+the same thing in different words — two wordings, both maintained, neither
+able to see the other. So: the reason lives in the comment beside the step,
+the spec or the stub. The index gets a line only when the reader has to know
+the rule *before* the check would tell them. If the check prints the fix when
+it fires, what the index owes is the rule's existence, not its mechanism.
+
 **Then watch it fail.** A check is finished when you have seen it refuse
 something: plant the violation it is for, run it, read what it prints, and
 take the plant back out. Until you have, what you have written is something
@@ -121,7 +133,7 @@ greps.
 
 | File | Who reads it | What belongs |
 | ---- | ------------ | ------------ |
-| `AGENTS.md` | every agent, every session | what applies to every session |
+| `AGENTS.md` | every agent, every session | the rule, on a budget |
 | `.agents/skills/*/SKILL.md` | an agent whose task the description matches | the detail for one kind of change |
 | `.agents/skills/*/references/*.md` | opened from a skill, on purpose | what you want in hand when something fires |
 | `.claude/rules/*.md` | Claude Code alone, scoped to a path | a pointer at a tracked document |
@@ -135,13 +147,34 @@ you are editing:
   the file rather than waiting to be asked for — and a pointer is not a place
   to keep the only copy of a rule.
 - `AGENTS.md` is the index. A paragraph that matters only for one kind of
-  change belongs in a skill with a line in the index pointing at it; one that
-  applies to every session belongs in `AGENTS.md` however long it runs. What it
+  change belongs in a skill with a line in the index pointing at it. What it
   must never be is in both, in two wordings that can drift.
+
+That row read "what applies to every session" for as long as the file was
+growing, and on its own that criterion refuses nothing: CI, git, the commands
+and the conventions all plausibly apply to every session, so everything
+qualified and the file reached 381 lines. It is the same fault the section
+below names in a description that never says when *not* to read the skill. Ask
+both halves:
+
+1. Would a session that never touches this subject be wrong without it?
+2. Does the reader have to know it **before** a check would tell them?
+
+A no to either sends it to a skill, however every-session the subject sounds.
+A yes to both keeps it here however long it runs — and the budget is what
+says how long that is allowed to be, since "however long it runs" was the
+other half of how this happened.
+
+`.github/scripts/skills.py` holds that budget: 30 lines for a section, 200 for
+the file, counting what is not inside a fenced block. It prints which section
+is over and what to do with it. The number is not a measurement of anything --
+it is set just above where the file sits, so that the next paragraph has to be
+paid for by moving something out.
 
 ## What a skill carries, and what sits beside it
 
-Three questions, in this order, for every paragraph of a skill. The order is
+Three questions, in this order, for every paragraph of an instruction
+document here — a skill, a reference, or `AGENTS.md`. The order is
 the whole of it: question one asks which skill a paragraph belongs to, and
 asking it second is how a long mechanism ends up filling half of whichever
 skill happened to run into it.
@@ -162,6 +195,8 @@ claim belongs in the skill; the probe behind it usually does not.
 
 None of this is visible while you are writing, so here is the tripwire: when a
 section runs longer than the thing it tells you to do, it is carrying evidence.
+In `AGENTS.md` that tripwire is a check, and the budget above is where it is
+set; in a skill it is still yours to notice.
 
 A reference is opened from `SKILL.md`, and nothing opens from a reference. One
 that points on to another gets previewed rather than read — `head` on the
@@ -247,12 +282,14 @@ Adding, removing or moving a platform trap touches, at minimum:
 - the check itself, and the sentence naming which check prints what
 
 The counts are spelled as words, so a grep is the only way to sweep them:
-`grep -rn 'nine\|six of\|other six\|other three' --include='*.md'` reaches
-every Markdown file that carries one today. Widen it before you trust it: a
-narrower form of this same grep missed a file that had been carrying a stale
-count since the day it went stale, and missed it for as long as the count was
-wrong. The check itself is not Markdown and no grep here reaches it. Nothing
-counts these for you.
+`grep -rn 'eleven\|seven\|the four\|other four' --include='*.md'` reaches
+every Markdown file that carries one today. Sweep with the counts that are
+written now rather than with the ones an example here was written for --
+this sentence carried `nine` and `six of` long enough to reach none of them,
+which is the mistake it is warning about, made in the warning. Expect noise:
+`test/MANUAL.md` counts cells, keys and terminal grounds in the same words.
+The check itself is not Markdown and no grep here reaches it. Nothing counts
+these for you.
 
 A new skill needs one more thing, invisible from inside it:
 `.claude/skills/<name>`, a tracked symlink to `../../.agents/skills/<name>`.
