@@ -1030,7 +1030,8 @@ selects that prepared state without changing a shared column's context.
 ## Contributing
 
 Bug reports and pull requests are welcome. `CONTRIBUTING.md` has what to
-install, what to run before pushing, and how a change reaches `main`.
+install, what to run before pushing, how a change reaches `main`, and where
+AI stands in all of it.
 
 ## License
 
