@@ -227,8 +227,12 @@ rather than with the ones this example was written for. Expect noise:
 `test/MANUAL.md` counts cells, keys and terminal grounds in the same words. The
 check itself is not Markdown and no grep here reaches it.
 
-A new skill needs one more thing, invisible from inside it:
-`.claude/skills/<name>`, a tracked symlink to `../../.agents/skills/<name>`.
-Claude Code reads `.claude/skills`; the skill itself lives under `.agents/`,
-where every agent can reach it. `Every skill is reachable from .claude/skills`
-refuses a missing one and prints the `ln -s` to run.
+A new skill needs one more thing, invisible from inside it: under
+`.claude/skills`, a tracked symlink for **every file in it** -- `SKILL.md` and
+each `references/` file alike -- at the same path, pointing back into
+`.agents/skills`. Claude Code reads `.claude/skills`; the skill itself lives
+under `.agents/`, where every agent can reach it. One link per file and not one
+per skill, because `ya pkg add` refuses a symlink to a directory and then
+installs nothing at all, so adding a reference file is two steps rather than
+one. `Every skill is reachable from .claude/skills` refuses a missing link and
+prints the `ln -s` to run.
