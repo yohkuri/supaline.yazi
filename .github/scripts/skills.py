@@ -2,7 +2,8 @@
 # requires-python = ">=3.11"
 # dependencies = ["skills-ref==0.1.1"]
 # ///
-"""Every skill under `.agents/skills`, against the Agent Skills specification.
+"""Every skill under `.agents/skills` against the Agent Skills
+specification, and `AGENTS.md` against the budget that keeps it an index.
 
 The specification's own half is `skills-ref`, the reference library the
 specification points at for exactly this
@@ -44,6 +45,10 @@ What the library does **not** reach, and this file does:
 - a file of 500 lines or more, and a reference over 100 whose `## Contents`
   does not name every section it has. Neither is a frontmatter rule, so
   neither is in the library at all.
+- `AGENTS.md`, which is not a skill and is checked here anyway. It is the
+  index the skills hang off, and it was the one instruction document under no
+  budget at all while every `SKILL.md` had one -- which is the asymmetry that
+  let it reach 381 lines. `check_index` is that budget.
 """
 
 import re
@@ -54,6 +59,7 @@ from skills_ref import SkillError, read_properties, validate
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".agents" / "skills"
+INDEX = ROOT / "AGENTS.md"
 
 # "Keep your main `SKILL.md` under 500 lines", from the specification -- the
 # file, so a long frontmatter counts, and *under*, so 500 is already over.
@@ -61,6 +67,15 @@ FILE_LIMIT = 500
 # This repository's: past it a reference is read in parts, and a part has to
 # show what the whole covers.
 CONTENTS_LIMIT = 100
+
+# `AGENTS.md`'s, and a budget rather than a measurement. A section past this
+# is carrying detail that belongs in a skill or evidence that belongs in a
+# `references/` file, and the way to spend the budget is to move something out
+# rather than to raise the number. The file stood at 173 prose lines over nine
+# sections, the longest 27, at the commit that set these -- so the headroom is
+# a rule or two that genuinely applies to every session, and not a mechanism.
+INDEX_SECTION_LIMIT = 30
+INDEX_LIMIT = 200
 
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 RESERVED = ("anthropic", "claude")
@@ -368,6 +383,58 @@ def check_reference(f):
         )
 
 
+def prose_sections(lines):
+    """`[(heading, lines outside a fence)]`, the opening section first.
+
+    The opening one is everything before the first `## `, and its heading is
+    None. Fenced lines are not counted: the command list and the two snippets
+    in `AGENTS.md` are the index doing its job, and a fence is not where a
+    paragraph gets hidden. Prose is what swelled.
+    """
+    out, fence, heading, count = [], False, None, 0
+    for line in lines:
+        if line.startswith("```"):
+            fence = not fence
+        elif fence:
+            continue
+        elif line.startswith("## "):
+            out.append((heading, count))
+            heading, count = line[3:], 0
+        else:
+            count += 1
+    out.append((heading, count))
+    return out
+
+
+def check_index():
+    text = read(INDEX)
+    if text is None:
+        return
+    sections = prose_sections(text.splitlines())
+
+    for heading, count in sections:
+        if count <= INDEX_SECTION_LIMIT:
+            continue
+        where = f"`## {heading}`" if heading else "the opening"
+        report(
+            rel(INDEX),
+            f"{where} is {count} lines, over the"
+            f" {INDEX_SECTION_LIMIT}-line budget.",
+            "The index says what applies to every session and points at the",
+            "skill that carries the rest. Move the detail into that skill, or",
+            "the evidence into a references/ file beside it.",
+        )
+
+    total = sum(count for _, count in sections)
+    if total > INDEX_LIMIT:
+        report(
+            rel(INDEX),
+            f"is {total} lines, over the {INDEX_LIMIT}-line budget.",
+            "Sections that each stay inside their own budget still add up,",
+            "which is how this file grew before. Move one of them out.",
+        )
+
+
 def main():
     # `*/` in the shell this replaced skipped a dotted directory, and
     # `Path.glob` does not. A personal scratch directory under here is not
@@ -387,6 +454,7 @@ def main():
         check_skill(directory)
         for reference in sorted((directory / "references").glob("*.md")):
             check_reference(reference)
+    check_index()
     return 1 if problems else 0
 
 
