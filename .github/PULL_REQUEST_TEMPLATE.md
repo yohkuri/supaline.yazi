@@ -1,28 +1,26 @@
 <!--
-CI checks everything about this change that can be checked, so there is no
-checklist here repeating it. What is below is the part no check on this
-repository can see. CONTRIBUTING.md has the rest, including what to run
-before pushing.
+Thanks for the pull request! Two short questions below — CI covers
+everything else, so there's no checklist to work through.
+CONTRIBUTING.md has the details, including what to run before pushing.
 -->
 
-## What this changes
+## What does this change?
 
-<!-- And why. A line is enough, and a linked issue instead of one is fine. -->
+<!-- A sentence is plenty, and linking an issue instead is fine. -->
 
-## What CI cannot see
+## Did you watch it run?
 
-CI never starts a Yazi. `test/e2e.py` and `test/manual.py` are the only things
-that do, and a broken fetcher shows up neither on the screen nor in any check
-here -- so a green pull request says nothing about either.
+CI never opens a real Yazi. `test/e2e.py` and `test/manual.py` are the only
+things that do, so a green pull request says nothing about whether the
+plugin actually draws anything.
 
 - Yazi version:
 - `test/e2e.py`:
 
-If this adds or edits a claim about how Yazi behaves, say what you ran to
-establish it, and say where the measurement stops rather than rounding it off:
-a variant you never managed to produce is written down as never observed.
+If you're adding or changing a claim about how Yazi behaves, it helps a lot
+to say what you ran to find out — and where you stopped looking.
 
 <!--
-Delete the section above if nothing here can reach a running Yazi -- a
-document, a workflow, or a test that never loads the plugin.
+Delete this second section if your change can't reach a running Yazi — docs,
+workflows, or a test that never loads the plugin.
 -->
