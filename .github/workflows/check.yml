@@ -17,6 +17,14 @@ concurrency:
 permissions:
   contents: read
 
+# The two versions `CONTRIBUTING.md` names as well, kept here rather than in
+# the steps that use them so that `Documents and skills` can hold that page to
+# them. Every other pin in this file sits on the command that uses it, and that
+# page quotes those commands whole.
+env:
+  STYLUA_VERSION: 2.5.2
+  LUALS_VERSION: 3.19.1
+
 jobs:
   test:
     # Two suites in two languages, for the two things under `test/`. 5.5,
@@ -58,7 +66,7 @@ jobs:
       - uses: JohnnyMorganz/stylua-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          version: 2.5.2
+          version: ${{ env.STYLUA_VERSION }}
           args: --check .
 
   types:
@@ -165,8 +173,9 @@ jobs:
         # There is no npm package, so a release tarball. The archive puts the
         # launcher at `bin/`, which is why nothing here globs for it.
         run: |
+          v=$LUALS_VERSION
           curl -fsSL -o /tmp/luals.tar.gz \
-            https://github.com/LuaLS/lua-language-server/releases/download/3.19.1/lua-language-server-3.19.1-linux-x64.tar.gz
+            "https://github.com/LuaLS/lua-language-server/releases/download/$v/lua-language-server-$v-linux-x64.tar.gz"
           mkdir -p /tmp/luals
           tar -xzf /tmp/luals.tar.gz -C /tmp/luals
       # `--check` prints every diagnostic and exits 1 on the first warning.
@@ -258,6 +267,23 @@ jobs:
           rc=0
           uvx ruff@0.16.7 check test .github/scripts || rc=1
           uvx ruff@0.16.7 format --check test .github/scripts || rc=1
+          exit $rc
+      - name: CONTRIBUTING.md names the versions CI runs
+        # A contributor installs stylua and lua-language-server by hand, from
+        # the table on that page, and CI is what judges the result. The page
+        # once said every version was pinned in a `mise.toml` that pinned
+        # neither of these, so a stylua other than this one could pass a file
+        # locally and see it refused here.
+        run: |
+          rc=0
+          for pin in "stylua $STYLUA_VERSION" \
+            "lua-language-server $LUALS_VERSION"; do
+            grep -qF -- "$pin" CONTRIBUTING.md || {
+              echo "CONTRIBUTING.md: does not say \`$pin\`, which is what CI"
+              echo "  runs. Change the version in its table to match."
+              rc=1
+            }
+          done
           exit $rc
       - name: Every skill is reachable from .claude/skills
         # Claude Code reads `.claude/skills`; the skills live under
