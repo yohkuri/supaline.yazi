@@ -18,9 +18,18 @@ esac
 # refusing that is none of this repository's business. Publication is what made
 # the distinction real: before it there were no forks to get this wrong for.
 # An unreadable remote falls through to the refusal rather than past it.
+#
+# GitHub answers the same repository under more than one spelling -- any case,
+# a trailing slash, `.git` or not, all measured over HTTPS -- and documents SSH
+# on port 443 at `ssh.github.com` besides, so the URL is folded to one before it
+# is compared. The character in front of `github.com` is what keeps out a host
+# that merely ends in it.
 origin_url=$(git remote get-url origin 2>/dev/null) || origin_url=
+origin_url=$(printf '%s' "$origin_url" | tr '[:upper:]' '[:lower:]')
+origin_url=${origin_url%/}
 case "${origin_url%.git}" in
-"" | *github.com[:/]yohkuri/supaline.yazi) ;;
+"" | *[/@.]github.com[:/]yohkuri/supaline.yazi) ;;
+*[/@.]github.com:443/yohkuri/supaline.yazi) ;;
 *) exit 0 ;;
 esac
 
