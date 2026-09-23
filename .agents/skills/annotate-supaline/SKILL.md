@@ -47,7 +47,7 @@ measured to change that at no site here. What a user writes wrong is still
 
 A value reassigned from its own method inside a loop is a second limit, and
 this one is the tool's rather than an annotation's: measured with
-lua-language-server 3.19.1, the version CI pins, a local written as
+lua-language-server 3.19.1, a local written as
 `line = line:truncate {...}` inside a `while` keeps its class for that call and
 loses it for the rest of the loop body — `line:widthh()` on the next line is
 not refused, where the same typo after the loop ends, or outside one, is. `cut`
