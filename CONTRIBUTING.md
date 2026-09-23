@@ -12,16 +12,21 @@ detail. You can skip it.)
 are untested — no CI job ever starts a real Yazi. So if you report
 something you saw on screen, please mention which version you ran.
 
-Everything else is pinned in `mise.toml`, but you don't need mise:
+Nothing else needs a version manager. Where a version matters, it's
+pinned where it's used — on the commands below, or in CI — and this table
+names it:
 
 | For | What |
 | --- | ---- |
-| unit tests | Lua 5.5, the one Yazi embeds |
-| `skills.py` | uv 0.11.19 |
-| the test harnesses | Python 3.14 |
-| formatting and types | stylua, lua-language-server |
+| unit tests | Lua 5.5, the one Yazi embeds — any 5.5 |
+| the test harnesses | Python 3.11 or newer |
+| `skills.py` | uv, any recent one |
+| formatting and types | stylua 2.5.2, lua-language-server 3.19.1 |
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
+
+Match the stylua version exactly. Another release can format the same
+file differently, and CI would refuse what yours passed.
 
 ## Get the code
 

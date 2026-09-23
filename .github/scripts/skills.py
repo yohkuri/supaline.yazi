@@ -22,6 +22,13 @@ which is what actually refuses a duplicate key and folds a `>-` description
 before it is measured. Written by `uv lock --script`, read by `uv run` with no
 flag. Re-run that after changing the header.
 
+The lock opens with the `version` and `revision` of the format the uv that
+wrote it uses, and nothing here pins uv -- CI takes the latest, a contributor
+whatever they have. So a lock written by a newer uv than someone else's is a
+lock their uv may never have been asked to read. Whether it refuses one or
+reads it anyway is not measured; if it refuses, updating uv is the answer,
+not an older lock.
+
 What the library does **not** reach, and this file does:
 
 - a literal `---` in the frontmatter. Its parser is `content.split("---", 2)`,

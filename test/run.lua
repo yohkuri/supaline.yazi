@@ -20,8 +20,7 @@ if _VERSION ~= "Lua 5.5" then
 	io.stderr:write(
 		string.format(
 			"test/run.lua: needs Lua 5.5, the version Yazi runs; got %s\n"
-				.. "  Any 5.5 does. `mise.toml` pins 5.5.1 for whoever uses mise, and CI\n"
-				.. "  installs its own -- nothing here requires a version manager.\n",
+				.. "  Any 5.5 does, and nothing here requires a version manager.\n",
 			_VERSION
 		)
 	)
