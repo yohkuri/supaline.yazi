@@ -24,9 +24,18 @@ esac
 # refusing that is none of this repository's business. Publication is what made
 # the distinction real: before it there were no forks to get this wrong for.
 # An unreadable remote falls through to the refusal rather than past it.
+#
+# GitHub answers the same repository under more than one spelling -- any case,
+# a trailing slash, `.git` or not, all measured over HTTPS -- and documents SSH
+# on port 443 at `ssh.github.com` besides, so the URL is folded to one before it
+# is compared. The character in front of `github.com` is what keeps out a host
+# that merely ends in it.
 remote_url=${2:-unknown}
+remote_url=$(printf '%s' "$remote_url" | tr '[:upper:]' '[:lower:]')
+remote_url=${remote_url%/}
 case "${remote_url%.git}" in
-unknown | *github.com[:/]yohkuri/supaline.yazi) ;;
+unknown | *[/@.]github.com[:/]yohkuri/supaline.yazi) ;;
+*[/@.]github.com:443/yohkuri/supaline.yazi) ;;
 *) exit 0 ;;
 esac
 
