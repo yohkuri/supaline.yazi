@@ -84,18 +84,24 @@ Two things worth knowing:
 
 [Conventional Commits], plus three rules CI checks:
 
-- First line: **72 characters or fewer.** This one is a hard limit.
+- First line: **72 characters or fewer, all plain ASCII.** Both are hard
+  limits. ASCII rules out emoji, and also curly quotes and accented
+  letters — `don't`, not `don’t`.
 - Don't capitalise the first word of the subject. Names that carry their
   own capitals, like `GitHub` or `API`, are fine.
-- No emoji in the first line, and no `:sparkles:`-style codes anywhere.
+- No `:sparkles:`-style codes anywhere in the message.
 
 Aim for 50 characters in the subject if it fits; going over is only a
-warning. You can read yours back before pushing:
+warning. commitlint checks the length and the capital, and you can run it
+before pushing:
 
 ```sh
 npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
   commitlint --from upstream/main --to HEAD
 ```
+
+The ASCII and `:sparkles:` rules aren't commitlint's, so your pull
+request is the first place those two get checked.
 
 Everything here is written in English, commit messages included.
 
