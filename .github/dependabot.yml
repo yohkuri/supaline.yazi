@@ -1,0 +1,33 @@
+# Version updates for the actions the workflows name under `uses:`. Security
+# updates are switched on in the repository's settings and need nothing here.
+#
+# `prefix: ci` is not optional. Left to itself Dependabot titles a commit
+# "Bump actions/checkout from 7 to 8", which `Commit messages` refuses for
+# having no type. With the prefix it writes "ci: bump ...", in lower case --
+# read off dependabot-core's `pr_name_prefixer.rb`, where a lower-case prefix
+# and a history of lower-case conventional subjects each decide it that way.
+# A real Dependabot message with that header, run through `.commitlintrc.yml`
+# and the ASCII and Gitmoji steps, passes all three: the body's lines over 100
+# characters each carry a URL, and commitlint's line limit skips those.
+#
+# No `groups`, on purpose. A group holding one update titles it "... in the
+# actions group", and `astral-sh/setup-uv` from 10.1.0 to 10.10.0 comes to 71
+# characters that way, one under the hard limit, where the same update alone
+# is 50. Four actions checked monthly do not make enough pull requests to be
+# worth folding together.
+#
+# What this cannot reach is a version written as data rather than as a
+# `uses:` -- stylua's `version:`, the LuaLS release URL, and the `npx` and
+# `uvx` pins. Those still move by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # A week between a release and the pull request for it, so that a tag
+    # pulled or rewritten soon after it went out is not the one proposed.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
