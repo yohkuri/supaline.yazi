@@ -17,10 +17,11 @@ concurrency:
 permissions:
   contents: read
 
-# The two versions `CONTRIBUTING.md` names as well, kept here rather than in
-# the steps that use them so that `Documents and skills` can hold that page to
+# The two versions an action or a download installs rather than a command
+# names, kept here rather than in the steps that use them so that `The
+# documents name the versions CI runs` can hold `CONTRIBUTING.md`'s table to
 # them. Every other pin in this file sits on the command that uses it, and that
-# page quotes those commands whole.
+# step holds each quoted copy of the command to it.
 env:
   STYLUA_VERSION: 2.5.2
   LUALS_VERSION: 3.19.1
@@ -173,9 +174,8 @@ jobs:
         # There is no npm package, so a release tarball. The archive puts the
         # launcher at `bin/`, which is why nothing here globs for it.
         run: |
-          v=$LUALS_VERSION
           curl -fsSL -o /tmp/luals.tar.gz \
-            "https://github.com/LuaLS/lua-language-server/releases/download/$v/lua-language-server-$v-linux-x64.tar.gz"
+            "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/lua-language-server-$LUALS_VERSION-linux-x64.tar.gz"
           mkdir -p /tmp/luals
           tar -xzf /tmp/luals.tar.gz -C /tmp/luals
       # `--check` prints every diagnostic and exits 1 on the first warning.
@@ -268,17 +268,42 @@ jobs:
           uvx ruff@0.16.7 check test .github/scripts || rc=1
           uvx ruff@0.16.7 format --check test .github/scripts || rc=1
           exit $rc
-      - name: CONTRIBUTING.md names the versions CI runs
-        # A contributor installs stylua and lua-language-server by hand, from
-        # the table on that page, and CI is what judges the result. The page
-        # once said every version was pinned in a `mise.toml` that pinned
-        # neither of these, so a stylua other than this one could pass a file
-        # locally and see it refused here.
+      - name: The documents name the versions CI runs
+        # A contributor runs what the documents quote, and CI is what judges
+        # the result, so a version the two disagree on is a file that passes
+        # locally and is refused here. The page once said every version was
+        # pinned in a `mise.toml` that pinned neither stylua nor
+        # lua-language-server, and that is the failure this step is for.
+        #
+        # Two halves, because the pins live in two shapes. A `name@version`
+        # on a command here is found wherever a tracked file quotes it, and
+        # every copy has to carry the same version -- the pins are read out of
+        # this file rather than listed, so a new one is covered the day it is
+        # added. The two in `env` are a version with no command around it, and
+        # only `CONTRIBUTING.md`'s table has to repeat them; a document that
+        # records what was *measured* on one release is right to go on naming
+        # it after CI moves, which is why the second half reads one file.
+        #
+        # Matched to the end of the number: `stylua 2.5.20` is not
+        # `stylua 2.5.2`, and a plain substring match would take it for one.
         run: |
           rc=0
+          pins=$(grep -oE '@?[a-z][a-z0-9-]*(/[a-z0-9-]+)?@[0-9][0-9.]*' \
+            .github/workflows/check.yml | sort -u)
+          for pin in $pins; do
+            while IFS= read -r hit; do
+              found=${hit##*:}
+              found=${found%.}
+              [ "$found" = "$pin" ] && continue
+              echo "${hit%:*}: quotes \`$found\`, where CI runs \`$pin\`."
+              rc=1
+            done < <(git grep -noE -e "${pin%@*}@[0-9][0-9.]*" \
+              -- ':!.github/workflows/check.yml' || true)
+          done
           for pin in "stylua $STYLUA_VERSION" \
             "lua-language-server $LUALS_VERSION"; do
-            grep -qF -- "$pin" CONTRIBUTING.md || {
+            re="${pin//./\\.}([^.0-9]|\\.([^0-9]|\$)|\$)"
+            grep -qE -- "$re" CONTRIBUTING.md || {
               echo "CONTRIBUTING.md: does not say \`$pin\`, which is what CI"
               echo "  runs. Change the version in its table to match."
               rc=1
