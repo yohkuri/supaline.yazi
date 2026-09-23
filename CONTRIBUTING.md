@@ -31,11 +31,12 @@ the original:
 ```sh
 git clone https://github.com/<your-username>/supaline.yazi.git
 cd supaline.yazi
-git remote add upstream https://github.com/yohkuri/supaline.yazi.git
+git remote add -f upstream https://github.com/yohkuri/supaline.yazi.git
 ```
 
 You'll push to `origin` (your fork) and pull from `upstream` to stay in
-step with `main`.
+step with `main`. The `-f` fetches `upstream` straight away, so
+`upstream/main` exists before anything below asks for it.
 
 ## Install the git hooks
 
@@ -93,7 +94,7 @@ warning. You can read yours back before pushing:
 
 ```sh
 npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
-  commitlint --from origin/main --to HEAD
+  commitlint --from upstream/main --to HEAD
 ```
 
 Everything here is written in English, commit messages included.
