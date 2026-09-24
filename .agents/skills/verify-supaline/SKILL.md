@@ -93,7 +93,7 @@ Plant it below the line that binds the value. Above it the checker reports
 not of the misspelling, which a harness grepping for the field name scores as a
 module that refuses nothing.
 
-Deliberately wrong values are a spec's stock in trade, and they now cost
+Deliberately wrong values are a spec's stock in trade, and they cost
 something: a class on the configuration means `registry.compile(42, ...)` and
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with

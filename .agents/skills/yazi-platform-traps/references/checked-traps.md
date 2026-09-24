@@ -189,9 +189,12 @@ search hit along with the remote ones. The partition worth asking for is
 `spec.is_virtual`.
 
 **Checked.** The `Forbidden spellings` CI job refuses `is_regular` anywhere in
-plugin Lua and prints this. The six variants, what a machine-local value costs
-over a remote file, and Yazi's own predicates are at the end of this file;
-`test/auth_spec.lua` pins the partition in the stub.
+plugin Lua and prints this. It is a spelling check rather than a spec because
+a spec pins the columns that exist: without the job, a fresh column written
+with `not is_regular` passes the whole suite, measured. The six variants,
+what a machine-local value costs over a remote file, and Yazi's own predicates
+are at the end of this file; `test/auth_spec.lua` pins the partition in the
+stub.
 
 ## `in_preview`, in Yazi's own source
 

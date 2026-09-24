@@ -120,9 +120,8 @@ remember that folder-wide statistics for such a row must come from the parent
 folder, not `cx.active.current`.
 
 Pinned by `test/main_spec.lua` "a pane key opts into the pane it names", which
-covers the code that exists and not a column written tomorrow. Measured rather
-than assumed: a fresh column written with `not is_regular` passed the whole
-suite, back when nothing refused that spelling.
+covers the code that exists and not a column written tomorrow, so the decision
+is still yours for every child you add.
 
 ## The rendering budget
 
@@ -135,7 +134,7 @@ allocate as little as possible.
   folder and cached.
 - `render` may return `text, style` instead of a renderable, which skips
   building an intermediate line. The built-in columns use this.
-- `ui.Style` is immutable as of 26.5.6, so `style:fg(c)` returns a new style.
+- `ui.Style` is immutable, so `style:fg(c)` returns a new style.
 - **`ui.Line` consumes what it is given**, spans and whole Lines alike, so
   nothing renderable can be built once and drawn twice: the second `ui.Line`
   over the same table — or over the same Line — raises `expected a string,
