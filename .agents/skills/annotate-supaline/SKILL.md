@@ -105,15 +105,15 @@ the limit on a table constructor above holds here too, and naming a class for
 the options was measured not to change it — so the call being checked means
 the method exists and takes an options table, and no more.
 
-The sixth is worth knowing about for how it hid rather than for what it
-declares. `cx.active:history(url)` checked out for months without a class,
-because a spec swapping the method for its own assigned the field under a
-file-wide `inject-field` disable and injected it workspace-wide; the plugin's
-call was being blessed by a line in a test. Rewriting that spec's swap through
-a shared helper indexed the field instead of assigning it, and the plugin went
-red — which is the good outcome, and worth expecting whenever a check goes red
-at a change that could not have touched it. `tab__Tab` is `(exact)`, so
-nothing the harness builds can declare a field on one.
+The sixth is worth knowing about for how it can hide rather than for what it
+declares. A spec that assigns a method under a file-wide `inject-field`
+disable injects that field workspace-wide, so the plugin's own call to it is
+blessed by a line in a test and checks out with no class behind it. Swap a
+method through `with` in `test/run.lua`, which indexes the field rather than
+assigning it. And when a check goes red at a change that could not have
+touched it, expect a declaration a spec was hiding rather than a false alarm.
+`tab__Tab` is `(exact)`, so nothing the harness builds can declare a field on
+one.
 
 Those differences are declared by inheriting from Yazi's class, never by
 re-opening it, which means a folder taken off `cx` is cast where it arrives.

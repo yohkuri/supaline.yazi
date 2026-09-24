@@ -60,10 +60,10 @@ has neither. The third is the net under that, which is why it exists at all.
 What none of the three can do is **refuse the push at the server**. A ruleset
 on `main` does, and it is the one to reach for first. The one here requires a
 pull request, allows `rebase` alone, and reads `current_user_can_bypass` as
-`never` for the owner, so nothing local is what stands between a mistake and
-`main` any more. It requires no approving review: a sole maintainer approving
-their own pull request is a form rather than a check, and a rule that asks for
-one would have to be bypassed on every change.
+`never` for the owner, so what stands between a mistake and `main` is the
+server rather than anything local. It requires no approving review: a sole
+maintainer approving their own pull request is a form rather than a check, and
+a rule that asks for one would have to be bypassed on every change.
 
 That leaves the two hooks the half a server rule has no way to give -- a
 refusal before the round trip, and the commands to undo what is already
