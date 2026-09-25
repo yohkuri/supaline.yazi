@@ -508,6 +508,34 @@ your `init.lua` is never replayed on the async side, so a third-party column
 cannot own asynchronous state. A column that needs it has to be built into
 supaline itself.
 
+### Alongside git.yazi
+
+[git.yazi](https://github.com/yazi-rs/plugins/tree/main/git.yazi) draws its
+status sign as a `Linemode` child of its own, at `order = 1500` by default.
+Yazi lays a row's children out in `order` and aligns the whole line right, so
+the sign lands to the right of supaline's columns. A changed file has a sign
+and a clean one has none, so every row with a sign has supaline's columns
+pushed left by the sign's width — three cells, with git.yazi's default signs.
+
+Either of two options git.yazi documents lines them up again:
+
+- `require("git"):setup { order = 500 }` puts the sign before the slot
+  supaline draws in, which is Yazi's own linemode at `order = 1000`. The
+  columns stay flush right, and the sign sits between the name and the first
+  of them.
+- Keeping the sign at the right edge takes a sign on every row. Give the two
+  that are empty by default one as wide as the rest — two spaces, beside the
+  default signs:
+
+  ```toml
+  # ~/.config/yazi/theme.toml
+  [git]
+  clean_sign   = "  "
+  unknown_sign = "  "
+  ```
+
+  The sign's cells are then taken on every row, in a repository or not.
+
 ## Colours
 
 A column draws in one colour, or on a gradient across the values in the folder,
