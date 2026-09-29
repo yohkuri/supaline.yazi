@@ -812,6 +812,15 @@ test("bands: the flat pair written where a table of bands goes is refused by nam
 	throws(function() paint.bands({ from = 0.35 }, X) end, "are a band's own keys")
 end)
 
+test("bands: two bands wrong at once are named in the same order every run", function()
+	-- Read in the order of their names, as a record's keys are, so fixing the
+	-- one named does not reveal a different one first on the next run.
+	local both = { fg = { from = 0 }, bg = "dark" }
+	for _ = 1, 8 do
+		throws(function() paint.bands(both, X) end, "x.bg: must be a table")
+	end
+end)
+
 test("bands: a name is lowercase letters, digits and `_`", function()
 	-- The class a column's name holds, taken because this plugin has one shape
 	-- a name is written in -- not because anything parses a band name.

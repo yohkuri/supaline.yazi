@@ -146,8 +146,11 @@ function M.bands(value, at)
 			RECOMMENDED_AS_WRITTEN
 		)
 	end
+	-- In the order of their names, so two bands wrong at once are named in the
+	-- same order on every run.
 	local out = {}
-	for name, one in pairs(value) do
+	for _, name in ipairs(schema.sorted_keys(value)) do
+		local one = value[name]
 		if type(name) ~= "string" or not name:find(NAME) then
 			at:refuse("`%s` is not a band name. A name holds lowercase letters, digits and `_`", tostring(name))
 		elseif RESERVED[name] then
@@ -269,9 +272,11 @@ function M.stops(value, at, bands, fallback)
 		return colour.band(endpoint(body, at), band)
 	end
 
+	-- Each end is named by its place along the ramp, since one colour may be
+	-- written at more than one of them.
 	local stops = {}
 	for i, one in ipairs(split(value)) do
-		stops[i] = endpoint(one, at)
+		stops[i] = endpoint(one, schema.path(string.format("%s, stop %d", tostring(at), i)))
 	end
 	if #stops < 2 then
 		at:refuse(

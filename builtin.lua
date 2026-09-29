@@ -31,9 +31,32 @@
 --- already been, and the same listing would colour differently on a second
 --- visit. The rest have no number to take extremes of at all.
 
-local runtime = require(".runtime")
 ---@class supaline.BuiltinModule
 local M = {}
+
+--- A `stats` over the extremes of the listing: what a gradient is stretched
+--- between and what `ctx.ratio` normalises against. A value at or below zero
+--- stays out of it -- a directory Yazi has not sized, a file with no
+--- timestamp. Rounding is `get`'s, since `render` has to round the same way.
+---@param get fun(file: supaline.File): number?
+---@return fun(files: supaline.File[]): table?
+function M.extremes(get)
+	return function(files)
+		local min, max
+		for i = 1, #files do
+			local v = get(files[i])
+			if v and v > 0 then
+				if not min or v < min then
+					min = v
+				end
+				if not max or v > max then
+					max = v
+				end
+			end
+		end
+		return min and { min = min, max = max } or nil
+	end
+end
 
 ---@return table<string, supaline.ColumnDef>
 function M.definitions()
@@ -41,9 +64,9 @@ function M.definitions()
 	local function register(name, def) definitions[name] = def end
 
 	-- Extremes of the current listing, the way `eza --color-scale-mode=gradient`
-	-- takes them. In `runtime.lua` rather than here, beside `ctx.ratio` that reads
-	-- them, and public, because a user-written ranged column wants the same.
-	local extremes = runtime.extremes
+	-- takes them. Public through `main.lua`, because a user-written ranged
+	-- column wants the same.
+	local extremes = M.extremes
 
 	--- The entry count of an already-visited directory. Yazi keeps folders it has
 	--- listed in the tab's history; one it has never opened has no count to show.

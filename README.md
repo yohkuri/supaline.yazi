@@ -1019,7 +1019,7 @@ selects that prepared state without changing a shared column's context.
 
 Everything `setup` is handed is read once, into the plan, and a mistake in it
 is refused with the path it was written at — `setup.linemodes.detail[2].align`,
-`column("mark").style`, `theme.toml [supaline].size`. A style written as a
+`column("mark").style`, `theme [supaline].size`. A style written as a
 value is read then too; only a style function and the theme's field are read
 again on each theme event.
 
@@ -1031,12 +1031,12 @@ again on each theme event.
 | `style.lua` | Read one writer's style into a layer, merge the layers, build `ui.Style`s; read a separator. |
 | `paint.lua` | What a colour key holds: a colour Yazi takes, a gradient, a band, and the bands by name. |
 | `appearance.lua` | Resolve a plan's styles against one theme. |
-| `runtime.lua` | Folder statistics, `extremes`, effective widths, contexts, caching and callback containment. |
+| `runtime.lua` | Folder statistics, effective widths, contexts, caching and callback containment. |
 | `layout.lua` | Measure, truncate, pad and style cells. |
 | `colour.lua` | Yazi-independent RGB, Oklab, bands and 64-step interpolation. |
 | `schema.lua` | Paths, refusals and the parsers every table a user writes is read with. |
 | `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing. |
-| `builtin.lua` | Create built-in definitions for the ordinary registry. |
+| `builtin.lua` | Create built-in definitions for the ordinary registry, and `extremes`, which they share with user columns. |
 | `types.lua` | Type annotations where Yazi 26.9.1 and `types.yazi` disagree; never loaded. |
 
 ## Caveats

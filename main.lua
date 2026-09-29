@@ -190,7 +190,7 @@ end
 --- has to floor it the same way. No colon form: this takes one argument.
 ---@param get fun(file: supaline.File): number?
 ---@return fun(files: supaline.File[]): table?
-function M.extremes(get) return runtime.extremes(get) end
+function M.extremes(get) return builtin.extremes(get) end
 
 --- Compile and resolve before anything is replaced, so a refusal leaves the
 --- running session as it was.
@@ -198,7 +198,9 @@ function M.extremes(get) return runtime.extremes(get) end
 ---@param opts supaline.Opts?
 ---@overload fun(opts: supaline.Opts)
 function M.setup(_st, opts)
-	if opts == nil and type(_st) == "table" and _st.linemodes ~= nil then
+	-- The dot call: what arrived first is the options, or something that
+	-- was meant to be and is refused as them.
+	if opts == nil and (type(_st) ~= "table" or _st.linemodes ~= nil) then
 		opts = _st --[[@as supaline.Opts]]
 	end
 	local plan = config.compile(opts or {}, registry, is_yazis)

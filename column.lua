@@ -79,7 +79,12 @@ local M = {}
 
 ---@class supaline.Registry
 ---@field register fun(name: string, def: supaline.ColumnDef)
----@field compile fun(spec: supaline.ColumnSpec, at: supaline.Path, cfg: supaline.Cfg): supaline.ColumnPlan
+---@field compile fun(spec: supaline.ColumnSpec, at: supaline.Path, cfg: supaline.Cfg, parsed: supaline.Parsed?): supaline.ColumnPlan
+
+--- The definitions one `setup` has read so far, by registration, each with
+--- the parser a use of it is read with. One `setup`'s, and no longer: a
+--- definition edited in place is read afresh by the next.
+---@alias supaline.Parsed table<table, { def: supaline.Definition, use: fun(t: table, at: supaline.Path): table }>
 
 --- A definition, parsed.
 ---@class supaline.Definition
@@ -148,6 +153,9 @@ local MEANT = {
 -- characters of lowercase letters, digits and `_` -- looser than its own
 -- "snake-case" message, since `_x`, `x_` and `2x` all parse -- and answers
 -- anything else by discarding the whole of `theme.toml`. `probes.md` has it.
+-- Written out rather than asked: the rule is applied while Yazi parses the
+-- file, before any plugin code runs, so there is nothing to ask the way
+-- `paint.colour` asks Yazi's colour parser.
 local NAME = "^[a-z0-9_]+$"
 local NAME_MAX = 20
 
@@ -235,12 +243,20 @@ end
 local DRAWS_RENDER = "the `render` that says what it draws"
 local DRAWS_NAME = "the name at `[1]` that says which column it is"
 
---- Read a definition.
----@param t table
+-- What a linemode's entry may be, for one that is none of them.
+local SHAPES = "must be a name, a function, or a table with `render`"
+
+--- Read a definition. `render` is the one key a definition cannot leave out,
+--- and asked for before the rest so that a table naming nothing is told what
+--- it lacks rather than which of its keys is stray.
+---@param t any
 ---@param at supaline.Path
 ---@param name string? the name `register` gave it
 ---@return supaline.Definition
 local function definition(t, at, name)
+	if type(t) ~= "table" or t.render == nil then
+		at:refuse(name and "needs a `render` function, which is what says what the column draws" or SHAPES)
+	end
 	local options = options_of(t.options, at:key("options"))
 	local extra = { options = schema.any }
 	if not name then
@@ -250,7 +266,12 @@ local function definition(t, at, name)
 	return { at = at, name = name or fields.name, fields = fields, options = options }
 end
 
-local THEME = schema.path("theme.toml [supaline]")
+--- Where a column's theme layer is written: its `[supaline]` field, spelled
+--- the way TOML spells it -- a column name is always a bare key there. Not
+--- `theme.toml`, since a flavor may supply the section instead.
+---@param name string
+---@return supaline.Path
+local function theme_at(name) return schema.path("theme [supaline]." .. name) end
 
 --- One use of a definition, as a plan. Each key comes from the use when it
 --- wrote one and from the definition otherwise -- `false` included, which is
@@ -309,7 +330,7 @@ local function merge(def, use, at, cfg)
 	local styles = col.styles
 	styles[#styles + 1] = style.source(fields.style, def.at:key("style"), cfg.band)
 	if col.name then
-		styles[#styles + 1] = { at = THEME:key(col.name), theme = col.name }
+		styles[#styles + 1] = { at = theme_at(col.name), theme = col.name }
 	end
 	if use then
 		styles[#styles + 1] = style.source(use.style, at:key("style"), cfg.band)
@@ -330,13 +351,7 @@ function M.new_registry()
 	local function register(name, def)
 		local at =
 			schema.path(string.format("column(%s)", type(name) == "string" and string.format("%q", name) or tostring(name)))
-		if type(name) ~= "string" or name == "" then
-			at:refuse("a column needs a name, the non-empty string it is registered under")
-		end
 		column_name(name, at)
-		if type(def) ~= "table" or type(def.render) ~= "function" then
-			at:refuse("needs a `render` function, which is what says what the column draws")
-		end
 		definition(def, at, name)
 		definitions[name] = { t = def, at = at }
 	end
@@ -346,14 +361,15 @@ function M.new_registry()
 	---@param spec any
 	---@param at supaline.Path
 	---@param cfg supaline.Cfg
+	---@param parsed supaline.Parsed? what this `setup` has already read, to read each definition once
 	---@return supaline.ColumnPlan
-	local function compile(spec, at, cfg)
+	local function compile(spec, at, cfg, parsed)
 		if type(spec) == "string" then
 			spec = { spec }
 		elseif type(spec) == "function" then
 			spec = { render = spec }
 		elseif type(spec) ~= "table" then
-			at:refuse("must be a name, a function, or a table with `render`, got a %s", type(spec))
+			at:refuse("%s, got a %s", SHAPES, type(spec))
 		end
 
 		local def, use
@@ -362,17 +378,24 @@ function M.new_registry()
 			if not registered then
 				at:refuse("unknown column `%s`", spec[1])
 			end
-			def = definition(registered.t, registered.at, spec[1])
-			use = column_record({ [1] = schema.any }, def.options, DRAWS_NAME)(spec, at)
+			local read = parsed and parsed[registered]
+			if not read then
+				local one = definition(registered.t, registered.at, spec[1])
+				read = { def = one, use = column_record({ [1] = schema.any }, one.options, DRAWS_NAME) }
+				if parsed then
+					parsed[registered] = read
+				end
+			end
+			def, use = read.def, read.use(spec, at)
 		elseif type(spec[1]) == "function" then
 			at:key(1):refuse(
 				"a column's `render` goes under `render`, not at `[1]`: write `{ render = fn, width = 6 }`. "
 					.. "`[1]` is where a spec names the column it uses, and a function is not a name"
 			)
-		elseif type(spec.render) == "function" then
-			def = definition(spec, at, nil)
+		elseif spec[1] ~= nil and spec.render == nil then
+			at:refuse(SHAPES)
 		else
-			at:refuse("must be a name, a function, or a table with `render`")
+			def = definition(spec, at, nil)
 		end
 		return merge(def, use, at, cfg)
 	end

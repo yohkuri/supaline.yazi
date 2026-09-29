@@ -32,7 +32,7 @@ read too — `file.cha.is_dirr` and `ctx.stlye` are both refused, in a built-in
 column and in a spec alike. The records the plugin passes around carry classes
 as well: configuration plans, appearances, folders and prepared columns. So
 does the configuration `setup` is given — the plugin-wide options, a linemode
-spec, and the four shapes a column may be written in — so `cfg.orderr`,
+spec, and the four shapes a column may be written in — so `opts.orderr`,
 `opts.linemodess` and `spec.separatorr` are refused.
 
 ### Where that reach stops
@@ -68,10 +68,10 @@ and how to re-take it — worth opening when a checkout moves, when the pinned
 annotations revision moves, or when the CI step `None of them shadow this
 plugin's own modules` fires.
 
-A module table carries no class of its own for free. `require(".runtime")`
+A module table carries no class of its own for free. `require(".builtin")`
 resolves to this tree and that module's signatures are read normally, yet a
-misspelled `runtime.extremez` costs nothing unless the table `runtime.lua`
-returns carries a class of its own. It carries `supaline.RuntimeModule` — the
+misspelled `builtin.extremez` costs nothing unless the table `builtin.lua`
+returns carries a class of its own. It carries `supaline.BuiltinModule` — the
 shape `supaline.Stub` uses too. Declared on the table rather than written out,
 its fields are whatever the file assigns, so nothing has to pin them.
 `supaline.Main` is by hand only because there is no table here for the checker
