@@ -346,7 +346,7 @@ A refusal is a TOML parse error naming the line and the column, ending
 `must be 1-20 characters in snake-case`, and Yazi then discards the **whole
 file** and continues on its preset — `Press any key to continue with preset
 settings...`. The same blast radius as an array in a custom section, which
-`style.lua` records beside `ARROW` for the same reason.
+`paint.lua` records at its head for the same reason.
 
 The message says snake-case and the parser does not mean it: `_x`, `x_` and
 `2x` are all taken, so what is enforced is the length and the character class,

@@ -51,8 +51,8 @@ indistinguishable from Lua: both arrive as `th.<section>.<key>`.
 ### Where the repair goes
 
 That is also why `style` takes a function. A spec that reads `th` at load time
-freezes what it read and holds it through every reload -- the stored spec is
-re-read on each `theme` event, never evaluated again -- so a user borrowing a
+freezes what it read and holds it through every reload -- a value is read
+once, at `setup`, and never again -- so a user borrowing a
 colour from their own theme has no correct way to write it as a value. A
 function is called inside `build`, which is the same repair the plugin makes
 for itself.
@@ -169,7 +169,7 @@ blank screen with no part of this plugin involved.
 supaline calls four functions a column may write. Three of them — `stats`, a
 `width` that is one, and `render` — are called inside that redraw, and all
 three are made under `pcall` in `runtime.lua`, which goes on drawing.
-`diagnostics.lua` reports once per column and carries the reasoning;
+`report.lua` reports once per column and carries the reasoning;
 `main_spec.lua`'s `throwing:` specs pin it. **A new call into a column's code
 belongs under the same containment**, and that is the part no check will tell
 you: the suite stays green either way, because a spec only ever reaches code
@@ -204,7 +204,7 @@ The containment has one more consequence, and it is easy to walk into:
 `pcall` cannot tell who threw, so a refusal raised in there comes back out
 worded as the reader's code failing — `runtime.width` refusing a
 `width` function's return of `0` would be reported as that function throwing,
-which it did not. It returns `nil, why` instead, and `diagnostics.lua` words
+which it did not. It returns `nil, why` instead, and `report.lua` words
 the two differently. Narrowing the `pcall` to the reader's function alone would sort
 them out too, and is the wrong half to take: it puts supaline's own raise back
 on the path that blanks the screen.

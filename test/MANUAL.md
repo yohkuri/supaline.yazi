@@ -160,7 +160,7 @@ The same name, four ways, against a column of twelve.
   both are two cells, so a cut measuring bytes can be right about one name and
   wrong about the other.
 - What no name here carries is a grapheme cluster. `❤️` is two characters and
-  two cells, which is the trap `AGENTS.md` lists and the reason `column.lua`
+  two cells, which is the trap `AGENTS.md` lists and the reason `layout.lua`
   cuts on cluster boundaries at all — but that is pinned in `column_spec.lua`
   and `truncate_spec.lua`, and nothing on this screen draws one.
 
@@ -633,12 +633,12 @@ It is the shorter half. What the fault cost the rest of the line, and the
 traceback naming the function that threw and the line it threw on, go to the
 log instead — `manual.py` prints its path before it opens Yazi, and `--clean`
 takes it away with the fixture. Reading the two against each other is the only
-way to judge the split, which is the whole of what `report` in `main.lua` is
+way to judge the split, which is the whole of what `tell` in `main.lua` is
 for. Outside this harness there is no log at all unless `YAZI_LOG` was set
 before Yazi started, which is why the notification says the traceback *goes*
 to the log rather than that it is in one.
 
-**Each of these is worth one look per session.** `told` in `main.lua` marks a
+**Each of these is worth one look per session.** `told` in `report.lua` marks a
 column against the kind of thing it was told off for — a `stats` with no
 extremes, a `width` supaline will not take, or a throw from any of the four
 stages — and drops every later report of that kind from that column, which is

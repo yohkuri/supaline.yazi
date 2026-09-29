@@ -68,21 +68,20 @@ problems`, which is a progress checkpoint and is printed more than once.
 
 ## Where the collision is stated
 
-Six places state it, each scoped to the two arrangements above and none of
+Five places state it, each scoped to the two arrangements above and none of
 them repeating the mechanism:
 
 - the comment above `supaline.Main` in `main.lua`
-- the comment above `supaline.ColumnModule` in `column.lua`
 - the comment above `MAIN_EXPORTS` in `test/module_spec.lua`
 - the step `None of them shadow this plugin's own modules`, in
   `.github/workflows/check.yml`
 - `annotate-supaline/SKILL.md`, where the specs come inside the type check
 - `verify-supaline/SKILL.md`, under what a spec's calls are checked against
 
-All six name this file, so `git grep -l main-collision.md` lists them along
+All five name this file, so `git grep -l main-collision.md` lists them along
 with this one, and a re-measurement lands here with everything that moves with
 it already enumerated. Count from that command rather than from this paragraph,
-which has no way of noticing a seventh place. That step is the one that does
+which has no way of noticing a sixth place. That step is the one that does
 not depend on the answer at all: it reports a name the library ships twice
 without working out which copy would win, which is why it keeps holding
 wherever a runner puts the checkout.

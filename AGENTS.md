@@ -42,7 +42,7 @@ Three things about it get described wrongly by default. `README.md` and
   black and white give the identical grey band. "Spread a colour both ways"
   names an endpoint that does not exist.
 - **No band name has a default and none is built in**, so a `<->` with no band
-  behind it is refused rather than drawn. `style.lua` recommends a pair and
+  behind it is refused rather than drawn. `paint.lua` recommends a pair and
   every refusal quotes it; calling that a default is the mistake.
 
 Whether supaline ships status columns of its own — version control, dotfile

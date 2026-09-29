@@ -26,7 +26,7 @@ it runs.
 
 What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
 declared classes, so a misspelled field or a wrong arity on one is refused,
-and `column.lua` declares `supaline.File` and `runtime.lua` declares
+and `types.lua` declares `supaline.File` and `runtime.lua` declares
 `supaline.Ctx` for the two values a `render` is handed, so the columns are
 read too — `file.cha.is_dirr` and `ctx.stlye` are both refused, in a built-in
 column and in a spec alike. The records the plugin passes around carry classes
@@ -68,10 +68,10 @@ and how to re-take it — worth opening when a checkout moves, when the pinned
 annotations revision moves, or when the CI step `None of them shadow this
 plugin's own modules` fires.
 
-A module table carries no class of its own for free. `require(".column")`
+A module table carries no class of its own for free. `require(".runtime")`
 resolves to this tree and that module's signatures are read normally, yet a
-misspelled `column.extremez` costs nothing unless the table `column.lua`
-returns carries a class of its own. It carries `supaline.ColumnModule` — the
+misspelled `runtime.extremez` costs nothing unless the table `runtime.lua`
+returns carries a class of its own. It carries `supaline.RuntimeModule` — the
 shape `supaline.Stub` uses too. Declared on the table rather than written out,
 its fields are whatever the file assigns, so nothing has to pin them.
 `supaline.Main` is by hand only because there is no table here for the checker
@@ -84,9 +84,9 @@ neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
 string where 26.9.1 has a method, declares `ui.truncate` but nothing for
 `Line:truncate`, which 26.9.1 has, describes no `Tab:history`, which
 `builtin.lua` asks a directory for its entry count, and no `Style:raw`, which
-`style.lua` reads every `ui.Style` it is handed through — so `column.lua`,
-`layout.lua` and `style.lua` declare the difference, with the evidence written
-beside the classes: a probe for the four read off `cx`,
+`style.lua` reads every `ui.Style` it is handed through — so `types.lua`
+declares the difference, in one place, with the evidence written beside the
+classes: a probe for the four read off `cx`,
 `test/truncate_spec.lua` for the one method, which pins what it does, and
 `colour_spec.lua` against `yazi-platform-traps/references/probes.md` for the
 other. A newer Yazi is a reason to run those again and correct them there,
