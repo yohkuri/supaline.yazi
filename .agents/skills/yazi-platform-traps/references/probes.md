@@ -291,7 +291,8 @@ not a borrowed field.
 
 ## What the two theme pins discriminate
 
-Comment out `ps.sub("theme", build)` and each goes red on its own.
+Comment out the `ps.sub("theme", ...)` in `main.lua` and each goes red on its
+own.
 
 `test/main_spec.lua` sets the section, runs `setup`, changes the section, and
 fires `theme`. Changing it *after* setup is what makes the test say anything: a
