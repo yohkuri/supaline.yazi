@@ -48,34 +48,36 @@ local PANES = { "current", "parent", "preview" }
 ---@field seps supaline.Sep[] every separator whose style a function returns, drawn or not, once
 ---@field outer boolean
 
-local SETUP = schema.record(
-	{
-		band = paint.bands,
-		linemodes = schema.any,
-		order = schema.whole,
-		scale = schema.enum { "linear", "log" },
-		separator = style.separator,
-	},
-	"setup",
-	"`setup` takes `band`, `linemodes`, `order`, `scale` and `separator`",
-	{
-		linemode = "`linemodes` is the spelling, and it is a table of them keyed by the name each one is switched to",
-		columns = 'columns go inside a linemode -- `linemodes = { detail = { "size", "mtime" } }` -- rather '
-			.. "than beside the table of them",
-	}
-)
+local SETUP_FIELDS = {
+	band = paint.bands,
+	linemodes = schema.any,
+	order = schema.whole,
+	scale = schema.enum { "linear", "log" },
+	separator = style.separator,
+}
+
+local SETUP_MEANT = {
+	linemode = "`linemodes` is the spelling, and it is a table of them keyed by the name each one is switched to",
+	columns = 'columns go inside a linemode -- `linemodes = { detail = { "size", "mtime" } }` -- rather '
+		.. "than beside the table of them",
+}
+
+local SETUP_HELP = "`setup` takes " .. schema.key_list(schema.sorted_keys(SETUP_FIELDS))
+local SETUP = schema.record(SETUP_FIELDS, "setup", SETUP_HELP, SETUP_MEANT)
 
 -- What every refusal about the shape of a linemode says it could have been.
 local LINEMODE = 'A linemode is a list of columns, drawn in the current pane -- `{ "size", "mtime" }` -- '
 	.. 'or a list of columns under each pane it draws in -- `{ current = { "size" }, parent = { "count" } }`'
 
-local IS_PANE = {}
-for _, pane in ipairs(PANES) do
-	IS_PANE[pane] = true
+-- What a linemode takes besides its columns: a pane's name, or its one option.
+local OWN = { table.unpack(PANES) }
+OWN[#OWN + 1] = "separator"
+local IS_OWN = {}
+for _, key in ipairs(OWN) do
+	IS_OWN[key] = true
 end
 
--- A linemode's columns, a pane's name, or its one option.
-local function linemode_key(key) return type(key) == "number" or IS_PANE[key] or key == "separator" end
+local function linemode_key(key) return type(key) == "number" or IS_OWN[key] end
 
 --- What each pane of a linemode draws, with a pane that draws nothing absent.
 --- A bare list is the current pane's, which is all Yazi itself draws in.
@@ -109,15 +111,9 @@ local function lists_of(spec, at)
 		end
 	end
 
-	schema.sweep(
-		spec,
-		at,
-		linemode_key,
-		"linemode",
-		"Besides its columns a linemode takes `current`, `parent`, `preview` and `separator`"
-	)
+	schema.sweep(spec, at, linemode_key, "linemode", "Besides its columns a linemode takes " .. schema.key_list(OWN))
 
-	local _, dense = schema.shape(spec)
+	local _, dense, numbered = schema.shape(spec)
 	if next(lists) == nil then
 		-- An empty list draws nothing in the current pane, which is a thing
 		-- to ask for; a gap in one that has entries is not.
@@ -126,13 +122,11 @@ local function lists_of(spec, at)
 		end
 		return { current = spec }
 	end
-	for key in pairs(spec) do
-		if type(key) == "number" then
-			at:refuse(
-				"names a pane, so its columns go under that pane's own name, and the ones beside the pane "
-					.. "keys would be drawn nowhere; move them under a pane"
-			)
-		end
+	if numbered > 0 then
+		at:refuse(
+			"names a pane, so its columns go under that pane's own name, and the ones beside the pane "
+				.. "keys would be drawn nowhere; move them under a pane"
+		)
 	end
 	return lists
 end
@@ -156,11 +150,7 @@ function M.compile(opts, registry, is_yazis)
 	end
 	---@cast linemodes table
 
-	local names = {}
-	for name in pairs(linemodes) do
-		names[#names + 1] = name
-	end
-	table.sort(names, function(a, b) return tostring(a) < tostring(b) end)
+	local names = schema.sorted_keys(linemodes)
 	for _, name in ipairs(names) do
 		-- Yazi's limit is 1 to 20 characters, not bytes; a name that is not
 		-- valid UTF-8 is Yazi's to refuse.

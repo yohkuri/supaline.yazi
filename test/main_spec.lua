@@ -1364,6 +1364,7 @@ test("width: a function returning no usable number is reported as itself", funct
 	eq(reports() - was, 1, "said once")
 	local said = last_said()
 	mentions(said, "returned `0`", "and it says what came back")
+	mentions(said, "must return a whole number of cells", "and what it should have")
 	omits(said, "threw", "and does not call a return a throw")
 
 	-- Same fallback as a throw, because the pass is left with the same

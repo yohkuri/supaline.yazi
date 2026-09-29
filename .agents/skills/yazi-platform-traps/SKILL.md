@@ -204,10 +204,10 @@ The containment has one more consequence, and it is easy to walk into:
 `pcall` cannot tell who threw, so a refusal raised in there comes back out
 worded as the reader's code failing — `runtime.width` refusing a
 `width` function's return of `0` would be reported as that function throwing,
-which it did not. It returns `nil, why` instead, and `report.lua` words
-the two differently. Narrowing the `pcall` to the reader's function alone would sort
-them out too, and is the wrong half to take: it puts supaline's own raise back
-on the path that blanks the screen.
+which it did not. It returns `nil` and what came back instead, and
+`report.lua` words the two differently. Narrowing the `pcall` to the reader's
+function alone would sort them out too, and is the wrong half to take: it puts
+supaline's own raise back on the path that blanks the screen.
 
 ## Caught by a check, not by reading
 

@@ -35,7 +35,12 @@ function M.cell(case, file) return layout.cell(case.plan, case.ctx, file) end
 
 ---@param case supaline.ColumnCase
 ---@param entry { stats: any, width: integer? }
-function M.for_folder(case, entry) case.ctx = runtime.context(case.plan, case.paint, entry.stats, entry.width) end
+function M.for_folder(case, entry)
+	case.ctx = runtime.context(case.plan, case.paint, entry.stats)
+	if entry.width then
+		case.ctx.width = entry.width
+	end
+end
 
 ---@param case supaline.ColumnCase
 ---@param files supaline.File[]

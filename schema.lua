@@ -143,6 +143,19 @@ end
 ---@return boolean
 local function by_name(a, b) return tostring(a) < tostring(b) end
 
+--- The keys of `t`, sorted by how they print, so that a message listing them,
+--- or reading them in turn, says the same thing on every run.
+---@param t table
+---@return any[]
+function M.sorted_keys(t)
+	local keys = {}
+	for key in pairs(t) do
+		keys[#keys + 1] = key
+	end
+	table.sort(keys, by_name)
+	return keys
+end
+
 --- A parser for a table of named fields: the keys it may hold, each read by
 --- its own parser into a fresh table. A key nobody wrote is not read, so what
 --- comes back holds exactly the keys that were written.
@@ -155,11 +168,7 @@ local function by_name(a, b) return tostring(a) < tostring(b) end
 ---@param meant table<string, string>?
 ---@return fun(t: table, at: supaline.Path): table
 function M.record(fields, noun, help, meant)
-	local order = {}
-	for key in pairs(fields) do
-		order[#order + 1] = key
-	end
-	table.sort(order, by_name)
+	local order = M.sorted_keys(fields)
 	local function known(key) return fields[key] ~= nil end
 	return function(t, at)
 		M.sweep(t, at, known, noun, help, meant)
@@ -208,15 +217,19 @@ function M.fn(value, at)
 	return value
 end
 
---- A width as a count of cells, or nil for anything that is not one.
----
---- `type` is asked before `math.tointeger`, which on 5.5 turns the string "3"
---- into 3. The floor is here rather than at each caller because every source
---- of a width empties the column the same way with a 0.
+--- A whole number, or nil. `type` is asked before `math.tointeger`, which on
+--- 5.5 turns the string "3" into 3.
+---@param value any
+---@return integer?
+local function integer(value) return type(value) == "number" and math.tointeger(value) or nil end
+
+--- A width as a count of cells, or nil for anything that is not one. The
+--- floor is here rather than at each caller because every source of a width
+--- empties the column the same way with a 0.
 ---@param value any
 ---@return integer?
 function M.cells_of(value)
-	local n = type(value) == "number" and math.tointeger(value) or nil
+	local n = integer(value)
 	return n and n >= 1 and n or nil
 end
 
@@ -238,19 +251,21 @@ end
 --- A whole number.
 ---@type supaline.Parser
 function M.whole(value, at)
-	local n = type(value) == "number" and math.tointeger(value) or nil
+	local n = integer(value)
 	if not n then
 		at:refuse("must be a whole number, got %s", M.as_written(value))
 	end
 	return n
 end
 
---- The keys of `t` that are not numbers, sorted, and whether its numbered
---- keys run from 1 without a gap. `#t` alone cannot say: a table with a gap
---- has whichever border Lua finds, and `ipairs` stops at the first one.
+--- The keys of `t` that are not numbers, sorted, whether its numbered keys
+--- run from 1 without a gap, and how many there are. `#t` alone cannot say: a
+--- table with a gap has whichever border Lua finds, and `ipairs` stops at the
+--- first one.
 ---@param t table
 ---@return string[] others
 ---@return boolean dense
+---@return integer numbered
 function M.shape(t)
 	local others, n = {}, 0
 	for key in pairs(t) do
@@ -261,7 +276,7 @@ function M.shape(t)
 		end
 	end
 	table.sort(others)
-	return others, n == #t
+	return others, n == #t, n
 end
 
 return M

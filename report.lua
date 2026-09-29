@@ -15,10 +15,18 @@ local M = {}
 ---@return string
 function M.one_line(err) return (tostring(err):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", "")) end
 
+--- Which of the four functions a column may write threw.
+---@alias supaline.Stage "render"|"width"|"stats"|"refresh"
+
 ---@class supaline.Reporter
----@field threw fun(col: supaline.ColumnPlan, stage: string, err: any)
+---@field threw fun(col: supaline.ColumnPlan, stage: supaline.Stage, err: any)
 ---@field stats fun(col: supaline.ColumnPlan)
----@field width fun(col: supaline.ColumnPlan, why: string)
+---@field width fun(col: supaline.ColumnPlan, refused: string)
+
+--- What a report calls a column: an inline one may have no name.
+---@param col supaline.ColumnPlan
+---@return string
+local function name_of(col) return col.name or "?" end
 
 -- What stands in for a cell that could not be drawn, one per cell the column
 -- was given. A blank would read as a column nobody configured.
@@ -48,7 +56,6 @@ local COST = {
 		.. "nothing from it",
 	refresh = "Every other column still refreshes, and this one goes on drawing with whatever it had "
 		.. "cached before -- which the first time round is nothing at all",
-	default = "Everything else on the line goes on drawing",
 }
 
 M.BROKEN = BROKEN
@@ -93,7 +100,7 @@ function M.new(sink)
 					.. "numbers to place a row between -- so every row draws the ramp's low end and the column "
 					.. "is one colour. `stats` is handed the folder's files and must return a table carrying "
 					.. "both, and both have to be numbers",
-				col.name or "?"
+				name_of(col)
 			)
 		)
 	end
@@ -106,7 +113,7 @@ function M.new(sink)
 	--- and the log the traceback, since a whole traceback in a notification
 	--- pushes the line that names the column off the top of the pane.
 	---@param col supaline.ColumnPlan
-	---@param stage string which of the four threw, as the reader wrote it
+	---@param stage supaline.Stage which of the four threw
 	---@param err any what it threw
 	local function broke(col, stage, err)
 		if told(col, "threw") then
@@ -116,14 +123,14 @@ function M.new(sink)
 		sink(
 			string.format(
 				"supaline: column `%s` threw from its `%s`. %s. It threw: %s",
-				col.name or "?",
+				name_of(col),
 				stage,
-				COST[stage] or COST.default,
+				COST[stage],
 				said
 			),
 			string.format(
 				"column `%s` threw from its `%s`: %s (the traceback goes to the log)",
-				col.name or "?",
+				name_of(col),
 				stage,
 				M.one_line(said)
 			)
@@ -134,12 +141,20 @@ function M.new(sink)
 	--- supaline's own refusal, returned rather than raised by `runtime.width`
 	--- so that it is not worded as the function throwing, which it did not.
 	---@param col supaline.ColumnPlan
-	---@param why string
-	local function bad_width(col, why)
+	---@param refused string what it returned, as written
+	local function bad_width(col, refused)
 		if told(col, "width") then
 			return
 		end
-		sink(string.format("%s. Until it does, %s", why, UNPADDED))
+		sink(
+			string.format(
+				"supaline: the `width` function of column `%s` returned %s; it must return a whole number of "
+					.. "cells, 1 or more. Until it does, %s",
+				name_of(col),
+				refused,
+				UNPADDED
+			)
+		)
 	end
 
 	return { threw = broke, stats = no_extremes, width = bad_width }

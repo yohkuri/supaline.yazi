@@ -67,9 +67,8 @@ end
 ---@param col supaline.ColumnPlan
 ---@param paint supaline.ColumnAppearance
 ---@param stats any
----@param width integer?
 ---@return supaline.Ctx
-function M.context(col, paint, stats, width)
+function M.context(col, paint, stats)
 	local lo, hi
 	local log = col.scale == "log"
 	if M.has_extremes(stats) then
@@ -83,7 +82,7 @@ function M.context(col, paint, stats, width)
 		fg_written = paint.fg_written,
 		opts = col.options,
 		stats = stats,
-		width = width or col.width.value,
+		width = col.width.value,
 	}
 	function ctx.ratio(value)
 		if not value or not lo then
@@ -125,26 +124,21 @@ end
 local function cap(width, max) return max and width > max and max or width end
 
 --- A column's width in one folder. What a `width` function returns that is
---- no count of cells is supaline's refusal, and comes back beside a nil
---- rather than raised: the caller's `pcall` could not tell it from the
---- function throwing.
+--- no count of cells is supaline's refusal, and comes back, as written,
+--- beside a nil rather than raised: the caller's `pcall` could not tell it
+--- from the function throwing.
 ---@param col supaline.ColumnPlan
 ---@param ctx supaline.Ctx
 ---@param files supaline.File[]
 ---@return integer?
----@return string? why
+---@return string? refused what a `width` function returned instead, as written
 function M.width(col, ctx, files)
 	local width = col.width
 	if width.kind == "computed" then
 		local w = width.compute(ctx.stats)
 		local cells = schema.cells_of(w)
 		if not cells then
-			return nil,
-				string.format(
-					"supaline: the `width` function of column `%s` returned %s; it must return a whole number of cells, 1 or more",
-					col.name or "?",
-					schema.as_written(w)
-				)
+			return nil, schema.as_written(w)
 		end
 		return cap(cells, col.max_width)
 	elseif width.kind ~= "auto" then
@@ -194,11 +188,11 @@ function M.new(plan, appearance, reporter)
 			-- for `auto` sees `width` nil and nothing else does.
 			local ctx = M.context(col, paint, stats)
 			if files and col.needs_pass then
-				local ok, got, why = pcall(M.width, col, ctx, files)
+				local ok, got, refused = pcall(M.width, col, ctx, files)
 				if not ok then
 					reporter.threw(col, col.width.kind == "computed" and "width" or "render", got)
-				elseif why then
-					reporter.width(col, why)
+				elseif refused then
+					reporter.width(col, refused)
 				else
 					ctx.width = got
 				end
@@ -209,8 +203,8 @@ function M.new(plan, appearance, reporter)
 	end
 
 	--- A missing folder is a pane of its own too: two linemodes drawing the
-	--- filesystem root's absent parent must not share a context. Its key has
-	--- one separator where a folder's has three.
+	--- filesystem root's absent parent must not share a context. Its `cwd`
+	--- keys as `nil`, which no folder's path spells.
 	---@param mode supaline.ModePlan
 	---@param pane string
 	---@param folder supaline.Folder?
@@ -221,7 +215,7 @@ function M.new(plan, appearance, reporter)
 		if last_mode == mode and last_pane == pane and last_cwd == cwd and last_n == n then
 			return last_prepared
 		end
-		local key = cwd and table.concat({ mode.name, pane, tostring(cwd), n }, "\0") or (mode.name .. "\0" .. pane)
+		local key = mode.name .. "\0" .. pane .. "\0" .. tostring(cwd) .. "\0" .. n
 		local prepared = cache[key]
 		if not prepared then
 			prepared = prepare(mode.panes[pane], files)
@@ -251,10 +245,7 @@ function M.new(plan, appearance, reporter)
 			local cell, ctx = one.cell, one.ctx
 			local sep = cell.sep
 			if sep then
-				local style = sep.style
-				if sep.call then
-					style = appearance.seps[sep] or nil
-				end
+				local style = sep.call and appearance.seps[sep] or sep.style
 				out[#out + 1] = style and ui.Span(sep.text):style(style) or sep.text
 			end
 			-- Layout inside the protected call too: a malformed renderable or a
