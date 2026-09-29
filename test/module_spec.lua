@@ -11,9 +11,22 @@
 
 --- Every plugin file, including additions not staged yet, asked for rather than
 --- listed. A module added later is the one this test exists for, and a
---- hand-written list would not
---- have it. Git excludes personal ignored files, as the CI checks do; a
---- glob of the root would miss one added in a subdirectory.
+--- hand-written list would not have it. Git excludes personal ignored files,
+--- as the CI checks do; a glob of the root would miss one added in a
+--- subdirectory, which is the other thing this refuses.
+---
+--- A plugin is one flat directory of files named in `[0-9a-z-]` alone, and
+--- there is no require form that reaches past it. Read off the v26.9.1 source
+--- rather than run: `require(".x")` names `<plugin>.x`, and the loader splits
+--- that at its first dot and refuses an entry holding any other character --
+--- `.src.column` and `.src/column` alike -- before it reads
+--- `plugins/<plugin>.yazi/<entry>.lua` (`explode_name_parts`, in
+--- `yazi-runner/src/loader/loader.rs`). `ya pkg` deploys only the `*.lua`
+--- directly in the plugin's directory whose names pass the same test
+--- (`plugin_files`, in `yazi-cli/src/package/dependency.rs`), so a module under
+--- `src/`, or a `foo_bar.lua`, never reaches an installed copy either. The
+--- stub's `require` knows neither rule and loads both, so nothing else here
+--- would say so.
 local function plugin_files()
 	local pipe =
 		assert(io.popen("git -C '" .. ROOT .. "' ls-files --cached --others --exclude-standard '*.lua' ':!:test/*'"))
@@ -22,8 +35,14 @@ local function plugin_files()
 
 	local names = {}
 	for path in out:gmatch("[^\n]+") do
-		local name = path:match("^([^/]+)%.lua$")
-		assert(name, "plugin file in a subdirectory: " .. path .. " -- teach this spec Yazi's require form for it")
+		local name = path:match("^([0-9a-z-]+)%.lua$")
+		assert(
+			name,
+			path
+				.. " cannot be a module: Yazi loads a plugin's modules from its own directory, by names of "
+				.. "lowercase letters, digits and `-`, and `ya pkg` installs nothing else. Move it to the "
+				.. "root, named that way"
+		)
 		names[#names + 1] = "." .. name
 	end
 	-- An empty result means git said nothing, not that the plugin has no
