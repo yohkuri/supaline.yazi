@@ -1007,13 +1007,13 @@ cell in.
 ## Implementation
 
 Configuration, theme appearance and folder preparation have separate
-lifetimes. `setup` compiles a `Plan`, resolves an `Appearance`, and creates a
-runtime before replacing the active configuration. A theme event reuses the
-plan and replaces only the appearance and runtime; a failed resolution leaves
-the old runtime intact. Notification gates belong to the setup and survive
-theme changes.
+lifetimes. `setup` compiles a `Plan` and opens a session on it, which resolves
+an `Appearance` before the active configuration is replaced. A theme event
+keeps the session's plan and replaces only its appearance and prepared
+folders; a failed resolution leaves the old ones drawing. Notification gates
+belong to the session and survive theme changes.
 
-The runtime caches each folder's prepared columns and their contexts, with at
+A session caches each folder's prepared columns and their contexts, with at
 most eight folder entries and a full clear when a ninth is added. Drawing a row
 selects that prepared state without changing a shared column's context.
 
@@ -1028,14 +1028,15 @@ again on each theme event.
 | `main.lua` | Public API, Yazi events, pane selection and Linemode installation. |
 | `config.lua` | Read `setup` and each linemode's panes into the plan, with the separator before every column. |
 | `column.lua` | Explicit registries; read a definition and a use of it, and merge the two into a column's plan. |
-| `style.lua` | Read one writer's style into a layer, merge the layers, build `ui.Style`s; read a separator. |
+| `style.lua` | Read one writer's style into a layer, gather a column's or a separator's writers into a slot, merge the layers, build `ui.Style`s; read a separator. |
 | `paint.lua` | What a colour key holds: a colour Yazi takes, a gradient, a band, and the bands by name. |
-| `appearance.lua` | Resolve a plan's styles against one theme. |
-| `runtime.lua` | Folder statistics, effective widths, contexts, caching and callback containment. |
+| `appearance.lua` | Resolve every slot of a plan against one theme. |
+| `session.lua` | One `setup`'s lifetime: the appearance and prepared folders a theme event replaces, and drawing a row. |
+| `listing.lua` | Folder statistics, effective widths, contexts and the eight-folder cache. |
 | `layout.lua` | Measure, truncate, pad and style cells. |
 | `colour.lua` | Yazi-independent RGB, Oklab, bands and 64-step interpolation. |
 | `schema.lua` | Paths, refusals and the parsers every table a user writes is read with. |
-| `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing. |
+| `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing, and the one place a column's own code is called, under `pcall`. |
 | `builtin.lua` | Create built-in definitions for the ordinary registry, and `extremes`, which they share with user columns. |
 | `types.lua` | Type annotations where Yazi 26.9.1 and `types.yazi` disagree; never loaded. |
 

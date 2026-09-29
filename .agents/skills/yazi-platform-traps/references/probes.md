@@ -165,7 +165,8 @@ and the rest of the names the way ratatui's `Display` does, and
 CalVer surface, though not one with nothing watching it — Yazi's own
 `entity.lua` reads `raw().reversed` in `Entity:style_rev`, since v25.12.29,
 so a rename would land in Yazi's preset first. Losing it fails loudly: the
-call raises inside `build`, and `ya.notify` puts the message on screen.
+call raises while the appearance is resolved, and `ya.notify` puts the
+message on screen.
 
 ## A theme table cannot hold a gradient
 

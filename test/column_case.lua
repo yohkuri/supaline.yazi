@@ -3,7 +3,7 @@
 --- facade retains the old mutable Column object.
 local appearance = require(".appearance")
 local layout = require(".layout")
-local runtime = require(".runtime")
+local listing = require(".listing")
 local schema = require(".schema")
 
 ---@class supaline.ColumnCase
@@ -25,7 +25,7 @@ M.AT = schema.path("spec")
 function M.prepare(registry, spec, cfg)
 	local plan = registry.open(cfg).compile(spec, M.AT)
 	local paint = appearance.slot(plan.slot, th.supaline or {})
-	return { plan = plan, paint = paint, ctx = runtime.context(plan, paint, nil) }
+	return { plan = plan, paint = paint, ctx = listing.context(plan, paint, nil) }
 end
 
 ---@param case supaline.ColumnCase
@@ -36,7 +36,7 @@ function M.cell(case, file) return layout.cell(case.plan, case.ctx, file) end
 ---@param case supaline.ColumnCase
 ---@param entry { stats: any, width: integer? }
 function M.for_folder(case, entry)
-	case.ctx = runtime.context(case.plan, case.paint, entry.stats)
+	case.ctx = listing.context(case.plan, case.paint, entry.stats)
 	if entry.width then
 		case.ctx.width = entry.width
 	end
@@ -48,7 +48,7 @@ end
 ---@return integer?
 ---@return string?
 function M.width(case, files, stats)
-	return runtime.width(case.plan, runtime.context(case.plan, case.paint, stats), files)
+	return listing.width(case.plan, listing.context(case.plan, case.paint, stats), files)
 end
 
 return M

@@ -54,8 +54,8 @@ That is also why `style` takes a function. A spec that reads `th` at load time
 freezes what it read and holds it through every reload -- a value is read
 once, at `setup`, and never again -- so a user borrowing a
 colour from their own theme has no correct way to write it as a value. A
-function is called inside `build`, which is the same repair the plugin makes
-for itself.
+function is called every time the appearance is resolved, `theme` events
+included, which is the same repair the plugin makes for itself.
 
 **The reload bites too.** `app:theme` re-reads `theme.toml` from disk
 mid-run, and a plugin that resolved its colours once at `setup` goes on drawing
@@ -168,12 +168,12 @@ blank screen with no part of this plugin involved.
 
 supaline calls four functions a column may write. Three of them — `stats`, a
 `width` that is one, and `render` — are called inside that redraw, and all
-three are made under `pcall` in `runtime.lua`, which goes on drawing.
-`report.lua` reports once per column and carries the reasoning;
-`main_spec.lua`'s `throwing:` specs pin it. **A new call into a column's code
-belongs under the same containment**, and that is the part no check will tell
-you: the suite stays green either way, because a spec only ever reaches code
-that already exists.
+three go through `report.lua`'s `call`, which contains a throw and reports it
+once per column, so the line goes on drawing. `report.lua` carries the
+reasoning; `main_spec.lua`'s `throwing:` specs pin it. **A new call into a
+column's code belongs under the same containment**, and that is the part no
+check will tell you: the suite stays green either way, because a spec only
+ever reaches code that already exists.
 
 The fourth is `refresh`, and it is the one that shows the rule is about the
 caller rather than the render. It is not called under a render at all, so a
@@ -181,8 +181,8 @@ blank screen is not what a bare one costs; what it costs is a silence per
 caller. On `cd` it runs from a `ps.sub` handler, which Yazi puts no error out
 of in front of anybody, so the hooks queued behind a throwing one stop running
 and another column's cached value goes stale for the rest of the session. From
-`setup` it runs after the commit — `uninstall` done, the registration loop not
-yet run — so a throw there leaves every supaline linemode unregistered, which
+`setup` it runs after the commit — `uninstall` done, `install` not yet run —
+so a throw there leaves every supaline linemode unregistered, which
 Yazi draws as literal text on every row. Both halves are contained, and
 `main_spec.lua`'s "a `refresh` that throws" pins them.
 
@@ -202,7 +202,7 @@ there; contain only what cannot be known until a render.
 The containment has one more consequence, and it is easy to walk into:
 **supaline's own refusals inside a contained call must not be raised.** A
 `pcall` cannot tell who threw, so a refusal raised in there comes back out
-worded as the reader's code failing — `runtime.width` refusing a
+worded as the reader's code failing — `listing.width` refusing a
 `width` function's return of `0` would be reported as that function throwing,
 which it did not. It returns `nil` and what came back instead, and
 `report.lua` words the two differently. Narrowing the `pcall` to the reader's

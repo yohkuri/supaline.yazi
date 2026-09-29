@@ -1,8 +1,9 @@
 --- @since 26.9.1
---- What is said when a column misbehaves while drawing, and the gates that say
---- it once. A gate belongs to a `setup` and survives a theme change, so a
---- report is re-armed by a new configuration and not by a reload. No Yazi
---- globals: `main.lua` hands in the sink that writes the log and the screen.
+--- What is said when a column misbehaves while drawing, the gates that say it
+--- once, and the one place a column's own code is called from. A gate belongs
+--- to a `setup` and survives a theme change, so a report is re-armed by a new
+--- configuration and not by a reload. No Yazi globals: `main.lua` hands in the
+--- sink that writes the log and the screen.
 ---@class supaline.ReportModule
 local M = {}
 
@@ -19,7 +20,7 @@ function M.one_line(err) return (tostring(err):gsub("\nstack traceback:.*", ""):
 ---@alias supaline.Stage "render"|"width"|"stats"|"refresh"
 
 ---@class supaline.Reporter
----@field threw fun(col: supaline.ColumnPlan, stage: supaline.Stage, err: any)
+---@field call fun(col: supaline.ColumnPlan, stage: supaline.Stage, fn: function, ...: any): boolean, any, any
 ---@field stats fun(col: supaline.ColumnPlan)
 ---@field width fun(col: supaline.ColumnPlan, refused: string)
 
@@ -138,7 +139,7 @@ function M.new(sink)
 	end
 
 	--- A `width` function returned something that is not a count of cells.
-	--- supaline's own refusal, returned rather than raised by `runtime.width`
+	--- supaline's own refusal, returned rather than raised by `listing.width`
 	--- so that it is not worded as the function throwing, which it did not.
 	---@param col supaline.ColumnPlan
 	---@param refused string what it returned, as written
@@ -157,7 +158,28 @@ function M.new(sink)
 		)
 	end
 
-	return { threw = broke, stats = no_extremes, width = bad_width }
+	--- Call a column's own code -- one of its four functions, or supaline's own
+	--- walking what one returned -- and report a throw as `stage`'s. Every
+	--- call into a column is made through here. Measured on 26.9.1: an error
+	--- raised under a linemode's render blanks the whole screen, on every
+	--- frame, and `refresh` runs from places nobody can raise to. The arguments
+	--- go through as they came and two results come back, so a call per cell
+	--- per row allocates nothing.
+	---@param col supaline.ColumnPlan
+	---@param stage supaline.Stage
+	---@param fn function
+	---@return boolean ok
+	---@return any
+	---@return any
+	local function call(col, stage, fn, ...)
+		local ok, a, b = pcall(fn, ...)
+		if not ok then
+			broke(col, stage, a)
+		end
+		return ok, a, b
+	end
+
+	return { call = call, stats = no_extremes, width = bad_width }
 end
 
 return M

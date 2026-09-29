@@ -1,12 +1,11 @@
---- Boundaries introduced by the plan/appearance/runtime split. These tests use
+--- Boundaries introduced by the plan/appearance/session split. These tests use
 --- retained callback contexts and observable calls, not private cache fields.
 local appearance = require(".appearance")
 local colour = require(".colour")
 local column = require(".column")
 local config = require(".config")
-local report = require(".report")
-local runtime = require(".runtime")
 local schema = require(".schema")
+local session = require(".session")
 
 ---@type supaline.Main
 local main = require(".main")
@@ -235,7 +234,7 @@ test("context: alternating panes never rebind a retained context", function()
 	eq(saved.width, 3, "invalidating never mutates previously handed-out contexts")
 end)
 
-test("runtime: absent folders are distinct per mode and pane", function()
+test("listing: absent folders are distinct per mode and pane", function()
 	local seen = {}
 	local function entry(name, width)
 		return {
@@ -247,16 +246,16 @@ test("runtime: absent folders are distinct per mode and pane", function()
 		}
 	end
 	local plan = compile { linemodes = { a = { parent = { entry("a", 2) } }, b = { parent = { entry("b", 4) } } } }
-	local run = runtime.new(plan, appearance.resolve(plan, {}), report.new(function() error("unexpected report") end))
+	local run = session.new(plan, {}, function() error("unexpected report") end)
 	local file = stub.file {}
-	eq(text_of(run.render(plan.modes.a, "parent", file)), " a")
-	eq(text_of(run.render(plan.modes.b, "parent", file)), "   b")
+	eq(text_of(run.draw(plan.modes.a, "parent", file)), " a")
+	eq(text_of(run.draw(plan.modes.b, "parent", file)), "   b")
 	eq(seen.a == seen.b, false)
 	eq(seen.a.width, 2)
 	eq(seen.b.width, 4)
 end)
 
-test("runtime: the ninth folder clears the eight-entry cache", function()
+test("listing: the ninth folder clears the eight-entry cache", function()
 	local seen, passes = {}, 0
 	main.setup {
 		linemodes = {
@@ -328,7 +327,7 @@ test("theme: refreshed text invalidates auto width and preserves old contexts", 
 	eq(callbacks, 2)
 end)
 
-test("theme: a rejected appearance retains the previous runtime and cache", function()
+test("theme: a rejected appearance retains the previous appearance and cache", function()
 	local bad, seen, passes = false, nil, 0
 	main.setup {
 		linemodes = {

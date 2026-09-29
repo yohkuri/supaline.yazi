@@ -154,7 +154,7 @@ supaline.column("name_line", {
 -- emits them -- which says nothing about how one reads against the columns a
 -- reader actually has.
 --
--- A seventh has no key here and is not a column's: `build` reports a
+-- A seventh has no key here and is not a column's: `retheme` reports a
 -- `[supaline]` value supaline refuses, from the `theme` handler, because the
 -- user wrote it after `setup` had run. A theme file and a `c` key would reach
 -- it, in the shape `c 1` to `c 3` already have.
@@ -189,7 +189,7 @@ supaline.column("name_line", {
 -- report against, which is the other half of why these are six.
 
 -- `b r`. A `render` that throws, once per row. The only one of the four that
--- leaves anything on the line: the cell cannot be drawn, so `runtime`
+-- leaves anything on the line: the cell cannot be drawn, so the session
 -- fills its width with `!` rather than with spaces, and the columns either
 -- side keep their places.
 supaline.column("torn_render", {

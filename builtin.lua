@@ -118,9 +118,9 @@ function M.definitions()
 	local YEAR_FROM, YEAR_TO = 0, 0
 
 	--- Re-read the year. Declared as the `refresh` hook of every time column, so
-	--- runtime.lua runs it whenever a linemode is installed and on every `cd`. A
-	--- session left open across New Year and never navigated still shows the old
-	--- year's formatting until something moves.
+	--- session.lua runs it at `setup`, after every `theme` event and on every
+	--- `cd`. A session left open across New Year and never navigated still shows
+	--- the old year's formatting until something moves.
 	local function refresh_year()
 		local y = tonumber(os.date("%Y")) --[[@as integer]]
 		YEAR_FROM = os.time { year = y, month = 1, day = 1, hour = 0, min = 0, sec = 0 }
@@ -207,8 +207,8 @@ function M.definitions()
 	local PERM, PERM_TYPE = {}, nil
 
 	--- Re-read the permission styles. Declared as the column's `refresh` hook, so
-	--- runtime.lua runs it whenever a linemode is installed -- which is what a `theme`
-	--- event does -- and on every `cd`.
+	--- session.lua runs it at `setup`, after every `theme` event and on every
+	--- `cd`.
 	---
 	--- That hook is the whole of why this column can read the theme at all. A
 	--- `th.status` read while `init.lua` runs is Yazi's preset: 26.9.1 merges

@@ -3,14 +3,13 @@
 --- `ya`, subscribes and installs; everything under it is handed what it needs.
 ---
 --- Three lifetimes: a plan per `setup`, an appearance per theme, prepared
---- folders per listing. A theme event keeps the plan and its report gates and
---- replaces the rest.
-local appearance = require(".appearance")
+--- folders per listing. A session, in `session.lua`, is one plan with the
+--- other two; this file holds the active session, and what it has put on
+--- `Linemode`.
 local builtin = require(".builtin")
 local column = require(".column")
 local config = require(".config")
-local report = require(".report")
-local runtime = require(".runtime")
+local session = require(".session")
 
 --- The module table, as a spec sees it.
 ---
@@ -33,13 +32,12 @@ for name, def in pairs(builtin.definitions()) do
 	registry.register(name, def)
 end
 
----@class supaline.Session
----@field plan supaline.Plan
----@field runtime supaline.Runtime
----@field reporter supaline.Reporter
-
 local active ---@type supaline.Session?
-local installed = { prev = {}, child = nil } ---@type table
+
+-- What supaline has put on `Linemode`: each linemode it installed, with what
+-- that name held before, and the child it added.
+---@type { prev: { name: string, was: any }[], names: table<string, true>, child: any? }
+local installed = { prev = {}, names = {}, child = nil }
 
 -- Yazi keeps the component's machinery on the table linemodes are looked up
 -- on, so a linemode named after any of it replaces it -- `new` takes out the
@@ -55,14 +53,14 @@ local OVERRIDABLE = {
 	owner = true,
 }
 
--- Names supaline itself put on `Linemode`, so a second `setup` does not refuse
--- what the first registered.
-local ours = {} ---@type table<string, boolean>
-
+--- Whether a linemode of this name would replace part of Yazi's `Linemode`.
+--- What supaline installed itself does not, so a second `setup` does not
+--- refuse what the first registered. A name it has since uninstalled holds
+--- what it held before again, and is asked about like any other.
 ---@param name string
 ---@return boolean
 local function is_yazis(name)
-	if OVERRIDABLE[name] or ours[name] then
+	if OVERRIDABLE[name] or installed.names[name] then
 		return false
 	end
 	return Linemode[name] ~= nil or name:sub(1, 1) == "_"
@@ -107,7 +105,7 @@ local function uninstall()
 	if installed.child then
 		Linemode:children_remove(installed.child)
 	end
-	installed = { prev = {}, child = nil }
+	installed = { prev = {}, names = {}, child = nil }
 end
 
 --- The parent- and preview-pane child. Yazi calls a child for rows in every
@@ -127,49 +125,53 @@ local function child(self)
 	if not mode.panes[pane] then
 		return ""
 	end
-	local line = active.runtime.render(mode, pane, file, folder)
+	local line = active.draw(mode, pane, file, folder)
 	-- Match solo()'s leading space, including its empty-line behaviour.
 	return line:visible() and ui.Line { " ", line } or line
 end
 
-local function invalidate()
-	if active then
-		active.runtime.invalidate()
+--- Put the session's linemodes on `Linemode`, and the child that draws the
+--- other two panes when any linemode asks for one. Each linemode draws with
+--- the session it was installed for: the next `setup` uninstalls it before
+--- another session can be active.
+---@param current supaline.Session
+local function install(current)
+	local plan = current.plan
+	for name, mode in pairs(plan.modes) do
+		installed.prev[#installed.prev + 1] = { name = name, was = Linemode[name] }
+		installed.names[name] = true
+		Linemode[name] = function(self)
+			if not mode.panes.current then
+				return ""
+			end
+			return current.draw(mode, "current", self._file, cx.active.current --[[@as supaline.Folder]])
+		end
 	end
-end
-
-local function moved()
-	if not active then
-		return
+	if plan.outer then
+		installed.child = Linemode:children_add(child, plan.order)
 	end
-	active.runtime.invalidate()
-	active.runtime.refresh()
-end
-
---- Resolve the plan against the theme as it is now. Yazi fires this unasked a
---- few milliseconds after `init.lua`, when the flavor lands, and again on
---- every `app:theme`. A refusal keeps the last appearance drawing, and says
---- so: raised from here it would reach nobody. What `pcall` hands back is
---- Yazi's wrapping of it -- `schema.lua` says why -- so the screen gets its
---- first line, which is the refusal as it was written.
-local function build()
-	if not active then
-		return
-	end
-	local ok, got = pcall(appearance.resolve, active.plan, th.supaline or {})
-	if not ok then
-		return tell(got, report.one_line(got))
-	end
-	active.runtime = runtime.new(active.plan, got, active.reporter)
-	active.runtime.refresh()
 end
 
 -- Subscribed once at load, so a repeated `setup` replaces the active session
--- rather than stacking a second subscription onto it.
-ps.sub("theme", build)
-ps.sub("cd", moved)
+-- rather than stacking a second subscription onto it. Yazi fires `theme`
+-- unasked a few milliseconds after `init.lua`, when the flavor lands, and
+-- again on every `app:theme`.
+ps.sub("theme", function()
+	if active then
+		active.retheme(th.supaline or {})
+	end
+end)
+ps.sub("cd", function()
+	if active then
+		active.moved()
+	end
+end)
 for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
-	ps.sub(kind, invalidate)
+	ps.sub(kind, function()
+		if active then
+			active.invalidate()
+		end
+	end)
 end
 
 --- Register a reusable column, before `setup`, to be named from a linemode.
@@ -204,29 +206,14 @@ function M.setup(_st, opts)
 		opts = _st --[[@as supaline.Opts]]
 	end
 	local plan = config.compile(opts or {}, registry, is_yazis)
-	local look = appearance.resolve(plan, th.supaline or {})
-	local reporter = report.new(tell)
-	local candidate = { plan = plan, reporter = reporter, runtime = runtime.new(plan, look, reporter) }
+	local candidate = session.new(plan, th.supaline or {}, tell)
 
 	-- Nothing below may raise: the old session is gone by the next line. A
-	-- `refresh` is a column's own code and the runtime contains it.
+	-- `refresh` is a column's own code and the session contains it.
 	uninstall()
 	active = candidate
-	active.runtime.refresh()
-	for name in pairs(plan.modes) do
-		ours[name] = true
-		installed.prev[#installed.prev + 1] = { name = name, was = Linemode[name] }
-		Linemode[name] = function(self)
-			local mode = active.plan.modes[name]
-			if not mode or not mode.panes.current then
-				return ""
-			end
-			return active.runtime.render(mode, "current", self._file, cx.active.current --[[@as supaline.Folder]])
-		end
-	end
-	if plan.outer then
-		installed.child = Linemode:children_add(child, plan.order)
-	end
+	candidate.refresh()
+	install(candidate)
 end
 
 return M
