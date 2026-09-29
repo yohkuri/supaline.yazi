@@ -23,7 +23,7 @@ M.AT = schema.path("spec")
 ---@param cfg supaline.Cfg
 ---@return supaline.ColumnCase
 function M.prepare(registry, spec, cfg)
-	local plan = registry.compile(spec, M.AT, cfg)
+	local plan = registry.open(cfg).compile(spec, M.AT)
 	local paint = appearance.column(plan, cfg.band, th.supaline or {})
 	return { plan = plan, paint = paint, ctx = runtime.context(plan, paint, nil) }
 end

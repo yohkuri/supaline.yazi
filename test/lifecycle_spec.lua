@@ -32,21 +32,21 @@ local function draw(name, at)
 	return text_of(Linemode[name] { _file = at.files[1] })
 end
 
-test("registry: catalogues and registries have explicit independent lifetimes", function()
+test("registry: registries are explicit and share no column", function()
 	local a, b = column.new_registry(), column.new_registry()
 	local defs = require(".builtin").definitions()
-	throws(function() a.compile("size", AT, CFG) end, "unknown column `size`")
+	throws(function() a.open(CFG).compile("size", AT) end, "unknown column `size`")
 	for name, def in pairs(defs) do
 		a.register(name, def)
 	end
-	eq(a.compile("size", AT, CFG).name, "size")
-	throws(function() b.compile("size", AT, CFG) end, "unknown column `size`")
+	eq(a.open(CFG).compile("size", AT).name, "size")
+	throws(function() b.open(CFG).compile("size", AT) end, "unknown column `size`")
 	local first = function() return "a" end
 	local second = function() return "b" end
 	a.register("mine", { render = first })
 	b.register("mine", { render = second })
-	eq(a.compile("mine", AT, CFG).render, first)
-	eq(b.compile("mine", AT, CFG).render, second)
+	eq(a.open(CFG).compile("mine", AT).render, first)
+	eq(b.open(CFG).compile("mine", AT).render, second)
 end)
 
 test("plan: compilation neither reads a theme nor evaluates style callbacks", function()

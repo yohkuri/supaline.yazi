@@ -79,12 +79,12 @@ local M = {}
 
 ---@class supaline.Registry
 ---@field register fun(name: string, def: supaline.ColumnDef)
----@field compile fun(spec: supaline.ColumnSpec, at: supaline.Path, cfg: supaline.Cfg, parsed: supaline.Parsed?): supaline.ColumnPlan
+---@field open fun(cfg: supaline.Cfg): supaline.Catalogue
 
---- The definitions one `setup` has read so far, by registration, each with
---- the parser a use of it is read with. One `setup`'s, and no longer: a
---- definition edited in place is read afresh by the next.
----@alias supaline.Parsed table<table, { def: supaline.Definition, use: fun(t: table, at: supaline.Path): table }>
+--- The registry as one `setup` reads it, with the options that `setup` applies
+--- to every column it compiles.
+---@class supaline.Catalogue
+---@field compile fun(spec: supaline.ColumnSpec, at: supaline.Path): supaline.ColumnPlan
 
 --- A definition, parsed.
 ---@class supaline.Definition
@@ -338,7 +338,7 @@ local function merge(def, use, at, cfg)
 	return col
 end
 
---- A registry of definitions. A catalogue is explicit, so two registries never
+--- A registry of definitions. A registry is explicit, so two registries never
 --- share a column, and nothing registers itself by being required.
 ---
 --- A definition is read when it is registered, so a mistake in it is refused
@@ -356,51 +356,67 @@ function M.new_registry()
 		definitions[name] = { t = def, at = at }
 	end
 
-	--- Turn one entry of a linemode into a plan. The entry is read, never
-	--- written to, and nothing it holds is called.
-	---@param spec any
-	---@param at supaline.Path
+	--- The registry as one `setup` reads it. Each definition is read at most
+	--- once by it, and only when a linemode names it, so one no linemode uses
+	--- is not read again at all.
 	---@param cfg supaline.Cfg
-	---@param parsed supaline.Parsed? what this `setup` has already read, to read each definition once
-	---@return supaline.ColumnPlan
-	local function compile(spec, at, cfg, parsed)
-		if type(spec) == "string" then
-			spec = { spec }
-		elseif type(spec) == "function" then
-			spec = { render = spec }
-		elseif type(spec) ~= "table" then
-			at:refuse("%s, got a %s", SHAPES, type(spec))
+	---@return supaline.Catalogue
+	local function open(cfg)
+		-- By registration rather than by name, so a column registered again
+		-- after this was opened is not answered from here.
+		local read = {} ---@type table<table, { def: supaline.Definition, use: fun(t: table, at: supaline.Path): table }>
+
+		---@param registered { t: table, at: supaline.Path }
+		---@param name string
+		local function lookup(registered, name)
+			local one = read[registered]
+			if not one then
+				local def = definition(registered.t, registered.at, name)
+				one = { def = def, use = column_record({ [1] = schema.any }, def.options, DRAWS_NAME) }
+				read[registered] = one
+			end
+			return one
 		end
 
-		local def, use
-		if type(spec[1]) == "string" then
-			local registered = definitions[spec[1]]
-			if not registered then
-				at:refuse("unknown column `%s`", spec[1])
+		--- Turn one entry of a linemode into a plan. The entry is read, never
+		--- written to, and nothing it holds is called.
+		---@param spec any
+		---@param at supaline.Path
+		---@return supaline.ColumnPlan
+		local function compile(spec, at)
+			if type(spec) == "string" then
+				spec = { spec }
+			elseif type(spec) == "function" then
+				spec = { render = spec }
+			elseif type(spec) ~= "table" then
+				at:refuse("%s, got a %s", SHAPES, type(spec))
 			end
-			local read = parsed and parsed[registered]
-			if not read then
-				local one = definition(registered.t, registered.at, spec[1])
-				read = { def = one, use = column_record({ [1] = schema.any }, one.options, DRAWS_NAME) }
-				if parsed then
-					parsed[registered] = read
+
+			local def, use
+			if type(spec[1]) == "string" then
+				local registered = definitions[spec[1]]
+				if not registered then
+					at:refuse("unknown column `%s`", spec[1])
 				end
+				local one = lookup(registered, spec[1])
+				def, use = one.def, one.use(spec, at)
+			elseif type(spec[1]) == "function" then
+				at:key(1):refuse(
+					"a column's `render` goes under `render`, not at `[1]`: write `{ render = fn, width = 6 }`. "
+						.. "`[1]` is where a spec names the column it uses, and a function is not a name"
+				)
+			elseif spec[1] ~= nil and spec.render == nil then
+				at:refuse(SHAPES)
+			else
+				def = definition(spec, at, nil)
 			end
-			def, use = read.def, read.use(spec, at)
-		elseif type(spec[1]) == "function" then
-			at:key(1):refuse(
-				"a column's `render` goes under `render`, not at `[1]`: write `{ render = fn, width = 6 }`. "
-					.. "`[1]` is where a spec names the column it uses, and a function is not a name"
-			)
-		elseif spec[1] ~= nil and spec.render == nil then
-			at:refuse(SHAPES)
-		else
-			def = definition(spec, at, nil)
+			return merge(def, use, at, cfg)
 		end
-		return merge(def, use, at, cfg)
+
+		return { compile = compile }
 	end
 
-	return { register = register, compile = compile }
+	return { register = register, open = open }
 end
 
 return M
