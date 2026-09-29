@@ -29,7 +29,8 @@ local M = {}
 ---@return supaline.Session
 function M.new(plan, theme, sink)
 	local reporter = report.new(sink)
-	local listings = listing.new(appearance.resolve(plan, theme), reporter)
+	local resolved = appearance.resolve(plan, theme)
+	local prepared = listing.new(resolved, reporter)
 
 	--- Every column's `refresh`. One that throws is told off and the rest go
 	--- on refreshing.
@@ -52,7 +53,8 @@ function M.new(plan, theme, sink)
 		if not ok then
 			return sink(got, report.one_line(got))
 		end
-		listings = listing.new(got, reporter)
+		resolved = got
+		prepared = listing.new(resolved, reporter)
 		refresh()
 	end
 
@@ -64,7 +66,7 @@ function M.new(plan, theme, sink)
 	---@return unknown
 	local function draw(mode, pane, file, folder)
 		local out = {}
-		for _, one in ipairs(listings.get(mode, pane, folder)) do
+		for _, one in ipairs(prepared(mode, pane, folder)) do
 			local cell, ctx = one.cell, one.ctx
 			local sep = cell.sep
 			if sep then
@@ -82,10 +84,11 @@ function M.new(plan, theme, sink)
 		return ui.Line(out)
 	end
 
-	local function invalidate() listings.invalidate() end
+	--- Forget every folder prepared, keeping the appearance.
+	local function invalidate() prepared = listing.new(resolved, reporter) end
 
 	local function moved()
-		listings.invalidate()
+		invalidate()
 		refresh()
 	end
 
