@@ -658,20 +658,19 @@ end)
 
 register("plain", { width = 2, render = function() return "x" end })
 
---- The separator a column carries for the value written at `value`, with a
---- style written as a function called the way a build calls it. Read through
---- a column rather than through `setup`, because a column's own separator is
---- the one of the three places nothing else reads before a row does.
+--- The separator a column carries for the value written at `value`, with its
+--- style resolved the way a build resolves it -- a function called, and
+--- nothing at all where nothing was written. Read through a column rather than
+--- through `setup`, because a column's own separator is the one of the three
+--- places nothing else reads before a row does.
 ---@param value any
 ---@return { text: string, style: unknown? }
 local function separator(value)
 	-- Cast because a column's own is `false` where it drops the separator
 	-- before it, and that is the one value nothing below writes.
 	local sep = prepare({ "plain", separator = value }, CFG).plan.separator --[[@as supaline.Sep]]
-	if sep.call then
-		return { text = sep.text, style = appearance.separator(sep) }
-	end
-	return sep
+	local look = sep.slot and appearance.slot(sep.slot, {})
+	return { text = sep.text, style = look and look.written and look.style or nil }
 end
 
 --- Assert that a separator is refused, with a message mentioning `pattern`.

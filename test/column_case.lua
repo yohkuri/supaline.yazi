@@ -8,7 +8,7 @@ local schema = require(".schema")
 
 ---@class supaline.ColumnCase
 ---@field plan supaline.ColumnPlan
----@field paint supaline.ColumnAppearance
+---@field paint supaline.Resolved
 ---@field ctx supaline.Ctx
 
 ---@class supaline.ColumnCases
@@ -24,7 +24,7 @@ M.AT = schema.path("spec")
 ---@return supaline.ColumnCase
 function M.prepare(registry, spec, cfg)
 	local plan = registry.open(cfg).compile(spec, M.AT)
-	local paint = appearance.column(plan, cfg.band, th.supaline or {})
+	local paint = appearance.slot(plan.slot, th.supaline or {})
 	return { plan = plan, paint = paint, ctx = runtime.context(plan, paint, nil) }
 end
 
