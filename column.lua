@@ -276,6 +276,27 @@ end
 ---@return supaline.Path
 local function theme_at(name) return schema.path("theme [supaline]." .. name) end
 
+--- A column with no `stats` refuses a gradient. Refused on the merged
+--- result, since a nearer flat colour may replace a farther gradient: without
+--- `stats` every row's ratio is nil, and the ramp could only ever draw its
+--- low end.
+---@param resolved supaline.Layer
+---@param from supaline.Writers
+local function no_gradient(resolved, from)
+	local key = style.gradient_in(resolved)
+	if not key then
+		return
+	end
+	local writer = from[key]
+	writer.at:refuse(
+		"`%s` is a gradient, but this column has no `stats`, so there are no extremes to place a value "
+			.. "between and the ramp could only ever draw its low end. %s",
+		key,
+		writer.theme and "Write a flat colour there instead"
+			or "Give the column a `stats` function, or write a flat colour there instead"
+	)
+end
+
 --- One use of a definition, as a plan. Each key comes from the use when it
 --- wrote one and from the definition otherwise -- `false` included, which is
 --- what a `separator` is written as on purpose -- except `scale`: `setup`'s
@@ -308,8 +329,6 @@ local function merge(def, use, at, cfg, read)
 	-- Three writers, farthest first: the definition's default, the theme's
 	-- field, and the use's own. An inline definition is one table and one
 	-- writer, so it writes the definition's layer and the theme stays nearer.
-	-- Without `stats` every row's ratio is nil, so the slot may hold no
-	-- gradient once the three are merged.
 	local sources = {}
 	sources[#sources + 1] = style.source(fields.style, def.at:key("style"), read)
 	if def.name then
@@ -334,7 +353,7 @@ local function merge(def, use, at, cfg, read)
 		-- over those spreads nothing, so linear is what nobody asked for.
 		scale = (use or fields).scale or cfg.scale or fields.scale or "linear",
 		options = {},
-		slot = { sources = sources, read = read, ranged = stats ~= nil },
+		slot = { sources = sources, read = read, check = stats == nil and no_gradient or nil },
 	}
 
 	for _, key in ipairs(def.options or {}) do

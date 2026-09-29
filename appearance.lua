@@ -69,19 +69,8 @@ function M.slot(slot, theme)
 		layers[i] = { values = values, source = { at = at, theme = source.theme ~= nil } }
 	end
 	local resolved, from = style.merge(layers)
-	-- Refused on the merged result, since a nearer flat colour may replace a
-	-- farther gradient: without `stats` every row's ratio is nil, and the ramp
-	-- could only ever draw its low end.
-	local key = slot.ranged == false and style.gradient_in(resolved)
-	if key then
-		local source = from[key]
-		source.at:refuse(
-			"`%s` is a gradient, but this column has no `stats`, so there are no extremes to place a value "
-				.. "between and the ramp could only ever draw its low end. %s",
-			key,
-			source.theme and "Write a flat colour there instead"
-				or "Give the column a `stats` function, or write a flat colour there instead"
-		)
+	if slot.check then
+		slot.check(resolved, from)
 	end
 	local ground, steps = style.build(resolved)
 	return {

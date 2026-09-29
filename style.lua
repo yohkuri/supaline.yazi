@@ -108,14 +108,19 @@ local STYLE_HELP = string.format(
 --- slot cannot draw.
 ---@alias supaline.Reader fun(value: any, at: supaline.Path): supaline.Layer|false
 
+--- Who wrote each key of a merged style: where, and whether it was the
+--- theme's field.
+---@alias supaline.Writers table<string, { at: supaline.Path, theme: boolean }>
+
 --- One place a style goes -- a column, or a separator -- with everything
 --- written for it and how it is read. A value is read at `setup`, and what a
 --- function returns or the theme holds is read on every build by the same
---- reader, so the two are refused alike.
+--- reader, so the two are refused alike. What only the merged style can show
+--- is refused by `check`, on every build too.
 ---@class supaline.Slot
 ---@field sources supaline.Source[] farthest first
 ---@field read supaline.Reader
----@field ranged boolean? `false` for a column with no `stats`, whose merged style may hold no gradient
+---@field check fun(resolved: supaline.Layer, from: supaline.Writers)?
 
 --- Whether `value` is a `ui.Style`, by what it answers to. `getmetatable`
 --- cannot tell: measured on 26.9.1, every Yazi userdata answers `false`, a
