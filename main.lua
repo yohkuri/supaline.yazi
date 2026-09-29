@@ -36,8 +36,8 @@ local active ---@type supaline.Session?
 
 -- What supaline has put on `Linemode`: each linemode it installed, with what
 -- that name held before, and the child it added.
----@type { prev: { name: string, was: any }[], names: table<string, true>, child: any? }
-local installed = { prev = {}, names = {}, child = nil }
+---@type { prev: { name: string, was: any }[], child: any? }
+local installed = { prev = {}, child = nil }
 
 -- Yazi keeps the component's machinery on the table linemodes are looked up
 -- on, so a linemode named after any of it replaces it -- `new` takes out the
@@ -55,12 +55,14 @@ local OVERRIDABLE = {
 
 --- Whether a linemode of this name would replace part of Yazi's `Linemode`.
 --- What supaline installed itself does not, so a second `setup` does not
---- refuse what the first registered. A name it has since uninstalled holds
---- what it held before again, and is asked about like any other.
+--- refuse what the first registered. Asked while `setup` compiles, before the
+--- active session is replaced, so its linemodes are the ones on `Linemode`; a
+--- name an earlier session installed holds what it held before again, and is
+--- asked about like any other.
 ---@param name string
 ---@return boolean
 local function is_yazis(name)
-	if OVERRIDABLE[name] or installed.names[name] then
+	if OVERRIDABLE[name] or (active and active.plan.modes[name]) then
 		return false
 	end
 	return Linemode[name] ~= nil or name:sub(1, 1) == "_"
@@ -105,19 +107,20 @@ local function uninstall()
 	if installed.child then
 		Linemode:children_remove(installed.child)
 	end
-	installed = { prev = {}, names = {}, child = nil }
+	installed = { prev = {}, child = nil }
 end
 
---- The parent- and preview-pane child. Yazi calls a child for rows in every
---- pane, where `solo()` guards `in_current` for itself, so the current pane
---- is refused here or it would draw twice.
-local function child(self)
+--- The parent- and preview-pane child, drawing with `current`. Yazi calls a
+--- child for rows in every pane, where `solo()` guards `in_current` for
+--- itself, so the current pane is refused here or it would draw twice.
+---@param current supaline.Session
+local function child(current, self)
 	local file = self._file --[[@as supaline.File]]
-	if file.in_current or not active then
+	if file.in_current then
 		return ""
 	end
 	local name = cx.active.pref.linemode
-	local mode = name and active.plan.modes[name]
+	local mode = name and current.plan.modes[name]
 	if not mode or not mode.outer then
 		return ""
 	end
@@ -125,21 +128,20 @@ local function child(self)
 	if not mode.panes[pane] then
 		return ""
 	end
-	local line = active.draw(mode, pane, file, folder)
+	local line = current.draw(mode, pane, file, folder)
 	-- Match solo()'s leading space, including its empty-line behaviour.
 	return line:visible() and ui.Line { " ", line } or line
 end
 
 --- Put the session's linemodes on `Linemode`, and the child that draws the
---- other two panes when any linemode asks for one. Each linemode draws with
---- the session it was installed for: the next `setup` uninstalls it before
+--- other two panes when any linemode asks for one. Each draws with the
+--- session it was installed for: the next `setup` uninstalls it before
 --- another session can be active.
 ---@param current supaline.Session
 local function install(current)
 	local plan = current.plan
 	for name, mode in pairs(plan.modes) do
 		installed.prev[#installed.prev + 1] = { name = name, was = Linemode[name] }
-		installed.names[name] = true
 		Linemode[name] = function(self)
 			if not mode.panes.current then
 				return ""
@@ -148,7 +150,7 @@ local function install(current)
 		end
 	end
 	if plan.outer then
-		installed.child = Linemode:children_add(child, plan.order)
+		installed.child = Linemode:children_add(function(self) return child(current, self) end, plan.order)
 	end
 end
 
