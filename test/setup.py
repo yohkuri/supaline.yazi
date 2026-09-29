@@ -468,6 +468,12 @@ def theme_values(dir: Path, name: str) -> tuple[str, str]:
     return theme["supaline"]["size"]["fg"], theme["supaline"]["mtime"]
 
 
+def theme_ends(dir: Path, name: str) -> tuple[str, str]:
+    """`mtime`'s ramp in one of the themes, as its low and high end."""
+    low, high = theme_values(dir, name)[1].split(" -> ")
+    return low, high
+
+
 def build(target: Path) -> None:
     # Stated, so the fixture carries the same modes whoever builds it. `e2e.py`
     # greps the permissions column for `drwxr-xr-x`, and under `umask 077` the

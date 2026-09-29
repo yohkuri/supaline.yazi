@@ -55,11 +55,27 @@ end
 ---@return any
 local function only(spec) return { linemodes = { t = spec } } end
 
---- Draw one file through a registered linemode.
+--- Draw one file through a registered linemode, the first current row unless
+--- told otherwise.
 ---@param name string
----@param file table
+---@param file table?
 ---@return string
-local function draw(name, file) return text_of(Linemode[name] { _file = file }) end
+local function draw(name, file) return text_of(Linemode[name] { _file = file or CURRENT.files[1] }) end
+
+--- Draw every current row, for a test counting what a whole frame calls.
+---@param name string
+local function draw_all(name)
+	for _, file in ipairs(CURRENT.files) do
+		draw(name, file)
+	end
+end
+
+--- The style of each part `file` is drawn in, the first current row unless
+--- told otherwise.
+---@param name string
+---@param file table?
+---@return table[]
+local function styles_of(name, file) return stub.drawn_styles(Linemode[name] { _file = file or CURRENT.files[1] }) end
 
 --- Draw the first row of `folder`, with `folder` as the current one.
 ---@param name string
@@ -92,7 +108,7 @@ end
 ---@param i integer?
 ---@return table?
 local function style_in(name, i)
-	for _, style in ipairs(stub.drawn_styles(Linemode[name] { _file = CURRENT.files[i or 1] })) do
+	for _, style in ipairs(styles_of(name, CURRENT.files[i or 1])) do
 		if style then
 			return style
 		end
@@ -130,29 +146,29 @@ end)
 
 test("setup: an empty linemode draws nothing, and a built-in keeps its own width", function()
 	setup { detail = {} }
-	eq(draw("detail", CURRENT.files[1]), "")
+	eq(draw("detail"), "")
 	setup { detail = { "size" } }
-	eq(draw("detail", CURRENT.files[1]), "     1B")
+	eq(draw("detail"), "     1B")
 end)
 
 test("setup: columns are joined by the separator, replaced per plugin and per linemode", function()
 	setup { detail = { { "size", width = 3 }, { "size", width = 3 } } }
-	eq(draw("detail", CURRENT.files[1]), " 1B  1B")
+	eq(draw("detail"), " 1B  1B")
 	setup({ detail = { { "size", width = 2 }, { "size", width = 2 } } }, { separator = "|" })
-	eq(draw("detail", CURRENT.files[1]), "1B|1B")
+	eq(draw("detail"), "1B|1B")
 	setup { detail = { { "size", width = 2 }, { "size", width = 2 }, separator = "::" } }
-	eq(draw("detail", CURRENT.files[1]), "1B::1B")
+	eq(draw("detail"), "1B::1B")
 	setup { detail = { { "size", width = 2 }, { "size", width = 2 }, separator = "" } }
-	eq(draw("detail", CURRENT.files[1]), "1B1B", "an empty separator draws nothing between two columns")
+	eq(draw("detail"), "1B1B", "an empty separator draws nothing between two columns")
 end)
 
 test("setup: `separator = false` drops the separator before a column, first included", function()
 	setup { detail = { { "size", width = 3 }, { "size", width = 3, separator = false } } }
-	eq(draw("detail", CURRENT.files[1]), " 1B 1B")
+	eq(draw("detail"), " 1B 1B")
 	-- On the first column it asks for nothing and gets nothing, the one
 	-- spelling that agrees with what index 1 draws.
 	setup { detail = { { "size", width = 3, separator = false }, { "size", width = 3 } } }
-	eq(draw("detail", CURRENT.files[1]), " 1B  1B")
+	eq(draw("detail"), " 1B  1B")
 end)
 
 test("setup: a `separator` on a pane's first column is refused", function()
@@ -170,12 +186,12 @@ test("setup: a registered column's own separator may head a linemode", function(
 	-- would stop the column being written first anywhere. It is not drawn.
 	main.column("septic", { separator = "|", width = 3, render = function() return "x" end })
 	setup { detail = { "septic", "septic" } }
-	eq(draw("detail", CURRENT.files[1]), "  x|  x")
+	eq(draw("detail"), "  x|  x")
 end)
 
 test("setup: a separator can be drawn in a colour of its own", function()
 	setup({ detail = { plain("a"), plain("b") } }, { separator = { " | ", style = { fg = "#585b70" } } })
-	eq(draw("detail", CURRENT.files[1]), "a | b")
+	eq(draw("detail"), "a | b")
 	eq(assert(style_in("detail"), "the separator came back unstyled").fg, "#585b70")
 end)
 
@@ -184,11 +200,11 @@ test("setup: a nearer separator replaces a farther one whole, colour and all", f
 	-- string at the nearer level draws uncoloured rather than borrowing.
 	local wide = { separator = { " | ", style = { fg = "#585b70" } } }
 	setup({ detail = { plain("a"), { render = plain("b"), separator = "-" } } }, wide)
-	eq(draw("detail", CURRENT.files[1]), "a-b")
+	eq(draw("detail"), "a-b")
 	eq(style_in("detail"), nil, "the nearer separator took the colour with it as well as the text")
 
 	setup({ detail = { plain("a"), plain("b"), separator = { "+", style = { fg = "#00ccff" } } } }, wide)
-	eq(draw("detail", CURRENT.files[1]), "a+b")
+	eq(draw("detail"), "a+b")
 	eq(assert(style_in("detail")).fg, "#00ccff", "and a linemode's carries its own style past the plugin-wide one")
 end)
 
@@ -198,14 +214,14 @@ test("setup: `.setup{...}` works as well as `:setup{...}`", function()
 	main.setup { linemodes = { dotted = { { "size", width = 3 } } } }
 	cx.active.current = CURRENT
 	cx.active.pref.linemode = "dotted"
-	eq(draw("dotted", CURRENT.files[1]), " 1B")
+	eq(draw("dotted"), " 1B")
 end)
 
 test("setup: overriding one of Yazi's own linemode names is still allowed", function()
 	-- Replacing `size` is a thing to want; replacing `redraw` is not, and the
 	-- two live on the same table.
 	setup { size = { { "size", width = 4 }, { "size", width = 4 } } }
-	eq(draw("size", CURRENT.files[1]), "  1B   1B")
+	eq(draw("size"), "  1B   1B")
 end)
 
 test("setup: a name Yazi cannot hold is refused, counted in characters", function()
@@ -330,24 +346,22 @@ end)
 
 test("setup: a refused configuration leaves the running one alone", function()
 	setup { good = { { "size", width = 3 } } }
-	local before = draw("good", CURRENT.files[1])
-	for _, bad in ipairs {
-		{ linemodes = { good = { "size" }, bad = { "size", parnet = { "mark" } } } },
-		{ linemodes = { good = { "size" } }, band = { fg = { from = 0.35 } } },
+	local before = draw("good")
+	for _, case in ipairs {
+		{ { linemodes = { good = { "size" }, bad = { "size", parnet = { "mark" } } } }, "`parnet`" },
+		{ { linemodes = { good = { "size" } }, band = { fg = { from = 0.35 } } }, "setup.band.fg.to" },
 		-- The front door: a `<->` with no band behind it is the refusal rather
 		-- than a column drawn at a pair nobody chose.
-		{ linemodes = { good = { { "size", style = "#0b3d91 <->" } } } },
+		{ { linemodes = { good = { { "size", style = "#0b3d91 <->" } } } }, "nothing defines `fg`" },
 	} do
-		local ok = pcall(main.setup, {}, bad --[[@as any]])
-		eq(ok, false)
-		eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
+		refuses(case[1], case[2])
+		eq(draw("good"), before, "the linemode still draws as it did")
 	end
-	refuses({ linemodes = { good = { { "size", style = "#0b3d91 <->" } } } }, "nothing defines `fg`")
 
 	-- The `theme` handler rebuilds from what was kept, so a rejected spec left
 	-- there would make every later theme event throw.
 	stub.fire("theme")
-	eq(draw("good", CURRENT.files[1]), before, "and a theme event still rebuilds it")
+	eq(draw("good"), before, "and a theme event still rebuilds it")
 end)
 
 -- --- panes -----------------------------------------------------------------
@@ -381,7 +395,7 @@ end)
 
 test("panes: a linemode that never asked for the current pane is bare there", function()
 	setup { detail = { parent = { { "size", width = 4 } } } }
-	eq(draw("detail", CURRENT.files[1]), "", "the current pane")
+	eq(draw("detail"), "", "the current pane")
 	eq(draw_child(stub.file { name = "current", in_current = false, size = 1 }), "   1B", "the parent pane")
 end)
 
@@ -392,7 +406,7 @@ test("panes: each pane draws the columns written under it", function()
 			parent = { { "size", width = 5 } },
 		},
 	}
-	eq(draw("detail", CURRENT.files[1]), " 1B   1B")
+	eq(draw("detail"), " 1B   1B")
 	eq(draw_child(stub.file { name = "current", in_current = false, size = 1 }), "    1B")
 	eq(draw_child(PREVIEW.files[1]), "", "and the pane nobody named stays bare")
 end)
@@ -604,17 +618,12 @@ end)
 
 -- --- the plan --------------------------------------------------------------
 
---- A registry holding one column, `probe`, that draws its stats and its style.
----@return supaline.Registry
-local function probe_registry()
+--- `opts` compiled the way `setup` compiles, against a registry holding one
+--- column, `probe`, that draws its stats and its style.
+local function compile(opts)
 	local r = require(".column").new_registry()
 	r.register("probe", { render = function(_, ctx) return tostring(ctx.stats), ctx.style end })
-	return r
-end
-
---- `opts` compiled against `probe_registry`, the way `setup` compiles.
-local function compile(opts)
-	return config.compile(opts, probe_registry(), function() return false end)
+	return config.compile(opts, r, function() return false end)
 end
 
 test("plan: compiling neither reads a theme nor calls a style function", function()
@@ -631,8 +640,8 @@ test("plan: compiling neither reads a theme nor calls a style function", functio
 		separator = { "|", style = counted("red") },
 		linemodes = { detail = { { "probe", style = counted("blue") } } },
 	}
-	rawset(_G, "th", nil)
-	rawset(_G, "ui", nil)
+	_G.th = nil
+	_G.ui = nil
 	local plan = compile(opts)
 	stub.reset()
 	eq(calls, 0)
@@ -679,7 +688,7 @@ test("plan: a theme reload cannot change what `setup` was handed", function()
 	opts.linemodes.extra = { "size" }
 	stub.fire("theme")
 	eq(draw_in("snap", at), "old|x")
-	local parts = stub.drawn_styles(Linemode.snap { _file = at.files[1] })
+	local parts = styles_of("snap", at.files[1])
 	eq(parts[1].fg, "red")
 	eq(parts[1].bold, true)
 	eq(parts[2].fg, "blue")
@@ -702,14 +711,14 @@ test("plan: pane lists, mode separators and named bands are owned by the plan", 
 	main.setup { band = band, linemodes = { snap = spec } }
 	local at = one_file("/bands", 20)
 	cx.active.current = at
-	local before = stub.drawn_styles(Linemode.snap { _file = at.files[1] })
+	local before = styles_of("snap", at.files[1])
 
 	band.fg.from, band.fg.to = 0.1, 0.2
 	sep[1], sep.style.fg = "/", "red"
 	spec.current = { "count" }
 	current[1] = "permissions"
 	stub.fire("theme")
-	local after = stub.drawn_styles(Linemode.snap { _file = at.files[1] })
+	local after = styles_of("snap", at.files[1])
 	eq(after[1].fg, before[1].fg)
 	eq(after[2].fg, "cyan")
 	has(draw_in("snap", at), ":")
@@ -740,9 +749,7 @@ test("stats: the pass runs once per folder, not once per row", function()
 		render = function() return "x" end,
 	})
 	setup { detail = { "counted" } }
-	for _, file in ipairs(CURRENT.files) do
-		draw("detail", file)
-	end
+	draw_all("detail")
 	eq(calls, 1, "every row, one pass")
 end)
 
@@ -757,7 +764,7 @@ test("stats: a column with a stated width still receives them", function()
 		end,
 	})
 	setup { detail = { "stated" } }
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	eq(seen, 42)
 end)
 
@@ -773,7 +780,7 @@ test("stats: each pane is measured against its own folder", function()
 	})
 	local one = { "seen" }
 	setup { detail = { current = one, parent = one } }
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	draw_child(stub.file { name = "current", in_current = false })
 	eq(#seen, 2, "one pass per folder")
 	eq(seen[1], #CURRENT.files)
@@ -823,11 +830,10 @@ test("listing: panes never share a context, and a cached folder keeps its own", 
 	cx.active.current, cx.active.parent = current, parent
 	cx.active.preview = { folder = preview, skip = 0 }
 	cx.active.pref.linemode = "panes"
-	local child = stub.children[1].fn
 	for _ = 1, 3 do
-		Linemode.panes { _file = current.files[1] }
-		child { _file = parent.files[1] }
-		child { _file = preview.files[1] }
+		draw("panes", current.files[1])
+		draw_child(parent.files[1])
+		draw_child(preview.files[1])
 	end
 	eq(styles, 1)
 	eq(refreshes, 1)
@@ -840,10 +846,10 @@ test("listing: panes never share a context, and a cached folder keeps its own", 
 	end
 
 	local saved = seen[3]
-	Linemode.panes { _file = current.files[1] }
+	draw("panes", current.files[1])
 	eq(saved, seen[3], "rows in one cached folder share a context")
 	stub.fire("cd")
-	Linemode.panes { _file = current.files[1] }
+	draw("panes", current.files[1])
 	eq(refreshes, 2)
 	eq(saved == seen[3], false)
 	eq(saved.width, 3, "invalidating never changes a context already handed out")
@@ -954,11 +960,9 @@ test("stats: a ramp with no extremes to place a row against says so, once", func
 		render = function() return "x" end,
 	})
 	setup { detail = { "wrong_stats" } }
-	for _, file in ipairs(CURRENT.files) do
-		draw("detail", file)
-	end
+	draw_all("detail")
 	has(reported(1), "`wrong_stats`", "no `min` and `max`")
-	eq(draw("detail", CURRENT.files[1]), "     x", "and it kept drawing")
+	eq(draw("detail"), "     x", "and it kept drawing")
 end)
 
 test("stats: extremes that are not numbers are reported rather than raised", function()
@@ -972,7 +976,7 @@ test("stats: extremes that are not numbers are reported rather than raised", fun
 		render = function() return "x" end,
 	})
 	setup { detail = { "worded_stats" } }
-	eq(draw("detail", CURRENT.files[1]), "     x", "the row drew")
+	eq(draw("detail"), "     x", "the row drew")
 	has(reported(1), "`worded_stats`")
 end)
 
@@ -993,9 +997,7 @@ test("stats: a column that is not a ramp, or has nothing to measure, owes nobody
 	})
 	main.column("bare", { width = 3, render = function() return "x" end })
 	setup { detail = { "widened", "empty_stats", "bare" } }
-	for _, file in ipairs(CURRENT.files) do
-		draw("detail", file)
-	end
+	draw_all("detail")
 	reported(0)
 end)
 
@@ -1008,14 +1010,12 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 	main.column("fine", { width = 2, render = function() return "ok" end })
 	main.column("thrower", { width = 3, render = function() error("a column of mine is broken") end })
 	setup { detail = { "fine", "thrower" } }
-	for _, file in ipairs(CURRENT.files) do
-		draw("detail", file)
-	end
+	draw_all("detail")
 	local said, logged = reported(1)
 	has(said, "`thrower`", "`render`", "a column of mine is broken")
 	-- The marker sentence belongs to `render` alone, the one stage that fills.
 	has(logged, "filled with")
-	eq(draw("detail", CURRENT.files[1]), "ok !!!", "the line still draws")
+	eq(draw("detail"), "ok !!!", "the line still draws")
 end)
 
 test("throwing: a `stats` that throws leaves the rest of the line drawing", function()
@@ -1026,9 +1026,9 @@ test("throwing: a `stats` that throws leaves the rest of the line drawing", func
 		render = function() return "x" end,
 	})
 	setup { detail = { "bad_stats" } }
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	has(reported(1), "`stats`")
-	eq(draw("detail", CURRENT.files[1]), "     x")
+	eq(draw("detail"), "     x")
 end)
 
 test("throwing: a ramp whose `stats` threw is told off once, not twice", function()
@@ -1041,7 +1041,7 @@ test("throwing: a ramp whose `stats` threw is told off once, not twice", functio
 		render = function() return "x" end,
 	})
 	setup { detail = { "thrown_ramp" } }
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	local said, logged = reported(1)
 	has(said, "threw")
 	lacks(logged, "filled with")
@@ -1053,7 +1053,7 @@ test("throwing: a `width` function that throws draws unpadded rather than not at
 	-- ragged, readable, and arriving with a message saying so.
 	main.column("bad_width", { width = function() error("cannot size this") end, render = function() return "x" end })
 	setup { detail = { "bad_width" } }
-	local first = draw("detail", CURRENT.files[1])
+	local first = draw("detail")
 	local said, logged = reported(1)
 	has(said, "`width`")
 	-- Its own sentence rather than `render`'s: every cell is drawn, so a marker
@@ -1070,13 +1070,11 @@ test('throwing: a `render` that throws under `width = "auto"` is named as a `ren
 	main.column("fine", { width = 2, render = function() return "ok" end })
 	main.column("auto_thrower", { width = "auto", render = function() error("a column of mine is broken") end })
 	setup { detail = { "fine", "auto_thrower" } }
-	for _, file in ipairs(CURRENT.files) do
-		draw("detail", file)
-	end
+	draw_all("detail")
 	local said = reported(1)
 	has(said, "`auto_thrower`", "`render`", "a column of mine is broken")
 	lacks(said, "`width`")
-	eq(draw("detail", CURRENT.files[1]), "ok !", "no width to pad to, so one `!`")
+	eq(draw("detail"), "ok !", "no width to pad to, so one `!`")
 end)
 
 test("throwing: a `refresh` that throws is reported rather than propagated", function()
@@ -1096,7 +1094,7 @@ test("throwing: a `refresh` that throws is reported rather than propagated", fun
 	-- The thrower first, so the hook that must go on running is the one after it.
 	setup { detail = { "bad_refresh", "good_refresh" } }
 	eq(ran, 1, "the hook queued after the throwing one still ran")
-	eq(draw("detail", CURRENT.files[1]), "ok ok", "and the linemode reached `Linemode` and draws")
+	eq(draw("detail"), "ok ok", "and the linemode reached `Linemode` and draws")
 
 	local said, logged = reported(1)
 	has(said, "`bad_refresh`", "`refresh`", "cannot refresh this")
@@ -1120,13 +1118,13 @@ test("throwing: a theme reload does not re-arm a column's report, and `setup` do
 	)
 	main.column("torn_cell", { width = 2, render = function() error("cannot draw this") end })
 	setup { detail = { "torn_hook", "torn_cell" } }
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	reported(2)
 	stub.fire("theme")
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	reported(2)
 	setup { detail = { "torn_hook", "torn_cell" } }
-	draw("detail", CURRENT.files[1])
+	draw("detail")
 	reported(4)
 end)
 
@@ -1136,7 +1134,7 @@ test("width: a function returning no usable number is reported as itself", funct
 	-- fallback as a throw, because the pass is left with the same nothing.
 	main.column("zero_width", { width = function() return 0 end, render = function() return "x" end })
 	setup { detail = { "zero_width" } }
-	local first = draw("detail", CURRENT.files[1])
+	local first = draw("detail")
 	local said = reported(1)
 	has(said, "returned `0`", "must return a whole number of cells")
 	lacks(said, "threw")
@@ -1155,9 +1153,7 @@ test("told: a column wrong in two kinds says both, once each", function()
 		render = function(_, ctx) return "x", ctx.style_at(ctx.ratio(1)) end,
 	})
 	setup { detail = { "two_faults" } }
-	for _, file in ipairs(CURRENT.files) do
-		draw("detail", file)
-	end
+	draw_all("detail")
 	reported(2)
 	local kinds = {}
 	for _, note in ipairs(stub.notified) do
@@ -1178,6 +1174,6 @@ test("width: a `max_width` outlives the function that failed, as a cap", functio
 		render = function(file) return file.name == "a.txt" and "x" or "abcdefgh" end,
 	})
 	setup { detail = { { "capped", max_width = 4 } } }
-	eq(draw("detail", CURRENT.files[1]), "x", "unpadded, so a short cell stays short")
+	eq(draw("detail"), "x", "unpadded, so a short cell stays short")
 	eq(draw("detail", CURRENT.files[2]), "abc…", "and a long one is still cut at the cap")
 end)

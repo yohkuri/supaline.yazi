@@ -16,6 +16,15 @@ local prepare = cases.compiler(registry)
 ---@return string
 local function cell(spec, file) return text_of(cases.cell(prepare(spec), file)) end
 
+--- Lay `s` out through an inline column written with `opts`.
+---@param s string
+---@param opts table
+---@return string
+local function laid(s, opts)
+	opts.render = function() return s end
+	return cell(opts)
+end
+
 --- Assert that every `{ spec, pattern, ... }` is refused by `through` --
 --- `prepare` unless given -- with a message holding each pattern. Typed `any`
 --- because a wrong value is the point, so the table of them needs no
@@ -231,6 +240,7 @@ test("normalize: a column's own options are claimed, and only that column's", fu
 	refused {
 		{ { "timed", fromat = "%c" }, "`fromat` is not a column key", "also takes `format`" },
 		{ { "fixed", format = "%c" }, "`format` is not a column key" },
+		{ { render = function() return "ab" end, options = { "pad" }, pda = 2 }, "`pda` is not a column key" },
 	}
 end)
 
@@ -244,7 +254,7 @@ test("normalize: `options` and `name` are the definition's to write", function()
 
 	-- The same two keys on the table that *is* the definition are its own.
 	local col = prepare { name = "inline", options = { "pad" }, pad = 2, render = function() return "ab" end }
-	eq(col.plan.name, "inline")
+	eq(col.plan.name, "inline", "the name the theme is looked up under")
 	eq(col.ctx.opts.pad, 2)
 end)
 
@@ -274,11 +284,7 @@ test("normalize: a `render` at `[1]` is refused, and says where it goes", functi
 	-- works.
 	refused {
 		{ { function() return "ab" end, width = 6 }, "goes under `render`, not at `[1]`", "`{ render = fn, width = 6 }`" },
-		{ { render = function() return "ab" end, options = { "pad" }, pda = 2 }, "`pda` is not a column key" },
 	}
-	local col = prepare { render = function() return "ab" end, name = "written", options = { "pad" }, pad = 2 }
-	eq(col.plan.name, "written", "the name the theme is looked up under")
-	eq(col.ctx.opts.pad, 2)
 end)
 
 -- --- register --------------------------------------------------------------
@@ -305,7 +311,7 @@ test("register: a definition is swept the same way, and `options` is checked", f
 	-- Worse than a spec's, because it is read again for every spec naming it.
 	local x = function() return "x" end
 	throws(function() register("bad", { render = x, algin = "left" }) end, "`algin` is not a column key")
-	for _, case in ipairs {
+	refused({
 		{ "format", 'column("odd").options: must be the list of names' },
 		{ {}, "got an empty list" },
 		{ { 42 }, "a list holding a number" },
@@ -318,10 +324,7 @@ test("register: a definition is swept the same way, and `options` is checked", f
 		-- supaline answers for `fetch` itself, and declaring it would walk past
 		-- the one place that says why.
 		{ { "fetch" }, "`fetch`, which supaline answers for itself" },
-	} do
-		local def = { render = x, options = case[1] } ---@type any
-		throws(function() register("odd", def) end, case[2])
-	end
+	}, function(options) register("odd", { render = x, options = options }) end)
 
 	-- An inline definition never reaches `register`, and is checked all the same.
 	refused {
@@ -435,31 +438,31 @@ end)
 -- --- layout ----------------------------------------------------------------
 
 test("cell: pads to the column width, on the side the alignment asks for", function()
-	eq(cell { render = function() return "ab" end, width = 5 }, "   ab")
-	eq(cell { render = function() return "ab" end, width = 5, align = "left" }, "ab   ")
+	eq(laid("ab", { width = 5 }), "   ab")
+	eq(laid("ab", { width = 5, align = "left" }), "ab   ")
 	eq(cell { render = function() return nil end, width = 3 }, "   ", "a nil render result is an empty cell")
-	eq(cell { render = function() return "ab" end }, "ab", "no width means no padding")
+	eq(laid("ab", {}), "ab", "no width means no padding")
 end)
 
 test("cell: an overflowing cell gets exactly one ellipsis", function()
 	-- `ui.truncate` appends an ellipsis of its own, and a second one leaves the
 	-- width right, so the count is asserted rather than left to it.
-	local out = cell { render = function() return "octocat:wheel" end, width = 12 }
+	local out = laid("octocat:wheel", { width = 12 })
 	eq(out, "octocat:whe…")
 	eq(select(2, out:gsub("…", "")), 1, "ellipsis count")
 end)
 
 test("cell: a wide character at the edge is padded back to width", function()
 	-- `ui.truncate` can only return 3 cells here, so `fit` measures again.
-	eq(cell { render = function() return "你好，世界" end, width = 4 }, " 你…")
+	eq(laid("你好，世界", { width = 4 }), " 你…")
 	-- And clip drops a wide character that does not fit whole.
-	eq(cell { render = function() return "日本語abc" end, width = 5, overflow = "clip" }, " 日本")
+	eq(laid("日本語abc", { width = 5, overflow = "clip" }), " 日本")
 end)
 
 test("cell: clip, grow and max_width", function()
-	eq(cell { render = function() return "abcdefgh" end, width = 4, overflow = "clip" }, "abcd")
-	eq(cell { render = function() return "abcdefgh" end, width = 4, overflow = "grow" }, "abcdefgh")
-	eq(cell { render = function() return "abcdefgh" end, width = 6, max_width = 4 }, "abc…")
+	eq(laid("abcdefgh", { width = 4, overflow = "clip" }), "abcd")
+	eq(laid("abcdefgh", { width = 4, overflow = "grow" }), "abcdefgh")
+	eq(laid("abcdefgh", { width = 6, max_width = 4 }), "abc…")
 end)
 
 test("cell: a cluster is cut whole, and never over the width", function()
@@ -467,11 +470,9 @@ test("cell: a cluster is cut whole, and never over the width", function()
 	-- screen, so a cut that added them up handed back four cells for a column
 	-- of three. A joined emoji and a skin tone are one character to the screen
 	-- too, and a flag is a pair of regional indicators, so the pair is the unit.
-	local function clip3(s)
-		return cell { render = function() return s end, width = 3, overflow = "clip" }
-	end
+	local function clip3(s) return laid(s, { width = 3, overflow = "clip" }) end
 	eq(clip3("\u{2764}\u{FE0F}abc"), "\u{2764}\u{FE0F}a")
-	eq(cell { render = function() return "\u{2764}\u{FE0F}abc" end, width = 3 }, "\u{2764}\u{FE0F}…")
+	eq(laid("\u{2764}\u{FE0F}abc", { width = 3 }), "\u{2764}\u{FE0F}…")
 	eq(clip3("\u{1F469}\u{200D}\u{1F4BB}abc"), "\u{1F469}\u{200D}\u{1F4BB}a")
 	eq(clip3("\u{1F44D}\u{1F3FB}abc"), "\u{1F44D}\u{1F3FB}a")
 	eq(clip3("\u{1F1EF}\u{1F1F5}\u{1F1EF}\u{1F1F5}"), " \u{1F1EF}\u{1F1F5}")

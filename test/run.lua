@@ -128,6 +128,9 @@ function throws(fn, ...)
 end
 
 _G.ROOT = ROOT
+_G.stub = stub
+--- The plain text of anything a column rendered.
+_G.text_of = stub.text_of
 
 for _, name in ipairs(specs()) do
 	if not FILTER or name:find(FILTER, 1, true) then
@@ -135,9 +138,6 @@ for _, name in ipairs(specs()) do
 		-- A fresh plugin per spec file, including its registry and
 		-- subscriptions, so columns registered by one spec cannot reach the next.
 		stub.install(ROOT)
-		--- The plain text of anything a column rendered.
-		_G.text_of = stub.text_of
-		_G.stub = stub
 		local chunk, err = loadfile(ROOT .. "/test/" .. name .. ".lua")
 		if not chunk then
 			failures[#failures + 1] = string.format("%s\n    %s", name, tostring(err))
