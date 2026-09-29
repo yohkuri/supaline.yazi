@@ -205,3 +205,17 @@ Everything else about form belongs to `stylua`, `markdownlint-cli2` and
 `ruff` — CI runs all three, each says beside itself why a rule is set the way
 it is, and a clean lint is the whole of what form asks. All three see only what
 Git tracks, so a personal file is out of scope wherever a contributor keeps one.
+
+## Comments
+
+A comment says what holds now: the rule, why it is the rule, and the
+measurement it rests on. How the code came to be this way — what it used to
+read, the bug that prompted it, how many tests passed at the time — belongs in
+the commit message, where `git log -L` and `git blame` find it beside the line.
+History written into a comment is true of the commit that wrote it and of no
+other, and nothing checks it afterwards.
+
+A rejected alternative is the one piece of history worth keeping, because the
+next reader will propose it again: write it as the reason it fails rather than
+the day it did. Tests are held to the same rule — a spec's comment says what
+its assertion protects, not which regression first made someone write it.
