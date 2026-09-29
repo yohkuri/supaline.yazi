@@ -94,7 +94,8 @@ not of the misspelling, which a harness grepping for the field name scores as a
 module that refuses nothing.
 
 Deliberately wrong values are a spec's stock in trade, and they cost
-something: a class on the configuration means `registry.compile(42, ...)` and
+something: a class on the configuration means
+`registry.open(cfg).compile(42, ...)` and
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
