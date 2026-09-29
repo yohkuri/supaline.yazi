@@ -59,7 +59,7 @@ end
 ---@return string
 local function last_said() return stub.notified[#stub.notified].content end
 
--- The other half of the same report. `report` in `main.lua` gives `ya.notify`
+-- The other half of the same report. `tell` in `main.lua` gives `ya.notify`
 -- the short sentence and `ya.err` the long one, and only the long one says what
 -- the fault cost the rest of the line. A spec reading `last_said` alone can say
 -- nothing about that half.
@@ -68,7 +68,7 @@ local function last_logged() return tostring(stub.logged[#stub.logged][1]) end
 --- How many reports have been made so far, the screen's half and the log's
 --- counted as one.
 ---
---- `report` writes both from the same two lines, so the two tables can only
+--- `tell` writes both from the same two lines, so the two tables can only
 --- disagree by that pairing coming apart -- and counting the notifications
 --- alone would let `last_logged` answer out of an earlier spec, quietly, in
 --- any test whose report never reached the log at all.
@@ -136,7 +136,7 @@ test("setup: a `separator` on a pane's first column is refused", function()
 	-- rather than a session later.
 	throws(
 		function() main.setup({}, { linemodes = { t = { { "size", separator = "|" }, "size" } } }) end,
-		"the first column of `current` on linemode `t`"
+		"setup.linemodes.t[1].separator: is drawn by nobody"
 	)
 
 	-- The pane, not the linemode, is what has a first column: this one is
@@ -153,7 +153,7 @@ test("setup: a `separator` on a pane's first column is refused", function()
 				},
 			})
 		end,
-		"the first column of `parent` on linemode `t`"
+		"setup.linemodes.t.parent[1].separator: is drawn by nobody"
 	)
 end)
 
@@ -231,8 +231,42 @@ end)
 -- --- what setup refuses ----------------------------------------------------
 
 test("setup: an empty configuration is refused", function()
-	throws(function() main.setup({}, {}) end, "`linemodes` is empty")
-	throws(function() main.setup({}, { linemodes = {} }) end, "`linemodes` is empty")
+	throws(function() main.setup({}, {}) end, "setup.linemodes: names no linemode")
+	throws(function() main.setup({}, { linemodes = {} }) end, "setup.linemodes: names no linemode")
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() main.setup({}, { linemodes = "detail" }) end, "setup.linemodes: must be a table")
+end)
+
+test("setup: a refusal is raised as the one sentence it was written as", function()
+	-- Raised at level 0, so nothing is put in front of the path and the reason:
+	-- a position in a file of supaline's is the wrong place to send the reader,
+	-- and the path is the place in their own configuration.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	local ok, err = pcall(main.setup, {}, { linemodes = { t = { "size" } }, scale = "LOG" })
+	eq(ok, false)
+	eq(err, "supaline: setup.scale: must be `linear` or `log`, got `LOG`")
+
+	-- And `column` too, which is the other entry point that reads what a
+	-- reader wrote.
+	---@diagnostic disable-next-line: assign-type-mismatch
+	ok, err = pcall(main.column, "wonky", { render = function() return "" end, align = "centre" })
+	eq(ok, false)
+	eq(err, 'supaline: column("wonky").align: must be `left` or `right`, got `centre`')
+end)
+
+test("setup: `order` is a whole number, and is where the child sits", function()
+	-- Handed to `Linemode:children_add`, which sorts its children by it, so a
+	-- value that is not a number raises out of Yazi's own sort, naming nothing
+	-- a reader wrote.
+	local lm = { t = { parent = { "size" } } }
+	---@diagnostic disable-next-line: assign-type-mismatch
+	throws(function() main.setup({}, { linemodes = lm, order = "late" }) end, "setup.order: must be a whole number")
+	throws(function() main.setup({}, { linemodes = lm, order = 1.5 }) end, "got `1.5`")
+
+	setup({ t = { parent = { "size" } } }, { order = 1500 })
+	eq(stub.children[1].order, 1500)
+	setup { t = { parent = { "size" } } }
+	eq(stub.children[1].order, 1400, "and 1400 when nobody said")
 end)
 
 test("setup: a key `setup` itself does not take is refused", function()
@@ -265,16 +299,15 @@ test("setup: a `scale` it does not take is refused by `setup`'s own name", funct
 	-- spelled right. `scale = "LOG"` used to reach every column and scale none
 	-- of them.
 	--
-	-- Refused here rather than left to `registry.compile`, which sees this
-	-- value too. A message from there would name whichever column was
-	-- normalised first, and send the reader to a column they wrote correctly --
-	-- so what this pins is the `setup` in the message, not the refusal.
+	-- Refused as `setup`'s own, rather than by whichever column first read it,
+	-- which would send the reader to a column they wrote correctly -- so what
+	-- this pins is the path in the message, not the refusal.
 	local lm = { t = { "size" } }
 	-- Bound once for the reason the column spec binds its own: a value that is
 	-- wrong on purpose costs a suppression per spelling.
 	---@diagnostic disable-next-line: assign-type-mismatch
 	local shouted = { linemodes = lm, scale = "LOG" }
-	throws(function() main.setup({}, shouted) end, "`scale` in `setup`")
+	throws(function() main.setup({}, shouted) end, "setup.scale: ")
 	throws(function() main.setup({}, shouted) end, "must be `linear` or `log`")
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() main.setup({}, { linemodes = lm, scale = "logarithmic" }) end, "got `logarithmic`")
@@ -351,21 +384,22 @@ test("setup: a separator that is neither a string nor a table is refused", funct
 	-- The wrong value is the test; the checker refuses both of these where it
 	-- runs, which is not over anyone's `init.lua`.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = 42 }) end, "`separator` in `setup`")
+	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = 42 }) end, "setup.separator: ")
 
 	-- `false` is the one this is really for. It reads like a column's
 	-- `separator = false` and it is falsy, so it fell through to the
 	-- plugin-wide separator: the linemode drew the separator it had asked to
 	-- be rid of, and not until a row was drawn.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() main.setup({}, { linemodes = { t = { "size", separator = false } } }) end, "linemode `t`")
+	local dropped = { linemodes = { t = { "size", separator = false } } }
+	throws(function() main.setup({}, dropped) end, "setup.linemodes.t.separator: ")
 
 	-- And plugin-wide, which is the one the default could swallow: `setup`
 	-- falls back to `DEFAULTS.separator` when nothing was written, and an `or`
 	-- there would take `false` for nothing written and hand the user back the
 	-- separator they wrote `false` to be rid of.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = false }) end, "`separator` in `setup`")
+	throws(function() main.setup({}, { linemodes = { t = { "size" } }, separator = false }) end, "setup.separator: ")
 
 	-- The spelling the message names is taken.
 	setup { detail = { { "size", width = 2 }, { "size", width = 2 }, separator = "" } }
@@ -376,7 +410,8 @@ test("setup: a linemode has to be a table", function()
 	-- A string where a list of columns goes -- the wrong value is the test,
 	-- and the checker refuses it now that a spec has a class.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() main.setup({}, { linemodes = { detail = "size" } }) end, "`detail` is a string")
+	local bare = { linemodes = { detail = "size" } }
+	throws(function() main.setup({}, bare) end, "setup.linemodes.detail: must be a table, got a string")
 end)
 
 -- --- panes -----------------------------------------------------------------
@@ -522,7 +557,7 @@ test("panes: a pane given anything but a list of columns is refused", function()
 	-- The wrong value is the test, and the checker refuses it now that a pane
 	-- is a declared field rather than an entry in a map.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	refuses({ current = true }, "rather than a list of columns")
+	refuses({ current = true }, "setup.linemodes.t.current: must be a list of columns")
 	-- An empty list is refused where the linemode's own is not: leaving the
 	-- pane out says the same thing, and there is no second way to say it.
 	refuses({ current = {} }, "empty list")
@@ -567,8 +602,8 @@ test("panes: an entry `ipairs` would not reach is refused", function()
 
 	-- `ipairs` stops at the first missing index, so a list numbered around a
 	-- gap draws the columns before it and drops the rest.
-	refuses({ current = { [1] = "size", [3] = "mtime" } }, "`current` has a gap")
-	refuses({ [1] = "size", [3] = "mtime" }, "this one has a gap")
+	refuses({ current = { [1] = "size", [3] = "mtime" } }, "setup.linemodes.t.current: has a gap")
+	refuses({ [1] = "size", [3] = "mtime" }, "setup.linemodes.t: has a gap")
 end)
 
 test("panes: each pane draws the columns written under it", function()
@@ -822,7 +857,7 @@ test("setup: a band that is not two lightnesses is refused, and changes nothing"
 	throws(
 		---@diagnostic disable-next-line: assign-type-mismatch
 		function() main.setup({}, { linemodes = { good = { "size" } }, band = { fg = { from = 0.35 } } }) end,
-		"`band` in `setup`: `fg`"
+		"setup.band.fg.to: "
 	)
 	eq(draw("good", CURRENT.files[1]), before, "the linemode still draws as it did")
 end)
@@ -894,7 +929,7 @@ test("theme: a ramp on a column with no extremes says which file to fix", functi
 	with_theme({ owner = "#0b3d91 -> #7fd4ff" }, function()
 		local err = select(2, pcall(setup, { detail = { "owner" } }))
 		local text = tostring(err)
-		assert(text:find("`[supaline] owner` field in your theme", 1, true), text)
+		assert(text:find("theme.toml [supaline].owner: ", 1, true), text)
 		assert(text:find("Write a flat colour there instead", 1, true), text)
 	end)
 end)
@@ -928,7 +963,7 @@ test("theme: a reload the theme breaks keeps the old colours and says so", funct
 		local said = last_said()
 		eq(
 			said,
-			"supaline: the `[supaline] size` field in your theme: `nosuchcolour` is not a colour Yazi "
+			"supaline: theme.toml [supaline].size: `nosuchcolour` is not a colour Yazi "
 				.. "accepts. Write `#rrggbb`, a name such as `cyan`, a 256-colour index as a string such "
 				.. "as `129`, or `reset`",
 			"the message, and nothing Lua or Yazi wrapped around it"

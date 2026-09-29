@@ -75,7 +75,7 @@ test("width: an emoji takes two cells, like an East Asian character", function()
 end)
 
 test("width: a cluster is not the sum of its characters", function()
-	-- Measured on Yazi 26.9.1, and the reason `column.lua` cuts on cluster
+	-- Measured on Yazi 26.9.1, and the reason `layout.lua` cuts on cluster
 	-- boundaries: `str_width` is what `ui.width` and `Line:width` return, and
 	-- `cp_width` is what both truncations count. Every line here is a pair that
 	-- disagrees, in one direction or the other.
@@ -158,7 +158,7 @@ end)
 
 test("Line:truncate: it modifies the line it was given and hands that back", function()
 	-- Measured on Yazi 26.9.1, where the receiver came back four cells wide
-	-- from eight and `rawequal` held. `cut` in `column.lua` says so and relies
+	-- from eight and `rawequal` held. `cut` in `layout.lua` says so and relies
 	-- on it -- each pass cuts the previous result further -- and a column that
 	-- kept a renderable across rows would find it cut down by the first row
 	-- that overflowed. A stub that built a new Line and left the original
@@ -216,8 +216,8 @@ test("Line:truncate: every span keeps its own style through the cut", function()
 	local red, green = ui.Style():fg("#ff0000"), ui.Style():fg("#00ff00")
 	-- `stub.Line` rather than `ui.Line`, as everywhere else in this file:
 	-- `types.yazi` declares `ui.truncate` but nothing for `Line:truncate`, so
-	-- the checker refuses the call on a value it has typed. `column.lua`
-	-- declares `supaline.Line` for that and casts at the call to `cut`; the
+	-- the checker refuses the call on a value it has typed. `types.lua`
+	-- declares `supaline.Line` for that and `layout.lua` casts at the call to `cut`; the
 	-- stub's Line is its own and needs neither.
 	local line = stub.Line {
 		stub.Span("aaa"):style(red),

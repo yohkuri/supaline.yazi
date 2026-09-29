@@ -292,7 +292,7 @@ def broken_run(r: Run, init: str) -> None:
     # A union over many captures, not one capture, because six reports do not
     # fit on the screen at once. Measured on 26.9.1: Yazi draws **three**
     # notifications at a time and queues the rest, each for the twenty seconds
-    # `report` asks for, so a fourth takes the first one's place as it expires.
+    # `tell` asks for, so a fourth takes the first one's place as it expires.
     # A single shot taken here holds the first three and would report the other
     # three as never drawn.
     #

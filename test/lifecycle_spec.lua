@@ -1,16 +1,18 @@
 --- Boundaries introduced by the plan/appearance/runtime split. These tests use
 --- retained callback contexts and observable calls, not private cache fields.
+local appearance = require(".appearance")
 local colour = require(".colour")
 local column = require(".column")
 local config = require(".config")
-local diagnostics = require(".diagnostics")
+local report = require(".report")
 local runtime = require(".runtime")
-local style = require(".style")
+local schema = require(".schema")
 
 ---@type supaline.Main
 local main = require(".main")
 
-local CFG = { separator = " ", order = 1400, band = {} }
+local CFG = { band = {} }
+local AT = schema.path("spec")
 
 local function folder(path, size) return stub.folder(path, { stub.file { name = "one", size = size } }) end
 
@@ -33,21 +35,25 @@ end
 test("registry: catalogues and registries have explicit independent lifetimes", function()
 	local a, b = column.new_registry(), column.new_registry()
 	local defs = require(".builtin").definitions()
-	throws(function() a.compile("size", CFG) end, "unknown column `size`")
+	throws(function() a.compile("size", AT, CFG) end, "unknown column `size`")
 	for name, def in pairs(defs) do
 		a.register(name, def)
 	end
-	eq(a.compile("size", CFG).name, "size")
-	throws(function() b.compile("size", CFG) end, "unknown column `size`")
+	eq(a.compile("size", AT, CFG).name, "size")
+	throws(function() b.compile("size", AT, CFG) end, "unknown column `size`")
 	local first = function() return "a" end
 	local second = function() return "b" end
 	a.register("mine", { render = first })
 	b.register("mine", { render = second })
-	eq(a.compile("mine", CFG).render, first)
-	eq(b.compile("mine", CFG).render, second)
+	eq(a.compile("mine", AT, CFG).render, first)
+	eq(b.compile("mine", AT, CFG).render, second)
 end)
 
 test("plan: compilation neither reads a theme nor evaluates style callbacks", function()
+	-- Both styles here are functions, which compiling keeps to call later. A
+	-- style written as a value is read while compiling, against Yazi's own
+	-- colour parser, which is `ui` -- so `ui` is taken away here only because
+	-- nothing in this configuration is a value.
 	local calls = 0
 	local opts = {
 		separator = {
@@ -72,7 +78,7 @@ test("plan: compilation neither reads a theme nor evaluates style callbacks", fu
 	eq(calls, 0)
 	eq(plan.columns[1].ctx, nil, "a plan has no bound context")
 	eq(plan.columns[1].told, nil, "a plan has no notification state")
-	style.resolve(plan, {})
+	appearance.resolve(plan, {})
 	eq(calls, 2)
 end)
 
@@ -135,21 +141,24 @@ test("snapshot: a theme reload cannot change the setup's structural inputs", fun
 	eq(type(Linemode.extra), "function")
 end)
 
-test("snapshot: style tables with metatables are still framework records", function()
+test("snapshot: a style written as a value is read once, at `setup`", function()
+	-- Read rather than copied, so what a table reaches through `__index` is
+	-- read as well as what it holds, and nothing written to either afterwards
+	-- reaches the plan.
 	local inherited = { fg = "red" }
 	local written = setmetatable({ bold = true }, { __index = inherited })
-	local plan
-	with(_G, "ui", nil, function() plan = compile { linemodes = { detail = { { "probe", style = written } } } } end)
+	local plan = compile { linemodes = { detail = { { "probe", style = written } } } }
 	inherited.fg, written.bold = "blue", false
-	local paint = style.resolve(plan, {}).columns[plan.columns[1]]
+	local paint = appearance.resolve(plan, {}).columns[plan.columns[1]]
 	eq(paint.style:raw().fg, "Red")
 	eq(paint.style:raw().bold, true)
-	local opaque = ui.Style():fg("green")
-	eq(style.snapshot(opaque), opaque)
-	throws(
-		function() style.resolve(compile { linemodes = { detail = { { "probe", style = ui.Style } } } }, {}) end,
-		"constructor"
-	)
+
+	-- A `ui.Style` is read through `raw()`, the same way.
+	local opaque = compile { linemodes = { detail = { { "probe", style = ui.Style():fg("green") } } } }
+	eq(appearance.resolve(opaque, {}).columns[opaque.columns[1]].style:raw().fg, "Green")
+
+	-- And refused there too, before any theme is looked at.
+	throws(function() compile { linemodes = { detail = { { "probe", style = ui.Style } } } } end, "constructor")
 end)
 
 test("snapshot: pane lists, mode separators and named bands are owned by the plan", function()
@@ -238,7 +247,7 @@ test("runtime: absent folders are distinct per mode and pane", function()
 		}
 	end
 	local plan = compile { linemodes = { a = { parent = { entry("a", 2) } }, b = { parent = { entry("b", 4) } } } }
-	local run = runtime.new(plan, style.resolve(plan, {}), diagnostics.new(function() error("unexpected report") end))
+	local run = runtime.new(plan, appearance.resolve(plan, {}), report.new(function() error("unexpected report") end))
 	local file = stub.file {}
 	eq(text_of(run.render(plan.modes.a, "parent", file)), " a")
 	eq(text_of(run.render(plan.modes.b, "parent", file)), "   b")

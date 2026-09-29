@@ -1,11 +1,18 @@
---- `style.lua`: what a colour value may be, and the ramp built from one.
+--- `paint.lua` and `style.lua`: what a colour value may be, how one writer's
+--- style is read and the three are merged and built, and the ramp built from
+--- one.
 ---
 --- The stub's `ui.Style():fg` refuses what a real 26.9.1 refuses, from a
 --- measured table, which is what lets the "not a colour" path be tested at all
 --- -- the plugin asks Yazi's parser rather than carrying a list of its own.
 
 local colour = require(".colour")
+local paint = require(".paint")
+local schema = require(".schema")
 local style = require(".style")
+
+-- Where a value under test was written, for the refusals that name it.
+local X = schema.path("x")
 
 -- One test reads both name rules against each other, which is the only way to
 -- see that they have come apart. Nothing else in this file reaches into
@@ -45,34 +52,37 @@ test("colour: a hex triple comes back with its channels", function()
 	-- Asserted rather than indexed straight: a hex triple that came back with
 	-- no channels is the failure this test exists for, and "attempt to index a
 	-- nil value" would name the harness for it.
-	local rgb = assert(style.colour("#0b3d91", "x"), "a hex colour has channels")
+	local rgb = assert(paint.colour("#0b3d91", X), "a hex colour has channels")
 	eq(rgb[1], 0x0b)
 	eq(rgb[2], 0x3d)
 	eq(rgb[3], 0x91)
 
-	local upper = assert(style.colour("#FF8800", "x"))
+	local upper = assert(paint.colour("#FF8800", X))
 	eq(upper[1], 255, "case is Yazi's business, not a second spelling")
 end)
 
 test("colour: a name and an index are colours with no channels to give", function()
-	eq(style.colour("cyan", "x"), nil, "what `cyan` is on screen is the terminal's palette, not ours")
-	eq(style.colour("129", "x"), nil)
-	eq(style.colour("reset", "x"), nil)
+	eq(paint.colour("cyan", X), nil, "what `cyan` is on screen is the terminal's palette, not ours")
+	eq(paint.colour("129", X), nil)
+	eq(paint.colour("reset", X), nil)
 end)
 
 test("colour: what Yazi's parser refuses is refused here, and named in the error", function()
-	throws(function() style.colour("#f80", "the colour of column `size`") end, "`#f80`")
-	throws(function() style.colour("#f80", "the colour of column `size`") end, "column `size`")
-	throws(function() style.colour("nosuchcolour", "x") end, "not a colour Yazi accepts")
-	throws(function() style.colour("256", "x") end, "not a colour Yazi accepts")
+	throws(function() paint.colour("#f80", schema.path("setup.linemodes.detail[1].style")) end, "`#f80`")
+	throws(
+		function() paint.colour("#f80", schema.path("setup.linemodes.detail[1].style")) end,
+		"setup.linemodes.detail[1].style: "
+	)
+	throws(function() paint.colour("nosuchcolour", X) end, "not a colour Yazi accepts")
+	throws(function() paint.colour("256", X) end, "not a colour Yazi accepts")
 end)
 
 test("colour: a value that is not a string is refused", function()
-	throws(function() style.colour(42, "x") end, "must be a colour string")
+	throws(function() paint.colour(42, X) end, "must be a colour string")
 	-- `fg(nil)` and `fg(true)` return nil on a real Yazi instead of raising, so
 	-- neither may reach it: the caller would be told the colour was fine.
-	throws(function() style.colour(nil, "x") end, "got a nil")
-	throws(function() style.colour(true, "x") end, "got a boolean")
+	throws(function() paint.colour(nil, X) end, "got a nil")
+	throws(function() paint.colour(true, X) end, "got a boolean")
 end)
 
 --- The nine attributes, each under the `ui.Style` method that drives it.
@@ -95,11 +105,11 @@ local ATTRS = {
 	crossed = "crossed",
 }
 
---- The pair `style.recommended` hands a reader to paste, which is what every
+--- The pair `paint.recommended` hands a reader to paste, which is what every
 --- band measured below was measured at.
 ---
 --- Written out rather than taken from that function. These numbers are the
---- ones the comments in `style.lua` justify and the README quotes, so a spec
+--- ones the comments in `paint.lua` justify and the README quotes, so a spec
 --- that moved the recommendation should fail these tests rather than move them
 --- along with it.
 ---@type supaline.Band
@@ -114,15 +124,15 @@ local BANDS = { fg = REC, bg = REC }
 ---@type integer[]
 local NAVY = { 0x0b, 0x3d, 0x91 }
 
---- `style.stops`, with a band behind the name a value asks for.
+--- `paint.stops`, with a band behind the name a value asks for.
 ---
 --- Most of what is below is about the arithmetic rather than about which band
 --- was asked for, and reads better for not saying so on every line. The tests
---- that *are* about the name call `style.stops` directly.
+--- that *are* about the name call `paint.stops` directly.
 ---@param value any
 ---@param band supaline.Band? the recommended pair when omitted
 ---@return integer[][]
-local function stops(value, band) return style.stops(value, "x", { fg = band or REC }, "fg") end
+local function stops(value, band) return paint.stops(value, X, { fg = band or REC }, "fg") end
 
 -- --- one writer's layer ----------------------------------------------------
 
@@ -139,7 +149,7 @@ local function stops(value, band) return style.stops(value, "x", { fg = band or 
 ---@param bands supaline.Bands? `BANDS` when omitted
 ---@return supaline.Layer
 local function layer(value, bands)
-	local got = style.layer(value, "x", style.painter(bands or BANDS))
+	local got = style.layer(value, X, paint.painter(bands or BANDS))
 	if not got then
 		error("a layer rather than `false`")
 	end
@@ -153,7 +163,7 @@ test("layer: nothing written is an empty layer, and `false` is the layer itself"
 	-- taken off -- the row's own bold along with a theme's -- where what
 	-- `style = false` asks for is a cell drawn in whatever the row already
 	-- carries. `merge` is what reads it, so it is handed on as it is.
-	eq(style.layer(false, "x", style.painter(BANDS)), false)
+	eq(style.layer(false, X, paint.painter(BANDS)), false)
 end)
 
 test("layer: a string is the `fg`, flat or a gradient", function()
@@ -254,12 +264,12 @@ test("layer: a colour is a colour and an attribute a boolean", function()
 	-- `fg` and `bg` go through the same allow-list a bare string does, so there
 	-- is one answer to "is this a colour" however it was written -- and the
 	-- message says which key, since a table has two of them.
-	throws(function() layer { fg = "#gg0000" } end, "x: `fg`: `#gg0000` is not a colour Yazi accepts")
-	throws(function() layer { bg = 42 } end, "x: `bg` must be a colour string, got a number")
+	throws(function() layer { fg = "#gg0000" } end, "x.fg: `#gg0000` is not a colour Yazi accepts")
+	throws(function() layer { bg = 42 } end, "x.bg: must be a colour string, got a number")
 
 	-- A table under a colour key is refused as a table and no more is said:
 	-- there is no list spelling of a gradient for it to have meant.
-	throws(function() layer { fg = { "#aabbcc", "#ff8800" } } end, "`fg` must be a colour string, got a table")
+	throws(function() layer { fg = { "#aabbcc", "#ff8800" } } end, "x.fg: must be a colour string, got a table")
 
 	-- An attribute is not a colour, and a string there is the way that mistake
 	-- arrives.
@@ -284,11 +294,11 @@ test("layer: what is not a style at all is refused", function()
 	-- exactly that reason -- the noun in the message is the only part that
 	-- differs from a real Yazi, where a Span is userdata rather than a table.
 	throws(
-		function() style.layer(ui.Span("x"), "the `style` of column `size`", style.painter(BANDS)) end,
-		"column `size`"
+		function() style.layer(ui.Span("x"), schema.path("setup.linemodes.detail[1].style"), paint.painter(BANDS)) end,
+		"setup.linemodes.detail[1].style: "
 	)
-	throws(function() layer(42) end, "is a number")
-	throws(function() layer(true) end, "is a boolean")
+	throws(function() layer(42) end, "got a number")
+	throws(function() layer(true) end, "got a boolean")
 
 	-- A renderable is refused here and on a real Yazi, and the two arrive at it
 	-- differently: theirs is userdata and falls to the message above, the
@@ -413,9 +423,9 @@ end)
 -- --- one style, for a separator ---------------------------------------------
 
 test("flat: a separator's style is one layer built on its own, and takes no gradient", function()
-	eq(style.flat("#ff8800", "x").fg, "#ff8800")
-	eq(style.flat({ bold = true }, "x").bold, true)
-	eq(style.flat(ui.Style():fg("cyan"), "x").fg, "Cyan")
+	eq(style.flat("#ff8800", X).fg, "#ff8800")
+	eq(style.flat({ bold = true }, X).bold, true)
+	eq(style.flat(ui.Style():fg("cyan"), X).fg, "Cyan")
 
 	-- A separator is drawn between two columns rather than on a file, so there
 	-- is no value to place on a gradient and every spelling of one is refused
@@ -428,19 +438,19 @@ test("flat: a separator's style is one layer built on its own, and takes no grad
 	-- answered "`cyan` is not a colour Yazi accepts. Write `#rrggbb`, a name
 	-- such as `cyan`" -- refusing the very spelling it told the reader to
 	-- write, about a colour that is not what is wrong. Which of the two fired
-	-- was whichever of `M.stops`'s refusals came first. So the assertions below
+	-- was whichever of `paint.stops`'s refusals came first. So the assertions below
 	-- are one message four times over, deliberately, and a fifth spelling that
 	-- found its way to a different one would be the same bug returning.
 	local SAME = "is a gradient, and there is no value here to place"
-	throws(function() style.flat("#0b3d91 -> #7fd4ff", "x") end, "`#0b3d91 -> #7fd4ff` " .. SAME)
-	throws(function() style.flat("#0b3d91 <->", "x") end, "`#0b3d91 <->` " .. SAME)
-	throws(function() style.flat("#0b3d91 <-> nosuch", "x") end, "`#0b3d91 <-> nosuch` " .. SAME)
-	throws(function() style.flat("cyan <->", "x") end, "`cyan <->` " .. SAME)
+	throws(function() style.flat("#0b3d91 -> #7fd4ff", X) end, "`#0b3d91 -> #7fd4ff` " .. SAME)
+	throws(function() style.flat("#0b3d91 <->", X) end, "`#0b3d91 <->` " .. SAME)
+	throws(function() style.flat("#0b3d91 <-> nosuch", X) end, "`#0b3d91 <-> nosuch` " .. SAME)
+	throws(function() style.flat("cyan <->", X) end, "`cyan <->` " .. SAME)
 
 	-- Under a key it is the value that is named, not the key: the bare-string
 	-- form above has no key to name, and one message reading two ways is what
 	-- put the reader in front of the wrong one to begin with.
-	throws(function() style.flat({ bg = "#0b3d91 <->" }, "x") end, "x: `bg`: `#0b3d91 <->` " .. SAME)
+	throws(function() style.flat({ bg = "#0b3d91 <->" }, X) end, "x.bg: `#0b3d91 <->` " .. SAME)
 end)
 
 -- --- what a style answers `raw()` with ------------------------------------
@@ -495,20 +505,20 @@ end)
 -- --- telling a ramp from a flat colour -------------------------------------
 
 test("is_ramp: the arrow is what a flat colour can never contain", function()
-	eq(style.is_ramp("#0b3d91 -> #7fd4ff"), true)
-	eq(style.is_ramp("#0b3d91"), false)
-	eq(style.is_ramp("cyan"), false)
-	eq(style.is_ramp(nil), false)
+	eq(paint.is_ramp("#0b3d91 -> #7fd4ff"), true)
+	eq(paint.is_ramp("#0b3d91"), false)
+	eq(paint.is_ramp("cyan"), false)
+	eq(paint.is_ramp(nil), false)
 	-- The style a theme hands over, not a bare `{}`: on a real Yazi it is
 	-- userdata and here it is a table behind a metatable, and an implementation
 	-- that reached for a field on it before testing the type would pass a bare
 	-- table and fail on both of those.
-	eq(style.is_ramp(ui.Style():fg("red"):bold()), false, "a style out of the theme is not a ramp")
-	eq(style.is_ramp {}, false)
+	eq(paint.is_ramp(ui.Style():fg("red"):bold()), false, "a style out of the theme is not a ramp")
+	eq(paint.is_ramp {}, false)
 	-- `<->` carries the arrow inside it, so a band answers this without the
 	-- test knowing there are two spellings. That is the reason it is spelled
 	-- with one.
-	eq(style.is_ramp("#0b3d91 <->"), true, "a band is a ramp")
+	eq(paint.is_ramp("#0b3d91 <->"), true, "a band is a ramp")
 end)
 
 -- --- endpoints -------------------------------------------------------------
@@ -553,7 +563,7 @@ end)
 
 test("band: a colour lighter than the band is still not an end of it", function()
 	-- Every value below is from this implementation, on the arithmetic in
-	-- `style.lua`; the same numbers come out of the derivation by hand.
+	-- `colour.lua`; the same numbers come out of the derivation by hand.
 	--
 	-- `#e8f4ff` sits at 0.96 in lightness, above the band's own top, and the
 	-- band still runs 0.35 to 0.88 -- so the colour that was written appears
@@ -648,16 +658,16 @@ end)
 test("bounds: nil is refused along with everything else that is not a table", function()
 	-- Nothing falls back to the recommended pair, so nil reaching this function
 	-- is a caller that read a name nobody defined and did not check.
-	throws(function() style.bounds(nil, "x") end, "must be a table of two lightnesses")
+	throws(function() paint.bounds(nil, X) end, "must be a table of two lightnesses")
 end)
 
 test("recommended: a fresh table, so two callers cannot write to one band", function()
-	local a, b = style.recommended(), style.recommended()
+	local a, b = paint.recommended(), paint.recommended()
 	eq(a.from, REC.from)
 	eq(a.to, REC.to)
 	a.from = 0.1
 	eq(b.from, REC.from, "the second copy did not move with the first")
-	eq(style.recommended().from, REC.from, "and neither did the next one")
+	eq(paint.recommended().from, REC.from, "and neither did the next one")
 end)
 
 -- --- bands by name ---------------------------------------------------------
@@ -666,9 +676,9 @@ test("bands: a `setup` that named no band defines none", function()
 	-- Empty rather than nil, and rather than a pair. Every `<->` is then
 	-- refused, which is the whole of what "no default" means: there is no name
 	-- a band can be asked for by that answers without the user having said so.
-	local none = style.bands(nil, "x")
+	local none = paint.bands(nil, X)
 	eq(next(none), nil)
-	throws(function() style.stops("#0b3d91 <->", "x", none, "fg") end, "nothing defines `fg`")
+	throws(function() paint.stops("#0b3d91 <->", X, none, "fg") end, "nothing defines `fg`")
 end)
 
 test("bands: the refusal carries the pair to paste and says nothing is defined", function()
@@ -676,7 +686,7 @@ test("bands: the refusal carries the pair to paste and says nothing is defined",
 	-- first time they write `<->`, not a corner they reach by getting something
 	-- wrong. So it has to carry the two numbers, the name the key asked for,
 	-- and the fact that supaline is not withholding a better answer.
-	local nothing = function() style.stops("#0b3d91 <->", "x", {}, "fg") end
+	local nothing = function() paint.stops("#0b3d91 <->", X, {}, "fg") end
 	throws(nothing, "{ from = 0.35, to = 0.88 }")
 	throws(nothing, "band = { fg = ")
 	throws(nothing, "cannot see that ground")
@@ -687,13 +697,13 @@ test("bands: the refusal lists what is defined, which is where a typo shows up",
 	-- The one thing lost by making `band` a namespace: no sweep can refuse
 	-- `bgg`, because every name is a name somebody may have meant. What stands
 	-- in for it is this list, read at the use site one step later.
-	local defined = style.bands({ fg = REC, bgg = REC }, "x")
-	throws(function() style.stops("#0b3d91 <->", "x", defined, "bg") end, "Defined: `bgg`, `fg`")
+	local defined = paint.bands({ fg = REC, bgg = REC }, X)
+	throws(function() paint.stops("#0b3d91 <->", X, defined, "bg") end, "Defined: `bgg`, `fg`")
 end)
 
 test("bands: the key a band is written under is the band it asks for", function()
 	local dark = { from = 0.1, to = 0.3 }
-	local one = layer({ fg = "#0b3d91 <->", bg = "#0b3d91 <->" }, style.bands({ fg = REC, bg = dark }, "x"))
+	local one = layer({ fg = "#0b3d91 <->", bg = "#0b3d91 <->" }, paint.bands({ fg = REC, bg = dark }, X))
 	-- A `supaline.Paint` is a flat colour or a ramp's stops, and only the
 	-- second is a band. What narrows it here is the key it was read off -- a
 	-- band under this key is the whole of what each of these tests is for.
@@ -702,13 +712,13 @@ test("bands: the key a band is written under is the band it asks for", function(
 end)
 
 test("bands: a bare string is the `fg` key, so it asks for the `fg` band", function()
-	local two = style.bands({ fg = REC, bg = { from = 0.1, to = 0.3 } }, "x")
+	local two = paint.bands({ fg = REC, bg = { from = 0.1, to = 0.3 } }, X)
 	same_band(layer("#0b3d91 <->", two).fg --[[@as integer[][] ]], colour.band(NAVY, REC))
 end)
 
 test("bands: a name after the marker wins over the key it was written under", function()
 	local dim = { from = 0.2, to = 0.45 }
-	local three = style.bands({ fg = REC, dim = dim }, "x")
+	local three = paint.bands({ fg = REC, dim = dim }, X)
 	same_band(layer({ fg = "#0b3d91 <-> dim" }, three).fg --[[@as integer[][] ]], colour.band(NAVY, dim))
 end)
 
@@ -717,10 +727,10 @@ test("bands: what follows the marker is a name, and a colour there says so", fun
 	-- endpoints written with the band marker are refused there rather than
 	-- read as a colour.
 	local one = { fg = REC }
-	throws(function() style.stops("#0b3d91 <-> #7fd4ff", "x", one, "fg") end, "is not a band name")
-	throws(function() style.stops("#0b3d91 <-> #7fd4ff", "x", one, "fg") end, "write them with `->`")
-	throws(function() style.stops("#0b3d91 <-> 0.4", "x", one, "fg") end, "is not a band name")
-	throws(function() style.stops("#0b3d91 <-> My_Band", "x", one, "fg") end, "is not a band name")
+	throws(function() paint.stops("#0b3d91 <-> #7fd4ff", X, one, "fg") end, "is not a band name")
+	throws(function() paint.stops("#0b3d91 <-> #7fd4ff", X, one, "fg") end, "write them with `->`")
+	throws(function() paint.stops("#0b3d91 <-> 0.4", X, one, "fg") end, "is not a band name")
+	throws(function() paint.stops("#0b3d91 <-> My_Band", X, one, "fg") end, "is not a band name")
 end)
 
 test("bands: a band's own two keys are not names a `<->` can ask for", function()
@@ -731,47 +741,47 @@ test("bands: a band's own two keys are not names a `<->` can ask for", function(
 	-- turns away -- so it is caught before that, in the words the refusal at
 	-- `setup` uses.
 	local one = { fg = REC }
-	throws(function() style.stops("#0b3d91 <-> from", "x", one, "fg") end, "one of a band's own two keys")
-	throws(function() style.stops("#0b3d91 <-> to", "x", one, "fg") end, "Call the band something else")
-	throws(function() style.stops("#0b3d91 <-> to", "x", one, "fg") end, "`to`")
+	throws(function() paint.stops("#0b3d91 <-> from", X, one, "fg") end, "one of a band's own two keys")
+	throws(function() paint.stops("#0b3d91 <-> to", X, one, "fg") end, "Call the band something else")
+	throws(function() paint.stops("#0b3d91 <-> to", X, one, "fg") end, "`to`")
 end)
 
 test("bands: a name Lua will not take bare is quoted where the refusal says to write it", function()
 	-- `end` is a name the shape takes and `band = { ["end"] = ... }` defines,
 	-- so it draws. What it may not do is come back bare: `band = { end = ... }`
 	-- is a syntax error, and a refusal a reader pastes has to be a setting.
-	local keyworded = style.bands({ ["end"] = REC }, "x")
+	local keyworded = paint.bands({ ["end"] = REC }, X)
 	eq(next(keyworded), "end", "`setup` takes it")
 	same_band(
-		style.stops("#0b3d91 <-> end", "x", keyworded, "fg"),
+		paint.stops("#0b3d91 <-> end", X, keyworded, "fg"),
 		colour.band(NAVY, REC),
 		"a keyword is a band name like any other"
 	)
-	throws(function() style.stops("#0b3d91 <-> end", "x", {}, "fg") end, 'band = { ["end"] = ')
+	throws(function() paint.stops("#0b3d91 <-> end", X, {}, "fg") end, 'band = { ["end"] = ')
 
 	-- A name that starts with a digit is the same fault by the other road, and
 	-- it is the one the keyword test does not reach: `2x` is no keyword, `NAME`
 	-- takes it, and `band = { 2x = ... }` is a syntax error all the same.
-	local digit_led = style.bands({ ["2x"] = REC }, "x")
+	local digit_led = paint.bands({ ["2x"] = REC }, X)
 	eq(next(digit_led), "2x", "`setup` takes it")
 	same_band(
-		style.stops("#0b3d91 <-> 2x", "x", digit_led, "fg"),
+		paint.stops("#0b3d91 <-> 2x", X, digit_led, "fg"),
 		colour.band(NAVY, REC),
 		"a digit-led name is a band name like any other"
 	)
-	throws(function() style.stops("#0b3d91 <-> 2x", "x", {}, "fg") end, 'band = { ["2x"] = ')
+	throws(function() paint.stops("#0b3d91 <-> 2x", X, {}, "fg") end, 'band = { ["2x"] = ')
 
 	-- Only where it has to be. An ordinary name stays bare, because bracketing
 	-- every name would make the common message read as the awkward case.
-	throws(function() style.stops("#0b3d91 <-> dim", "x", {}, "fg") end, "band = { dim = ")
-	throws(function() style.stops("#0b3d91 <-> _x", "x", {}, "fg") end, "band = { _x = ")
+	throws(function() paint.stops("#0b3d91 <-> dim", X, {}, "fg") end, "band = { dim = ")
+	throws(function() paint.stops("#0b3d91 <-> _x", X, {}, "fg") end, "band = { _x = ")
 end)
 
 test("bands: a band's name is a column's rule, without the cap that is Yazi's", function()
 	-- The only cross-module test here, and it is load-bearing: the two `NAME`
-	-- literals cannot be shared, because `column.lua` requires `style.lua` and
-	-- the lower layer cannot reach the upper one's. Nothing but this says they
-	-- have come apart.
+	-- literals are kept apart on purpose -- a column's is Yazi's theme rule and
+	-- a band's is this plugin's own -- in two modules, `column.lua` above
+	-- `paint.lua`. Nothing but this says they have come apart.
 	--
 	-- The band rule used to start `^[a-z]`, so `2x` and `_x` were names a
 	-- column could have and a band could not. What retired that is measurement:
@@ -779,7 +789,7 @@ test("bands: a band's name is a column's rule, without the cap that is Yazi's", 
 	-- key", and `_x` is one and was refused while `end` is not one and passed.
 	for _, name in ipairs { "2x", "_x", "x_", "my_band2" } do
 		registry.register(name, { render = function() return "x" end })
-		eq(next(style.bands({ [name] = REC }, "x")), name, name .. " names both a column and a band")
+		eq(next(paint.bands({ [name] = REC }, X)), name, name .. " names both a column and a band")
 	end
 
 	-- The one difference left, and it belongs to Yazi rather than to either
@@ -789,7 +799,7 @@ test("bands: a band's name is a column's rule, without the cap that is Yazi's", 
 	throws(function()
 		registry.register(long, { render = function() return "x" end })
 	end, "cannot be a column name")
-	eq(next(style.bands({ [long] = REC }, "x")), long, "a band of 21 characters is defined")
+	eq(next(paint.bands({ [long] = REC }, X)), long, "a band of 21 characters is defined")
 end)
 
 test("bands: the flat pair written where a table of bands goes is refused by name", function()
@@ -797,56 +807,59 @@ test("bands: the flat pair written where a table of bands goes is refused by nam
 	-- them. Refused rather than read as the `fg` band, because two spellings of
 	-- one thing is what this plugin turns down everywhere else -- and the
 	-- message names the replacement.
-	throws(function() style.bands({ from = 0.35, to = 0.88 }, "x") end, "are a band's own keys")
-	throws(function() style.bands({ from = 0.35, to = 0.88 }, "x") end, "band = { fg = { from = 0.35, to = 0.88 } }")
-	throws(function() style.bands({ from = 0.35 }, "x") end, "are a band's own keys")
+	throws(function() paint.bands({ from = 0.35, to = 0.88 }, X) end, "are a band's own keys")
+	throws(function() paint.bands({ from = 0.35, to = 0.88 }, X) end, "band = { fg = { from = 0.35, to = 0.88 } }")
+	throws(function() paint.bands({ from = 0.35 }, X) end, "are a band's own keys")
 end)
 
 test("bands: a name is lowercase letters, digits and `_`", function()
 	-- The class a column's name holds, taken because this plugin has one shape
 	-- a name is written in -- not because anything parses a band name.
-	eq(next(style.bands({ my_band2 = REC }, "x")), "my_band2")
-	throws(function() style.bands({ ["my-band"] = REC }, "x") end, "is not a band name")
-	throws(function() style.bands({ MyBand = REC }, "x") end, "is not a band name")
-	throws(function() style.bands({ [1] = REC }, "x") end, "is not a band name")
+	eq(next(paint.bands({ my_band2 = REC }, X)), "my_band2")
+	throws(function() paint.bands({ ["my-band"] = REC }, X) end, "is not a band name")
+	throws(function() paint.bands({ MyBand = REC }, X) end, "is not a band name")
+	throws(function() paint.bands({ [1] = REC }, X) end, "is not a band name")
 end)
 
 test("bands: a band cannot be named after one of a band's own keys", function()
 	-- `to = { ... }` is a band called `to`, which the flat-pair check above
 	-- lets through -- it looks at the type, so a table under `to` is not the
 	-- old spelling. It is refused here instead, and for its own reason.
-	throws(function() style.bands({ to = REC }, "x") end, "cannot also be a band's name")
-	throws(function() style.bands({ from = REC }, "x") end, "cannot also be a band's name")
+	throws(function() paint.bands({ to = REC }, X) end, "cannot also be a band's name")
+	throws(function() paint.bands({ from = REC }, X) end, "cannot also be a band's name")
 end)
 
 test("bands: each band is checked, and the refusal names which one", function()
-	throws(function() style.bands({ fg = { from = 0, to = 0.88 } }, "`band` in `setup`") end, "must be above 0")
-	throws(function() style.bands({ fg = { from = 0, to = 0.88 } }, "`band` in `setup`") end, "`band` in `setup`: `fg`")
-	throws(function() style.bands({ dim = "dark" }, "x") end, "x: `dim` must be a table")
+	throws(function() paint.bands({ fg = { from = 0, to = 0.88 } }, schema.path("setup.band")) end, "must be above 0")
+	throws(
+		function() paint.bands({ fg = { from = 0, to = 0.88 } }, schema.path("setup.band")) end,
+		"setup.band.fg.from: "
+	)
+	throws(function() paint.bands({ dim = "dark" }, X) end, "x.dim: must be a table")
 end)
 
 test("bounds: an end outside `(0, 1]` is refused, NaN included", function()
 	-- 0 is black at every hue, so a band with an end there has one no colour
 	-- reaches; above 1 is off the end of the space.
-	throws(function() style.bounds({ from = 0, to = 0.88 }, "x") end, "must be above 0")
-	throws(function() style.bounds({ from = 0.35, to = 1.2 }, "x") end, "must be above 0")
-	throws(function() style.bounds({ from = -0.1, to = 0.88 }, "x") end, "must be above 0")
+	throws(function() paint.bounds({ from = 0, to = 0.88 }, X) end, "must be above 0")
+	throws(function() paint.bounds({ from = 0.35, to = 1.2 }, X) end, "must be above 0")
+	throws(function() paint.bounds({ from = -0.1, to = 0.88 }, X) end, "must be above 0")
 	-- The one the range check is written backwards for: a NaN answers false to
 	-- both comparisons, so `not (v > 0 and v <= 1)` refuses it where the
 	-- complement would have let it through and drawn 64 uncoloured cells.
 	local nan = 0 / 0
-	throws(function() style.bounds({ from = nan, to = 0.88 }, "x") end, "must be above 0")
+	throws(function() paint.bounds({ from = nan, to = 0.88 }, X) end, "must be above 0")
 end)
 
 test("bounds: a band that is not two numbers is refused", function()
-	throws(function() style.bounds({ to = 0.88 }, "x") end, "`from` must be an Oklab lightness")
-	throws(function() style.bounds({ from = 0.35 }, "x") end, "`to` must be an Oklab lightness")
-	throws(function() style.bounds({ from = "dark", to = 0.88 }, "x") end, "`from` must be an Oklab lightness")
-	throws(function() style.bounds("dark", "x") end, "must be a table of two lightnesses")
+	throws(function() paint.bounds({ to = 0.88 }, X) end, "x.from: must be an Oklab lightness")
+	throws(function() paint.bounds({ from = 0.35 }, X) end, "x.to: must be an Oklab lightness")
+	throws(function() paint.bounds({ from = "dark", to = 0.88 }, X) end, "x.from: must be an Oklab lightness")
+	throws(function() paint.bounds("dark", X) end, "must be a table of two lightnesses")
 end)
 
 test("bounds: two ends at one lightness are taken rather than refused", function()
-	local band = style.bounds({ from = 0.6, to = 0.6 }, "x")
+	local band = paint.bounds({ from = 0.6, to = 0.6 }, X)
 	eq(band.from, 0.6)
 	eq(band.to, 0.6)
 	-- Why they are taken: sixty-four steps of one colour is what a flat colour
@@ -863,7 +876,7 @@ test("bounds: two ends at one lightness are taken rather than refused", function
 end)
 
 test("bounds: the error names where the band was written", function()
-	throws(function() style.bounds({ from = 2, to = 0.5 }, "`band` in `setup`") end, "`band` in `setup`")
+	throws(function() paint.bounds({ from = 2, to = 0.5 }, schema.path("setup.band.fg")) end, "setup.band.fg.from: ")
 end)
 
 -- --- the ramp --------------------------------------------------------------

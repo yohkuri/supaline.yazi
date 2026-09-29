@@ -161,7 +161,7 @@ supaline.column("name_line", {
 --
 -- They sit on a leader of their own, `b`, and `e2e.py` presses all of it --
 -- in a second Yazi with a log of its own, started once the run that is meant
--- to be clean has been torn down. That shape is forced: `report` writes to
+-- to be clean has been torn down. That shape is forced: `tell` writes to
 -- `yazi.log` as well as to the screen, and `e2e.py` fails the clean run for
 -- logging an error at all, so these keys cannot be pressed in it. Two logs
 -- rather than one exception.
@@ -455,7 +455,7 @@ supaline:setup {
 		--
 		-- `name_line` is here for the one reason nothing else can serve: it
 		-- hands back a Line, which `cell` pads by the other of its two routes
-		-- -- the comment on `M.cell` in `column.lua` is where those are written
+		-- -- the comment on `M.cell` in `layout.lua` is where those are written
 		-- down -- and until this column carried a ground only one route was
 		-- ever drawn on one. 16 rather than 14 so a glance can tell the two
 		-- bands apart on screen, which is what `manual.py` is for; `e2e.py`
