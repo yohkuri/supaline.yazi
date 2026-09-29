@@ -2,8 +2,7 @@
 """Render supaline in a real Yazi and check what comes back.
 
 The unit tests stub the Yazi globals, so they can say nothing about rendering.
-This can, and it is the only thing that can: both layout bugs found so far were
-invisible to the unit tests until something drew them.
+This can, and it is the only thing that can.
 
     test/e2e.py            run it
     test/e2e.py --keep     leave the scratch directory behind
@@ -52,16 +51,13 @@ from harness import (
 #: capture.
 WIDTH, HEIGHT = 170, 40
 
-#: The floor under every ramp check. The window is 40 rows and the header and
-#: the folder take some, so about 37 of the 64 steps reach a capture. The floor
-#: is well under that: what would drop it is a ramp that stopped drawing, and
-#: no terminal this runs in shows fewer.
+#: The floor under every ramp check, well under the 37 steps a capture holds:
+#: what would drop it is a ramp that stopped drawing, and no terminal this runs
+#: in shows fewer.
 RAMP_FLOOR = 24
 
-#: The floor under `c_scale`, which reads `colour/scale` rather than
-#: `colour/ramp`. That folder holds 21 files and all 21 fit a 40-row window,
-#: so this sits well under it: what would drop it is a column that stopped
-#: drawing, not a window that got shorter.
+#: The floor under `c_scale`, whose folder holds 21 files that all fit a
+#: 40-row window: what would drop it is a column that stopped drawing.
 SCALE_FLOOR = 16
 
 #: What counts as an error in a Yazi log, on either side of the run.
@@ -72,11 +68,9 @@ class Run:
     """The scratch directory, the session, and the captures taken from it."""
 
     def __init__(self, keep: bool) -> None:
-        # Both names carry the PID, so a run owns everything it touches. A
-        # fixed scratch directory is not safe either: `setup.py` refuses one
-        # that does not carry its marker file, but a concurrent run of this
-        # harness left that marker, so the guard passes and the removal takes
-        # the other run's fixture out from under its Yazi.
+        # Both names carry the PID, so a run owns everything it touches: a
+        # concurrent run leaves the marker `setup.py` guards removal with, so a
+        # fixed directory would pass the guard and lose its fixture.
         pid = os.getpid()
         self.dir = Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
         self.session = Session(f"supaline-e2e-{pid}")
@@ -86,12 +80,8 @@ class Run:
     # --- the fixture -------------------------------------------------------
 
     def setup(self) -> None:
-        """Imported and called, the way `manual.py` calls it.
-
-        A subprocess would be the same fixture and a worse refusal: `setup.py`
-        prints its own sentence and exits 2, and `run` would print a second,
-        emptier one over the top of it.
-        """
+        """Imported and called rather than run, so its own refusal is the one
+        printed rather than `run`'s emptier one over the top of it."""
         fixture.main([str(self.dir)])
 
     def teardown(self) -> None:
@@ -106,22 +96,15 @@ class Run:
     # --- driving -----------------------------------------------------------
 
     def open_yazi(self, state: str) -> None:
-        """Start Yazi on `data/`, with a state directory of its own.
-
-        Both halves come out of `harness`, which `manual.py` opens the same
-        fixture through -- the environment from `yazi_env` and the folder
-        from `yazi_data`. Neither is spelled here, and neither is quoted
-        here: `Session.start` is where a shell is known about.
-        """
+        """Start Yazi on `data/`, with a state directory of its own."""
         self.session.start(
             ["yazi", str(yazi_data(self.dir))],
             env=yazi_env(self.dir, state),
             width=WIDTH,
             height=HEIGHT,
         )
-        # A name out of the fixture rather than a fixed wait. This is both
-        # faster than the four seconds it replaces and stronger: it says Yazi
-        # got as far as listing the folder, where a sleep says only that time
+        # A name out of the fixture rather than a fixed wait: it says Yazi got
+        # as far as listing the folder, where a sleep says only that time
         # passed.
         self.session.wait_for(
             lambda s: "exactly-1k.bin" in s,
@@ -132,16 +115,10 @@ class Run:
     def store(self, label: str, plain: str, colour: str = "") -> None:
         """Hold a capture under `label`, in memory and on disk.
 
-        Not `keep`, which is the flag that decides whether the directory
-        written to here survives the run.
-
         On disk because `--keep` is for reading them afterwards, and a check
-        that failed is answered by the capture it failed on.
-
-        Taken apart from `shot` for the one capture this run does not take in
-        a single tmux call: the broken run's screen is a union of many, and
-        writing it out beside the others rather than through them would be
-        the naming convention held in two places.
+        that failed is answered by the capture it failed on. Apart from `shot`
+        for the one capture that is not a single tmux call: the broken run's
+        union of screens.
         """
         self.shots[label] = plain
         (self.dir / f"screen-{label}.txt").write_text(plain)
@@ -160,19 +137,12 @@ class Run:
     def goto(self, key: str) -> None:
         """Press a `g` key and wait until the current pane is the folder it names.
 
-        The predicate is a name only that folder holds, so this says the `cd`
-        arrived rather than that a second went by. Every `g` key in this run
-        gets one, and the name comes out of `FOLDERS` rather than from the
-        caller: a pair that could disagree is a wait on the wrong folder.
-
-        The **current pane** rather than the screen, because the other two
-        panes draw the folders either side of this one and a name they hold is
-        on screen before the `cd` that makes it current. Measured on 26.9.1:
-        `inner-a.txt` is in the preview pane throughout `data/` and
-        `exactly-1k.bin` is in the parent pane throughout `nested/`, so seven
-        of this run's thirteen `g` presses had their predicate satisfied before
-        the key was sent. A wait that is already over is the fixed sleep this
-        was written to replace, spelled as though it were the stronger thing.
+        The predicate is a name only that folder holds, taken from `FOLDERS`
+        rather than from the caller so the two cannot disagree, and it is read
+        off the **current pane**: the panes either side draw the neighbouring
+        folders, so a name they hold is on screen before the `cd` that makes
+        it current. Measured on 26.9.1, `inner-a.txt` is in the preview pane
+        throughout `data/`.
         """
         expect = FOLDERS[key]
         self.session.press(
@@ -188,75 +158,47 @@ def clean_run(r: Run) -> None:
     r.open_yazi("state")
 
     # Every linemode the manual harness offers, so a broken one cannot hide.
-    # `e` is one of them: the digits ran out before the cases did, and `m e` is
-    # a key like any other.
     for n in "0123456789e":
         r.session.press("m", n)
-        # Switching linemode does not re-peek the preview; move the hover to
-        # force one, so the preview pane is drawn under the mode now active.
-        # One press rather than two: `keys` sends the pair in a single
-        # `send-keys` and the settle after it covers the peek landing, where
-        # two presses wait out a stable window over a screen nothing reads.
+        # Switching linemode does not re-peek the preview, so the hover moves
+        # to force one under the mode now active -- one press of the pair, and
+        # the settle after it covers the peek landing.
         r.session.press("j", "k")
         r.shot(f"m{n}")
 
-    # The colour linemodes, for the reason the loop above exists: an
-    # unregistered name is drawn as literal text and one that threw takes the
-    # rows with it, and neither surfaces anywhere until a person runs
-    # `manual.py`. Each is pressed in the folder it is meant to be read in,
-    # because the spread of values in the folder being drawn is what decides
-    # what a ramp puts on screen.
-    #
-    # What this does *not* do is judge any of them. That is the whole point of
-    # their existing -- `MANUAL.md` says which questions a reader is the only
-    # instrument for, and `c_hue` is there precisely because the ramp check
-    # further down would go red on it while it was perfectly correct.
-    #
-    # The `c` key settles rather than waiting on a name: two colour linemodes
-    # over one folder draw the *same text* in different colours, so there is no
-    # plain-text predicate to write and the colour capture is what the checks
-    # read.
+    # The colour linemodes, each pressed in the folder it is meant to be read
+    # in, because the spread of values in the folder decides what a ramp puts
+    # on screen. What this does *not* do is judge them: `MANUAL.md` says which
+    # questions a reader is the only instrument for. They settle rather than
+    # wait on a name, because two colour modes over one folder draw the same
+    # text in different colours.
     for folder, key, label in COLOUR_MODES:
         r.goto(folder)
         r.session.press("c", key)
         r.shot(label)
 
     # m3 states one size column at 10 and measures the other, so the widths
-    # have to disagree -- and the measured one has to change when the folder
-    # does. `bind`'s per-folder cache key is the piece most likely to get that
-    # wrong.
+    # have to disagree -- and the measured one has to change with the folder.
     r.session.press("m", "3")
     r.goto("2")
     r.shot("m3-nested")
     r.goto("1")
 
-    # Last of everything, because it rewrites the theme every capture above was
-    # taken under. Back to m1 first, so a `size` column and an `mtime` one are
-    # both on screen to be recoloured.
+    # Late, because it rewrites the theme every capture above was taken under,
+    # and on m1 so a `size` and an `mtime` column are both there to recolour.
     r.session.press("m", "1")
     r.shot("theme-before")
-
-    # Both shapes at once, for the reason `THEME_NEW` gives: a ramp resolved
-    # once and cached past the reload would hold its old endpoints with the
-    # flat colour beside it already correct, and the flat half alone would not
-    # notice.
     theme = r.dir / "config" / "theme.toml"
     body = theme.read_text()
-    for old, new in zip(theme_values(r.dir, "default"), THEME_NEW):
+    for old, new in zip(fixture.theme_values(r.dir, "default"), THEME_NEW):
         body = body.replace(old, new)
     theme.write_text(body)
     r.session.press("T")
     r.shot("theme-after")
 
-    # Last of all, because it replaces `theme.toml` wholesale and every check
-    # above reads a capture taken against the file this run had been editing in
-    # place.
-    #
-    # The `c 1` to `c 3` keys are the only part of either harness that leaves
-    # Yazi to do its work -- a `shell` template running a script that copies a
-    # theme into place -- and a person pressing one sees a colour that did not
-    # change, with no way to tell a plugin that ignored the reload from a copy
-    # that never ran. So the file is compared as well as the screen.
+    # Last, because it replaces `theme.toml` wholesale. The `c` theme keys run a
+    # script through a `shell` template, the one part of either harness that
+    # leaves Yazi to do its work, so the file is compared as well as the screen.
     r.session.press("c", "2")
     r.shot("theme-swapped")
 
@@ -268,16 +210,11 @@ def clean_run(r: Run) -> None:
 def broken_run(r: Run, init: str) -> None:
     """A second Yazi, with a log of its own, for the columns that are wrong.
 
-    The separate log is the whole design rather than a convenience: the check
-    below goes on saying that the run above logged no error *at all*,
-    unfiltered and unexcused, and the errors this run makes happen in a
-    different file that is read for the opposite thing. Neither check learns an
-    exception, which is what an allowlist over one log would have been.
-
-    There is a second reason to keep them apart. `g 6` arms a `refresh` that
-    throws at every `cd` after it, and `told` reports a column once a session,
-    so any capture taken past that point comes from a session that can no
-    longer report. Every capture above is left exactly as it was.
+    The separate log is the design: the clean run's log is held to no error at
+    all, unfiltered, and the errors this run makes land in a different file
+    read for the opposite claim, so neither check learns an exception. And
+    `g 6` arms a `refresh` that throws at every `cd` after it, which no capture
+    of the clean run should be taken past.
     """
     r.open_yazi("state-broken")
 
@@ -289,27 +226,13 @@ def broken_run(r: Run, init: str) -> None:
     r.session.press("b", "f")
     r.goto("6")
 
-    # A union over many captures, not one capture, because six reports do not
-    # fit on the screen at once. Measured on 26.9.1: Yazi draws **three**
-    # notifications at a time and queues the rest, each for the twenty seconds
-    # `tell` asks for, so a fourth takes the first one's place as it expires.
-    # A single shot taken here holds the first three and would report the other
-    # three as never drawn.
-    #
-    # So the screen is read until every report has been seen on it, and what is
-    # kept is the union rather than a picture -- the claim being made is that
-    # each report reached the screen, not that they were ever there together.
-    # The deadline is generous against the drain it is waiting for, which is
-    # bounded by those twenty seconds.
-    wanted = [f"`{column}`" for column in broken_columns(init)]
+    # A union of many captures rather than one: measured on 26.9.1, Yazi draws
+    # three notifications at a time and queues the rest, each for the twenty
+    # seconds `tell` asks for. The claim is that each report reached the
+    # screen, not that they were ever there together. A quarter-second between
+    # captures, because that interval is also the lag on the answer.
+    wanted = [f"`{column}`" for column in fixture.broken_columns(init)]
     began = time.monotonic()
-    # Coarser than `POLL`, because a notification stays up for twenty
-    # seconds and a tenth of a second between captures would be two hundred
-    # of them for the same answer -- and finer than that fact alone would
-    # ask, because this interval is also the lag on the answer: measured on
-    # 26.9.1, the drain reports 21s at a quarter-second and 22s at a second,
-    # and the run is a second longer for it. The deadline is generous against
-    # the drain, which those twenty seconds bound.
     union = r.session.gather(
         wanted, "every report on the screen", every=0.25, timeout=60
     )
@@ -318,12 +241,10 @@ def broken_run(r: Run, init: str) -> None:
         print(f"e2e: the reports drained to the screen in {waited:.0f}s")
     r.store("broken", union)
 
-    # Everything after the capture is there to make one report come back if the
-    # gates that hold it down let go. Two more `cd`s, since a `refresh` that
-    # throws throws again at every folder walked into; then two `app:theme`
-    # presses, since a theme event rebuilds every column and the gate has to
-    # survive being recompiled. Nothing here is checked on its own -- it is the
-    # same per-column count below that answers all of it, by still being 1.
+    # What follows would make a report come back if the gates holding it down
+    # let go: two more `cd`s, since a throwing `refresh` throws at every folder,
+    # and two `app:theme`s, since a rebuild must not re-arm the gate. The
+    # per-column count below answers all of it by still being 1.
     r.goto("1")
     r.goto("2")
     r.session.press("T")
@@ -333,9 +254,9 @@ def broken_run(r: Run, init: str) -> None:
 
 
 #: Each colour linemode: the folder it is read in, the `c` key that reaches
-#: it, and the label its captures are kept under. One table because two
-#: readers need it -- written twice, a mode added to the presses alone would
-#: be drawn, asserted on by nobody, and green.
+#: it, and the label its captures are kept under. One table because the
+#: presses and the checks both read it -- a mode added to the presses alone
+#: would be drawn, asserted on by nobody, and green.
 COLOUR_MODES = (
     ("3", "r", "c_ramp"),
     ("3", "b", "c_band"),
@@ -349,40 +270,10 @@ COLOUR_MODES = (
 
 
 #: What `T` is pressed against: the flat colour and the ramp the rewrite puts
-#: in place of whatever the theme already said. One table because two readers
-#: need it -- the rewrite that makes the change and the check that reads it off
-#: the screen, nine hundred lines apart -- and a pair written twice is a pair
-#: that drifts into asserting on a colour nothing wrote. Both shapes a
-#: `[supaline]` value can take are here, because they are rebuilt by different
-#: code: a flat colour is one `ui.Style` and a ramp is `STEPS` of them, built
-#: from endpoints parsed out of the string.
-#:
-#: Only this half is written here. What is being replaced is the fixture's, and
-#: `theme_values` reads it.
+#: in place of the theme's own, read by the rewrite and by the check. Both
+#: shapes a `[supaline]` value can take, because different code rebuilds them:
+#: a flat colour is one `ui.Style` and a ramp is `STEPS` of them.
 THEME_NEW = ("#00ccff", "#1a5e00 -> #9bff66")
-
-
-def theme_values(dir: Path, name: str) -> tuple[str, str]:
-    """`size`'s flat colour and `mtime`'s ramp, out of one of the themes.
-
-    Read for the reason `ground_hex` and `ramp_ends` read `init.lua`: a hex
-    written here as well is the copy that goes stale, and a recoloured fixture
-    then reports as a plugin that stopped drawing. These are TOML files rather
-    than a heredoc now, so reading them is `tomllib` and no pattern at all.
-
-    The copy in the scratch directory, not the source, which is where the
-    three keys under `c` put their themes and where `check_theme` already
-    reads `alt.toml` from to say the swap reached the disk.
-    """
-    # Imported here rather than at the top of the file. `tomllib` is
-    # 3.11's, the top of the file is read before `harness` is imported, and an
-    # older Python would therefore raise `ModuleNotFoundError` over the
-    # sentence that module is there to print.
-    import tomllib
-
-    body = (dir / "themes" / f"{name}.toml").read_text()
-    theme = tomllib.loads(body)["supaline"]
-    return theme["size"]["fg"], theme["mtime"]
 
 
 #: A name only the folder behind each `g` key holds, so the press can be waited
@@ -397,29 +288,11 @@ FOLDERS = {
 }
 
 
-def broken_columns(init: str) -> list[str]:
-    """The columns the fixture registers as wrong on purpose.
-
-    Read out of the fixture rather than written here, the way every colour
-    asserted on below is a hex string that file spells verbatim. Register a
-    seventh and this run goes red until a key for it is pressed above, which is
-    the direction the list has to grow in.
-
-    Handed the same `init.lua` its four siblings are, which is the copy in the
-    scratch directory rather than the source under `test/fixture/`. `@DIR@` is
-    filled in on the way there, so the two are the same text only while the
-    file happens to hold no placeholder -- and five readers of one fixture
-    should not be reading two files to find that out.
-    """
-    return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
-
-
 def lines_with(text: str, needle: str) -> int:
-    """Lines of `text` carrying `needle`. What `grep -c` counts, and why.
+    """Lines of `text` carrying `needle`.
 
     A colour appears once per cell that drew in it and a row may hold several,
-    so a count of occurrences and a count of rows are different numbers. The
-    rows are the one every claim below is written against.
+    so rows rather than occurrences are what every claim below counts.
     """
     return sum(1 for line in text.splitlines() if needle in line)
 
@@ -428,81 +301,58 @@ def check_log(k: Checks, path: Path) -> None:
     k.section("log")
     body = path.read_text() if path.is_file() else ""
     bad = [line for line in body.splitlines() if TROUBLE.search(line)]
-    if bad:
-        for line in bad[:10]:
-            print(line, file=sys.stderr)
-        k.fail("Yazi logged an error")
-    else:
-        k.ok("clean")
+    for line in bad[:10]:
+        print(line, file=sys.stderr)
+    k.verdict("clean", bad and "Yazi logged an error")
 
 
 def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
-    """The other half of that check, and why it needed no exception.
+    """The broken run logged exactly what it was told to, and showed it.
 
-    The one above says the run that is meant to be clean logged nothing; this
-    says the run that is meant to go wrong logged exactly what it was told to.
     Two logs, two absolute claims, no line filtered out of either.
     """
     k.section("the reports")
-    wanted = broken_columns(init)
-    if not wanted:
-        # One of the two guards the counts inherit. An empty list makes every
-        # one of them pass over nothing, quietly.
+    wanted = fixture.broken_columns(init)
+    # The two guards the counts inherit, since either empty would let every
+    # count pass over nothing. There is no log at all unless `YAZI_LOG` was set
+    # before Yazi started, so a missing file is reachable.
+    if not wanted or not path.is_file():
         k.fail(
-            "no broken column is registered in test/fixture/init.lua; "
-            "this check is reading nothing"
-        )
-        return
-    if not path.is_file():
-        # The other. There is no log at all unless `YAZI_LOG` was set before
-        # Yazi started, and the path is Yazi's to lay out under
-        # `XDG_STATE_HOME` -- so this is reachable rather than theoretical, and
-        # a missing file has to be said rather than counted as zero.
-        k.fail(
-            f"the broken run wrote no log at {path}; this check is reading "
-            "nothing"
+            "no broken column in test/fixture/init.lua"
+            if not wanted
+            else f"the broken run wrote no log at {path}"
         )
         return
 
     body = path.read_text()
     errors = [line for line in body.splitlines() if TROUBLE.search(line)]
-
-    # A total beside the per-column counts, so the pair is closed: each name
-    # exactly once and this many lines in all leaves no room for a line naming
-    # something else, and none of it is spelled as "ignore these".
+    # A total beside the per-column counts closes the pair: each name exactly
+    # once and this many lines in all leaves no room for a line naming
+    # something else. What is printed is a line naming no column of ours.
     if len(errors) != len(wanted):
-        # Printed, not asserted on: the counts below name any column that
-        # reported twice or not at all, so what is left to show is a line
-        # naming no column of ours. Cut short because a report carries its
-        # whole traceback on the line with it.
         for line in [e for e in errors if "torn_" not in e][:5]:
             print(line[:120], file=sys.stderr)
-        k.fail(
-            f"the broken run logged {len(errors)} error line(s), expected "
-            f"{len(wanted)} -- one per broken column"
-        )
-    else:
-        k.ok(f"{len(errors)} error lines, one per broken column")
+    k.verdict(
+        f"{len(errors)} error lines, one per broken column",
+        len(errors) != len(wanted)
+        and f"the broken run logged {len(errors)} error line(s), expected "
+        f"{len(wanted)} -- one per broken column",
+    )
 
     for column in wanted:
-        # Exactly one, which is three claims in one number: the column
-        # reported, `told` held it down across two further `cd`s, and it
-        # survived two `app:theme` rebuilds without re-arming.
+        # Exactly one is three claims: the column reported, `told` held it
+        # down across two more `cd`s, and two `app:theme` rebuilds did not
+        # re-arm it. `ya.notify` draws a box tmux captures, so the screen's
+        # half is read here and nowhere else.
         logged = lines_with(body, f"`{column}`")
-        # The half no log can show. `ya.notify` draws a bordered box over the
-        # preview pane and tmux captures it like anything else, so a report
-        # that reached the log and not the screen is visible here and nowhere
-        # else.
-        on_screen = lines_with(shown, f"`{column}`")
-        if logged != 1:
-            k.fail(
-                f"{column}: {logged} line(s) in the broken run's log, "
-                "expected exactly 1"
-            )
-        elif on_screen == 0:
-            k.fail(f"{column}: reported to the log and not to the screen")
-        else:
-            k.ok(f"{column} reported once, to the log and to the screen")
+        k.verdict(
+            f"{column} reported once, to the log and to the screen",
+            logged != 1
+            and f"{column}: {logged} line(s) in the broken run's log, "
+            "expected exactly 1",
+            f"`{column}`" not in shown
+            and f"{column}: reported to the log and not to the screen",
+        )
 
 
 def check_rows_present(k: Checks, shots: dict[str, str]) -> None:
@@ -510,15 +360,13 @@ def check_rows_present(k: Checks, shots: dict[str, str]) -> None:
 
     An unregistered one is drawn as literal text and a linemode that threw
     takes the rows with it. This does *not* prove any of them drew a column,
-    because the file names satisfy it on their own -- m6 to m8 rendering
-    nothing in the current pane passed this and every pane check below. The
-    columns are what the two sections after it are for.
+    because the file names satisfy it on their own; the sections after it are
+    for the columns.
     """
     k.section("every linemode left the rows on screen")
 
     def have(summary: str, labels: list[str]) -> None:
-        # Row 3 clears the header, and 8 is inside the shortest listing any
-        # capture here holds.
+        # Row 3 clears the header, and 8 is inside the shortest listing.
         blank = [
             n
             for n in labels
@@ -527,20 +375,11 @@ def check_rows_present(k: Checks, shots: dict[str, str]) -> None:
                 for row in sc.rows(shots[n], 3, 8)
             )
         ]
-        for n in blank:
-            k.fail(f"{n}: the rows came back blank")
-        if not blank:
-            k.ok(summary)
+        k.verdict(
+            summary, blank and f"{', '.join(blank)}: the rows came back blank"
+        )
 
-    have(
-        "m0 to m9 and me all have rows",
-        [f"m{n}" for n in "0123456789e"],
-    )
-    # The same for the colour modes, which are reached by two keys rather than
-    # one and are read in folders of their own -- so a blank one here is as
-    # likely to be the key, or the `cd` behind it, as the linemode. Which of
-    # the three it was is not worth telling apart: nothing else in this run
-    # visits those folders.
+    have("m0 to m9 and me all have rows", [f"m{n}" for n in "0123456789e"])
     have(
         f"the {len(COLOUR_MODES)} colour modes all have rows",
         [label for _, _, label in COLOUR_MODES],
@@ -557,26 +396,22 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
     check_overflow(k, shots["m4"])
 
     # m3: `size` stated at 10 beside `size` measured. In `data/` the widest
-    # size is "1023.4K", so the measured column is 7 and the two are three
-    # spaces apart.
+    # size is "1023.4K", so the measured column is 7; in `nested/` it is
+    # "300K", so it narrows to 4.
     k.holds(
         shots["m3"],
         "1024B   1024B",
         "m3: a stated width and a measured one differ",
     )
-    # ... and in `nested/` the widest is "300K", so it narrows to 4.
     k.holds(
         shots["m3-nested"],
         "      300K 300K",
         "m3: the measured width follows the folder",
     )
-    # Neither of those pins the *stated* column: Yazi absorbs whatever the
-    # linemode does not use into the file name's padding, so the spaces to the
-    # left of the first column stay put however wide it is. The one row that
-    # cannot absorb anything is the one whose name Yazi had to truncate --
-    # there the name fills its budget exactly, so the gap after it is the
-    # stated column's own padding: one space of separator, then 10 less the two
-    # cells of "1B".
+    # Yazi absorbs what the linemode does not use into the file name's padding,
+    # so the one row that pins the *stated* column is the one whose name Yazi
+    # had to truncate: there the gap after it is one space of separator, then
+    # 10 less the two cells of "1B".
     k.holds(
         shots["m3"],
         "….txt         1B",
@@ -584,15 +419,12 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
     )
 
     # m5: `ext` (5, left), then `size` with `separator = false`, then `mtime`
-    # behind the divider.
+    # behind the divider, in the colour it was given and just before its glyph.
     k.holds(
         shots["m5"],
         "bin    1024B" + sc.BAR,
         "m5: separator = false and a separator of a column's own",
     )
-    # The colour the separator was given, and immediately before the glyph it
-    # was given for. Greened anywhere in the capture would pass for a colour
-    # that landed on the wrong span.
     k.holds(
         shots["colour-m5"],
         sc.sgr(38, "#a6e3a1") + sc.BAR,
@@ -608,12 +440,9 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
 def check_owner(k: Checks, capture: str) -> None:
     """`owner`, `user` and `group` against this machine's own names.
 
-    Those columns hold this machine's `user:group`, so what their cells should
-    say cannot be written down here -- it depends on how long that is. The
-    cells come off the screen through `screen.owner_cells`, which is where the
-    shape of an m2 row is now stated and unit-tested; what is left here is
-    holding them against `pwd` and `grp`, which is the half only a real
-    machine can answer.
+    What their cells should say depends on how long `user:group` is here, so
+    the cells come off the screen through `screen.owner_cells` and are held
+    against `pwd` and `grp`, the half only a real machine can answer.
     """
     who = (
         f"{pwd.getpwuid(os.geteuid()).pw_name}:"
@@ -628,113 +457,84 @@ def check_owner(k: Checks, capture: str) -> None:
         """The one cell every m2 row agrees on, or empty with a fault said.
 
         Every row lists a file this run created, so all of them carry the same
-        two names; a set with two things in it is a column reading something
-        per row that it should be reading per machine.
+        two names; two answers is a column reading per row what it should read
+        per machine.
         """
         if len(cells) > 1:
             k.fail(
-                f"m2: the rows disagree on the {what}: "
-                f"{' '.join(sorted(cells))}"
+                f"m2: the rows disagree on the {what}: {' '.join(sorted(cells))}"
             )
             return ""
         return next(iter(cells))
 
-    # Guarded rather than given an arm of its own: an empty answer is
-    # `agreed` having already said what was wrong, and the user and group
-    # halves below are asked either way.
     seen = agreed("owner cell", {r.owner for r in rows})
-    if seen:
+    if seen == who:
+        k.ok(f"m2: the owner column holds `{who}` whole, with no ellipsis")
+    elif seen:
         dots = seen.count("…")
-        if seen == who:
-            k.ok(f"m2: the owner column holds `{who}` whole, with no ellipsis")
-        elif dots != 1:
-            k.fail(
-                f"m2: the owner cell carries {dots} ellipses, wanted one -- "
-                f"`{seen}`"
-            )
-        elif sc.is_cut_of(who, seen):
-            k.ok(f"m2: the owner column cuts `{who}` with one ellipsis")
-        else:
-            k.fail(f"m2: the owner cell `{seen}` is not a cut of `{who}`")
+        k.verdict(
+            f"m2: the owner column cuts `{who}` with one ellipsis",
+            dots != 1
+            and f"m2: the owner cell carries {dots} ellipses, wanted one -- `{seen}`",
+            not sc.is_cut_of(who, seen)
+            and f"m2: the owner cell `{seen}` is not a cut of `{who}`",
+        )
 
-    # `user` and `group` draw those same two names again, eight cells each
-    # rather than twelve shared, so each is cut on its own length and on most
-    # machines the pair comes out whole where `owner` beside it did not. Both
-    # halves come off one row of one reader, so the two cannot end up measured
-    # against different names -- and each is held against its own half, since
-    # either may be the one that had to be cut.
+    # `user` and `group` draw the same two names in eight cells each, so each
+    # is cut on its own length and held against its own half.
     want_user, want_group = who.split(":", 1)
     got_user = agreed("user cell", {r.user for r in rows})
     got_group = agreed("group cell", {r.group for r in rows})
     if got_user and got_group:
-        bad = []
-        if not sc.is_cut_of(want_user, got_user):
-            bad.append(f"`{got_user}` is not a cut of `{want_user}`")
-        if not sc.is_cut_of(want_group, got_group):
-            bad.append(f"`{got_group}` is not a cut of `{want_group}`")
-        if bad:
-            k.fail("m2: " + " ".join(bad))
-        else:
-            k.ok(f"m2: the user and group columns hold the halves of `{who}`")
+        k.verdict(
+            f"m2: the user and group columns hold the halves of `{who}`",
+            not sc.is_cut_of(want_user, got_user)
+            and f"m2: `{got_user}` is not a cut of `{want_user}`",
+            not sc.is_cut_of(want_group, got_group)
+            and f"m2: `{got_group}` is not a cut of `{want_group}`",
+        )
 
 
 def check_overflow(k: Checks, capture: str) -> None:
     """m4 puts one over-long name through ellipsis, clip and grow.
 
-    The same row must carry all four renderings of it. Reading the screen as a
-    whole is not enough: Yazi truncates long names in the parent pane by
-    itself, and that ellipsis would satisfy a looser check.
-
-    The cells are given as one string, the separators and the padding between
-    them included, so this reads the columns' widths as well as where each cut
-    landed -- a cell that came back one short moves every space after it and
-    the match stops.
+    The same row must carry all four renderings of it -- Yazi truncates long
+    names in the parent pane by itself, and that ellipsis would satisfy a
+    looser check -- and the cells are matched as one string, padding and all,
+    so a cell that came back one short moves every space after it.
     """
 
     def row(label: str, name: str, cells: str) -> None:
         found = next(
             (line for line in capture.splitlines() if name in line), None
         )
-        if found is None:
-            k.fail(f"m4: {label} -- no row on screen carries `{name}`")
-        elif cells in found:
-            k.ok(f"m4: {label}")
-        else:
-            k.fail(f"m4: {label}")
+        k.verdict(
+            f"m4: {label}",
+            found is None
+            and f"m4: {label} -- no row on screen carries `{name}`",
+            cells not in (found or "") and f"m4: {label}",
+        )
 
-    # `exactly-1k.bin` is 14 characters against a column of 12, and short
-    # enough that all four cells stay on screen. The two clips have to agree: a
-    # column that hands back a renderable is not a narrower column, and
-    # `Line:truncate` drops the character that lands exactly on the width, so
-    # the second of them read "exactly-1k." until `cell` asked for that cell
-    # back. Nothing else in the fixture takes the renderable path.
+    # `exactly-1k.bin` is 14 characters against a column of 12. The two clips
+    # have to agree: `Line:truncate` drops the character that lands exactly on
+    # the width, so a renderable takes a path of its own through `cell`.
     row(
         "ellipsis, clip, a clipped renderable and grow, on one row",
         "exactly-1k",
         "exactly-1k.… exactly-1k.b exactly-1k.b exactly-1k.bin",
     )
-    # The same four against a name of wide characters, where a cut can land
-    # between a character's two cells and leave the column a cell short. Both
-    # of Yazi's truncations count characters where the screen counts cells,
-    # which is the trap `truncate_spec.lua` pins in the arithmetic; this is the
-    # one place it is read off a screen.
-    #
-    # The name is 13 characters and 22 cells against a column of 12. Five of
-    # them and an ellipsis come to 11, so the ellipsis cell pads to 12 -- that
-    # pad is the second space, and it is what a cut landing mid character would
-    # take away. The two clips take six characters for 12 exactly.
+    # The same four against wide characters, where a cut can land between a
+    # character's two cells; both of Yazi's truncations count characters, the
+    # trap `stub_spec.lua` pins in the arithmetic. 13 characters, 22 cells:
+    # five and an ellipsis are 11, so the ellipsis cell pads to 12, and that
+    # pad is what a cut landing mid character would take away.
     row(
         "a wide name is cut between characters, and the cell still fills",
         "日本語",
         "日本語のフ…  日本語のファ 日本語のファ 日本語のファイル名.txt",
     )
-    # And the same where the wide character is four bytes rather than three.
-    # Not one case twice: the emoji and the kanji are both one character of two
-    # cells, so a cut that measured bytes can be right about one name and wrong
-    # about the other. The emoji is in the fixture because `unicode-width`
-    # gives emoji presentation two cells, which `truncate_spec.lua` pins the
-    # stub against. The name is 20 cells: four characters come to 10 and the
-    # ellipsis to 11, then the pad, and the clips take five for 12 exactly.
+    # And where the wide character is four bytes rather than three, so a cut
+    # that measured bytes cannot be right about both.
     row(
         "a four-byte character is cut and measured like any other",
         "絵文字",
@@ -745,89 +545,62 @@ def check_overflow(k: Checks, capture: str) -> None:
 def check_panes(k: Checks, shots: dict[str, str]) -> None:
     """m6 asks for the current pane alone, so its edges are the baseline.
 
-    Comparing whole panes rather than grepping for a column keeps this
+    Whole panes are compared rather than a column grepped for, which keeps this
     independent of which columns the fixture happens to use.
     """
     k.section("panes")
     bare_parent = sc.parent_of(shots["m6"])
     bare_preview = sc.preview_of(shots["m6"])
 
-    # All three ask for the current pane, and nothing else here looks at it:
-    # the section above matches the file names, and everything below compares
-    # the other two panes against m6. A `pane_cur`, `pane_par` and `pane_prev`
-    # drawing nothing where they were asked to would pass the rest of the run.
-    for n in "678":
-        pane = sc.current_of(shots[f"m{n}"])
+    def all_marked(
+        label: str, pane: list[str], rows: int | None = None
+    ) -> None:
+        """Every drawn row of `pane` carries the marker -- counted against
+        `rows` where the pane being read is not the one that says how many."""
         drew = sc.marked(pane)
-        rows = sc.drawn(pane)
-        k.same(
-            drew,
-            rows,
-            f"m{n}: every current-pane row carries the marker "
-            f"({drew} of {rows})",
-        )
+        want = sc.drawn(pane) if rows is None else rows
+        k.same(drew, want, f"{label} ({drew} of {want})")
 
-    # And the same claim of the pane m7 is *for*, which had been the weak half
-    # of this section: `differs` against m6's bare pane passes on any
-    # difference at all -- a hover that moved, a name Yazi truncated
-    # differently, a pane drawing nothing but the file names it draws anyway.
-    # The parent pane is where that costs most. A linemode child being called
-    # for parent-pane rows is one of the four traps `AGENTS.md` says nothing
-    # pins, and this is the row window where it would show.
-    drew = sc.marked(sc.parent_of(shots["m7"]))
-    rows = sc.drawn(sc.parent_of(shots["m7"]))
-    k.same(
-        drew,
-        rows,
-        f"m7: every parent-pane row carries the marker ({drew} of {rows})",
+    # A pane drawing nothing where it was asked to would pass everything else
+    # in this section, so each asked-for pane is held to every row. The parent
+    # pane is where a linemode child being called for parent rows would show,
+    # and the preview's row count comes off m6's bare preview -- the same
+    # folder under a mode that draws nothing into it.
+    for n in "678":
+        all_marked(
+            f"m{n}: every current-pane row carries the marker",
+            sc.current_of(shots[f"m{n}"]),
+        )
+    all_marked(
+        "m7: every parent-pane row carries the marker",
+        sc.parent_of(shots["m7"]),
+    )
+    all_marked(
+        "m8: every preview-pane row carries the marker",
+        sc.preview_of(shots["m8"]),
+        sc.drawn(bare_preview),
     )
 
-    # The pass and fail arms are inverted between neighbouring checks here,
-    # which is exactly the shape that hides a mistake when it is spelled out
-    # five times.
     k.same(sc.parent_of(shots["m8"]), bare_parent, "m8: parent pane left alone")
     k.same(
         sc.preview_of(shots["m7"]), bare_preview, "m7: preview pane left alone"
     )
-
-    # A pane key has to hold for every row of the preview pane, not just the
-    # one Yazi marks `in_preview` -- it sets that on the previewed folder's
-    # cursor row alone, so a check that passes on one row proves nothing about
-    # the second. How many rows that is comes off m6's bare preview rather
-    # than a literal here: it is the same folder under a mode that draws
-    # nothing into it, so it answers the count without this file restating
-    # what the fixture put in `nested/`.
-    drew = sc.marked(sc.preview_of(shots["m8"]))
-    rows = sc.drawn(bare_preview)
-    k.same(
-        drew,
-        rows,
-        f"m8: every preview-pane row carries the marker ({drew} of {rows})",
-    )
-
-    # Both of them, now that one reader answers either pane. The label had
-    # claimed both edges while reading the right-hand one alone.
     k.same(
         sc.marked(bare_parent) + sc.marked(bare_preview),
         0,
         "m6: both edges left alone",
     )
 
-    # `me` names the same two panes as m7 and gives each a list of its own.
-    # Read against m7, which hands one list to both, so it says the two agree
-    # about the parent pane and disagree about the middle one -- which is the
-    # whole of what a list per pane adds.
+    # `me` names the same two panes as m7 and gives each a list of its own, so
+    # it agrees with m7 about the parent pane and disagrees about the middle
+    # one. `differs` alone would pass on a pane drawing nothing, so the cells it
+    # was given are asked for too: `ext` then `size`, five cells left-aligned,
+    # a separator, seven right-aligned.
     k.same(
         sc.parent_of(shots["me"]),
         sc.parent_of(shots["m7"]),
         "me: the parent pane draws what m7 drew",
     )
-    # A pane drawing nothing at all would satisfy `differs` too -- strip the
-    # columns and Yazi's own file names are left, and those differ from a
-    # marked row. The line after it is the other half: the cells that pane was
-    # actually given. `ext` then `size`, on the one file in the fixture whose
-    # size is written to be read: five cells left-aligned, a separator, seven
-    # right-aligned.
     k.differs(
         sc.current_of(shots["me"]),
         sc.current_of(shots["m7"]),
@@ -847,64 +620,43 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
 def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
     k.section("the ramp")
 
-    # The ends and the steps between them are read in different folders,
-    # because no one folder shows both well.
-    #
-    # The ends are read off `m 1` in `data/`, where the ramp is the *themed*
-    # one -- `[supaline] mtime`, taken off the theme rather than restated
-    # here. The fixture's mtimes run from 2020 to today, so the oldest row
-    # draws the low end and a file the fixture just created draws the high
-    # one. A column that resolved the ramp string as a flat colour, or failed
-    # to resolve it at all, can only put one colour on screen, and this is
-    # where that is caught.
-    #
-    # `colour/ramp` cannot do it: 64 rows, a window that shows the first 37 of
-    # them, and the high end at the bottom.
-    low, high = theme_values(dir, "default")[1].split(" -> ")
+    # The ends are read off `m 1` in `data/`, where the ramp is the themed one:
+    # the fixture's mtimes run from 2020 to today, so the oldest row draws the
+    # low end and a file just created the high one. A column that drew the ramp
+    # as a flat colour can only put one of them on screen. `colour/ramp` cannot
+    # do it: its high end is below the window.
+    low, high = fixture.theme_values(dir, "default")[1].split(" -> ")
     k.holds(
-        shots["colour-m1"],
-        sc.sgr(38, low),
-        "a themed ramp draws its low end",
+        shots["colour-m1"], sc.sgr(38, low), "a themed ramp draws its low end"
     )
     k.holds(shots["colour-m1"], sc.sgr(38, high), "... and its high end")
 
     def rows_hold(label: str, ramp: list[sc.RampRow], monotone: bool) -> None:
         """Enough rows, and no fault in the sequence."""
         faults = sc.ramp_faults(ramp, monotone)
-        if len(ramp) < RAMP_FLOOR:
-            k.fail(
-                f"{label}: only {len(ramp)} row(s) carried a ramp colour, "
-                f"wanted {RAMP_FLOOR}"
-            )
-        elif faults:
-            k.fail(f"{label}: {';'.join(faults[:3])}")
-        else:
-            k.ok(f"{label} ({len(ramp)} consecutive steps)")
+        k.verdict(
+            f"{label} ({len(ramp)} consecutive steps)",
+            len(ramp) < RAMP_FLOOR
+            and f"{label}: only {len(ramp)} row(s) carried a ramp colour, "
+            f"wanted {RAMP_FLOOR}",
+            faults and f"{label}: {';'.join(faults[:3])}",
+        )
 
     # One file per step, so consecutive rows are consecutive steps and this is
-    # the only place the quantisation itself is read. What it still cannot ask
-    # is whether a reader can see one step from the next; `MANUAL.md` keeps
-    # that.
+    # the only place the quantisation itself is read. A band is asked to climb
+    # monotonically as well -- every step is one colour at another exposure,
+    # measured to move all three channels together -- and a ramp that turns in
+    # hue only half the question.
     rows_hold(
         "every step climbs, and none repeats the one above",
         sc.ramp_rows(shots["colour-c_ramp"]),
         True,
     )
-    # The same rows on a band, whose endpoints were derived rather than
-    # written. Monotone is asked of it for a reason of its own: every step of a
-    # band is the same colour at another exposure, so all three channels move
-    # together by construction -- measured over the 64 steps, zero reversals
-    # and zero identical adjacent pairs. A band that came back flat, or that
-    # turned on the way, is a derivation that went wrong rather than a ramp a
-    # user wrote.
     rows_hold(
         "a band climbs too, on endpoints nobody wrote",
         sc.ramp_rows(shots["colour-c_band"]),
         True,
     )
-    # The same rows on a ramp that turns in hue. Only half the question can be
-    # put to it, and that half is put here so the shape is not left with
-    # nothing.
     rows_hold(
         "a ramp that turns still draws a step per row",
         sc.ramp_rows(shots["colour-c_hue"]),
@@ -923,83 +675,15 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
     check_edge(k, shots["colour-c_edge"], init)
 
 
-#: A six-digit hex colour, as `init.lua` writes one. Held here because the
-#: two readers below build their patterns as f-strings, where it has to be
-#: spelled `{{6}}` -- three times, in a repeat nobody would read as one thing.
-HEX = "#[0-9a-fA-F]{6}"
-
-
-def ground_hex(init: str, name: str) -> str:
-    """The flat colour a name in `init.lua` is bound to, or empty.
-
-    Anchored on both sides, so a name bound to anything but one flat colour
-    answers nothing. `ratio` writes `bg = COOL` and `COOL` is a ramp: that is
-    not a ground, and this is what tells them apart rather than a list.
-    """
-    found = re.search(rf'^local {name} = "({HEX})"$', init, re.MULTILINE)
-    return found.group(1) if found else ""
-
-
-def ramp_ends(init: str, name: str) -> tuple[str, str]:
-    """The two endpoints of a ramp `init.lua` binds to a name, or two empties.
-
-    Read out of the fixture for the reason `ground_hex` is read out of it: a
-    hex written here as well is the copy that goes stale, and a recoloured
-    ramp would then report as a plugin that stopped drawing.
-    """
-    found = re.search(
-        rf'^local {name} = "({HEX}) -> ({HEX})"$', init, re.MULTILINE
-    )
-    return (found.group(1), found.group(2)) if found else ("", "")
-
-
-def band_width(init: str, name: str) -> int:
-    """The width a `c_bg` column states beside the ground it names, or 0.
-
-    A trailing space, comma or close brace, because a style writes the name
-    with one of the three after it. It costs nothing and it is what a ground
-    named after another one would need.
-    """
-    found = re.search(rf".*bg = {name}[ ,}}].*width = (\d+)", init)
-    return int(found.group(1)) if found else 0
-
-
-def c_bg_grounds(init: str) -> list[str] | None:
-    """Every name `c_bg` writes under a `bg`, or `None` if the block is gone.
-
-    The two answers are different failures and the caller says so differently.
-    A block with no grounds in it is a fixture nobody has given one; a block
-    this cannot find at all is a sweep that would pass over nothing while
-    looking exactly like one that swept -- and the pattern is anchored on
-    stylua's indentation, so re-nesting that table is all it takes.
-    """
-    block = re.search(r"c_bg = \{.*?\n\t\t\},", init, re.DOTALL)
-    if not block:
-        return None
-    return re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0))
-
-
 def check_bands(k: Checks, capture: str, init: str) -> None:
     """`c_bg` draws the same ramp over a ground, and over nothing.
 
-    Three things have to hold of a grounded column, and a reader can check none
-    of them against their own terminal's ground -- that ground is the very
-    thing a band has to be told apart from, so both of the ones here are
-    measured to sit clear of the common ones in Oklab rather than picked.
-
-      - the `bg` is there on every row
-      - it covers the cells the stated width pads with, rather than stopping at
-        the text, which is what padding before the style is applied is for
-      - no second column picked that ground up, which is what the ungrounded
-        column is beside it to make answerable
-
-    Both numbers come out of the fixture, addressed by the name it binds them
-    to. A width stated twice is the one that goes stale quietly -- widen a
-    `c_bg` column for a reason to do with the manual case and a literal here
-    would report it as padding applied in the wrong order, the fixture moved
-    rather than the plugin. The colour has the same failure and a louder one:
-    recolour a ground and a literal here finds no band at all, which reads as a
-    plugin that stopped drawing.
+    Of a grounded column: the `bg` is on every row; it covers the cells the
+    stated width pads with, which is what padding before the style is applied
+    is for; and no second column picked the ground up, which the ungrounded
+    column beside it makes answerable. Both the colour and the width come out
+    of the fixture by name, so recolouring or widening a column there does not
+    read as a plugin fault here.
     """
     asked: list[str] = []
 
@@ -1007,45 +691,35 @@ def check_bands(k: Checks, capture: str, init: str) -> None:
         # Recorded before anything can fail, so the sweep below reads what was
         # asked for rather than what passed.
         asked.append(name)
-        want = band_width(init, name)
-        hexes = ground_hex(init, name)
-        if not want or not hexes:
+        want = fixture.band_width(init, name)
+        ground = fixture.binding(init, name)
+        if not want or len(ground) != 1:
             k.fail(
                 f"{label}: the fixture's init.lua has no flat `local {name}` "
                 "under a `bg` with a stated width, so there is no band to "
                 "measure"
             )
             return
-        got = sc.bands(capture, sc.escaped(48, hexes), want)
-        if got.drawn < RAMP_FLOOR:
-            k.fail(
-                f"{label}: only {got.drawn} row(s) carried a background, "
-                f"wanted {RAMP_FLOOR}"
-            )
-        elif got.narrow:
-            k.fail(
-                f"{label}: {got.narrow} band(s) were not {want} cells wide -- "
-                "the padding is where to look"
-            )
-        elif got.drawn != got.lines:
-            k.fail(
-                f"{label}: {got.drawn} band(s) across {got.lines} row(s), so a "
-                "row carries more than one"
-            )
-        else:
-            k.ok(f"{label} ({got.drawn} rows, {want} cells)")
+        got = sc.bands(capture, sc.escaped(48, ground[0]), want)
+        k.verdict(
+            f"{label} ({got.drawn} rows, {want} cells)",
+            got.drawn < RAMP_FLOOR
+            and f"{label}: only {got.drawn} row(s) carried a background, "
+            f"wanted {RAMP_FLOOR}",
+            got.narrow
+            and f"{label}: {got.narrow} band(s) were not {want} cells wide -- "
+            "the padding is where to look",
+            got.drawn != got.lines
+            and f"{label}: {got.drawn} band(s) across {got.lines} row(s), so a "
+            "row carries more than one",
+        )
 
     band("a background survives the ramp, padding included", "GROUND")
-    # The half of `cell` no test reached until this column carried a ground. It
-    # had been read off `yazi-binding` and found consistent, which is not the
-    # same as having been drawn.
     band("a background covers a pad beside a nested Line", "LINE_GROUND")
 
-    # And a sweep, because the two calls above are a list and a list goes stale
-    # in one direction: a grounded column added to `c_bg` would be drawn, read
-    # by nobody, and green. Every flat ground the fixture writes there has to
-    # have been asked for by name, and the refusal says what to write.
-    grounds = c_bg_grounds(init)
+    # And a sweep, because a list goes stale in one direction: a grounded
+    # column added to `c_bg` would be drawn, read by nobody, and green.
+    grounds = fixture.c_bg_grounds(init)
     if grounds is None:
         k.fail(
             "c_bg: the fixture's init.lua has no `c_bg` block this sweep can "
@@ -1053,9 +727,7 @@ def check_bands(k: Checks, capture: str, init: str) -> None:
         )
         return
     for name in grounds:
-        if not ground_hex(init, name):
-            continue
-        if name not in asked:
+        if len(fixture.binding(init, name)) == 1 and name not in asked:
             k.fail(
                 f"c_bg: `{name}` is a ground nothing reads -- write "
                 f'`band("<what it claims>", "{name}")` beside the two above'
@@ -1065,33 +737,22 @@ def check_bands(k: Checks, capture: str, init: str) -> None:
 def check_bold(k: Checks, shots: dict[str, str]) -> None:
     """`c_bold` draws the same ratio twice on one ramp, the left one bold."""
     agreed, disagreed = sc.bold_pairs(shots["colour-c_bold"])
-    if agreed < RAMP_FLOOR:
-        k.fail(
-            f"c_bold: only {agreed} row(s) had a bold cell beside an unbold "
-            f"one of the same colour, wanted {RAMP_FLOOR}"
-        )
-    elif disagreed:
-        k.fail(
-            f"c_bold: {disagreed} row(s) disagreed -- a colour that moved, or "
-            "a bold on the wrong side"
-        )
-    else:
-        k.ok(
-            f"c_bold: bold on one column, the ramp's colour on both "
-            f"({agreed} rows)"
-        )
+    k.verdict(
+        f"c_bold: bold on one column, the ramp's colour on both ({agreed} rows)",
+        agreed < RAMP_FLOOR
+        and f"c_bold: only {agreed} row(s) had a bold cell beside an unbold "
+        f"one of the same colour, wanted {RAMP_FLOOR}",
+        disagreed
+        and f"c_bold: {disagreed} row(s) disagreed -- a colour that moved, or "
+        "a bold on the wrong side",
+    )
 
-    # Both of these read an escape rather than a parsed cell, and both are in
-    # `screen.py` for it: an escape is the one thing a hand-written capture can
-    # state exactly, so the pattern is pinned in CI where the run around it
-    # cannot go. `bold_over_paint` is the column that paints per character and
-    # `bold_over_ramp` the spec's weight over the theme's colour; each
-    # docstring says what its two halves discriminate between. Scoped to the
-    # current pane, like every other colour claim in this run.
+    # Each reads an escape rather than a parsed cell, and each is pinned in CI
+    # beside itself in `screen.py`, whose docstrings say what their two halves
+    # tell apart.
     k.that(
         sc.bold_over_paint(shots["colour-c_bold"]) > 0,
-        "c_bold: the bold reaches the characters permissions paints, "
-        "colours kept",
+        "c_bold: the bold reaches the characters permissions paints, colours kept",
     )
     k.that(
         sc.bold_over_ramp(shots["colour-c_theme"]) > 0,
@@ -1100,58 +761,46 @@ def check_bold(k: Checks, shots: dict[str, str]) -> None:
 
 
 def cool_ends(k: Checks, init: str, who: str) -> tuple[str, str]:
-    """The ramp `c_scale` and `c_edge` are both measured against, or empties.
-
-    Shared because both want it and a guard written twice is two sentences
-    that drift apart; `who` is what makes the one sentence say which check
-    went looking, which neither copy of it did.
-    """
-    low, high = ramp_ends(init, "COOL")
-    if not low:
+    """The ramp `c_scale` and `c_edge` are both measured against, or empties."""
+    ends = fixture.binding(init, "COOL")
+    if len(ends) != 2:
         k.fail(
             f"{who}: the fixture's init.lua binds no `local COOL` to a "
             "two-ended ramp, so there is nothing to measure against"
         )
-    return low, high
+        return "", ""
+    return ends[0], ends[1]
 
 
 def check_scale(k: Checks, capture: str, init: str) -> None:
     """`c_scale` draws one folder's sizes twice, log then linear.
 
-    The numbers are identical -- one `size` column written twice, differing in
-    `scale` and in nothing else -- so anything that differs on screen is the
-    scale, and that is the whole of what can be asserted here. Whether the
-    left column reads as a gradient *to a reader* is `MANUAL.md`'s question
-    and stays there.
+    One `size` column written twice, differing in `scale` alone, so anything
+    that differs on screen is the scale. Whether the left column reads as a
+    gradient *to a reader* is `MANUAL.md`'s question.
     """
     low, _ = cool_ends(k, init, "c_scale")
     if not low:
         return
     rows = sc.scale_rows(capture)
-    if len(rows) < SCALE_FLOOR:
-        k.fail(
-            f"c_scale: only {len(rows)} row(s) carried a pair either side of "
-            f"the seam, wanted {SCALE_FLOOR}"
-        )
-        return
-
-    # The premise under both checks below. A row whose halves read differently
-    # is a fixture that moved, and the colours would then be two scales
-    # compared over two different numbers -- which is not a comparison at all.
+    # The premise under both claims: a row whose halves read differently is a
+    # fixture that moved, and two scales over two numbers compare nothing.
     drifted = [r for r in rows if r.log_text != r.linear_text]
-    if drifted:
-        k.fail(
-            f"c_scale: {len(drifted)} row(s) draw a different number either "
-            f"side of the seam -- `{drifted[0].log_text}` against "
-            f"`{drifted[0].linear_text}`"
-        )
+    k.verdict(
+        f"c_scale: the two scales draw one number ({len(rows)} rows)",
+        len(rows) < SCALE_FLOOR
+        and f"c_scale: only {len(rows)} row(s) carried a pair either side of "
+        f"the seam, wanted {SCALE_FLOOR}",
+        drifted
+        and f"c_scale: {len(drifted)} row(s) draw a different number either "
+        f"side of the seam -- `{drifted[0].log_text}` against "
+        f"`{drifted[0].linear_text}`",
+    )
+    if len(rows) < SCALE_FLOOR or drifted:
         return
-    k.ok(f"c_scale: the two scales draw one number ({len(rows)} rows)")
 
-    # The sizes double down the folder, so a log ratio spaces them evenly and
-    # a linear one cannot. Said as the two extremes rather than as a
-    # threshold on the difference: log takes a step it has not taken before on
-    # every row.
+    # The sizes double down the folder, so log spaces them evenly and takes a
+    # new step on every row.
     steps = len({r.log_colour for r in rows})
     k.same(
         steps,
@@ -1159,47 +808,35 @@ def check_scale(k: Checks, capture: str, init: str) -> None:
         f"c_scale: log takes a step per row ({steps} of {len(rows)})",
     )
 
-    # ... and linear leaves most of them on the ramp's own low end. Not a
-    # number picked to pass: with sizes at 2^0 to 2^20 and the ramp in 38
-    # steps, a linear ratio rounds to step 0 for every size under 2^14, which
-    # is 14 of the folder's 21 files. A majority is that with room, and what
-    # would break it is a ratio that stopped being linear.
+    # And linear leaves most of them on the low end: with sizes at 2^0 to 2^20
+    # and the ramp in 38 steps, a linear ratio rounds to step 0 under 2^14,
+    # which is 14 of the 21 files.
     floor = sum(1 for r in rows if r.linear_colour == sc.rgb(low))
-    if floor * 2 <= len(rows):
-        k.fail(
-            f"c_scale: linear holds only {floor} of {len(rows)} rows at the "
-            "low end -- it should hold most of them there"
-        )
-    else:
-        k.ok(
-            f"c_scale: linear holds {floor} of {len(rows)} at the low end, "
-            "where log holds one"
-        )
+    k.verdict(
+        f"c_scale: linear holds {floor} of {len(rows)} at the low end, "
+        "where log holds one",
+        floor * 2 <= len(rows)
+        and f"c_scale: linear holds only {floor} of {len(rows)} rows at the "
+        "low end -- it should hold most of them there",
+    )
 
 
 def check_edge(k: Checks, capture: str, init: str) -> None:
     """`c_edge` draws a folder in which every value is the same.
 
-    `hi == lo`, so `ratio` answers 1 rather than dividing by nothing, and
-    every row with a value draws the ramp's **high** end -- not its low one,
-    and not the flat ground underneath it. A directory has no size, so its
-    cell draws the low end instead, which puts both rules on one screen.
-
-    What nothing here should draw is a step in between: a gradient over this
-    folder is a ratio that divided by a range of zero.
+    `hi == lo`, so `ratio` answers 1 rather than dividing by nothing, and every
+    row with a value draws the ramp's **high** end. A directory has no size, so
+    its cell draws the low end instead. No step in between may be drawn: a
+    gradient over this folder is a ratio that divided by a range of zero.
     """
     low, high = cool_ends(k, init, "c_edge")
     if not low:
         return
     rows = sc.edge_rows(capture)
-
-    # Told apart by what the cell reads rather than by where it sits, which is
-    # `sc.is_size`'s claim and is pinned in CI beside it.
     files = [r for r in rows if sc.is_size(r.size)]
     dirs = [r for r in rows if not sc.is_size(r.size)]
     if not files or not dirs:
-        # Both kinds are the point: one of them alone leaves half the claim
-        # passing over nothing, quietly.
+        # Either kind alone leaves half the claim passing over nothing.
         k.fail(
             f"c_edge: {len(files)} row(s) with a size and {len(dirs)} "
             "without, wanted some of each; this check is reading nothing"
@@ -1209,135 +846,92 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
     bad = [
         r for r in files if {r.size_colour, r.ratio_colour} != {sc.rgb(high)}
     ]
-    if bad:
-        k.fail(
-            f"c_edge: {len(bad)} of {len(files)} row(s) with a value did not "
-            f"draw the ramp's high end -- `{bad[0].size}` at {bad[0].size_colour}"
-        )
-    else:
-        k.ok(
-            f"c_edge: every row with a value is at the high end ({len(files)})"
-        )
-
+    k.verdict(
+        f"c_edge: every row with a value is at the high end ({len(files)})",
+        bad
+        and f"c_edge: {len(bad)} of {len(files)} row(s) with a value did not "
+        f"draw the ramp's high end -- `{bad[0].size}` at {bad[0].size_colour}",
+    )
     astray = [r for r in dirs if r.size_colour != sc.rgb(low)]
-    if astray:
-        k.fail(
-            f"c_edge: {len(astray)} of {len(dirs)} directory row(s) did not "
-            f"draw the low end -- `{astray[0].size}` at {astray[0].size_colour}"
-        )
-    else:
-        k.ok(f"c_edge: a directory draws the low end ({len(dirs)} rows)")
-
-    # And the claim the two above cannot make between them: nothing anywhere
-    # drew a step. Read over all three cells of every row, so a column that
-    # started interpolating is caught even where the two ends are still right.
+    k.verdict(
+        f"c_edge: a directory draws the low end ({len(dirs)} rows)",
+        astray
+        and f"c_edge: {len(astray)} of {len(dirs)} directory row(s) did not "
+        f"draw the low end -- `{astray[0].size}` at {astray[0].size_colour}",
+    )
+    # Over all three cells of every row, so a column that started interpolating
+    # is caught even where the two ends are still right.
     seen = {
         c for r in rows for c in (r.size_colour, r.ratio_colour, r.date_colour)
     }
     between = seen - {sc.rgb(low), sc.rgb(high)}
-    if between:
-        k.fail(
-            f"c_edge: {len(between)} colour(s) on screen are neither end of "
-            f"the ramp -- {' '.join(sorted(between))}"
-        )
-    else:
-        k.ok("c_edge: the two ends and no step between them")
+    k.verdict(
+        "c_edge: the two ends and no step between them",
+        between
+        and f"c_edge: {len(between)} colour(s) on screen are neither end of "
+        f"the ramp -- {' '.join(sorted(between))}",
+    )
 
 
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("theme")
 
-    flat_old, ramp_old = theme_values(dir, "default")
+    flat_old, ramp_old = fixture.theme_values(dir, "default")
     flat_new, ramp_new = THEME_NEW
     old_ends = ramp_old.split(" -> ")
     new_ends = ramp_new.split(" -> ")
 
     def rows(shot: str, *hexes: str) -> list[int]:
-        """Rows of one capture drawing each colour, in the order asked.
-
-        Rows rather than cells, which is what `lines_with` counts and what
-        every claim below is written against -- a row holding two cells of
-        one colour is one row here.
-        """
+        """Rows of one capture drawing each colour, in the order asked."""
         return [lines_with(shots[shot], sc.sgr(38, h)) for h in hexes]
 
-    # `[supaline] size` is the flat half of the rewrite `clean_run` made.
-    #
-    # Both halves are needed, and only the second discriminates. Until 26.9.1
-    # the user's theme was merged inside the `app:theme` actor alone, so a
-    # capture taken before it proved a colour resolved at `setup` was the
-    # preset's; 26.9.1 has `th.supaline` populated before `setup` runs, and
-    # that capture now proves nothing. A reload still does: it is
-    # `ps.sub("theme", ...)` that repaints what is already on screen, and a
-    # plugin without it holds the old colour.
+    # `[supaline] size` is the flat half of the rewrite. Only the reload
+    # discriminates: 26.9.1 has `th.supaline` populated before `setup` runs, so
+    # the first capture proves only that the colour is drawn, and it is
+    # `ps.sub("theme", ...)` that repaints what is already on screen.
     (before,) = rows("colour-theme-before", flat_old)
     stale, after = rows("colour-theme-after", flat_old, flat_new)
-    if before > 0:
-        k.ok(f"the themed base colour is drawn ({before} rows)")
-    else:
-        k.fail("the themed base colour never reached the screen")
-    if after > 0 and stale == 0:
-        k.ok(f"a theme reload rebuilds the columns ({after} rows recoloured)")
-    else:
-        k.fail(
-            f"a theme reload did not rebuild the columns "
-            f"(old={stale} new={after})"
-        )
+    k.that(before > 0, f"the themed base colour is drawn ({before} rows)")
+    k.that(
+        after > 0 and stale == 0,
+        f"a theme reload rebuilds the columns (old={stale} new={after})",
+    )
 
-    # The ramp beside it is the other half, and a different piece of code
-    # reloading: a flat colour is one `ui.Style` resolved from the value, a
-    # ramp is `STEPS` of them built by `style.build` from endpoints parsed
-    # out of the string. Both new ends have to be on screen and neither old one
-    # left anywhere -- a ramp cached past the reload would keep its old
-    # endpoints with the flat colour beside it already correct.
+    # The ramp is the other half and different code: both new ends on screen
+    # and neither old one anywhere, since a ramp cached past the reload keeps
+    # its old endpoints beside a flat colour already correct.
     old = rows("colour-theme-after", *old_ends)
     new = rows("colour-theme-after", *new_ends)
-    if min(new) > 0 and max(old) == 0:
-        k.ok("... and rebuilds a ramp, not only a flat colour")
-    else:
-        k.fail(f"a theme reload did not rebuild the ramp (old={old} new={new})")
+    k.that(
+        min(new) > 0 and max(old) == 0,
+        f"... and rebuilds a ramp, not only a flat colour (old={old} new={new})",
+    )
 
-    # `c 2` should have put `themes/alt.toml` where Yazi reads its theme from.
-    # This is the fixture's own plumbing rather than the plugin's, and it is
-    # checked here because nothing else can: the key leaves Yazi to run a
-    # script through a `shell` template, so it is the one path in either
-    # harness that can be broken by a quoting mistake, and what a person sees
-    # when it breaks is a colour that did not change -- indistinguishable from
-    # the plugin ignoring the reload.
-    #
-    # `themes/alt.toml` puts its own ramp where the reload above had left
-    # `THEME_NEW`'s, and shares neither end with it. Both halves are asked,
-    # because they fail separately: the file says the key reached the disk,
-    # and the screen says the reload that followed it was not lost on the way.
-    #
-    # The second half is not hypothetical. Spelled as a keymap `run` of
-    # [ "shell ... --confirm", "app:theme" ] the two race and the reload wins
-    # -- measured on 26.9.1, `theme.toml` ends up correct on disk with the old
-    # colours still on screen, and `--block` does not change it.
-    alt_low = theme_values(dir, "alt")[1].split(" -> ")[0]
+    # `c 2` puts `themes/alt.toml` in place through a `shell` template, and a
+    # colour that did not change looks the same whether the copy never ran or
+    # the plugin ignored the reload -- so the file and the screen are asked
+    # apart. Spelled as a keymap `run` of the copy and `app:theme`, the two
+    # race and the reload wins, measured on 26.9.1.
+    alt_low = fixture.theme_values(dir, "alt")[1].split(" -> ")[0]
     swapped, kept = rows("colour-theme-swapped", alt_low, new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
         dir / "themes" / "alt.toml"
     ).read_bytes()
-    if not placed:
-        k.fail("c 2 did not put themes/alt.toml in place")
-    elif swapped == 0 or kept > 0:
-        k.fail(
-            "c 2 swapped the file but the screen kept the old ramp "
-            f"(new={swapped} old={kept})"
-        )
-    else:
-        k.ok("a theme key swaps the file and the screen follows")
+    k.verdict(
+        "a theme key swaps the file and the screen follows",
+        not placed and "c 2 did not put themes/alt.toml in place",
+        (swapped == 0 or kept > 0)
+        and "c 2 swapped the file but the screen kept the old ramp "
+        f"(new={swapped} old={kept})",
+    )
 
 
 def yazi_version() -> str:
     """Which Yazi this run actually proves anything about.
 
-    Every platform claim in AGENTS.md was established against one build, and
-    Yazi is on CalVer: it changes the plugin API between releases, sometimes
-    without saying so. A mismatch against what the plugin annotates is the
-    signal to go back and re-verify the constraints, not a reason to stop --
-    running against a newer Yazi is how you would find out.
+    Yazi is on CalVer and changes the plugin API between releases, so a
+    version other than the one the plugin annotates is the signal to
+    re-verify the constraints, not a reason to stop.
     """
     said = run(["yazi", "--version"], timeout=30).stdout
     found = re.search(r"^\s*Version:\s*(.+)$", said, re.MULTILINE)
@@ -1354,8 +948,8 @@ def yazi_version() -> str:
 
 def main(argv: list[str]) -> int:
     need("tmux", "yazi")
-    # Before there is anything to clean up, since what it buys is the `finally`
-    # at the foot of this function running on the way out.
+    # Before there is anything to clean up, so the `finally` below runs on a
+    # SIGTERM as well.
     catch_term()
 
     r = Run(keep=argv[:1] == ["--keep"])
@@ -1363,10 +957,8 @@ def main(argv: list[str]) -> int:
     began = time.monotonic()
     try:
         r.setup()
-        # The fixture's own configuration, as Yazi is about to read it. Six
-        # readers take it from here rather than from `test/fixture/`: that
-        # copy is this one with `@DIR@` filled in, and a reader of the source
-        # would be asserting against a file Yazi never saw.
+        # The fixture as Yazi is about to read it, `@DIR@` filled in, rather
+        # than the source under `test/fixture/`.
         init = (r.dir / "config" / "init.lua").read_text()
         clean_run(r)
         broken_run(r, init)
@@ -1398,9 +990,8 @@ def main(argv: list[str]) -> int:
         print(f"e2e: ok on Yazi {version} in {took:.0f}s")
         return 0
     finally:
-        # Leave nothing behind when a check fails, or when the run is
-        # interrupted part-way -- the scratch directory carries the PID, so one
-        # left lying around is one nothing will ever reuse.
+        # Nothing left behind on a failure or an interruption: the scratch
+        # directory carries the PID, so one left lying around is never reused.
         r.teardown()
 
 

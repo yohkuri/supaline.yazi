@@ -21,23 +21,20 @@ from pathlib import Path
 from types import FrameType
 from typing import NoReturn
 
-#: The oldest Python these harnesses are written for. Nothing here needs a
-#: newer one, and a version older than this is refused rather than left to
-#: fail somewhere further in -- `test/run.lua` refuses the wrong Lua the same
-#: way, and for the same reason: the message is the point.
+#: The oldest Python these harnesses are written for. A version older than this
+#: is refused rather than left to fail somewhere further in, the way
+#: `test/run.lua` refuses the wrong Lua: the message is the point.
 MINIMUM = (3, 11)
 
 ROOT = Path(__file__).resolve().parent.parent
 
 #: What a harness exits with when it refused to start, as against 1 for a check
-#: that failed. The shell harnesses this replaced spelled the same distinction,
-#: and it is worth keeping: "there is no tmux here" and "the columns came out
-#: wrong" are answered by different people.
+#: that failed: "there is no tmux here" and "the columns came out wrong" are
+#: answered by different people.
 REFUSED = 2
 
-#: And what it exits with when something outside it asked it to stop. 143 is
-#: what a shell reports for a process SIGTERM ended, and what the harness this
-#: replaced spelled by hand in its own `trap`.
+#: What it exits with when something outside it asked it to stop -- what a
+#: shell reports for a process SIGTERM ended.
 TERMINATED = 143
 
 
@@ -45,9 +42,8 @@ def refuse(message: str) -> NoReturn:
     """Stop before doing anything, saying what was missing.
 
     `NoReturn` rather than `None`, because every caller depends on it raising:
-    the line after a `refuse` here and in `setup.py` reads a name the arm
-    before it never bound, and annotated as returning it looks like a bug to
-    be repaired with a fallback -- which is a refusal learning to continue.
+    the line after a `refuse` reads a name the arm before it never bound, and
+    annotated as returning it looks like a bug to be repaired with a fallback.
     """
     print(message, file=sys.stderr)
     raise SystemExit(REFUSED)
@@ -56,16 +52,10 @@ def refuse(message: str) -> NoReturn:
 def _require_python() -> None:
     """Stop with a sentence rather than a traceback on too old a Python.
 
-    Called just below rather than from each `main`, because a `main` runs
-    after its own module's imports are done: `e2e.py` reads the fixture's
-    themes with `tomllib`, which is 3.11's, so on 3.10 a `main` that asked
-    first would never be reached at all. Importing this module is the one
-    moment every entry here has in common -- both harnesses, `setup.py`, and
-    `test_screen.py`, which has no `main` to put a call in and is the one of
-    the four that CI runs.
-
-    `test/run.lua` refuses the wrong Lua from its own first lines, and for the
-    same reason: a refusal that a later failure can get in front of is not one.
+    At import rather than from each `main`, because a `main` runs after its own
+    module's imports: `e2e.py` reads the themes with `tomllib`, which is 3.11's.
+    Importing this module is the one moment every entry here has in common,
+    `test_screen.py` included, which has no `main` and is the one CI runs.
     """
     if sys.version_info < MINIMUM:
         want = ".".join(str(n) for n in MINIMUM)
@@ -83,16 +73,10 @@ def _terminated(number: int, frame: FrameType | None) -> NoReturn:
 def catch_term() -> None:
     """Make a SIGTERM raise, so the teardown a `finally` holds still runs.
 
-    The shell harness this replaced trapped TERM and exited 143 from the trap,
-    which put it through the EXIT trap that tore the run down. Python's default
-    handling ends the process without raising anything, so the `finally` never
-    runs -- and what is left behind is a tmux session and a scratch directory
-    both named after this run's PID, which nothing else will ever clear: a
-    later run has a different PID, and `Session.kill` refuses on purpose to
-    take a name it did not start.
-
-    Not SIGINT, which needs nothing: Python raises `KeyboardInterrupt` for it
-    already, and a `finally` runs on the way out.
+    Python's default handling ends the process without raising, so the
+    `finally` never runs, and a tmux session and a scratch directory named
+    after this run's PID are left for nothing to clear. SIGINT needs nothing:
+    Python raises `KeyboardInterrupt` for it already.
     """
     signal.signal(signal.SIGTERM, _terminated)
 
@@ -101,14 +85,15 @@ def run(
     args: list[str],
     *,
     timeout: float = 20,
+    check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     """A subprocess with a deadline on it, and its output captured.
 
-    The deadline is the whole reason this is a function rather than a call.
-    Every external command either answers or the run stops with a message
-    naming it -- a `tmux` that wedged, a `yazi --version` that hung on a probe
-    -- where the same command from a shell script waits for ever and the
-    person watching sees nothing at all.
+    The deadline is the whole reason this is a function rather than a call:
+    every external command either answers or the run stops with a message
+    naming it, where a wedged `tmux` would otherwise wait for ever. A non-zero
+    exit is a refusal too, unless `check` is off because the exit status is
+    the answer being asked for.
     """
     try:
         done = subprocess.run(
@@ -120,7 +105,7 @@ def run(
         )
     except subprocess.TimeoutExpired:
         refuse(f"{args[0]}: no answer in {timeout}s -- {' '.join(args)}")
-    if done.returncode != 0:
+    if check and done.returncode != 0:
         refuse(
             f"{args[0]} exited {done.returncode}: {' '.join(args)}\n"
             f"{done.stderr.strip()}"
@@ -131,17 +116,13 @@ def run(
 def yazi_env(dir: Path, state: str) -> dict[str, str]:
     """The environment both harnesses open the fixture's Yazi in.
 
-    Here rather than in either of them because they open the same Yazi and had
-    said so twice, in two spellings -- a shell string for tmux and a dict for
-    `execve` -- with the paths `setup.py` owns written out on both sides.
-
     `YAZI_LOG` because a report is two halves and only the shorter one is a
     notification, and there is no log at all unless this is set before Yazi
-    starts. `debug` costs three lines over `error` across a short run,
-    measured on 26.9.1. `XDG_STATE_HOME` is under the scratch directory, so
-    `--clean` takes the log with it, and it is named rather than fixed because
-    `e2e.py` gives its two runs one each: the clean run's log is read for the
-    absence of the errors the broken run is full of.
+    starts; `debug` costs three lines over `error` across a short run, measured
+    on 26.9.1. `XDG_STATE_HOME` is under the scratch directory, so `--clean`
+    takes the log with it, and it is named because `e2e.py` gives its two runs
+    one each: the clean run's log is read for the absence of the errors the
+    broken run is full of.
     """
     return {
         "YAZI_CONFIG_HOME": str(dir / "config"),
@@ -151,26 +132,12 @@ def yazi_env(dir: Path, state: str) -> dict[str, str]:
 
 
 def yazi_log(dir: Path, state: str) -> Path:
-    """Where Yazi writes its log under the state directory `yazi_env` names.
-
-    Beside that function because it is the other half of the same fact: what
-    `XDG_STATE_HOME` is set to is here, and so is the path Yazi lays out
-    beneath it. Written out by its readers instead, moving the state directory
-    would have `manual.py` print a path that does not exist while `e2e.py`
-    reported a log the broken run never wrote -- a layout change wearing the
-    shape of a plugin fault.
-    """
+    """Where Yazi writes its log under the state directory `yazi_env` names."""
     return dir / state / "yazi" / "yazi.log"
 
 
 def yazi_data(dir: Path) -> Path:
-    """The folder both harnesses open that Yazi on, inside the fixture.
-
-    The third of these and here for the reason the other two are: `setup.py`
-    lays the fixture out, this is the one directory in it either harness
-    names, and it had been written out on both sides -- in two spellings, one
-    of them inside an f-string building a shell command.
-    """
+    """The folder both harnesses open that Yazi on, inside the fixture."""
     return dir / "fixture" / "data"
 
 
@@ -184,14 +151,14 @@ def need(*tools: str) -> None:
 class Checks:
     """Named claims, counted rather than raised.
 
-    A bare `assert` would stop at the first failure, and the information a
-    broken build has to give is *which* of these went wrong -- a change that
-    moves one column moves a handful of checks, and the shape of that handful
-    is what says where to look. So every check runs, each says one thing, and
-    the count is what decides the exit status.
+    A bare `assert` would stop at the first failure, and what a broken build
+    has to say is *which* of these went wrong -- a change that moves one column
+    moves a handful of checks, and the shape of that handful says where to
+    look. So every check runs, each says one thing, and the count decides the
+    exit status.
 
-    One claim per line, deliberately. A line bundling three of them cannot say
-    which of the three failed.
+    None of them answers a verdict: a returned bool invites `if k.that(...)`,
+    and a check that doubles as a branch is an assert again.
     """
 
     def __init__(self) -> None:
@@ -204,15 +171,22 @@ class Checks:
         print(f"  FAIL {label}", file=sys.stderr)
         self.failed.append(label)
 
-    def that(self, held: bool, label: str) -> None:
-        """`label` states what is true when it passes, so it reads either way.
+    def verdict(self, label: str, *faults: str | None) -> None:
+        """Fail on the first fault that is a message, or pass as `label`.
 
-        None of the four answers a verdict, deliberately. A returned bool is
-        an invitation to write `if k.that(...)`, and a check that doubles as a
-        branch is this object back to being an assert -- where the whole of
-        why it exists is that a change moving one column moves a handful of
-        checks, and the shape of that handful is what says where to look.
+        Written `bad and f"...{bad[0]}..."`, a fault is built only when there
+        is one, so it may index what would be empty otherwise; and the order
+        is the order of the guards, so a later fault may assume the earlier
+        ones did not hold.
         """
+        for fault in faults:
+            if fault:
+                self.fail(fault)
+                return
+        self.ok(label)
+
+    def that(self, held: bool, label: str) -> None:
+        """`label` states what is true when it passes, so it reads either way."""
         if held:
             self.ok(label)
         else:
@@ -235,11 +209,9 @@ class Checks:
 class Session:
     """One detached tmux session, and the screen it is drawing.
 
-    Both the session name and the scratch directory carry the PID, so a run
-    owns everything it touches. A fixed session name would have to be cleared
-    before `new-session` could take it, and clearing one this run did not start
-    kills whatever was inside it -- a concurrent run of this same harness, or a
-    session a person happened to name the same, along with its unsaved work.
+    The session name carries the PID, so a run owns everything it touches: a
+    fixed name would have to be cleared before `new-session` could take it,
+    and clearing one this run did not start kills whatever was inside it.
     """
 
     #: How often the screen is re-read while waiting. A `capture-pane` costs a
@@ -251,8 +223,10 @@ class Session:
         self.name = name
         self.started = False
 
-    def tmux(self, *args: str) -> str:
-        return run(["tmux", *args]).stdout
+    def tmux(
+        self, *args: str, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        return run(["tmux", *args], check=check)
 
     def start(
         self,
@@ -264,15 +238,9 @@ class Session:
     ) -> None:
         """Open the session on `argv`, in `env`.
 
-        `set -e`'s replacement is `run`'s own exit.
-
-        The two are taken apart rather than as the one string tmux wants,
-        because putting them together means quoting them, and a caller that
-        did that would be the one place outside this file that has to know a
-        shell is involved at all. What it would be quoting is the scratch
-        path, which is `tempfile.gettempdir()`'s to choose -- the same hazard
-        `setup.py` designs around where the keymap's `shell` template names
-        that directory, one layer down.
+        Taken apart rather than as the one string tmux wants, so this is the
+        one place that knows a shell is involved and quotes for it -- the
+        scratch path is `tempfile.gettempdir()`'s to choose.
         """
         command = shlex.join(
             ["env", *(f"{name}={value}" for name, value in env.items()), *argv]
@@ -294,56 +262,34 @@ class Session:
         """Tear the session down, if this run ever got as far as starting one.
 
         Asked of the run rather than of the name, because a PID comes round
-        again: a session left behind by a previous run carries a name a later
-        one is entitled to, and killing it would be this harness doing the very
-        thing the PID is there to prevent.
+        again and a session a previous run left behind is not this run's.
         """
         if not self.started:
             return
-        subprocess.run(
-            ["tmux", "kill-session", "-t", self.name],
-            capture_output=True,
-            timeout=20,
-            check=False,
-        )
+        self.tmux("kill-session", "-t", self.name, check=False)
         self.started = False
 
     def alive(self) -> bool:
-        """Whether tmux still holds this session, asked without refusing.
+        """Whether tmux still holds this session.
 
-        `run` is the wrong caller for this one question: a session that has
-        gone is the answer here rather than a failure, and `has-session` says
-        so with a non-zero exit like any other.
+        A session that has gone is the answer here rather than a failure, so
+        the exit status is read rather than refused.
         """
-        done = subprocess.run(
-            ["tmux", "has-session", "-t", self.name],
-            capture_output=True,
-            timeout=20,
-            check=False,
-        )
+        done = self.tmux("has-session", "-t", self.name, check=False)
         return done.returncode == 0
 
     def quit(self, *keys: str, grace: float = 1.0) -> None:
         """Send the keys that end the program, and take the session down.
 
-        Not `press`: what is sent here ends the only window in the session, so
-        the settle behind a press goes on reading a screen tmux may already
-        have destroyed -- and a `capture-pane` against a session that has gone
-        exits non-zero, which `run` reports as a harness that could not start,
-        over a run that in fact passed. Reproduced on its own: a session whose
-        command exits on the key refuses the very next capture, 0.02s in, and
-        the harness exits 2.
+        Not `press`: what is sent here ends the only window in the session, and
+        a `capture-pane` against a session that has gone exits non-zero, which
+        `run` reports as a harness that could not start. So this waits for the
+        session to go rather than for the screen to settle. 26.9.1 waits five
+        seconds for the terminal probe on the way out -- 5.02, 5.03 and 5.04s
+        measured -- which is a timeout, not a guarantee to lean on.
 
-        What has held that off here is a timeout rather than a margin. A
-        detached tmux never answers Yazi's terminal probe, and 26.9.1 waits
-        five seconds for it on the way out -- measured 5.02, 5.03 and 5.04s
-        against the 0.49s the press took, so the race was never close and
-        would be lost outright by a Yazi that stopped waiting.
-
-        `grace` is what the program gets to finish writing, since the checks
-        read the log it leaves; twice what the settle gave it, and a session
-        that goes sooner ends the wait at once. Nothing reads the screen after
-        this, which is the other half of why there is no settle here.
+        `grace` is what the program gets to finish writing the log the checks
+        read; a session that goes sooner ends the wait at once.
         """
         self.keys(*keys)
         deadline = time.monotonic() + grace
@@ -355,7 +301,7 @@ class Session:
         args = ["capture-pane", "-t", self.name, "-p"]
         if colour:
             args.append("-e")
-        return self.tmux(*args)
+        return self.tmux(*args).stdout
 
     def keys(self, *keys: str) -> None:
         """Send keys literally, so a `-` or a digit is a keystroke not a flag."""
@@ -370,14 +316,11 @@ class Session:
     ) -> str:
         """Poll the screen until it satisfies `predicate`.
 
-        This is what replaces a fixed sleep wherever the run knows what it is
-        waiting **for**, and it is both faster and stronger than one: it
-        returns as soon as the screen says so, and it goes on waiting past any
-        sleep that would have been written here if the screen is slow.
-
-        A deadline it reaches is not a failure of its own. The check that
-        wanted the screen is still ahead, and it fails naming what it wanted --
-        which is a better sentence than this function could write.
+        What replaces a fixed sleep wherever the run knows what it is waiting
+        **for**: it returns as soon as the screen says so, and goes on waiting
+        past any sleep if the screen is slow. A deadline it reaches is not a
+        failure of its own -- the check that wanted the screen is still ahead,
+        and fails naming what it wanted.
         """
         deadline = time.monotonic() + timeout
         screen = self.capture()
@@ -402,25 +345,13 @@ class Session:
     ) -> str:
         """Collect screens until each of `needles` has been on one of them.
 
-        `wait_for` answers with a single screen, which is the wrong shape for
-        anything the screen cannot hold at once -- and Yazi's notifications
-        are that: it draws three at a time and queues the rest, so what says
-        six of them arrived is the union of the screens taken while they
-        drained rather than any one of those screens.
+        For what the screen cannot hold at once: Yazi draws three notifications
+        at a time and queues the rest, so what says six arrived is the union of
+        the screens taken while they drained. A needle is looked for once, on
+        the capture it could first appear in, so the work stays linear.
 
-        A needle is looked for once, on the capture it could first appear in,
-        and the union is built at the end. Over the union every pass instead,
-        the work is quadratic in the captures taken -- for a question every
-        earlier pass has already answered.
-
-        `every` for a caller that knows what it is waiting on stays up longer
-        than `POLL`; the poll is what a caller with nothing to say gets.
-
-        A deadline it reaches returns what it has, with a note, for the reason
-        `wait_for` gives -- and for one of its own here: the checks ahead can
-        see that a report is missing from the union and read that as a column
-        that never reported, where the wait having run out is the other
-        explanation and only this loop can tell them apart.
+        A deadline it reaches returns what it has, with a note -- the one thing
+        that tells a report that never came from a wait that ran out.
         """
         wait = self.POLL if every is None else every
         missing = set(needles)
@@ -444,21 +375,14 @@ class Session:
     def settle(self, *, stable: float = 0.4, timeout: float = 15) -> str:
         """Poll until the screen has held still for `stable` seconds.
 
-        The fallback for a press whose effect has no name worth waiting on --
-        a linemode whose columns this run is about to read rather than predict.
+        The fallback for a press whose effect has no name worth waiting on. It
+        is adaptive: a screen already done costs one stable window, and one
+        still moving -- a fetcher landing late, a preview re-peeked -- resets
+        the window and is waited out.
 
-        What it buys over the fixed sleep it replaces is that it is
-        **adaptive**. A screen that is already done costs one stable window; a
-        screen that is still moving -- a fetcher landing late, a preview being
-        re-peeked -- resets the window and is waited out, past the second a
-        sleep would have given it. The guarantee is different rather than
-        strictly larger: a sleep covers a fixed second from the keypress, and
-        this covers every gap shorter than `stable` for as long as the screen
-        keeps moving.
-
-        A screen that never holds still is returned anyway, with a note. The
+        A screen that never holds still is returned anyway, with a note: the
         broken run draws notifications over the preview pane, and a check that
-        aborted there would take the other fifty with it.
+        aborted there would take the others with it.
         """
         deadline = time.monotonic() + timeout
         was = self.capture()
@@ -488,13 +412,8 @@ class Session:
         """Send keys and wait for the screen to answer.
 
         `until` where the run knows what the press should produce, and the
-        settle otherwise. Both are bounded, so neither can hang the run.
-
-        The settle after an `until` is the short one on purpose: the screen
-        has already said the thing waited for arrived, and what is left is the
-        repaint behind it. There is no window to pass in -- a caller that
-        could name one silently got 0.2 on this arm, which is a weaker wait
-        arriving as a stronger-looking argument.
+        settle otherwise. After an `until` the settle is the short one: the
+        screen has said what was waited for, and what is left is the repaint.
         """
         self.keys(*keys)
         if until is not None:

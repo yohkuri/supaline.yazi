@@ -1,26 +1,24 @@
 """The screen parsers, against captures written here rather than drawn.
 
-`e2e.py` is not in CI -- it needs a real Yazi and a real terminal -- so until
-this file the arithmetic that decides whether a ramp climbed was checked by
-nothing at all. It was three `awk` programs then, and a parser that quietly
-stopped matching would have reported every ramp as correct: `ramp_faults` over
-no rows finds no faults, and the row count beside it was the only thing
-standing between that and a green run.
-
-These run anywhere Python does, so they *are* in CI. What they cannot say is
-whether a capture like the ones below is what Yazi draws; `e2e.py` keeps that,
-and the fixture's colours are read out of `test/fixture/` by both.
+`e2e.py` is not in CI -- it needs a real Yazi and a real terminal -- and a
+parser that quietly stopped matching would report every ramp as correct there:
+`ramp_faults` over no rows finds no faults. These run anywhere Python does, so
+they *are* in CI. What they cannot say is whether a capture like the ones below
+is what Yazi draws; `e2e.py` keeps that.
 
     python3 -m unittest discover -s test -p 'test_*.py'
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 import unittest
 from pathlib import Path
 
-import e2e
 import screen as sc
+import setup as fixture
+from harness import Checks
 
 
 #: A row of a capture as tmux writes one: three panes, two dividers.
@@ -260,11 +258,9 @@ class Markers(unittest.TestCase):
         self.assertEqual(sc.marked(sc.current_of(shot)), 2)
 
     def test_the_parent_pane_is_read_by_that_same_reader(self):
-        # The pane `pane_par` exists for, and the one that had no reader of
-        # its own. Its rows end the way the current pane's do -- a trailing
-        # space, or a powerline glyph on the hovered one -- which is why a
-        # pattern anchored on the letter read all five of them as bare and
-        # left the pane asserted on by nothing but "it changed".
+        # The pane `pane_par` exists for. Its rows end the way the current
+        # pane's do -- a trailing space, or a powerline glyph on the hovered
+        # one -- so a pattern anchored on the letter would read them as bare.
         shot = capture(
             row(parent="sibling-one    d "),
             row(parent="data           d"),
@@ -322,8 +318,7 @@ class Owners(unittest.TestCase):
         self.assertEqual(sc.owner_cells(shot), [])
 
     def test_a_field_in_another_pane_is_not_read(self):
-        # Yazi draws none there on 26.9.1, and the greedy left anchor this
-        # replaced was for a row that carried two.
+        # Yazi draws none there on 26.9.1.
         shot = capture(
             row(" -rw-r--r-- root:wheel   root     wheel   ", " name.txt", "v")
         )
@@ -482,9 +477,9 @@ class Bolds(unittest.TestCase):
         self.assertEqual(sc.bold_over_paint(shot), 0)
 
     def test_neither_reader_leaves_the_current_pane(self):
-        # Every other colour claim in the run is scoped to this pane, and these
-        # two were the exception: read over the whole capture they are
-        # satisfied by the parent pane, the header or the status line.
+        # Like every other colour claim in the run: read over the whole
+        # capture they would be satisfied by the parent pane, the header or
+        # the status line.
         painted = capture(row(self.PAINTED, "name", "v"))
         dated = capture(row(self.DATED, "name", "v"))
         self.assertEqual(sc.bold_over_paint(painted), 0)
@@ -511,12 +506,8 @@ class TheFixtureItReads(unittest.TestCase):
     Not a parser test. It is here because it is the one claim in this file that
     can go stale without anybody touching Python: recolour a ground in
     `init.lua` and `e2e.py` finds no band at all, which reads on the screen as
-    a plugin that stopped drawing.
-
-    It calls `e2e.py`'s own readers rather than re-spelling their patterns. A
-    copy here would go on passing against the shape the fixture had when it
-    was written while the reader beside it had quietly stopped matching, and
-    `e2e.py` is not in CI, so nothing else would have said so.
+    a plugin that stopped drawing. It calls the readers `e2e.py` calls, rather
+    than re-spelling their patterns.
     """
 
     HEX = r"^#[0-9a-fA-F]{6}$"
@@ -526,69 +517,56 @@ class TheFixtureItReads(unittest.TestCase):
         cls.fixture = Path(__file__).resolve().parent / "fixture"
         cls.init = (cls.fixture / "init.lua").read_text()
 
-    def test_both_grounds_are_flat_colours_the_fixture_binds(self):
+    def test_both_grounds_are_flat_colours_with_a_width_beside_them(self):
+        # `check_bands` measures a band of this colour against this width.
         for name in ("GROUND", "LINE_GROUND"):
             with self.subTest(ground=name):
-                self.assertRegex(e2e.ground_hex(self.init, name), self.HEX)
+                (ground,) = fixture.binding(self.init, name)
+                self.assertRegex(ground, self.HEX)
+                self.assertGreater(fixture.band_width(self.init, name), 0)
 
     def test_cool_is_the_two_ended_ramp_c_scale_and_c_edge_read(self):
-        # `check_scale` and `check_edge` take both ends out of this line.
-        # Written as one colour, or under another name, and each of them
-        # refuses rather than measuring against an empty string.
-        low, high = e2e.ramp_ends(self.init, "COOL")
+        low, high = fixture.binding(self.init, "COOL")
         self.assertRegex(low, self.HEX)
         self.assertRegex(high, self.HEX)
 
     def test_the_columns_broken_on_purpose_are_found_by_name(self):
-        # The third reader of that file, and the one whose empty answer is
-        # quietest: a run that found no broken column presses no `b` key and
-        # reads a log it expected to be empty, which is what a green run looks
-        # like.
-        self.assertTrue(e2e.broken_columns(self.init))
+        # The quietest empty answer: a run that found no broken column presses
+        # no `b` key and reads a log it expected to be empty.
+        self.assertTrue(fixture.broken_columns(self.init))
 
     def test_the_theme_is_a_flat_colour_and_a_ramp_under_the_names_read(self):
         # `clean_run` rewrites the theme by replacing what this answers, and
-        # `check_theme` and `check_ramp` read the screen against it. A field
-        # renamed or given the other shape -- a ramp is a string and a flat
-        # colour a table -- takes all three with it, and what a reader would
-        # see is a reload that appeared to change nothing.
-        #
-        # Both themes, because the swap `c 2` makes is read the same way.
+        # the theme and ramp checks read the screen against it. Both themes,
+        # because the swap `c 2` makes is read the same way.
         for name in ("default", "alt"):
             with self.subTest(theme=name):
-                flat, ramp = e2e.theme_values(self.fixture, name)
+                flat, ramp = fixture.theme_values(self.fixture, name)
                 self.assertRegex(flat, self.HEX)
                 low, high = ramp.split(" -> ")
                 self.assertRegex(low, self.HEX)
                 self.assertRegex(high, self.HEX)
 
-    def test_both_grounds_state_a_width_beside_the_name(self):
-        # `check_bands` measures the band against this number, so a width
-        # nothing finds is a band measured against zero cells.
-        for name in ("GROUND", "LINE_GROUND"):
-            with self.subTest(ground=name):
-                self.assertGreater(e2e.band_width(self.init, name), 0)
-
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
-        # `HUE` is bound and drawn, and nothing writes it under a `bg`. That
-        # is the half the anchor has to get right: a reader answering the
-        # width of some other line would measure a band against it.
-        self.assertEqual(e2e.band_width(self.init, "HUE"), 0)
+        # `HUE` is bound and drawn, and nothing writes it under a `bg`.
+        self.assertEqual(fixture.band_width(self.init, "HUE"), 0)
 
     def test_the_c_bg_block_is_found_and_names_both_grounds(self):
         # The sweep that catches a ground added to `c_bg` and read by nobody.
-        # Its pattern is anchored on stylua's indentation, so re-nesting that
-        # table would leave it sweeping over nothing -- and this is what says
-        # so, since `e2e.py` is not in CI to.
-        grounds = e2e.c_bg_grounds(self.init)
-        self.assertIsNotNone(grounds)
+        grounds = fixture.c_bg_grounds(self.init)
         assert grounds is not None
         self.assertLessEqual({"GROUND", "LINE_GROUND"}, set(grounds))
 
     def test_a_file_with_no_c_bg_block_is_told_from_one_with_no_grounds(self):
-        # The two are different failures and `check_bands` says them
-        # differently, so `None` has to mean the block and not the grounds.
-        self.assertIsNone(e2e.c_bg_grounds('local GROUND = "#112233"\n'))
+        self.assertIsNone(fixture.c_bg_grounds('local GROUND = "#112233"\n'))
+
+    def test_a_binding_is_one_colour_or_two_ends_and_nothing_else(self):
+        init = 'local A = "#112233"\nlocal B = "#112233 -> #445566"\n'
+        init += 'local C = "#112233 <->"\nlocal D = "#112233 -> #445566 -> #778899"\n'
+        self.assertEqual(fixture.binding(init, "A"), ("#112233",))
+        self.assertEqual(fixture.binding(init, "B"), ("#112233", "#445566"))
+        self.assertEqual(fixture.binding(init, "C"), ())
+        self.assertEqual(fixture.binding(init, "D"), ())
 
 
 class Sizes(unittest.TestCase):
@@ -618,6 +596,27 @@ class Sizes(unittest.TestCase):
         # `fullmatch` rather than a search: a size cell is the whole cell.
         self.assertFalse(sc.is_size("step-00.txt"))
         self.assertFalse(sc.is_size("1024B  "))
+
+
+class Verdicts(unittest.TestCase):
+    """`Checks.verdict`, which most of `e2e.py`'s claims go through."""
+
+    def test_the_first_fault_that_holds_is_the_one_failed(self):
+        k = Checks()
+        empty: list[str] = []
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            k.verdict("fine", empty and f"{empty[0]}", "second", "third")
+        self.assertEqual(k.failed, ["second"])
+
+    def test_no_fault_passes_as_the_label(self):
+        k = Checks()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            k.verdict("fine", None, False, "")
+        self.assertEqual((k.failed, out.getvalue()), ([], "  fine\n"))
 
 
 if __name__ == "__main__":
