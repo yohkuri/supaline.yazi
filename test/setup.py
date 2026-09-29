@@ -357,9 +357,8 @@ def write_ramps(target: Path) -> None:
     # key is called. The name is not resolved here and does not have to be:
     # `ramp.lua` answers every name with the pair it was given, because what it
     # is for is looking at a pair rather than at a `setup`.
-    hex6 = "#[0-9a-fA-F]{6}"
     pattern = re.compile(
-        rf'"({hex6}\s*<->(\s*[a-z][a-z0-9_]*)?|{hex6}(\s*->\s*{hex6})+)"'
+        rf'"({HEX}\s*<->(\s*[a-z][a-z0-9_]*)?|{HEX}(\s*->\s*{HEX})+)"'
     )
     found = sorted(
         {m.group(1) for body in bodies.values() for m in pattern.finditer(body)}
@@ -367,10 +366,9 @@ def write_ramps(target: Path) -> None:
     (target / "ramps.txt").write_text("".join(f"{r}\n" for r in found))
 
     # And a second, looser search saying the first one caught everything.
-    # Nothing reads `ramps.txt` but `manual.py`, which prints it and is not in
-    # CI, so a pattern that started missing a ramp would show up as a quieter
-    # list and nothing else -- the exact drift reading the written files
-    # instead of this source was meant to avoid.
+    # Nothing reads `ramps.txt` but `manual.py`, which is not in CI, so a
+    # pattern that started missing a ramp would show up as a quieter list and
+    # nothing else.
     #
     # The arrow is what a flat colour can never contain -- a band carries one
     # inside its marker, which is why it is spelled that way -- and that makes
@@ -395,6 +393,79 @@ def write_ramps(target: Path) -> None:
             "setup: widen the pattern in setup.py, or manual.py prints a list "
             "short of what is drawn"
         )
+
+
+# --- what the fixture spells ------------------------------------------------
+#
+# Readers over the configuration this script copies, for `e2e.py` to assert
+# against and `test_screen.py` to pin in CI. A hex written in a harness as well
+# is the copy that goes stale, and a recoloured fixture then reports as a
+# plugin that stopped drawing; a pattern copied into the test goes on passing
+# while the reader beside it has stopped matching. So both call these.
+
+#: A six-digit hex colour, as `init.lua` writes one.
+HEX = "#[0-9a-fA-F]{6}"
+
+
+def binding(init: str, name: str) -> tuple[str, ...]:
+    """The colours `init.lua` binds to `local <name>`, in order.
+
+    One for a flat colour, two for a two-ended ramp, and none for anything
+    else -- anchored on both sides, so a name bound to a band, a style table
+    or a three-stop ramp answers nothing rather than half of itself.
+    """
+    found = re.search(
+        rf'^local {name} = "({HEX})(?: -> ({HEX}))?"$', init, re.MULTILINE
+    )
+    return tuple(c for c in found.groups() if c) if found else ()
+
+
+def broken_columns(init: str) -> list[str]:
+    """The columns `init.lua` registers as wrong on purpose.
+
+    Register another and `e2e.py` goes red until a key for it is pressed, which
+    is the direction the list has to grow in.
+    """
+    return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
+
+
+def band_width(init: str, name: str) -> int:
+    """The width a `c_bg` column states beside the ground it names, or 0.
+
+    A trailing space, comma or close brace, because a style writes the name
+    with one of the three after it -- which is what keeps a ground named after
+    another one from matching.
+    """
+    found = re.search(rf".*bg = {name}[ ,}}].*width = (\d+)", init)
+    return int(found.group(1)) if found else 0
+
+
+def c_bg_grounds(init: str) -> list[str] | None:
+    """Every name `c_bg` writes under a `bg`, or `None` if the block is gone.
+
+    The two are different failures: a block with no grounds is a fixture
+    nobody gave one, and a block this cannot find is a sweep passing over
+    nothing -- the pattern is anchored on stylua's indentation, so re-nesting
+    that table is all it takes.
+    """
+    block = re.search(r"c_bg = \{.*?\n\t\t\},", init, re.DOTALL)
+    if not block:
+        return None
+    return re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0))
+
+
+def theme_values(dir: Path, name: str) -> tuple[str, str]:
+    """`size`'s flat colour and `mtime`'s ramp, out of one of the themes.
+
+    `dir` holds a `themes/` of them: the scratch copy, where the `c` keys put
+    their themes, or `test/fixture/` itself.
+    """
+    # Here rather than at the top: `tomllib` is 3.11's, and `harness` has to be
+    # imported first to refuse an older Python with a sentence.
+    import tomllib
+
+    theme = tomllib.loads((dir / "themes" / f"{name}.toml").read_text())
+    return theme["supaline"]["size"]["fg"], theme["supaline"]["mtime"]
 
 
 def build(target: Path) -> None:

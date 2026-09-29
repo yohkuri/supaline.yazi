@@ -138,10 +138,10 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   hand-written capture in `test_screen.py` beside it. A raw escape sequence is
   the most worth moving rather than the least: it is the one thing a capture
   written by hand can state exactly.
-- A fact about **what the fixture spells** belongs in a reader over
-  `test/fixture/init.lua` — `ground_hex`, `ramp_ends`, `broken_columns`,
-  `band_width` and `c_bg_grounds` are the five — and `TheFixtureItReads` calls
-  those readers rather than re-spelling their patterns. A copy of a pattern
+- A fact about **what the fixture spells** belongs in a reader in `setup.py`,
+  beside the copy it reads — `binding`, `broken_columns`, `band_width`,
+  `c_bg_grounds` and `theme_values` are the five — and `TheFixtureItReads`
+  calls those readers rather than re-spelling their patterns. A copy of a pattern
   goes on passing while the reader beside it has quietly stopped matching, and
   `e2e.py` is not in CI to say so — a pattern anchored on stylua's indentation
   most of all, since re-nesting a table leaves the sweep passing over nothing.

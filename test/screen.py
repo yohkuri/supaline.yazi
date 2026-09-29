@@ -6,10 +6,9 @@ is the whole of why it is a file: `test_screen.py` beside it can put a capture
 in and read an answer out, so the arithmetic that decides whether a ramp
 climbed is checked by the unit suite rather than only by the run it is part of.
 
-Until this file that arithmetic was three `awk` programs inside `e2e.sh`, and
-nothing tested them. `test/ramp.lua` looks like their test and is not -- it
-draws ramps for a person to look at under `manual.py`, and would go on doing
-that with every parser here returning nothing.
+`test/ramp.lua` looks like their test and is not -- it draws ramps for a
+person to look at under `manual.py`, and would go on doing that with every
+parser here returning nothing.
 """
 
 from __future__ import annotations
@@ -329,9 +328,8 @@ def owner_cells(capture: str) -> list[OwnerRow]:
     three can hold a space, so no width arithmetic is needed and none is
     done.
 
-    The current pane alone. Yazi draws no permissions field in the parent
-    pane, measured on 26.9.1, and the greedy left anchor this replaces was
-    there to answer the *last* field on a row that carried two.
+    The current pane alone: Yazi draws no permissions field in the parent
+    pane, measured on 26.9.1.
     """
     found_re = re.compile(r"([-dl][rwxsStT-]{9}) +([^ ]+) +([^ ]+) +([^ ]+) +")
     out = []
@@ -556,10 +554,9 @@ def marked(rows: list[str]) -> int:
 
     Given a pane's rows rather than the capture, because the claim is the same
     in all three and the trio exists to ask it of each -- `pane_cur` of the
-    middle pane, `pane_par` of the left, `pane_prev` of the right. It was two
-    readers with two patterns, and two patterns is two chances for one pane to
-    end up asked something weaker than the others: the parent pane was asked
-    only that it had *changed*, which a hover that moved would satisfy.
+    middle pane, `pane_par` of the left, `pane_prev` of the right. One pattern
+    for all three, so no pane is asked something weaker than the others -- that
+    it had merely *changed*, say, which a hover that moved would satisfy.
 
     The marker is not always last on the row. The hovered row carries a
     powerline glyph after it and the others a space before the divider, in the
