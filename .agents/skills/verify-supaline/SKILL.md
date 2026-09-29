@@ -140,7 +140,7 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   written by hand can state exactly.
 - A fact about **what the fixture spells** belongs in a reader in `setup.py`
   beside the copy it reads — `binding`, `broken_columns`, `band_width`,
-  `c_bg_grounds`, `theme_values`, `theme_ends`, `linemodes` — which
+  `c_bg_grounds`, `theme_values`, `theme_ends`, `linemodes`, `read_in` — which
   `TheFixtureItReads` calls rather than re-spelling their patterns. A copy of a
   pattern passes on after its reader has quietly stopped matching, and `e2e.py`
   is not in CI to say so: a pattern anchored on stylua's indentation most of

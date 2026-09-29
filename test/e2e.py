@@ -84,14 +84,6 @@ class Run:
         printed rather than `run`'s emptier one over the top of it."""
         fixture.main([str(self.dir)])
 
-    def linemodes(self, leader: str) -> list[tuple[str, str]]:
-        """The key and name of each linemode bound under `leader`, read off
-        the keymap Yazi was given, so a binding added there is pressed here."""
-        keymap = (self.dir / "config" / "keymap.toml").read_text()
-        return [
-            (k, n) for lead, k, n in fixture.linemodes(keymap) if lead == leader
-        ]
-
     def teardown(self) -> None:
         self.session.kill()
         if not self.dir.is_dir():
@@ -161,12 +153,12 @@ class Run:
         )
 
 
-def clean_run(r: Run) -> None:
+def clean_run(r: Run, modes: dict[str, list[tuple[str, str]]]) -> None:
     """The run that is meant to log nothing, and every capture read below."""
     r.open_yazi("state")
 
     # Every linemode the manual harness offers, so a broken one cannot hide.
-    for key, _ in r.linemodes("m"):
+    for key, _ in modes["m"]:
         r.session.press("m", key)
         # Switching linemode does not re-peek the preview, so the hover moves
         # to force one under the mode now active -- one press of the pair, and
@@ -180,8 +172,9 @@ def clean_run(r: Run) -> None:
     # questions a reader is the only instrument for. They settle rather than
     # wait on a name, because two colour modes over one folder draw the same
     # text in different colours.
-    for key, name in r.linemodes("c"):
-        r.goto(COLOUR_FOLDERS[name])
+    folders = fixture.read_in((ROOT / "test" / "MANUAL.md").read_text())
+    for key, name in modes["c"]:
+        r.goto(folders[key])
         r.session.press("c", key)
         r.shot(name)
 
@@ -215,7 +208,9 @@ def clean_run(r: Run) -> None:
     r.session.quit("q")
 
 
-def broken_run(r: Run, init: str) -> None:
+def broken_run(
+    r: Run, init: str, modes: dict[str, list[tuple[str, str]]]
+) -> None:
     """A second Yazi, with a log of its own, for the columns that are wrong.
 
     The separate log is the design: the clean run's log is held to no error at
@@ -226,10 +221,10 @@ def broken_run(r: Run, init: str) -> None:
     """
     r.open_yazi("state-broken")
 
-    # `b_tick` draws the counting pair and breaks nothing by itself; `g 6` is
-    # what throws its `refresh`. Last, because every `cd` after it throws again.
-    broken = r.linemodes("b")
-    for key, _ in sorted(broken, key=lambda mode: mode[1] == "b_tick"):
+    # In the keymap's order, which ends on `b_tick`: it draws the counting pair
+    # and breaks nothing by itself, and `g 6` is what throws its `refresh`.
+    # Last, because every `cd` after it throws again.
+    for key, _ in modes["b"]:
         r.session.press("b", key)
     r.goto("6")
 
@@ -258,22 +253,6 @@ def broken_run(r: Run, init: str) -> None:
     r.session.press("T")
 
     r.session.quit("q")
-
-
-#: The `g` folder each colour linemode is read in, since the spread of values
-#: there decides what a ramp puts on screen. The keymap says which modes there
-#: are, and `TheFixtureItReads` holds this to exactly those, so a mode bound
-#: there and missing here is refused in CI rather than drawn and read by nobody.
-COLOUR_FOLDERS = {
-    "c_ramp": "3",
-    "c_band": "3",
-    "c_hue": "3",
-    "c_bg": "3",
-    "c_bold": "3",
-    "c_scale": "4",
-    "c_edge": "5",
-    "c_theme": "1",
-}
 
 
 #: What `T` is pressed against: the flat colour and the ramp the rewrite puts
@@ -367,10 +346,7 @@ def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
 
 
 def check_rows_present(
-    k: Checks,
-    shots: dict[str, str],
-    m_modes: list[tuple[str, str]],
-    c_modes: list[tuple[str, str]],
+    k: Checks, shots: dict[str, str], modes: dict[str, list[tuple[str, str]]]
 ) -> None:
     """Yazi is alive and every linemode name resolved.
 
@@ -392,18 +368,16 @@ def check_rows_present(
             )
         ]
         k.verdict(
-            summary,
-            not labels and f"{summary}: the keymap bound none of them",
-            blank and f"{', '.join(blank)}: the rows came back blank",
+            summary, blank and f"{', '.join(blank)}: the rows came back blank"
         )
 
     have(
-        f"the {len(m_modes)} `m` linemodes all have rows",
-        [f"m{key}" for key, _ in m_modes],
+        f"the {len(modes['m'])} `m` linemodes all have rows",
+        [f"m{key}" for key, _ in modes["m"]],
     )
     have(
-        f"the {len(c_modes)} colour modes all have rows",
-        [name for _, name in c_modes],
+        f"the {len(modes['c'])} colour modes all have rows",
+        [name for _, name in modes["c"]],
     )
 
 
@@ -980,15 +954,18 @@ def main(argv: list[str]) -> int:
         # The fixture as Yazi is about to read it, `@DIR@` filled in, rather
         # than the source under `test/fixture/`.
         init = (r.dir / "config" / "init.lua").read_text()
-        clean_run(r)
-        broken_run(r, init)
+        modes = fixture.linemodes(
+            (r.dir / "config" / "keymap.toml").read_text()
+        )
+        clean_run(r, modes)
+        broken_run(r, init, modes)
 
         k = Checks()
         check_log(k, yazi_log(r.dir, "state"))
         check_reports(
             k, yazi_log(r.dir, "state-broken"), r.shots["broken"], init
         )
-        check_rows_present(k, r.shots, r.linemodes("m"), r.linemodes("c"))
+        check_rows_present(k, r.shots, modes)
         check_columns(k, r.shots)
         check_panes(k, r.shots)
         check_ramp(k, r.shots, init, r.dir)

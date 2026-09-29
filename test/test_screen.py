@@ -15,10 +15,9 @@ import contextlib
 import io
 import unittest
 
-import e2e
 import screen as sc
 import setup as fixture
-from harness import Checks
+from harness import ROOT, Checks
 
 
 #: A row of a capture as tmux writes one: three panes, two dividers.
@@ -548,15 +547,13 @@ class TheFixtureItReads(unittest.TestCase):
     def test_e2e_presses_every_linemode_the_keymap_binds(self):
         # `e2e.py` presses what this answers, so an empty one would press
         # nothing and pass; the leaders prove the `cd` and shell keys were left
-        # out; and a colour mode needs a folder to be read in.
+        # out; each colour mode is read in the folder `MANUAL.md` sends a person
+        # to; and `b_tick` comes last, right before `g 6` throws its `refresh`.
         modes = fixture.linemodes((self.fixture / "keymap.toml").read_text())
-        under = {
-            lead: {n for ld, _, n in modes if ld == lead} for lead in "mbc"
-        }
-        self.assertEqual({lead for lead, _, _ in modes}, set(under))
-        self.assertEqual(under["c"], set(e2e.COLOUR_FOLDERS))
-        self.assertIn("b_tick", under["b"], "`broken_run` presses it last")
-        self.assertTrue(under["m"])
+        self.assertEqual(set(modes), set("mbc"))
+        read_in = fixture.read_in((ROOT / "test" / "MANUAL.md").read_text())
+        self.assertEqual({key for key, _ in modes["c"]}, set(read_in))
+        self.assertEqual(modes["b"][-1][1], "b_tick")
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.

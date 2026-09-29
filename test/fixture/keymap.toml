@@ -112,6 +112,8 @@ on   = [ "b", "g" ]
 run  = "linemode b_range"
 desc = "supaline: a ramp whose `stats` found no extremes"
 
+# Last under `b`: `e2e.py` presses these in this order, and its `g 6` has to
+# land while this one is drawn.
 [[mgr.prepend_keymap]]
 on   = [ "b", "f" ]
 run  = "linemode b_tick"

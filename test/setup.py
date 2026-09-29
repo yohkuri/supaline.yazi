@@ -429,8 +429,8 @@ def broken_columns(init: str) -> list[str]:
     return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
 
 
-def linemodes(keymap: str) -> list[tuple[str, str, str]]:
-    """Every linemode the keymap binds, as its leader, its key and its name,
+def linemodes(keymap: str) -> dict[str, list[tuple[str, str]]]:
+    """Every linemode the keymap binds, by leader: each one's key and name,
     in the keymap's order.
 
     Read off what a binding runs, so a `cd` or a theme swap under the same
@@ -439,13 +439,24 @@ def linemodes(keymap: str) -> list[tuple[str, str, str]]:
     # Here rather than at the top, for the reason `theme_values` gives.
     import tomllib
 
-    found = []
+    found: dict[str, list[tuple[str, str]]] = {}
     for bound in tomllib.loads(keymap)["mgr"]["prepend_keymap"]:
         command, *args = bound["run"].split()
         if command == "linemode":
             leader, key = bound["on"]
-            found.append((leader, key, args[0]))
+            found.setdefault(leader, []).append((key, args[0]))
     return found
+
+
+def read_in(manual: str) -> dict[str, str]:
+    """The `g` key `MANUAL.md` says each `c` key is read in, by `c` key.
+
+    The table a person follows, so the run captures each colour mode in the
+    folder the person is sent to.
+    """
+    return dict(
+        re.findall(r"^\| `c (\w)` \|.*\| `g (\w)` +\|$", manual, re.MULTILINE)
+    )
 
 
 def band_width(init: str, name: str) -> int:

@@ -580,9 +580,9 @@ two:
    only that folder holds in `FOLDERS` in `test/e2e.py`, so the press can be
    waited on rather than slept through.
 
-Then give it a folder in `COLOUR_FOLDERS` in `test/e2e.py`; the unit suite
-refuses a colour linemode bound with none. `e2e.py` presses every one the
-keymap binds and asserts its capture came back. That does not judge it —
+Then give it a row in the table above, with the `g` key to read it in: `e2e.py`
+presses every colour linemode the keymap binds, in the folder that table names,
+and the unit suite refuses one bound with no row there. That does not judge it —
 judging is what this document is for — but an unregistered linemode name is
 drawn as literal text and one that threw takes the rows with it, and `e2e.py`
 finds either before whoever next runs `manual.py` does.
