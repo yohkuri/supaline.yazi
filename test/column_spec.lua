@@ -597,6 +597,13 @@ test("style: a gradient's endpoints sit at the ends of the range", function()
 	eq(ctx.style.fg, "#0b3d91")
 end)
 
+test("style: a gradient under `bg` reaches the cell as one under `fg` does", function()
+	local ctx = coloured { style = { bg = BLUES, fg = "#ffffff" } }
+	eq(ctx.style_at(0).bg, "#0b3d91")
+	eq(ctx.style_at(1).bg, "#7fd4ff")
+	eq(ctx.style_at(1).fg, "#ffffff", "and the flat `fg` is kept on every step")
+end)
+
 test("style: a ratio off the end is clamped, NaN included", function()
 	-- `style_at` is public and a column may hand it anything, and a nil style
 	-- draws a cell with no colour. NaN answers false to every comparison, and

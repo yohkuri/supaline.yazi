@@ -196,6 +196,20 @@ test("Line:truncate: every span keeps its own style through the cut", function()
 	eq(got[2], green, "and so does the one the cut landed inside")
 end)
 
+-- --- AuthKind --------------------------------------------------------------
+
+test("AuthKind: each variant's three flags, as Yazi sets them", function()
+	-- `is_virtual` is the complement of Yazi's `is_local`, and `is_regular` and
+	-- `is_search` each hold for one variant. A search result is local with
+	-- `is_regular = false`, which is the trap these flags expose.
+	for kind, virtual in pairs { regular = false, search = false, mount = true, hub = true, scope = true, sftp = true } do
+		local spec = stub.spec_of(kind)
+		eq(spec.is_virtual, virtual, kind .. ".is_virtual")
+		eq(spec.is_regular, kind == "regular", kind .. ".is_regular")
+		eq(spec.is_search, kind == "search", kind .. ".is_search")
+	end
+end)
+
 -- --- what the stub refuses and Yazi would not ------------------------------
 
 test("refused: an `AuthKind` Yazi does not have", function()
