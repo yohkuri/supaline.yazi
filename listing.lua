@@ -1,8 +1,10 @@
 --- @since 26.9.1
 --- Folders prepared for drawing: each column's statistics, its effective
---- width, and the context its rows are drawn with, for one folder in one pane
---- of one linemode. A cache belongs to the appearance it prepares under, so a
---- theme event starts a fresh one rather than rebinding a context handed out.
+--- width, the context its rows are drawn with and the style of the separator
+--- before it, for one folder in one pane of one linemode. A cache belongs to
+--- the appearance it prepares under, and is replaced rather than cleared --
+--- by a theme event, and by anything that makes a folder's stale -- so a
+--- context handed out is never rebound.
 local layout = require(".layout")
 local schema = require(".schema")
 
@@ -24,9 +26,8 @@ local M = {}
 ---@field ctx supaline.Ctx
 ---@field sep_style unknown? the style the separator before the cell is drawn in, nil for none
 
----@class supaline.Listings
----@field get fun(mode: supaline.ModePlan, pane: string, folder: supaline.Folder?): supaline.Prepared[]
----@field invalidate fun()
+--- One pane of one linemode, prepared in a folder.
+---@alias supaline.Listings fun(mode: supaline.ModePlan, pane: string, folder: supaline.Folder?): supaline.Prepared[]
 
 ---@param stats any
 ---@return boolean
@@ -142,11 +143,6 @@ function M.new(appearance, reporter)
 	local cache, cache_n = {}, 0 ---@type table<string, supaline.Prepared[]>, integer
 	local last_mode, last_pane, last_cwd, last_n, last_prepared
 
-	local function invalidate()
-		cache, cache_n = {}, 0
-		last_mode, last_pane, last_cwd, last_n, last_prepared = nil, nil, nil, nil, nil
-	end
-
 	---@param cells supaline.Cell[]
 	---@param files supaline.File[]?
 	---@return supaline.Prepared[]
@@ -211,7 +207,7 @@ function M.new(appearance, reporter)
 		return prepared
 	end
 
-	return { get = get, invalidate = invalidate }
+	return get
 end
 
 return M
