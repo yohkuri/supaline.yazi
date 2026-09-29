@@ -447,14 +447,16 @@ test("setup: a second call replaces what the first installed", function()
 	setup { detail = { "size" } }
 	eq(#stub.children, 0, "and none once no linemode leaves the current pane")
 
-	-- Subscribed at load, not in `setup`, so no number of calls can stack them;
-	-- and `ps.sub` refuses a kind Yazi does not publish, so each of these is one.
-	local kinds = 0
-	for _, handlers in pairs(stub.subs) do
-		kinds = kinds + 1
-		eq(#handlers, 1, "each kind is subscribed once")
+	-- Subscribed at load, not in `setup`, so no number of calls can stack them.
+	-- Named rather than counted, since `hover` is published too, and subscribed
+	-- in place of `rename` it would leave the listing's measurements stale.
+	local kinds = {}
+	for kind, handlers in pairs(stub.subs) do
+		kinds[#kinds + 1] = kind
+		eq(#handlers, 1, kind .. " is subscribed once")
 	end
-	eq(kinds, 7, "theme, cd, and the five that invalidate")
+	table.sort(kinds)
+	eq(table.concat(kinds, " "), "bulk-rename cd delete move rename theme trash")
 end)
 
 test("setup: a linemode a later setup drops is unregistered, and Yazi's own handed back", function()
@@ -659,6 +661,10 @@ test("plan: a style written as a value is read once, at `setup`", function()
 	local paint = appearance.resolve(plan, {})[plan.columns[1].slot]
 	eq(paint.style:raw().fg, "Red")
 	eq(paint.style:raw().bold, true)
+
+	-- A `ui.Style` is read through `raw()`, the same way.
+	local opaque = compile { linemodes = { detail = { { "probe", style = ui.Style():fg("green") } } } }
+	eq(appearance.resolve(opaque, {})[opaque.columns[1].slot].style:raw().fg, "Green")
 end)
 
 test("plan: a theme reload cannot change what `setup` was handed", function()
