@@ -859,10 +859,11 @@ test("theme: a band written backwards is what a light terminal asks for", functi
 end)
 
 test("theme: a band survives a theme reload", function()
-	-- `build()` re-runs `compile(specs, cfg)`, so anything in `cfg` has to
-	-- reach the rebuilt ramp as well as the first one. Bands read at setup and
-	-- then dropped would leave the next `app:theme` with none defined, which
-	-- turns a drawing column into a refusal for no reason on screen.
+	-- A `theme` event resolves the plan's styles again, so the bands `setup`
+	-- read have to reach the rebuilt ramp as well as the first one. Bands read
+	-- at setup and then dropped would leave the next `app:theme` with none
+	-- defined, which turns a drawing column into a refusal for no reason on
+	-- screen.
 	with_theme({ size = "#0b3d91 <->" }, function()
 		setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.88, to = 0.35 } } })
 		stub.fire("theme")
@@ -1046,7 +1047,7 @@ end)
 test("stats: extremes that are not numbers are reported rather than raised", function()
 	-- The one that would have cost the whole screen rather than the colour. A
 	-- `stats` carrying both keys passes a test for presence, and then
-	-- `runtime.context` does `math.log(st.min + 1)` on a string -- from supaline's
+	-- `listing.context` does `math.log(st.min + 1)` on a string -- from supaline's
 	-- own folder pass, which is not inside the `pcall` a column's own
 	-- functions go under, so the raise reaches Yazi's redraw.
 	main.column("worded_stats", {
@@ -1333,7 +1334,7 @@ end)
 
 test("throwing: a theme reload does not re-arm a column's report", function()
 	-- `told` holds the column, and the column used to be the record `compile`
-	-- built -- which `build` rebuilds on every `theme` event, Yazi firing one
+	-- built -- which was rebuilt on every `theme` event, Yazi firing one
 	-- of those a few milliseconds after `init.lua` without being asked. So the
 	-- gate re-armed at startup and again at every reload, and "once a session"
 	-- was true of `cd` alone.

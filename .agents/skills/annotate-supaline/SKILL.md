@@ -26,7 +26,7 @@ it runs.
 
 What the check reaches is what carries a type. `cx`, `ya` and a `Url` are
 declared classes, so a misspelled field or a wrong arity on one is refused,
-and `types.lua` declares `supaline.File` and `runtime.lua` declares
+and `types.lua` declares `supaline.File` and `listing.lua` declares
 `supaline.Ctx` for the two values a `render` is handed, so the columns are
 read too — `file.cha.is_dirr` and `ctx.stlye` are both refused, in a built-in
 column and in a spec alike. The records the plugin passes around carry classes

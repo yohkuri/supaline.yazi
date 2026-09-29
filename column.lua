@@ -56,6 +56,10 @@ local M = {}
 ---@field kind "natural"|"fixed"|"auto"|"computed"
 ---@field value integer? fixed, already capped
 ---@field compute fun(stats: any): number?|nil
+--- Which of the column's own functions deciding it calls, once per folder:
+--- `render` to measure every file for `auto`, the `width` function itself
+--- for a computed one, and none for the other two.
+---@field calls supaline.Stage?
 
 ---@class supaline.ColumnPlan
 ---@field name string?
@@ -67,7 +71,6 @@ local M = {}
 ---@field render supaline.Render
 ---@field stats fun(files: supaline.File[]): table?|nil
 ---@field refresh function?
----@field needs_pass boolean
 ---@field options table<string, any> the declared options, and nothing else
 ---@field separator supaline.Sep|false|nil the column's own, `false` for none
 ---@field slot supaline.Slot the definition's style, the theme's and the use's
@@ -96,9 +99,9 @@ local M = {}
 ---@type supaline.Parser
 local function width(value, at)
 	if value == "auto" then
-		return { kind = "auto" }
+		return { kind = "auto", calls = "render" }
 	elseif type(value) == "function" then
-		return { kind = "computed", compute = value }
+		return { kind = "computed", compute = value, calls = "width" }
 	elseif type(value) == "number" then
 		return { kind = "fixed", value = schema.cells(value, at) }
 	end
@@ -330,7 +333,6 @@ local function merge(def, use, at, cfg, read)
 		-- Timestamps sit within a few years of each other, and a log scale
 		-- over those spreads nothing, so linear is what nobody asked for.
 		scale = (use or fields).scale or cfg.scale or fields.scale or "linear",
-		needs_pass = stats ~= nil or width.kind == "auto" or width.kind == "computed",
 		options = {},
 		slot = { sources = sources, read = read, ranged = stats ~= nil },
 	}

@@ -85,7 +85,7 @@ test("normalize: the two bare spellings are the tables they desugar to", functio
 
 	local fn = function() return "x" end
 	local loose, wrapped = prepare(fn, CFG), prepare({ render = fn }, CFG)
-	for _, key in ipairs { "name", "align", "overflow", "scale", "needs_pass" } do
+	for _, key in ipairs { "name", "align", "overflow", "scale" } do
 		eq(loose.plan[key], wrapped.plan[key], "a bare function and `{ render = fn }` disagree on `" .. key .. "`")
 	end
 end)
@@ -704,16 +704,16 @@ test("separator: the table form with no style says what the bare string says", f
 end)
 
 test("separator: a style written as a function is called", function()
-	-- Called when the appearance is resolved, which is every `build`, so it
-	-- follows a theme reload the way a column's `style` function does. That it
-	-- is called again on the next build is `main_spec.lua`'s to say, since only
-	-- `setup` has a build to run twice.
+	-- Called when the appearance is resolved, at `setup` and on every `theme`
+	-- event, so it follows a theme reload the way a column's `style` function
+	-- does. That it is called again on the next event is `main_spec.lua`'s to
+	-- say, since only a session has events to take.
 	eq(separator({ "|", style = function() return "#ff8800" end }).style.fg, "#ff8800")
 
 	-- And named when it raises, which is the half the `pcall` around it is
 	-- there for. The likely failure is the call itself: `th.status.perm_sep`
 	-- against a flavor with no `[status]` section raises `attempt to index a
-	-- nil value`, and it reaches the user as `build`'s notification -- where a
+	-- nil value`, and it reaches the user as `retheme`'s notification -- where a
 	-- message carrying no location says nothing about which line to open.
 	refuses_sep({ "|", style = function() return th.nosuch.field end }, "spec.separator.style(): raised: ")
 end)
@@ -1334,18 +1334,11 @@ local FILES = {
 test("width: a stated number is used as is", function()
 	local col = prepare({ render = function() return "" end, width = 4 }, CFG)
 	eq(resolve_width(col, FILES, nil), 4)
-	eq(col.plan.needs_pass, false, "a stated width needs no pass over the folder")
-end)
-
-test("width: a stated width still takes the pass when stats are declared", function()
-	-- Gating the folder pass on whoever consumes the result left a column whose
-	-- `render` reads `ctx.stats` directly with nothing to read.
-	local col = prepare({
-		render = function() return "" end,
-		width = 4,
-		stats = function() return { min = 1, max = 2 } end,
-	}, CFG)
-	eq(col.plan.needs_pass, true)
+	-- The folder's `stats` are taken whatever the width is: gating them on the
+	-- width left a column whose `render` reads `ctx.stats` with nothing to
+	-- read, which `main_spec.lua`'s "a column with a stated width still
+	-- receives them" draws.
+	eq(col.plan.width.calls, nil, "a stated width calls nothing of the column's to decide")
 end)
 
 test("width: a function is handed the folder's statistics", function()
@@ -1355,7 +1348,7 @@ test("width: a function is handed the folder's statistics", function()
 		width = function(st) return #ya.readable_size(st.max) end,
 	}, CFG)
 	eq(resolve_width(col, FILES, { min = 1, max = 100000 }), 5)
-	eq(col.plan.needs_pass, true)
+	eq(col.plan.width.calls, "width", "a throw from it is reported as the `width` function's")
 end)
 
 test('width: "auto" takes the widest rendered cell', function()
@@ -1365,7 +1358,7 @@ test('width: "auto" takes the widest rendered cell', function()
 	}, CFG)
 	-- 1B / 97.7K / 1000B -> the widest is "1000B"
 	eq(resolve_width(col, FILES, nil), 5)
-	eq(col.plan.needs_pass, true)
+	eq(col.plan.width.calls, "render", "measuring calls `render`, and a throw there is reported as its")
 end)
 
 test('width: max_width caps "auto"', function()

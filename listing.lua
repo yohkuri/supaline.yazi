@@ -1,15 +1,12 @@
 --- @since 26.9.1
---- Folders prepared for drawing, and the rows drawn from them. A plan and an
---- appearance are read-only inputs; each prepared folder owns its contexts.
----
---- Every call into a column's own code is made here under `pcall`. Measured on
---- 26.9.1: an error raised under a linemode's render blanks the whole screen,
---- on every frame, and `refresh` runs from places nobody can raise to.
+--- Folders prepared for drawing: each column's statistics, its effective
+--- width, and the context its rows are drawn with, for one folder in one pane
+--- of one linemode. A cache belongs to the appearance it prepares under, so a
+--- theme event starts a fresh one rather than rebinding a context handed out.
 local layout = require(".layout")
-local report = require(".report")
 local schema = require(".schema")
 
----@class supaline.RuntimeModule
+---@class supaline.ListingModule
 local M = {}
 
 --- What a `render` is handed beside the file.
@@ -27,10 +24,9 @@ local M = {}
 ---@field ctx supaline.Ctx
 ---@field sep_style unknown? the style the separator before the cell is drawn in, nil for none
 
----@class supaline.Runtime
----@field render fun(mode: supaline.ModePlan, pane: string, file: supaline.File, folder: supaline.Folder?): unknown
+---@class supaline.Listings
+---@field get fun(mode: supaline.ModePlan, pane: string, folder: supaline.Folder?): supaline.Prepared[]
 ---@field invalidate fun()
----@field refresh fun()
 
 ---@param stats any
 ---@return boolean
@@ -128,12 +124,12 @@ function M.width(col, ctx, files)
 	return cap(widest, col.max_width)
 end
 
----@param plan supaline.Plan
+--- The folders one appearance has prepared: at most eight, cleared whole when
+--- a ninth arrives.
 ---@param appearance supaline.Appearance
 ---@param reporter supaline.Reporter survives a theme replacement, not a setup
----@return supaline.Runtime
-function M.new(plan, appearance, reporter)
-	-- At most eight folders, cleared whole when a ninth arrives.
+---@return supaline.Listings
+function M.new(appearance, reporter)
 	local cache, cache_n = {}, 0 ---@type table<string, supaline.Prepared[]>, integer
 	local last_mode, last_pane, last_cwd, last_n, last_prepared
 
@@ -151,11 +147,9 @@ function M.new(plan, appearance, reporter)
 			local col = cell.column
 			local look, stats = appearance[col.slot], nil
 			if files and col.stats then
-				local ok, got = pcall(col.stats, files)
+				local ok, got = reporter.call(col, "stats", col.stats, files)
 				if ok then
 					stats = got
-				else
-					reporter.threw(col, "stats", got)
 				end
 				if look.steps and stats ~= nil and not M.has_extremes(stats) then
 					reporter.stats(col)
@@ -164,13 +158,12 @@ function M.new(plan, appearance, reporter)
 			-- Published only once the width pass is done, so a render measured
 			-- for `auto` sees `width` nil and nothing else does.
 			local ctx = M.context(col, look, stats)
-			if files and col.needs_pass then
-				local ok, got, refused = pcall(M.width, col, ctx, files)
-				if not ok then
-					reporter.threw(col, col.width.kind == "computed" and "width" or "render", got)
-				elseif refused then
+			local calls = col.width.calls
+			if files and calls then
+				local ok, got, refused = reporter.call(col, calls, M.width, col, ctx, files)
+				if ok and refused then
 					reporter.width(col, refused)
-				else
+				elseif ok then
 					ctx.width = got
 				end
 			end
@@ -187,7 +180,7 @@ function M.new(plan, appearance, reporter)
 	---@param pane string
 	---@param folder supaline.Folder?
 	---@return supaline.Prepared[]
-	local function prepared_for(mode, pane, folder)
+	local function get(mode, pane, folder)
 		local files, cwd = folder and folder.files, folder and folder.cwd
 		local n = files and #files or 0
 		if last_mode == mode and last_pane == pane and last_cwd == cwd and last_n == n then
@@ -209,39 +202,7 @@ function M.new(plan, appearance, reporter)
 		return prepared
 	end
 
-	local function refresh()
-		for _, col in ipairs(plan.columns) do
-			if col.refresh then
-				local ok, err = pcall(col.refresh)
-				if not ok then
-					reporter.threw(col, "refresh", err)
-				end
-			end
-		end
-	end
-
-	local function render(mode, pane, file, folder)
-		local out = {}
-		for _, one in ipairs(prepared_for(mode, pane, folder)) do
-			local cell, ctx = one.cell, one.ctx
-			local sep = cell.sep
-			if sep then
-				local style = one.sep_style
-				out[#out + 1] = style and ui.Span(sep.text):style(style) or sep.text
-			end
-			-- Layout inside the protected call too: a malformed renderable or a
-			-- failing truncate blanks the screen as surely as a throwing render.
-			local ok, drawn = pcall(layout.cell, cell.column, ctx, file)
-			if not ok then
-				reporter.threw(cell.column, "render", drawn)
-				drawn = string.rep(report.BROKEN, ctx.width or 1)
-			end
-			out[#out + 1] = drawn
-		end
-		return ui.Line(out)
-	end
-
-	return { render = render, invalidate = invalidate, refresh = refresh }
+	return { get = get, invalidate = invalidate }
 end
 
 return M
