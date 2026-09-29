@@ -224,7 +224,7 @@ and a definition that names itself alike.
 | ----------- | ------------ | -------------------------------------------------------- |
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
 | `stats`     | `nil`        | `function(files)`, run once per folder; result reaches `ctx.stats`. |
-| `refresh`   | `nil`        | `function()`, run when the linemode is installed and on every `cd`. |
+| `refresh`   | `nil`        | `function()`, run at `setup`, after every theme reload supaline resolves, and on every `cd`. |
 | `width`     | `nil`        | A whole number of cells, 1 or more; `"auto"`; or `function(stats) -> number`, which is held to the same. |
 | `max_width` | `nil`        | Caps the column's width, however it was derived. A whole number of cells, 1 or more. |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
@@ -1036,7 +1036,7 @@ again on each theme event.
 | `layout.lua` | Measure, truncate, pad and style cells. |
 | `colour.lua` | Yazi-independent RGB, Oklab, bands and 64-step interpolation. |
 | `schema.lua` | Paths, refusals and the parsers every table a user writes is read with. |
-| `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing, and the one place a column's own code is called, under `pcall`. |
+| `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing, and the one place a column's `render`, `width`, `stats` and `refresh` are called, under `pcall`. |
 | `builtin.lua` | Create built-in definitions for the ordinary registry, and `extremes`, which they share with user columns. |
 | `types.lua` | Type annotations where Yazi 26.9.1 and `types.yazi` disagree; never loaded. |
 

@@ -199,6 +199,12 @@ stops Yazi starting and prints the whole message to the terminal — which is
 the loudest and most useful refusal available. Refuse what can be refused
 there; contain only what cannot be known until a render.
 
+A `style` written as a function is on this side of the line, though a column
+may write one, and it never goes through `call`. `appearance.lua` calls it
+where the theme is resolved, so a throw refuses the `setup` it came with, and
+from a `theme` event `session.lua` keeps the last appearance drawing and says
+why.
+
 The containment has one more consequence, and it is easy to walk into:
 **supaline's own refusals inside a contained call must not be raised.** A
 `pcall` cannot tell who threw, so a refusal raised in there comes back out
