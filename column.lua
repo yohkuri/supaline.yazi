@@ -7,7 +7,7 @@
 --- inline in a linemode. A **use** names a registered one at `[1]` and may
 --- override any of its keys. Every entry of a linemode is one of the two --
 --- `"size"` is `{ "size" }` and `fn` is `{ render = fn }` -- and an inline
---- definition compiles as a definition with an empty use.
+--- definition compiles as a definition with no use.
 local schema = require(".schema")
 local style = require(".style")
 
@@ -87,7 +87,6 @@ local M = {}
 ---@field name string?
 ---@field fields table<string, any> each key it wrote, parsed; `style` is left for `compile`
 ---@field options string[]? the names it declared
----@field use (fun(t: table, at: supaline.Path): table)? the parser for a use of it
 
 ---@type supaline.Parser
 local function width(value, at)
@@ -125,15 +124,7 @@ local COMMON = {
 	width = width,
 }
 
-local COMMON_LIST
-do
-	local keys = {}
-	for key in pairs(COMMON) do
-		keys[#keys + 1] = key
-	end
-	table.sort(keys)
-	COMMON_LIST = schema.key_list(keys)
-end
+local COMMON_LIST = schema.key_list(schema.sorted_keys(COMMON))
 
 -- The keys only a definition writes.
 local DEFINITION_KEYS = { name = true, options = true }
@@ -177,9 +168,9 @@ local function column_name(name, at)
 	return name
 end
 
---- The options a definition declares, as a list of names. Counted through
---- `pairs` and read back by index: `ipairs` would stop at a gap and leave every
---- name past it declared, ignored, and refused at the use site.
+--- The options a definition declares, as a list of names. Its shape is asked
+--- of `schema.shape` as well as walked: `ipairs` alone would stop at a gap and
+--- leave every name past it declared, ignored, and refused at the use site.
 ---@param own any
 ---@param at supaline.Path
 ---@return string[]?
@@ -196,20 +187,12 @@ local function options_of(own, at)
 	end
 	if type(own) ~= "table" then
 		refuse("a " .. type(own))
-	end
-	local n = 0
-	for _ in pairs(own) do
-		n = n + 1
-	end
-	if n == 0 then
+	elseif next(own) == nil then
 		refuse("an empty list")
 	end
 	local out = {}
-	for i = 1, n do
-		local key = own[i]
-		if key == nil then
-			refuse("a table with a gap in it, or with keys of its own")
-		elseif type(key) ~= "string" then
+	for i, key in ipairs(own) do
+		if type(key) ~= "string" then
 			refuse("a list holding a " .. type(key))
 		elseif COMMON[key] or DEFINITION_KEYS[key] then
 			refuse(string.format("a list naming `%s`, which every column takes", key))
@@ -219,6 +202,10 @@ local function options_of(own, at)
 			refuse(string.format("a list naming `%s`, which supaline answers for itself", key))
 		end
 		out[i] = key
+	end
+	local others, dense = schema.shape(own)
+	if #others > 0 or not dense then
+		refuse("a table with a gap in it, or with keys of its own")
 	end
 	return out
 end
@@ -248,7 +235,7 @@ end
 local DRAWS_RENDER = "the `render` that says what it draws"
 local DRAWS_NAME = "the name at `[1]` that says which column it is"
 
---- Read a definition, and build the parser a use of it is read with.
+--- Read a definition.
 ---@param t table
 ---@param at supaline.Path
 ---@param name string? the name `register` gave it
@@ -260,13 +247,74 @@ local function definition(t, at, name)
 		extra.name = column_name
 	end
 	local fields = column_record(extra, options, DRAWS_RENDER)(t, at)
-	return {
-		at = at,
-		name = name or fields.name,
-		fields = fields,
-		options = options,
-		use = name and column_record({ [1] = schema.any }, options, DRAWS_NAME) or nil,
+	return { at = at, name = name or fields.name, fields = fields, options = options }
+end
+
+local THEME = schema.path("theme.toml [supaline]")
+
+--- One use of a definition, as a plan. Each key comes from the use when it
+--- wrote one and from the definition otherwise -- `false` included, which is
+--- what a `separator` is written as on purpose -- except `scale`: `setup`'s
+--- outranks a registered definition's, or the plugin-wide option could not
+--- reach `size`. An inline definition has no use: it is written where a use
+--- is, and outranks `setup` the way a use does.
+---@param def supaline.Definition
+---@param use table? nil for an inline definition
+---@param at supaline.Path where the use was written
+---@param cfg supaline.Cfg
+---@return supaline.ColumnPlan
+local function merge(def, use, at, cfg)
+	local fields = def.fields
+	---@return any
+	local function pick(key)
+		local v = use and use[key]
+		if v == nil then
+			v = fields[key]
+		end
+		return v
+	end
+
+	local max_width, stats = pick("max_width"), pick("stats")
+	local width = pick("width") or { kind = "natural" } ---@type supaline.Width
+	if width.kind == "fixed" and max_width and width.value > max_width then
+		width = { kind = "fixed", value = max_width }
+	end
+
+	---@type supaline.ColumnPlan
+	local col = {
+		name = def.name,
+		align = pick("align") or "right",
+		overflow = pick("overflow") or "ellipsis",
+		max_width = max_width,
+		width = width,
+		render = pick("render"),
+		stats = stats,
+		refresh = pick("refresh"),
+		separator = pick("separator"),
+		-- Timestamps sit within a few years of each other, and a log scale
+		-- over those spreads nothing, so linear is what nobody asked for.
+		scale = (use or fields).scale or cfg.scale or fields.scale or "linear",
+		needs_pass = stats ~= nil or width.kind == "auto" or width.kind == "computed",
+		options = {},
+		styles = {},
 	}
+
+	for _, key in ipairs(def.options or {}) do
+		col.options[key] = pick(key)
+	end
+
+	-- Three writers, farthest first: the definition's default, the theme's
+	-- field, and the use's own. An inline definition is one table and one
+	-- writer, so it writes the definition's layer and the theme stays nearer.
+	local styles = col.styles
+	styles[#styles + 1] = style.source(fields.style, def.at:key("style"), cfg.band)
+	if col.name then
+		styles[#styles + 1] = { at = THEME:key(col.name), theme = col.name }
+	end
+	if use then
+		styles[#styles + 1] = style.source(use.style, at:key("style"), cfg.band)
+	end
+	return col
 end
 
 --- A registry of definitions. A catalogue is explicit, so two registries never
@@ -315,91 +363,21 @@ function M.new_registry()
 				at:refuse("unknown column `%s`", spec[1])
 			end
 			def = definition(registered.t, registered.at, spec[1])
-			use = def.use(spec, at)
+			use = column_record({ [1] = schema.any }, def.options, DRAWS_NAME)(spec, at)
 		elseif type(spec[1]) == "function" then
 			at:key(1):refuse(
 				"a column's `render` goes under `render`, not at `[1]`: write `{ render = fn, width = 6 }`. "
 					.. "`[1]` is where a spec names the column it uses, and a function is not a name"
 			)
 		elseif type(spec.render) == "function" then
-			def, use = definition(spec, at, nil), {}
+			def = definition(spec, at, nil)
 		else
 			at:refuse("must be a name, a function, or a table with `render`")
 		end
-		return M.merge(def, use, at, cfg)
+		return merge(def, use, at, cfg)
 	end
 
 	return { register = register, compile = compile }
-end
-
-local THEME = schema.path("theme.toml [supaline]")
-
---- One use of a definition, as a plan. Each key comes from the use when it
---- wrote one and from the definition otherwise -- `false` included, which is
---- what a `separator` is written as on purpose -- except `scale`: `setup`'s
---- outranks a registered definition's, or the plugin-wide option could not
---- reach `size`. An inline definition is written where a use is, and
---- outranks `setup` the way a use does.
----@param def supaline.Definition
----@param use table
----@param at supaline.Path where the use was written
----@param cfg supaline.Cfg
----@return supaline.ColumnPlan
-function M.merge(def, use, at, cfg)
-	local fields = def.fields
-	---@return any
-	local function pick(key)
-		local v = use[key]
-		if v == nil then
-			v = fields[key]
-		end
-		return v
-	end
-
-	local near = use.scale
-	if near == nil and not def.use then
-		near = fields.scale
-	end
-
-	local max_width, stats = pick("max_width"), pick("stats")
-	local width = pick("width") or { kind = "natural" } ---@type supaline.Width
-	if width.kind == "fixed" and max_width and width.value > max_width then
-		width = { kind = "fixed", value = max_width }
-	end
-
-	---@type supaline.ColumnPlan
-	local col = {
-		name = def.name,
-		align = pick("align") or "right",
-		overflow = pick("overflow") or "ellipsis",
-		max_width = max_width,
-		width = width,
-		render = pick("render"),
-		stats = stats,
-		refresh = pick("refresh"),
-		separator = pick("separator"),
-		-- Timestamps sit within a few years of each other, and a log scale
-		-- over those spreads nothing, so linear is what nobody asked for.
-		scale = near or cfg.scale or fields.scale or "linear",
-		needs_pass = stats ~= nil or width.kind == "auto" or width.kind == "computed",
-		options = {},
-		styles = {},
-	}
-
-	for _, key in ipairs(def.options or {}) do
-		col.options[key] = pick(key)
-	end
-
-	-- Three writers, farthest first: the definition's default, the theme's
-	-- field, and the use's own. An inline definition is one table and one
-	-- writer, so it writes the definition's layer and the theme stays nearer.
-	local styles = col.styles
-	styles[#styles + 1] = style.source(fields.style, def.at:key("style"), cfg.band)
-	if col.name then
-		styles[#styles + 1] = { at = THEME:key(col.name), theme = col.name }
-	end
-	styles[#styles + 1] = style.source(use.style, at:key("style"), cfg.band)
-	return col
 end
 
 return M

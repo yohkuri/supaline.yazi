@@ -181,11 +181,7 @@ end
 ---@param bands supaline.Bands
 ---@return string
 local function defined_in(bands)
-	local names = {}
-	for name in pairs(bands) do
-		names[#names + 1] = name
-	end
-	table.sort(names)
+	local names = schema.sorted_keys(bands)
 	return #names > 0 and "Defined: " .. schema.quoted(names) or "No band is defined yet"
 end
 

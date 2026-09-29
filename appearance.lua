@@ -20,7 +20,7 @@ local M = {}
 
 ---@class supaline.Appearance
 ---@field columns table<supaline.ColumnPlan, supaline.ColumnAppearance>
----@field seps table<supaline.Sep, unknown|false> the style a function returned, `false` for none
+---@field seps table<supaline.Sep, unknown> the style a function returned, absent for none
 
 --- Call a function the configuration wrote where a value goes. The call is
 --- the likely failure -- a flavor with no such section -- and Lua's message
@@ -92,10 +92,10 @@ end
 
 --- The style of a separator written as a function.
 ---@param sep supaline.Sep
----@return unknown|false
+---@return unknown?
 function M.separator(sep)
 	local at = (sep.at --[[@as supaline.Path]]):call()
-	return style.sep_style(sep.text, called(sep.call --[[@as function]], at), at) or false
+	return style.sep_style(sep.text, called(sep.call --[[@as function]], at), at)
 end
 
 --- Every column and every separator of `plan`, under `theme`.

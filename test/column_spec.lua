@@ -664,7 +664,7 @@ local function separator(value)
 	-- before it, and that is the one value nothing below writes.
 	local sep = prepare({ "plain", separator = value }, CFG).plan.separator --[[@as supaline.Sep]]
 	if sep.call then
-		return { text = sep.text, style = appearance.separator(sep) or nil }
+		return { text = sep.text, style = appearance.separator(sep) }
 	end
 	return sep
 end
@@ -1390,30 +1390,26 @@ test("width: a width function that returns no usable number is refused", functio
 	-- Yazi's whole screen; a refusal raised into that wrapper comes back out
 	-- of it looking exactly like the reader's function throwing, and
 	-- `main.lua` would word it as one. So the width has to come back nil with
-	-- the reason beside it.
+	-- what was returned beside it, for `report.lua` to word.
 	---@param w any
-	---@return string # why it was refused
+	---@return string # what was refused, as written
 	local function refusal(w)
-		local got, why = resolve_width(returning(w), FILES, nil)
+		local got, refused = resolve_width(returning(w), FILES, nil)
 		eq(got, nil, "a width nobody can use came back as a width")
-		assert(why, "a width was refused with no reason beside it")
-		return why
+		assert(refused, "a width was refused with nothing beside it")
+		return refused
 	end
 
-	local why = refusal(nil)
-	assert(why:find("returned a nil", 1, true), why)
+	eq(refusal(nil), "a nil")
 
 	-- Held to what a stated `width` is held to. A function returning 0 empties
 	-- the column exactly as `width = 0` does, and a door closed on one spelling
 	-- and not the other leaves the same blank column reachable.
-	for _, w in ipairs { 0, -3 } do
-		why = refusal(w)
-		assert(why:find("must return a whole number of cells", 1, true), why)
-	end
+	eq(refusal(0), "`0`")
+	eq(refusal(-3), "`-3`")
 	-- Not floored, for the reason a stated one is not: rounding is a guess
 	-- about which of two whole numbers the arithmetic behind it meant.
-	why = refusal(2.5)
-	assert(why:find("returned `2.5`", 1, true), why)
+	eq(refusal(2.5), "`2.5`")
 
 	-- And what it may return still comes back, an integral float narrowed, with
 	-- nothing in the second return to mistake for a refusal.
