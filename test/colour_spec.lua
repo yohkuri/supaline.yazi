@@ -72,17 +72,12 @@ local BANDS = { fg = REC, bg = REC }
 ---@type integer[]
 local NAVY = { 0x0b, 0x3d, 0x91 }
 
---- `paint.stops` under the `fg` key, with `band` -- `REC` unless given --
---- behind every name.
+--- `paint.stops` for `value` against `bands` -- `REC` as `fg` unless given --
+--- under the `fg` key.
 ---@param value any
----@param band supaline.Band?
+---@param bands supaline.Bands?
 ---@return integer[][]
-local function stops(value, band) return paint.stops(value, X, { fg = band or REC }, "fg") end
-
---- `paint.stops` for `value` against `bands`, under `fg`.
----@param value any
----@param bands supaline.Bands
-local function stops_in(value, bands) return paint.stops(value, X, bands, "fg") end
+local function stops(value, bands) return paint.stops(value, X, bands or { fg = REC }, "fg") end
 
 -- --- one colour ------------------------------------------------------------
 
@@ -116,7 +111,7 @@ end)
 test("colour: the arithmetic needs no Yazi at all", function()
 	-- So `test/ramp.lua` can draw a ramp without one, and so nothing in the
 	-- arithmetic can come to depend on Yazi's parser.
-	rawset(_G, "ui", nil)
+	_G.ui = nil
 	local pure = dofile(ROOT .. "/colour.lua")
 	local ramp = pure.ramp(pure.band(assert(pure.rgb("#0b3d91")), REC))
 	eq(#ramp, pure.STEPS)
@@ -522,8 +517,8 @@ end)
 test("band: the pair is directed, so writing it backwards inverts the ramp", function()
 	-- What a light terminal needs, and the reason the two numbers are `from`
 	-- and `to` rather than a floor and a ceiling with a boolean beside them.
-	local up = colour.ramp(stops("#0b3d91 <->", { from = 0.35, to = 0.88 }))
-	local down = colour.ramp(stops("#0b3d91 <->", { from = 0.88, to = 0.35 }))
+	local up = colour.ramp(stops("#0b3d91 <->", { fg = { from = 0.35, to = 0.88 } }))
+	local down = colour.ramp(stops("#0b3d91 <->", { fg = { from = 0.88, to = 0.35 } }))
 	eq(#up, #down)
 	for i = 1, #up do
 		eq(down[i], up[#up + 1 - i], "step " .. i .. " is the other ramp's mirror")
@@ -545,7 +540,7 @@ test("bands: a `setup` that named no band defines none", function()
 	-- user having said so, which is the whole of what "no default" means.
 	local none = paint.bands(nil, X)
 	eq(next(none), nil)
-	throws(function() stops_in("#0b3d91 <->", none) end, "nothing defines `fg`")
+	throws(function() stops("#0b3d91 <->", none) end, "nothing defines `fg`")
 end)
 
 test("bands: the refusal carries the pair to paste and says nothing is defined", function()
@@ -553,7 +548,7 @@ test("bands: the refusal carries the pair to paste and says nothing is defined",
 	-- time they write `<->`. So it carries the two numbers, the name the key
 	-- asked for, and the fact that supaline is not withholding a better answer.
 	throws(
-		function() stops_in("#0b3d91 <->", {}) end,
+		function() stops("#0b3d91 <->", {}) end,
 		"{ from = 0.35, to = 0.88 }",
 		"band = { fg = ",
 		"cannot see that ground",
@@ -586,14 +581,14 @@ end)
 
 test("bands: what follows the marker is a name, and a colour there says so", function()
 	local one = { fg = REC }
-	throws(function() stops_in("#0b3d91 <-> #7fd4ff", one) end, "is not a band name", "write them with `->`")
-	throws(function() stops_in("#0b3d91 <-> 0.4", one) end, "is not a band name")
-	throws(function() stops_in("#0b3d91 <-> My_Band", one) end, "is not a band name")
+	throws(function() stops("#0b3d91 <-> #7fd4ff", one) end, "is not a band name", "write them with `->`")
+	throws(function() stops("#0b3d91 <-> 0.4", one) end, "is not a band name")
+	throws(function() stops("#0b3d91 <-> My_Band", one) end, "is not a band name")
 	-- `from` and `to` pass the name shape and `bands` refuses to define them,
 	-- so the undefined-band refusal would tell the reader to write what
 	-- `setup` turns away. Caught first, in the words `setup` uses.
-	throws(function() stops_in("#0b3d91 <-> from", one) end, "one of a band's own two keys")
-	throws(function() stops_in("#0b3d91 <-> to", one) end, "Call the band something else", "`to`")
+	throws(function() stops("#0b3d91 <-> from", one) end, "one of a band's own two keys")
+	throws(function() stops("#0b3d91 <-> to", one) end, "Call the band something else", "`to`")
 end)
 
 test("bands: a name Lua will not take bare is quoted where the refusal says to write it", function()
@@ -604,11 +599,11 @@ test("bands: a name Lua will not take bare is quoted where the refusal says to w
 	for _, name in ipairs { "end", "2x" } do
 		local defined = paint.bands({ [name] = REC }, X)
 		eq(next(defined), name, "`setup` takes " .. name)
-		same_band(stops_in("#0b3d91 <-> " .. name, defined), colour.band(NAVY, REC), name .. " draws")
-		throws(function() stops_in("#0b3d91 <-> " .. name, {}) end, 'band = { ["' .. name .. '"] = ')
+		same_band(stops("#0b3d91 <-> " .. name, defined), colour.band(NAVY, REC), name .. " draws")
+		throws(function() stops("#0b3d91 <-> " .. name, {}) end, 'band = { ["' .. name .. '"] = ')
 	end
-	throws(function() stops_in("#0b3d91 <-> dim", {}) end, "band = { dim = ")
-	throws(function() stops_in("#0b3d91 <-> _x", {}) end, "band = { _x = ")
+	throws(function() stops("#0b3d91 <-> dim", {}) end, "band = { dim = ")
+	throws(function() stops("#0b3d91 <-> _x", {}) end, "band = { _x = ")
 end)
 
 test("bands: a band's name is a column's rule, without the cap that is Yazi's", function()
@@ -695,8 +690,8 @@ test("bounds: two ends at one lightness are taken rather than refused", function
 	-- An equality test reads like the right refusal and would catch this
 	-- spelling and not the one beside it, which draws the identical column.
 	-- Where flat stops being flat is the writer's judgement.
-	local same = colour.ramp(stops("#0b3d91 <->", { from = 0.5, to = 0.5 }))
-	local near = colour.ramp(stops("#0b3d91 <->", { from = 0.5, to = 0.501 }))
+	local same = colour.ramp(stops("#0b3d91 <->", { fg = { from = 0.5, to = 0.5 } }))
+	local near = colour.ramp(stops("#0b3d91 <->", { fg = { from = 0.5, to = 0.501 } }))
 	for i = 1, 64 do
 		eq(same[i], "#155ace")
 		eq(near[i], same[i])

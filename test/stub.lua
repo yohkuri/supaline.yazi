@@ -670,7 +670,7 @@ function M.Span(text) return setmetatable({ _text = text }, Span) end
 --- does not: `bulk-rename` is published by a hand-written
 --- `pub_after_bulk_rename` beside the macro, so reading the macro alone misses
 --- it. A `@` name is a static event -- `@yank` is the only one.
-M.DDS_KINDS = {}
+local DDS_KINDS = {}
 for _, kind in ipairs {
 	"tab",
 	"cd",
@@ -688,7 +688,7 @@ for _, kind in ipairs {
 	"theme",
 	"bulk-rename",
 } do
-	M.DDS_KINDS[kind] = true
+	DDS_KINDS[kind] = true
 end
 
 -- Yazi's `AuthKind`, and which side of `is_local()` each variant falls on, read
@@ -699,7 +699,7 @@ end
 -- complement, which is why the plugin keys on that: a search result is a local
 -- file with `is_regular = false`, so `not is_regular` would demote every
 -- search hit along with the remote ones.
-M.AUTH_KINDS = {
+local AUTH_KINDS = {
 	regular = { is_regular = true, is_search = false, is_virtual = false },
 	search = { is_regular = false, is_search = true, is_virtual = false },
 	mount = { is_regular = false, is_search = false, is_virtual = true },
@@ -714,7 +714,7 @@ M.AUTH_KINDS = {
 ---@param kind string
 ---@return table
 function M.spec_of(kind)
-	local flags = M.AUTH_KINDS[kind] or error("stub: no such AuthKind: " .. tostring(kind))
+	local flags = AUTH_KINDS[kind] or error("stub: no such AuthKind: " .. tostring(kind))
 	return {
 		kind = kind,
 		is_regular = flags.is_regular,
@@ -962,11 +962,12 @@ function M.reset()
 	-- being previewed, and the plugin reads `preview.folder` on every row that
 	-- is not in the current pane.
 	--
-	-- `history` is written with the parameters Yazi's takes, and reads
-	-- neither, so a spec swapping it out is what looks different rather than
-	-- the plugin's own `cx.active:history(url)`. `tab__Tab` is `(exact)`, so
-	-- the type `types.yazi` leaves out is `supaline.Tab` in `types.lua`.
-	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
+	-- `history` answers `M.listed` for any url, as Yazi's does for a directory
+	-- it has listed, so a spec sets a folder rather than swapping the method
+	-- `tab__Tab` declares `(exact)`. Yazi's parameters, read or not.
+	---@type table?
+	M.listed = nil
+	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return M.listed end } }
 end
 
 --- Put the stubs in place as globals, and teach `require` Yazi's relative
@@ -981,7 +982,7 @@ function M.install(root)
 		-- so a stale kind is a subscription that never fires. This one refuses
 		-- instead, for the reason `spec_of` refuses an unknown `AuthKind`.
 		sub = function(kind, fn)
-			if not M.DDS_KINDS[kind] then
+			if not DDS_KINDS[kind] then
 				error("stub: no such DDS kind: " .. tostring(kind))
 			end
 			M.subs[kind] = M.subs[kind] or {}

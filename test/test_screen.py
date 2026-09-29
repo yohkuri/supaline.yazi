@@ -14,7 +14,6 @@ from __future__ import annotations
 import contextlib
 import io
 import unittest
-from pathlib import Path
 
 import screen as sc
 import setup as fixture
@@ -510,11 +509,11 @@ class TheFixtureItReads(unittest.TestCase):
     than re-spelling their patterns.
     """
 
-    HEX = r"^#[0-9a-fA-F]{6}$"
+    HEX = rf"^{fixture.HEX}$"
 
     @classmethod
     def setUpClass(cls):
-        cls.fixture = Path(__file__).resolve().parent / "fixture"
+        cls.fixture = fixture.FIXTURE
         cls.init = (cls.fixture / "init.lua").read_text()
 
     def test_both_grounds_are_flat_colours_with_a_width_beside_them(self):
@@ -541,11 +540,9 @@ class TheFixtureItReads(unittest.TestCase):
         # because the swap `c 2` makes is read the same way.
         for name in ("default", "alt"):
             with self.subTest(theme=name):
-                flat, ramp = fixture.theme_values(self.fixture, name)
-                self.assertRegex(flat, self.HEX)
-                low, high = ramp.split(" -> ")
-                self.assertRegex(low, self.HEX)
-                self.assertRegex(high, self.HEX)
+                flat = fixture.theme_values(self.fixture, name)[0]
+                for colour in (flat, *fixture.theme_ends(self.fixture, name)):
+                    self.assertRegex(colour, self.HEX)
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.

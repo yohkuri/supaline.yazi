@@ -18,25 +18,24 @@ end
 -- where a table constructor is checked for the fields its class requires.
 local NO_SCALE = { band = {} }
 
+--- A built-in column's spec, with `opts` written at the use site.
+---@param name string
+---@param opts table?
+---@return table
+local function spec_of(name, opts)
+	local spec = { name }
+	for k, v in pairs(opts or {}) do
+		spec[k] = v
+	end
+	return spec
+end
+
 --- Render one built-in column for one file, returning plain text.
 ---@param name string
 ---@param file table
 ---@param opts table?
 ---@return string
-local function render(name, file, opts)
-	local spec = { name }
-	for k, v in pairs(opts or {}) do
-		spec[k] = v
-	end
-	return text_of(cases.cell(prepare(spec), file))
-end
-
---- Answer `cx.active:history` with `folder`, as Yazi's does for a directory it
---- has listed. Yazi's parameters, for the reason `stub.lua` gives beside its own.
----@param folder table?
-local function history(folder)
-	rawset(cx.active, "history", function(_, _url) return folder end)
-end
+local function render(name, file, opts) return text_of(cases.cell(prepare(spec_of(name, opts)), file)) end
 
 -- --- size ------------------------------------------------------------------
 
@@ -51,9 +50,9 @@ test("size: human-readable, right-aligned in 7 cells", function()
 end)
 
 test("size: a directory falls back to its entry count, or a dash", function()
-	history { files = { 1, 2, 3 } }
+	stub.listed = { files = { 1, 2, 3 } }
 	eq(render("size", stub.file { name = "d", is_dir = true }), "      3")
-	history(nil)
+	stub.listed = nil
 	eq(render("size", stub.file { name = "d", is_dir = true }), "      -", "one Yazi has never listed")
 end)
 
@@ -118,11 +117,7 @@ local STATUS = {
 ---@param status table?
 ---@return table[]
 local function perm_styles(file, opts, status)
-	local spec = { "permissions" }
-	for k, v in pairs(opts or {}) do
-		spec[k] = v
-	end
-	local col = prepare(spec)
+	local col = prepare(spec_of("permissions", opts))
 	stub.th.status = status or STATUS
 	col.plan.refresh()
 	return stub.drawn_styles(cases.cell(col, file))
@@ -175,10 +170,11 @@ test("permissions: every character takes its own style from the theme", function
 	eq(perm_fgs(stub.file { perm = "-?????????" }), ("#000055 "):rep(9) .. "#000055")
 end)
 
-test(
-	"permissions: a theme with no `[status]` at all still draws the text",
-	function() eq(text_of(cases.cell(prepare("permissions"), stub.file { perm = "drwxr-xr-x" })), "drwxr-xr-x") end
-)
+test("permissions: a theme with no `[status]` at all still draws the text", function()
+	local col = prepare("permissions")
+	col.plan.refresh()
+	eq(text_of(cases.cell(col, stub.file { perm = "drwxr-xr-x" })), "drwxr-xr-x")
+end)
 
 test("permissions: a colour written for the column takes the theme's place", function()
 	-- Flat, for the whole cell: painting the characters over a colour the user
@@ -299,8 +295,8 @@ test("owner, user and group: blank on a build with no names", function()
 	-- `0:0`. What is absent there is the pair of lookups, which are
 	-- `#[cfg(unix)]` -- so taking them away is what a spec has instead of a
 	-- Windows machine.
-	rawset(ya, "user_name", nil)
-	rawset(ya, "group_name", nil)
+	ya.user_name = nil
+	ya.group_name = nil
 	eq(render("owner", stub.file {}), "            ")
 	eq(render("user", stub.file {}), "        ")
 	eq(render("group", stub.file {}), "        ")
@@ -315,14 +311,14 @@ test("user and group: a lone column resolves one name, not two", function()
 	-- and dropped is paid for on each of them. Counted rather than timed.
 	local users, groups = 0, 0
 	local user, group = ya.user_name, ya.group_name
-	rawset(ya, "user_name", function(uid)
+	ya.user_name = function(uid)
 		users = users + 1
 		return user(uid)
-	end)
-	rawset(ya, "group_name", function(gid)
+	end
+	ya.group_name = function(gid)
 		groups = groups + 1
 		return group(gid)
-	end)
+	end
 	local function counts(name)
 		users, groups = 0, 0
 		render(name, stub.file { uid = 1, gid = 2 })
@@ -335,7 +331,7 @@ test("user and group: a lone column resolves one name, not two", function()
 end)
 
 test("count: directories only", function()
-	history { files = { 1, 2 } }
+	stub.listed = { files = { 1, 2 } }
 	eq(render("count", stub.file { name = "d", is_dir = true }), "    2")
 	eq(render("count", stub.file { name = "f.txt" }), "     ")
 end)

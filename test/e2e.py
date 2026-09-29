@@ -297,10 +297,14 @@ def lines_with(text: str, needle: str) -> int:
     return sum(1 for line in text.splitlines() if needle in line)
 
 
+def troubles(body: str) -> list[str]:
+    """The lines of a log that report an error."""
+    return [line for line in body.splitlines() if TROUBLE.search(line)]
+
+
 def check_log(k: Checks, path: Path) -> None:
     k.section("log")
-    body = path.read_text() if path.is_file() else ""
-    bad = [line for line in body.splitlines() if TROUBLE.search(line)]
+    bad = troubles(path.read_text() if path.is_file() else "")
     for line in bad[:10]:
         print(line, file=sys.stderr)
     k.verdict("clean", bad and "Yazi logged an error")
@@ -325,7 +329,7 @@ def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
         return
 
     body = path.read_text()
-    errors = [line for line in body.splitlines() if TROUBLE.search(line)]
+    errors = troubles(body)
     # A total beside the per-column counts closes the pair: each name exactly
     # once and this many lines in all leaves no room for a line naming
     # something else. What is printed is a line naming no column of ours.
@@ -625,7 +629,7 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
     # low end and a file just created the high one. A column that drew the ramp
     # as a flat colour can only put one of them on screen. `colour/ramp` cannot
     # do it: its high end is below the window.
-    low, high = fixture.theme_values(dir, "default")[1].split(" -> ")
+    low, high = fixture.theme_ends(dir, "default")
     k.holds(
         shots["colour-m1"], sc.sgr(38, low), "a themed ramp draws its low end"
     )
@@ -876,9 +880,9 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("theme")
 
-    flat_old, ramp_old = fixture.theme_values(dir, "default")
+    flat_old = fixture.theme_values(dir, "default")[0]
+    old_ends = fixture.theme_ends(dir, "default")
     flat_new, ramp_new = THEME_NEW
-    old_ends = ramp_old.split(" -> ")
     new_ends = ramp_new.split(" -> ")
 
     def rows(shot: str, *hexes: str) -> list[int]:
@@ -912,7 +916,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # the plugin ignored the reload -- so the file and the screen are asked
     # apart. Spelled as a keymap `run` of the copy and `app:theme`, the two
     # race and the reload wins, measured on 26.9.1.
-    alt_low = fixture.theme_values(dir, "alt")[1].split(" -> ")[0]
+    alt_low = fixture.theme_ends(dir, "alt")[0]
     swapped, kept = rows("colour-theme-swapped", alt_low, new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
         dir / "themes" / "alt.toml"
