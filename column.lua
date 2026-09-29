@@ -56,10 +56,6 @@ local M = {}
 ---@field kind "natural"|"fixed"|"auto"|"computed"
 ---@field value integer? fixed, already capped
 ---@field compute fun(stats: any): number?|nil
---- Which of the column's own functions deciding it calls, once per folder:
---- `render` to measure every file for `auto`, the `width` function itself
---- for a computed one, and none for the other two.
----@field calls supaline.Stage?
 
 ---@class supaline.ColumnPlan
 ---@field name string?
@@ -99,9 +95,9 @@ local M = {}
 ---@type supaline.Parser
 local function width(value, at)
 	if value == "auto" then
-		return { kind = "auto", calls = "render" }
+		return { kind = "auto" }
 	elseif type(value) == "function" then
-		return { kind = "computed", compute = value, calls = "width" }
+		return { kind = "computed", compute = value }
 	elseif type(value) == "number" then
 		return { kind = "fixed", value = schema.cells(value, at) }
 	end

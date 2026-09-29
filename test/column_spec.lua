@@ -3,6 +3,7 @@
 
 local appearance = require(".appearance")
 local column = require(".column")
+local listing = require(".listing")
 ---@type supaline.ColumnCases
 local cases = dofile(ROOT .. "/test/column_case.lua")
 local registry = column.new_registry()
@@ -1333,12 +1334,12 @@ local FILES = {
 
 test("width: a stated number is used as is", function()
 	local col = prepare({ render = function() return "" end, width = 4 }, CFG)
-	eq(resolve_width(col, FILES, nil), 4)
+	eq(col.ctx.width, 4)
 	-- The folder's `stats` are taken whatever the width is: gating them on the
 	-- width left a column whose `render` reads `ctx.stats` with nothing to
 	-- read, which `main_spec.lua`'s "a column with a stated width still
 	-- receives them" draws.
-	eq(col.plan.width.calls, nil, "a stated width calls nothing of the column's to decide")
+	eq(listing.pass(col.plan), nil, "a stated width calls nothing of the column's to decide")
 end)
 
 test("width: a function is handed the folder's statistics", function()
@@ -1348,7 +1349,7 @@ test("width: a function is handed the folder's statistics", function()
 		width = function(st) return #ya.readable_size(st.max) end,
 	}, CFG)
 	eq(resolve_width(col, FILES, { min = 1, max = 100000 }), 5)
-	eq(col.plan.width.calls, "width", "a throw from it is reported as the `width` function's")
+	eq(listing.pass(col.plan), "width", "a throw from it is reported as the `width` function's")
 end)
 
 test('width: "auto" takes the widest rendered cell', function()
@@ -1358,7 +1359,7 @@ test('width: "auto" takes the widest rendered cell', function()
 	}, CFG)
 	-- 1B / 97.7K / 1000B -> the widest is "1000B"
 	eq(resolve_width(col, FILES, nil), 5)
-	eq(col.plan.width.calls, "render", "measuring calls `render`, and a throw there is reported as its")
+	eq(listing.pass(col.plan), "render", "measuring calls `render`, and a throw there is reported as its")
 end)
 
 test('width: max_width caps "auto"', function()

@@ -96,10 +96,21 @@ end
 ---@return integer
 local function cap(width, max) return max and width > max and max or width end
 
---- A column's width in one folder. What a `width` function returns that is
---- no count of cells is supaline's refusal, and comes back, as written,
---- beside a nil rather than raised: the caller's `pcall` could not tell it
---- from the function throwing.
+-- The widths decided per folder, by the column's own function each calls:
+-- `render` to measure every file, or the `width` function itself.
+local PASS = { auto = "render", computed = "width" } ---@type table<string, supaline.Stage>
+
+--- Which of the column's own functions deciding its width calls, once per
+--- folder, and so whose a throw from it is reported as; nil for a width known
+--- without a folder.
+---@param col supaline.ColumnPlan
+---@return supaline.Stage?
+function M.pass(col) return PASS[col.width.kind] end
+
+--- A column's width in one folder, for a width `pass` names. What a `width`
+--- function returns that is no count of cells is supaline's refusal, and
+--- comes back, as written, beside a nil rather than raised: the caller's
+--- `pcall` could not tell it from the function throwing.
 ---@param col supaline.ColumnPlan
 ---@param ctx supaline.Ctx
 ---@param files supaline.File[]
@@ -114,8 +125,6 @@ function M.width(col, ctx, files)
 			return nil, schema.as_written(w)
 		end
 		return cap(cells, col.max_width)
-	elseif width.kind ~= "auto" then
-		return width.value
 	end
 	local widest = 0
 	for i = 1, #files do
@@ -158,9 +167,9 @@ function M.new(appearance, reporter)
 			-- Published only once the width pass is done, so a render measured
 			-- for `auto` sees `width` nil and nothing else does.
 			local ctx = M.context(col, look, stats)
-			local calls = col.width.calls
-			if files and calls then
-				local ok, got, refused = reporter.call(col, calls, M.width, col, ctx, files)
+			local pass = M.pass(col)
+			if files and pass then
+				local ok, got, refused = reporter.call(col, pass, M.width, col, ctx, files)
 				if ok and refused then
 					reporter.width(col, refused)
 				elseif ok then
