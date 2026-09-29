@@ -32,6 +32,9 @@ function M.new(plan, theme, sink)
 	local resolved = appearance.resolve(plan, theme)
 	local prepared = listing.new(resolved, reporter)
 
+	--- Forget every folder prepared, keeping the appearance.
+	local function invalidate() prepared = listing.new(resolved, reporter) end
+
 	--- Every column's `refresh`. One that throws is told off and the rest go
 	--- on refreshing.
 	local function refresh()
@@ -54,7 +57,7 @@ function M.new(plan, theme, sink)
 			return sink(got, report.one_line(got))
 		end
 		resolved = got
-		prepared = listing.new(resolved, reporter)
+		invalidate()
 		refresh()
 	end
 
@@ -83,9 +86,6 @@ function M.new(plan, theme, sink)
 		end
 		return ui.Line(out)
 	end
-
-	--- Forget every folder prepared, keeping the appearance.
-	local function invalidate() prepared = listing.new(resolved, reporter) end
 
 	local function moved()
 		invalidate()

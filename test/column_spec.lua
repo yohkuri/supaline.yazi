@@ -670,8 +670,7 @@ local function separator(value)
 	-- Cast because a column's own is `false` where it drops the separator
 	-- before it, and that is the one value nothing below writes.
 	local sep = prepare({ "plain", separator = value }, CFG).plan.separator --[[@as supaline.Sep]]
-	local look = sep.slot and appearance.slot(sep.slot, {})
-	return { text = sep.text, style = look and look.written and look.style or nil }
+	return { text = sep.text, style = listing.sep_style(sep.slot and appearance.slot(sep.slot, {})) }
 end
 
 --- Assert that a separator is refused, with a message mentioning `pattern`.

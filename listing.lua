@@ -29,6 +29,12 @@ local M = {}
 --- One pane of one linemode, prepared in a folder.
 ---@alias supaline.Listings fun(mode: supaline.ModePlan, pane: string, folder: supaline.Folder?): supaline.Prepared[]
 
+--- The style a separator is drawn in: none where its slot wrote nothing, so
+--- that it draws as bare text rather than a span per row.
+---@param look supaline.Resolved?
+---@return unknown?
+function M.sep_style(look) return look and look.written and look.style or nil end
+
 ---@param stats any
 ---@return boolean
 function M.has_extremes(stats)
@@ -174,8 +180,8 @@ function M.new(appearance, reporter)
 					ctx.width = got
 				end
 			end
-			local sep = cell.sep and cell.sep.slot and appearance[cell.sep.slot]
-			prepared[i] = { cell = cell, ctx = ctx, sep_style = sep and sep.written and sep.style or nil }
+			local sep = cell.sep and cell.sep.slot
+			prepared[i] = { cell = cell, ctx = ctx, sep_style = M.sep_style(sep and appearance[sep]) }
 		end
 		return prepared
 	end
