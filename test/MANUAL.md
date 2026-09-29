@@ -162,7 +162,7 @@ The same name, four ways, against a column of twelve.
 - What no name here carries is a grapheme cluster. `❤️` is two characters and
   two cells, which is the trap `AGENTS.md` lists and the reason `layout.lua`
   cuts on cluster boundaries at all — but that is pinned in `column_spec.lua`
-  and `truncate_spec.lua`, and nothing on this screen draws one.
+  and `stub_spec.lua`, and nothing on this screen draws one.
 
 ### `m 5` — separators
 

@@ -1,6 +1,5 @@
---- Assemble a single column through the same stages as setup, without installing
---- a Linemode. Tests inspect each stage explicitly; no production compatibility
---- facade retains the old mutable Column object.
+--- One column compiled the way `setup` compiles each of a linemode's, without
+--- installing a Linemode, so a spec can look at each stage on its own.
 local appearance = require(".appearance")
 local layout = require(".layout")
 local listing = require(".listing")
@@ -11,37 +10,40 @@ local schema = require(".schema")
 ---@field paint supaline.Resolved
 ---@field ctx supaline.Ctx
 
+--- Where a case's column is written, so a refusal names it `spec` -- the way
+--- one in a linemode names `setup.linemodes.detail[2]`.
+local AT = schema.path("spec")
+
+--- The `setup` a case is compiled under unless it names another.
+---@type supaline.Cfg
+local CFG = { scale = "linear", band = {} }
+
 ---@class supaline.ColumnCases
 local M = {}
 
---- Where a case's column is written, so a refusal names it `spec` -- the way
---- one in a linemode names `setup.linemodes.detail[2]`.
-M.AT = schema.path("spec")
-
+--- A compiler over `registry`, reading the theme as it stands when called.
 ---@param registry supaline.Registry
----@param spec supaline.ColumnSpec
----@param cfg supaline.Cfg
----@return supaline.ColumnCase
-function M.prepare(registry, spec, cfg)
-	local plan = registry.open(cfg).compile(spec, M.AT)
-	local paint = appearance.slot(plan.slot, th.supaline or {})
-	return { plan = plan, paint = paint, ctx = listing.context(plan, paint, nil) }
-end
-
----@param case supaline.ColumnCase
----@param file supaline.File
----@return unknown
-function M.cell(case, file) return layout.cell(case.plan, case.ctx, file) end
-
----@param case supaline.ColumnCase
----@param entry { stats: any, width: integer? }
-function M.for_folder(case, entry)
-	case.ctx = listing.context(case.plan, case.paint, entry.stats)
-	if entry.width then
-		case.ctx.width = entry.width
+---@return fun(spec: supaline.ColumnSpec, cfg: supaline.Cfg?): supaline.ColumnCase
+function M.compiler(registry)
+	return function(spec, cfg)
+		local plan = registry.open(cfg or CFG).compile(spec, AT)
+		local paint = appearance.slot(plan.slot, th.supaline or {})
+		return { plan = plan, paint = paint, ctx = listing.context(plan, paint, nil) }
 	end
 end
 
+--- The cell `case` draws for `file`, an empty file unless one is given.
+---@param case supaline.ColumnCase
+---@param file supaline.File?
+---@return unknown
+function M.cell(case, file) return layout.cell(case.plan, case.ctx, file or stub.file {}) end
+
+--- Bind `case` to a folder's extremes, the way a listing binds it.
+---@param case supaline.ColumnCase
+---@param stats any
+function M.bind(case, stats) case.ctx = listing.context(case.plan, case.paint, stats) end
+
+--- The width `case` takes over `files`, and the refusal beside it if any.
 ---@param case supaline.ColumnCase
 ---@param files supaline.File[]
 ---@param stats any

@@ -8,9 +8,6 @@
 ---
 ---     lua test/run.lua            every spec
 ---     lua test/run.lua column     the specs whose name contains "column"
----
---- Written for Lua 5.5, the version Yazi runs. Nothing else loads this plugin,
---- so nothing else has a claim on the tests either.
 
 -- Yazi runs Lua 5.5 and nothing else ever loads this plugin, so a pass under
 -- another interpreter proves nothing -- and says so quietly. The semantics
@@ -30,29 +27,38 @@ end
 local ROOT = (arg[0]:match("^(.*)[/\\]test[/\\]run%.lua$")) or "."
 local FILTER = arg[1]
 
-local SPECS = {
-	"truncate_spec",
-	"auth_spec",
-	"dds_spec",
-	"module_spec",
-	"colour_spec",
-	"column_spec",
-	"builtin_spec",
-	"main_spec",
-	"lifecycle_spec",
-	"fixture_spec",
-}
-
 ---@type supaline.Stub
 local stub = dofile(ROOT .. "/test/stub.lua")
 
-local passed, failures, current = 0, {}, "?"
+--- Every `test/*_spec.lua`, in name order. Found rather than listed, because a
+--- spec left off a list never runs and the suite stays green without it.
+---@return string[]
+local function specs()
+	local pipe = assert(io.popen('ls "' .. ROOT .. '/test"'))
+	local names = {}
+	for file in pipe:read("a"):gmatch("[^\n]+") do
+		names[#names + 1] = file:match("^(.+_spec)%.lua$")
+	end
+	pipe:close()
+	assert(#names > 0, "found no spec under " .. ROOT .. "/test; is `ls` on PATH?")
+	table.sort(names)
+	return names
+end
+
+local passed, failures, current, declared = 0, {}, "?", 0
 
 --- Declare one test. A failure is recorded and the run carries on, so one
 --- broken assertion does not hide the rest.
+---
+--- Every test starts from the stubs' own `ui`, `th`, `ya` and `cx`, so a body
+--- writes what it needs straight onto them and puts nothing back: a restore
+--- written as a body's last line is skipped by the failure it would matter
+--- for, and what it left set is then reported against the next test.
 ---@param name string
 ---@param fn function
 function test(name, fn)
+	declared = declared + 1
+	stub.reset()
 	local ok, err = pcall(fn)
 	if ok then
 		passed = passed + 1
@@ -70,62 +76,66 @@ function eq(actual, expected, what)
 	end
 end
 
---- Assert that `fn` raises, and that the message mentions `pattern`.
+--- The first of `patterns` that `text` does not contain, as a failure message.
+---@param text string
+---@param patterns string[]
+---@return string?
+local function absent(text, patterns)
+	for _, p in ipairs(patterns) do
+		if not text:find(p, 1, true) then
+			return string.format("expected %q in %q", p, text)
+		end
+	end
+end
+
+--- Assert that `text` contains every one of the strings, matched plainly.
+---@param text string
+---@param ... string
+function has(text, ...)
+	local why = absent(text, { ... })
+	if why then
+		error(why, 2)
+	end
+end
+
+--- Assert that `text` contains none of the strings.
+---@param text string
+---@param ... string
+function lacks(text, ...)
+	for _, p in ipairs { ... } do
+		if text:find(p, 1, true) then
+			error(string.format("expected no %q in %q", p, text), 2)
+		end
+	end
+end
+
+--- Assert that `fn` raises with a message containing every one of the strings,
+--- and hand the message back.
 ---@param fn function
----@param pattern string
-function throws(fn, pattern)
+---@param ... string
+---@return string
+function throws(fn, ...)
 	local ok, err = pcall(fn)
 	if ok then
 		error("expected an error, got none", 2)
-	elseif not tostring(err):find(pattern, 1, true) then
-		error(string.format("expected an error mentioning %q, got %q", pattern, tostring(err)), 2)
 	end
+	local msg = tostring(err)
+	local why = absent(msg, { ... })
+	if why then
+		error(why, 2)
+	end
+	return msg
 end
 
---- Run `fn` with `t[key]` set to `value`, and put back whatever was there
---- afterwards.
----
---- Here rather than in each spec because the restore is the part that gets
---- dropped, and dropping it is invisible: `test` pcalls a body, so a failing
---- assertion leaves the body at once and a restore written as the last line of
---- it never runs. What is left set then reaches every test after that one, and
---- the failure is reported against whichever of them trips over it -- so a
---- swap written out by hand looks correct on the page and costs a debugging
---- session the first time an assertion under it fails.
----
---- A body that reassigns the field mid-test -- the theme-reload cases do --
---- is restored just the same: what goes back is what was there on the way in.
----
---- What `fn` returns comes back, so a body that has to hand a value out of the
---- swap says so with a `return` rather than assigning to a local declared
---- above the call for that one purpose.
----@param t table
----@param key any
----@param value any
----@param fn function
----@return any
-function with(t, key, value, fn)
-	local before = t[key]
-	t[key] = value
-	local ok, res = pcall(fn)
-	t[key] = before
-	if not ok then
-		error(res, 0)
-	end
-	return res
-end
-
---- The plain text of anything a column rendered.
-_G.text_of = stub.text_of
-_G.stub = stub
 _G.ROOT = ROOT
 
-for _, name in ipairs(SPECS) do
+for _, name in ipairs(specs()) do
 	if not FILTER or name:find(FILTER, 1, true) then
-		current = name
-		-- A fresh main session per spec, including its registry and subscriptions.
-		-- Columns registered by a spec must not leak into the next.
+		current, declared = name, 0
+		-- A fresh plugin per spec file, including its registry and
+		-- subscriptions, so columns registered by one spec cannot reach the next.
 		stub.install(ROOT)
+		--- The plain text of anything a column rendered.
 		_G.text_of = stub.text_of
 		_G.stub = stub
 		local chunk, err = loadfile(ROOT .. "/test/" .. name .. ".lua")
@@ -135,6 +145,8 @@ for _, name in ipairs(SPECS) do
 			local ok, e = pcall(chunk)
 			if not ok then
 				failures[#failures + 1] = string.format("%s (while loading)\n    %s", name, tostring(e))
+			elseif declared == 0 then
+				failures[#failures + 1] = string.format("%s\n    declares no test", name)
 			end
 		end
 	end

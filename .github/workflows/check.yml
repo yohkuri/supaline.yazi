@@ -426,9 +426,9 @@ jobs:
     # on `Linemode`, and hands everything else down as an argument -- the
     # theme and the screen reach `session.new` as parameters, and the
     # Linemode test reaches `config.compile` as `is_yazis`. That arrangement
-    # is the whole reason a theme reload can be exercised in
-    # `lifecycle_spec.lua` at all: the trap arrives as a value a spec can
-    # pass rather than as a global it would have to stand up first.
+    # is the whole reason a theme reload can be exercised in `main_spec.lua`
+    # at all: the trap arrives as a value a spec can pass rather than as a
+    # global it would have to stand up first.
     #
     # `builtin.lua` sits on the far side of that interface rather than inside
     # the framework. A built-in column is registered the way a user's is and
@@ -442,8 +442,8 @@ jobs:
     # with it, `paint` asks it whether Yazi takes a colour, the stub models it
     # in full, and naming it costs a spec nothing.
     #
-    # Nothing below is caught by the suite. `lifecycle_spec.lua` pins that
-    # the colour arithmetic needs no globals, which is one module of many; a
+    # Nothing below is caught by the suite. `colour_spec.lua` pins that the
+    # colour arithmetic needs no globals, which is one module of many; a
     # *new* `cx.active` written into `listing.lua` passes every test green
     # and takes the folder back out of the caller's hands, which is the one
     # thing separating the lifetimes was for.

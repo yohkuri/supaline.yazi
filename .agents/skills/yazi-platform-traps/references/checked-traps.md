@@ -93,7 +93,7 @@ reading the macro alone misses it.
 
 **Checked.** The stub's `ps.sub` refuses a kind Yazi does not publish, so any
 subscription with a bad name fails the unit suite the moment a spec loads the
-module. `test/dds_spec.lua` holds the list of fifteen.
+module. `DDS_KINDS` in `test/stub.lua` holds the list of fifteen.
 
 ## Truncation counts characters; the screen counts clusters
 
@@ -128,7 +128,7 @@ Two more things it does, worth knowing before reaching for it: it mutates the
 line it is called on and hands the same one back, and the spans of a Line
 cannot be read from Lua at all, so this is the only way in.
 
-**Checked.** `test/truncate_spec.lua` holds the measured table, `stub.lua`
+**Checked.** `test/stub_spec.lua` holds the measured table, `stub.lua`
 reproduces both habits rather than repairing them -- a stub that quietly did
 the right thing would let the correction be deleted with the suite still green
 -- and `test/column_spec.lua` pins the corrected cut in both directions. On the
@@ -193,8 +193,8 @@ plugin Lua and prints this. It is a spelling check rather than a spec because
 a spec pins the columns that exist: without the job, a fresh column written
 with `not is_regular` passes the whole suite, measured. The six variants,
 what a machine-local value costs over a remote file, and Yazi's own predicates
-are at the end of this file; `test/auth_spec.lua` pins the partition in the
-stub.
+are at the end of this file; `AUTH_KINDS` in `test/stub.lua` holds the
+partition.
 
 ## `in_preview`, in Yazi's own source
 
@@ -277,6 +277,6 @@ number is very likely a different account. Yazi's own `Linemode:owner` resolves
 them regardless, so the `owner`, `user` and `group` columns deliberately differ
 from it and print the numbers instead.
 
-Pinned by `test/auth_spec.lua`, which holds all six variants and the
-`is_virtual` / `is_local` complement, and by the stub, which refuses an
-`AuthKind` Yazi does not have rather than treating a typo as virtual.
+Held by `AUTH_KINDS` in `test/stub.lua`, which writes out all six variants
+and the `is_virtual` / `is_local` complement, and refuses an `AuthKind` Yazi
+does not have rather than treating a typo as virtual.
