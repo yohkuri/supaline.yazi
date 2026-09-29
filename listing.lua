@@ -108,10 +108,10 @@ local PASS = { auto = "render", computed = "width" } ---@type table<string, supa
 ---@return supaline.Stage?
 function M.pass(col) return PASS[col.width.kind] end
 
---- A column's width in one folder, for a width `pass` names. What a `width`
---- function returns that is no count of cells is supaline's refusal, and
---- comes back, as written, beside a nil rather than raised: the caller's
---- `pcall` could not tell it from the function throwing.
+--- A column's width in one folder. What a `width` function returns that is
+--- no count of cells is supaline's refusal, and comes back, as written,
+--- beside a nil rather than raised: the caller's `pcall` could not tell it
+--- from the function throwing.
 ---@param col supaline.ColumnPlan
 ---@param ctx supaline.Ctx
 ---@param files supaline.File[]
@@ -126,6 +126,8 @@ function M.width(col, ctx, files)
 			return nil, schema.as_written(w)
 		end
 		return cap(cells, col.max_width)
+	elseif width.kind ~= "auto" then
+		return width.value
 	end
 	local widest = 0
 	for i = 1, #files do

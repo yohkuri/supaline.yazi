@@ -1419,7 +1419,9 @@ test("width: a width function that returns no usable number is refused", functio
 	-- And a column that simply states no width is nil without being refused --
 	-- the reason beside it is what tells the two apart.
 	local plain = prepare({ render = function() return "x" end }, CFG)
-	eq(select(2, resolve_width(plain, FILES, nil)), nil)
+	local w, refused = resolve_width(plain, FILES, nil)
+	eq(w, nil)
+	eq(refused, nil)
 end)
 
 test('width: "auto" over an empty folder is zero', function()
