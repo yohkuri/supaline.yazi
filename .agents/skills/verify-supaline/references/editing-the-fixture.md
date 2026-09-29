@@ -36,7 +36,7 @@ The `b` leader draws the columns that are wrong on purpose, one per report
 supaline can put on a screen, and `e2e.py` presses all of them in a **second
 Yazi with a log of its own**, started once the first has been torn down.
 
-The shape is decided by what it must not be. `report` writes to `yazi.log` as
+The shape is decided by what it must not be. `tell` writes to `yazi.log` as
 well as to the screen, and `e2e.py` fails a run in which Yazi logged an error,
 so pressing a `b` key in *that* run turns the suite red. The repair is not to
 teach the log check an exception — an allowlist there is the one check that
@@ -60,7 +60,7 @@ measured rather than reasoned about.
   the preview pane. That is the half of a report no log can show, and until
   this run existed nothing outside the stub looked at it.
 - Yazi draws **three** notifications at a time and queues the rest, each for
-  the twenty seconds `report` asks for. Six reports therefore never share a
+  the twenty seconds `tell` asks for. Six reports therefore never share a
   screen, so the check reads the screen until every one has been seen on it
   rather than taking a single shot. The file it builds is a union, and the
   claim is that each report reached the screen — not that they were ever there

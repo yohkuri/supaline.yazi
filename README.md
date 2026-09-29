@@ -76,7 +76,7 @@ desc = "Linemode: size and mtime"
 | `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](#a-coloured-separator). |
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
 | `band`      | —           | The bands a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no band behind it is refused; see [`band`](#band). |
-| `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children. |
+| `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children, as a whole number. |
 
 Those five are the whole of it: a key that is none of them — `scal`, `bnad`,
 `seperator` — is refused by name rather than quietly ignored, as one is inside
@@ -566,7 +566,7 @@ spelling — `reversed`, not `reverse` — and here a key that is none of them i
 **refused by name**, which is the one thing a theme cannot do for you:
 
 ```text
-supaline: the `style` of column `size`: `strikethrough` is not a style key.
+supaline: setup.linemodes.detail[1].style: `strikethrough` is not a style key.
 A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
 `blink`, `blink_rapid`, `reversed`, `hidden` and `crossed` -- the spelling
 `theme.toml` uses, so a style is written the same way in both files.
@@ -1017,17 +1017,27 @@ The runtime caches each folder's prepared columns and their contexts, with at
 most eight folder entries and a full clear when a ninth is added. Drawing a row
 selects that prepared state without changing a shared column's context.
 
+Everything `setup` is handed is read once, into the plan, and a mistake in it
+is refused with the path it was written at — `setup.linemodes.detail[2].align`,
+`column("mark").style`, `theme.toml [supaline].size`. A style written as a
+value is read then too; only a style function and the theme's field are read
+again on each theme event.
+
 | Module | Responsibility |
 | ------ | -------------- |
 | `main.lua` | Public API, Yazi events, pane selection and Linemode installation. |
-| `config.lua` | Validate setup and pane structures; compile the complete plan. |
-| `column.lua` | Explicit registries, column inheritance and plans, and `extremes`. |
-| `runtime.lua` | Folder statistics, effective widths, contexts, caching and callback containment. |
+| `config.lua` | Read `setup` and each linemode's panes into the plan, with the separator before every column. |
+| `column.lua` | Explicit registries; read a definition and a use of it, and merge the two into a column's plan. |
+| `style.lua` | Read one writer's style into a layer, merge the layers, build `ui.Style`s; read a separator. |
+| `paint.lua` | What a colour key holds: a colour Yazi takes, a gradient, a band, and the bands by name. |
+| `appearance.lua` | Resolve a plan's styles against one theme. |
+| `runtime.lua` | Folder statistics, `extremes`, effective widths, contexts, caching and callback containment. |
 | `layout.lua` | Measure, truncate, pad and style cells. |
-| `style.lua` | Interpret and merge style sources; resolve theme appearances. |
 | `colour.lua` | Yazi-independent RGB, Oklab, bands and 64-step interpolation. |
-| `diagnostics.lua` | Validation messages and setup-scoped notification gates. |
+| `schema.lua` | Paths, refusals and the parsers every table a user writes is read with. |
+| `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing. |
 | `builtin.lua` | Create built-in definitions for the ordinary registry. |
+| `types.lua` | Type annotations where Yazi 26.9.1 and `types.yazi` disagree; never loaded. |
 
 ## Caveats
 
