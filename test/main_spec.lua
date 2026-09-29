@@ -508,16 +508,18 @@ test("theme: a reload re-reads every place a colour can be written", function()
 	-- unasked `theme` event after `init.lua`, so anything resolved once at
 	-- `setup` goes stale with nothing to say so. A function is how a spec
 	-- reaches the theme, and one called once is a value. Changing the section
-	-- after `setup` is what makes each row say that.
+	-- after `setup` is what makes each row say that, and each row's colour is
+	-- under one key, so a function ignored has nowhere else to find it.
 	local function themed() return th.supaline.x end
 	for _, case in ipairs {
-		{ "a colour the theme wrote", { detail = { { "size", width = 4 } } } },
+		{ "a colour the theme wrote", { detail = { { "size", width = 4 } } }, key = "size" },
 		{
 			"a ramp the theme wrote",
 			{ detail = { { "size", width = 4 } } },
 			nil,
 			"#0b3d91 -> #ff8800",
 			"#111111 -> #00ccff",
+			key = "size",
 		},
 		{ "a column's `style` function", { detail = { { "size", width = 4, style = themed } } } },
 		{ "a linemode's separator function", { detail = { plain("a"), plain("b"), separator = { "|", style = themed } } } },
@@ -528,10 +530,11 @@ test("theme: a reload re-reads every place a colour can be written", function()
 		},
 	} do
 		local what, before, after = case[1], case[4] or "#ff8800", case[5] or "#00ccff"
-		stub.th.supaline = { size = before, x = before }
+		local key = case.key or "x"
+		stub.th.supaline = { [key] = before }
 		setup(case[2], case[3])
 		eq(assert(style_in("detail", 2), what).fg, "#ff8800", what)
-		stub.th.supaline = { size = after, x = after }
+		stub.th.supaline = { [key] = after }
 		stub.fire("theme")
 		eq(style_in("detail", 2).fg, "#00ccff", what .. ", after the reload")
 	end
@@ -563,13 +566,15 @@ test("theme: a themed `<->` is drawn at the `fg` band `setup` defines, through a
 	-- A theme field is a bare string and a bare string is the `fg` key, so the
 	-- name is the whole of how the two files meet: a flavor writes the hue, a
 	-- reader's `setup` the two lightnesses. A reload resolves the styles again,
-	-- and has to find the bands still there.
+	-- and has to find the bands still there. Written backwards, the way a light
+	-- terminal asks for it: `from` is what ratio 0 draws, so the pair carries
+	-- its own direction and `setup` takes it as written.
 	stub.th.supaline = { size = "#0b3d91 <->" }
-	setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.50, to = 0.70 } } })
-	eq(style_in("detail", 2).fg, "#649cff", "the high end")
-	eq(style_in("detail", 1).fg, "#155ace", "and the low one")
+	setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.88, to = 0.35 } } })
+	eq(style_in("detail", 2).fg, "#08347f", "the largest file is dark")
+	eq(style_in("detail", 1).fg, "#c2d9ff", "and the smallest pale")
 	stub.fire("theme")
-	eq(style_in("detail", 2).fg, "#649cff", "and again after a reload")
+	eq(style_in("detail", 2).fg, "#08347f", "and again after a reload")
 end)
 
 test("setup: a `style` function's band name is read on the pass that draws", function()

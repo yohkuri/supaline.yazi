@@ -115,8 +115,8 @@ end)
 
 test("normalize: a value the shared keys do not take is refused", function()
 	-- A value nobody accepts would otherwise be accepted by being ignored:
-	-- `align = "centre"` fell to the default and drew right-aligned. What was
-	-- written comes back in the message, as written or by its type.
+	-- `align = "centre"` would fall to the default and draw right-aligned.
+	-- What was written comes back in the message, as written or by its type.
 	refused {
 		{ { "fixed", align = "centre" }, "spec.align: ", "must be `left` or `right`", "got `centre`" },
 		{ { "fixed", overflow = "elipsis" }, "must be `ellipsis`, `clip` or `grow`" },
@@ -131,9 +131,9 @@ test("normalize: a value the shared keys do not take is refused", function()
 end)
 
 test("normalize: a key that is called rather than read must be a function", function()
-	-- Each is knowable while `setup` runs. Taken on trust, `stats = 42` was
-	-- reported at bind time as a function that threw, and `refresh = 42` raised
-	-- out of `install` after `setup` had committed.
+	-- Each is knowable while `setup` runs. Taken on trust, `stats = 42` would be
+	-- reported at bind time as a function that threw, and `refresh = 42` would
+	-- raise out of `install` after `setup` has committed.
 	refused {
 		{ { "fixed", stats = 42 }, "spec.stats: ", "must be a function, got `42`" },
 		{ { "fixed", refresh = 42 }, "spec.refresh: " },
@@ -156,9 +156,9 @@ test("normalize: a definition's own wrong value is refused as it is registered",
 end)
 
 test("normalize: a width that would draw nothing is refused", function()
-	-- A width of 0 or less drew an empty cell on every row, which reads as a
-	-- column that is not there. Not floored either: rounding is a guess about
-	-- which of two whole numbers was meant.
+	-- A width of 0 or less would draw an empty cell on every row, which reads
+	-- as a column that is not there. Not floored either: rounding is a guess
+	-- about which of two whole numbers was meant.
 	local whole = "must be a whole number of cells, 1 or more"
 	refused {
 		{ { "plain", width = 0 }, "spec.width: ", whole },
@@ -697,8 +697,8 @@ test("style: a function is called for its style, and called again on the next bu
 end)
 
 test("style: an inline column is one writer, read once and read as the definition", function()
-	-- `{ render = fn, style = ... }` plays both parts, and read as both it ran a
-	-- `style` function twice per build and beat the theme.
+	-- `{ render = fn, style = ... }` plays both parts, and read as both it would
+	-- run a `style` function twice per build and beat the theme.
 	local calls, answers = 0, { { bg = "#112233" }, { fg = "#445566" } }
 	local ctx = prepare({
 		render = function() return "" end,
@@ -742,6 +742,14 @@ test("style: each key comes from the nearest of definition, theme and spec", fun
 	local weight = prepare("att2").ctx
 	eq(weight.style.bold, true)
 	eq(weight.fg_written, false, "nobody wrote a colour, so a column that paints its own goes on doing so")
+
+	-- The case the three layers exist for: a flavor's gradient, given a weight
+	-- by a spec that copied none of its colours.
+	register("att1", { render = function() return "" end, stats = function() return nil end })
+	stub.th.supaline.att1 = BLUES
+	local ramp = prepare({ "att1", style = { bold = true } }).ctx
+	eq(ramp.style_at(1).fg, "#7fd4ff", "the theme's gradient")
+	eq(ramp.style_at(1).bold, true, "under the spec's bold")
 end)
 
 test("style: an empty string in the theme is nothing written, and only there", function()

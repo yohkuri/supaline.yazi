@@ -605,15 +605,17 @@ class Verdicts(unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
             contextlib.redirect_stderr(io.StringIO()),
         ):
-            k.verdict("fine", empty and f"{empty[0]}", "second", "third")
-        self.assertEqual(k.failed, ["second"])
+            held = k.verdict("fine", empty and f"{empty[0]}", "second", "third")
+        self.assertEqual((k.failed, held), (["second"], False))
 
     def test_no_fault_passes_as_the_label(self):
         k = Checks()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            k.verdict("fine", None, False, "")
-        self.assertEqual((k.failed, out.getvalue()), ([], "  fine\n"))
+            held = k.verdict("fine", None, False, "")
+        self.assertEqual(
+            (k.failed, out.getvalue(), held), ([], "  fine\n", True)
+        )
 
 
 if __name__ == "__main__":

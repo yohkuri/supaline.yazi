@@ -141,9 +141,9 @@ allocate as little as possible.
   Span, Line, or a table of them`, and the screen stops drawing — see the
   section below for how much of it. Cache the
   styles, rebuild the rest. Measured on 26.9.1, and refused by the stub —
-  `column_spec.lua` "a span drawn a second time is refused" and "a whole Line
-  drawn a second time is refused too". The Line half is the one `layout.cell`
-  walks into: every render's output goes through one `ui.Line`.
+  `column_spec.lua` "a span or a Line drawn a second time is refused, the way
+  Yazi refuses it". The Line half is the one `layout.cell` walks into: every
+  render's output goes through one `ui.Line`.
 
 A linemode name is 1 to 20 characters. An unregistered name renders as literal
 text, so a name registered late shows up on screen.

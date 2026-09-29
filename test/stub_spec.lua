@@ -216,6 +216,12 @@ test("refused: an `AuthKind` Yazi does not have", function()
 	throws(function() stub.spec_of("regualr") end, "no such AuthKind")
 end)
 
+test("refused: a write to `th`", function()
+	-- Yazi takes one without a word. Here `th` reads through to `stub.th`, so a
+	-- write that landed would shadow every theme a spec plants after it.
+	throws(function() rawget(_G, "th").supaline = {} end, "write to `stub.th`")
+end)
+
 test("refused: a DDS kind Yazi does not publish", function()
 	-- `bulk` is what Yazi published before `bulk-rename`, and a subscription
 	-- to it would never fire.
