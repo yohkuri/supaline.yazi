@@ -146,7 +146,7 @@ end
 --- two; `👩‍💻` and `👍🏽` are two apiece where their characters add up to four.
 ---
 --- The two disagreeing is not a detail of the model. It is the reason
---- `column.lua` cuts on cluster boundaries, and a stub that added characters
+--- `layout.lua` cuts on cluster boundaries, and a stub that added characters
 --- up here would let that be deleted with the suite still green.
 ---@param s string
 ---@return integer
@@ -400,7 +400,7 @@ end
 --- above, each attribute under the *theme's* key -- `reversed`, where the
 --- method is `reverse` -- as the boolean the field holds, and nothing at all
 --- for a key nobody set. `ui.Style()` answers `{}`. Measured on 26.9.1 and
---- pinned by `colour_spec.lua`, because `colour.lua` reads a themed style
+--- pinned by `colour_spec.lua`, because `style.lua` reads a themed style
 --- through this and nothing else could tell it what the keys are.
 ---@return table
 function Style:raw()
@@ -587,7 +587,7 @@ end
 ---   * it counts characters while the width is counted in cells, so a line it
 ---     thinks fits can come back wider than `max`;
 ---   * it **modifies the line it was given** and hands that same line back,
----     rather than building a new one. `cut` in `column.lua` says so and
+---     rather than building a new one. `cut` in `layout.lua` says so and
 ---     relies on it; a column holding on to a renderable across rows would
 ---     find it cut down by the first row that overflowed.
 ---
@@ -1089,7 +1089,7 @@ function M.install(root)
 	-- `cx.active:history(url)` the thing that looks wrong when a spec swaps it
 	-- out. It declares nothing, though -- `tab__Tab` is `(exact)`, so a field
 	-- this table adds is the stub's alone. The type `types.yazi` leaves out is
-	-- `supaline.Tab` in `column.lua`, beside the rest of the disagreements.
+	-- `supaline.Tab` in `types.lua`, beside the rest of the disagreements.
 	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
 
 	-- Whatever the module returned, handed back exactly as it came. This used

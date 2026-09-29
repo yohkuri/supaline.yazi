@@ -1,11 +1,15 @@
 --- @since 26.9.1
---- Pure sRGB/Oklab arithmetic. Parsing style syntax belongs to style.lua.
+--- Pure sRGB/Oklab arithmetic. Reading what a user writes for a colour
+--- belongs to paint.lua.
 ---@class supaline.ColourModule
 local M = {}
 
--- How many styles a ramp is quantised into. Why 64 rather than some other
--- number is beside the `local STEPS` in `style.lua` that reads this one; what
--- is here is the line, and the line is read from outside Lua.
+-- How many styles a ramp is quantised into. Not an option, because being
+-- generous costs nothing per row: the styles are built once per theme and
+-- indexed. 64 puts adjacent steps of the widest ramp measured -- green to red
+-- -- 13/255 apart in the strongest channel, and more colours in a ramp than a
+-- terminal has rows. A colour per magnitude is a different request, and
+-- coarse quantising is the wrong way to grant it.
 --
 -- `test/setup.py` takes the number off it with a regular expression, to build
 -- one file per step, so the *shape* of this line is load-bearing: a trailing
@@ -238,7 +242,7 @@ end
 ---@param stops integer[][]
 ---@return string[] `STEPS` colours, the first stop's end first
 function M.ramp(stops)
-	-- `M.stops` refuses a single colour on the way in, but this is reachable
+	-- `paint.stops` refuses a single colour on the way in, but this is reachable
 	-- without it and `segments` would then be zero: `lab[seg + 1]` is nil and
 	-- the failure reads as a bug in here rather than as a ramp with one end.
 	if #stops < 2 then

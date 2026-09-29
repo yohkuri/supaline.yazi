@@ -1,10 +1,10 @@
 --- Assemble a single column through the same stages as setup, without installing
 --- a Linemode. Tests inspect each stage explicitly; no production compatibility
 --- facade retains the old mutable Column object.
-local column = require(".column")
+local appearance = require(".appearance")
 local layout = require(".layout")
 local runtime = require(".runtime")
-local style = require(".style")
+local schema = require(".schema")
 
 ---@class supaline.ColumnCase
 ---@field plan supaline.ColumnPlan
@@ -14,13 +14,17 @@ local style = require(".style")
 ---@class supaline.ColumnCases
 local M = {}
 
+--- Where a case's column is written, so a refusal names it `spec` -- the way
+--- one in a linemode names `setup.linemodes.detail[2]`.
+M.AT = schema.path("spec")
+
 ---@param registry supaline.Registry
 ---@param spec supaline.ColumnSpec
 ---@param cfg supaline.Cfg
 ---@return supaline.ColumnCase
 function M.prepare(registry, spec, cfg)
-	local plan = registry.compile(spec, cfg)
-	local paint = style.column(plan, cfg.band or {}, th.supaline or {})
+	local plan = registry.compile(spec, M.AT, cfg)
+	local paint = appearance.column(plan, cfg.band, th.supaline or {})
 	return { plan = plan, paint = paint, ctx = runtime.context(plan, paint, nil) }
 end
 

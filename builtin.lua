@@ -23,7 +23,7 @@
 --- any definition in it, including one added after this was written.
 ---
 --- What they do differ in is `stats`, and there the difference is
---- load-bearing: `style.lua` refuses a gradient on a column that declares none,
+--- load-bearing: `appearance.lua` refuses a gradient on a column that declares none,
 --- so declaring one is the whole of what lets a user write a gradient over
 --- that column. `size` and the three time columns do. `count` does not, and
 --- cannot honestly -- `entries` below answers `-` for a directory Yazi has
@@ -31,7 +31,7 @@
 --- already been, and the same listing would colour differently on a second
 --- visit. The rest have no number to take extremes of at all.
 
-local column = require(".column")
+local runtime = require(".runtime")
 ---@class supaline.BuiltinModule
 local M = {}
 
@@ -41,9 +41,9 @@ function M.definitions()
 	local function register(name, def) definitions[name] = def end
 
 	-- Extremes of the current listing, the way `eza --color-scale-mode=gradient`
-	-- takes them. In `column.lua` rather than here, because a user-written ranged
-	-- column wants the same public helper.
-	local extremes = column.extremes
+	-- takes them. In `runtime.lua` rather than here, beside `ctx.ratio` that reads
+	-- them, and public, because a user-written ranged column wants the same.
+	local extremes = runtime.extremes
 
 	--- The entry count of an already-visited directory. Yazi keeps folders it has
 	--- listed in the tab's history; one it has never opened has no count to show.
@@ -68,7 +68,7 @@ function M.definitions()
 	--
 	-- A default, not a decision taken out of the user's hands: a `scale` written
 	-- in `setup` outranks this, and one written in the spec outranks that.
-	-- `column.lua` resolves the three.
+	-- `column.lua`'s `merge` resolves the three.
 	register("size", {
 		width = 7,
 		align = "right",

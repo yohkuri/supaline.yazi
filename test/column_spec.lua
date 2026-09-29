@@ -1,6 +1,7 @@
 --- `column.lua`: spec normalisation, cell layout, the ratio contract, and the
 --- two width shapes that are derived from the listing.
 
+local appearance = require(".appearance")
 local column = require(".column")
 ---@type supaline.ColumnCases
 local cases = dofile(ROOT .. "/test/column_case.lua")
@@ -12,7 +13,7 @@ local cell, for_folder, resolve_width = cases.cell, cases.for_folder, cases.widt
 ---@return supaline.ColumnCase
 local function prepare(spec, cfg) return cases.prepare(registry, spec, cfg) end
 
-local CFG = { scale = "linear" }
+local CFG = { scale = "linear", band = {} }
 
 --- Normalise a spec and render one file through it, returning plain text.
 ---@param spec any
@@ -37,8 +38,8 @@ end)
 
 test("normalize: a use site may override the definition's `render`", function()
 	-- `render` is a column key like any other, so a use site may write one and
-	-- `column.lua` takes the spec's: `opts.render or def.render` rather than
-	-- `pick`. Pinned because nothing else says so, and because the shape reads
+	-- `column.lua`'s `merge` takes the use's over the definition's. Pinned
+	-- because nothing else says so, and because the shape reads
 	-- as a definition -- a definition is the other table that writes a
 	-- `render`, and what tells the two apart is the name at `[1]`.
 	register("over", { width = 6, align = "left", render = function() return "def" end })
@@ -55,8 +56,8 @@ test("normalize: an option written on the definition survives, `false` and all",
 	-- `opts[k] == nil and def[k] or opts[k]` idiom collapsed it to nil, so a
 	-- definition that said `separator = false` still got a separator drawn.
 	register("tight", { width = 3, separator = false, render = function() return "x" end })
-	eq(prepare("tight", CFG).paint.sep, false)
-	eq(prepare({ "tight", separator = "|" }, CFG).paint.sep.text, "|", "the use site still wins")
+	eq(prepare("tight", CFG).plan.separator, false)
+	eq(prepare({ "tight", separator = "|" }, CFG).plan.separator.text, "|", "the use site still wins")
 end)
 
 test("normalize: a bare function", function()
@@ -158,7 +159,7 @@ test("normalize: a value the shared keys do not take is refused", function()
 	-- writes into the spec it is handed, so one table answers all three.
 	---@diagnostic disable-next-line: assign-type-mismatch
 	local centred = { "fixed", align = "centre" }
-	throws(function() prepare(centred, CFG) end, "`align` of column `fixed`")
+	throws(function() prepare(centred, CFG) end, "spec.align: ")
 	throws(function() prepare(centred, CFG) end, "must be `left` or `right`")
 	-- What was written comes back in the message. The right spelling is not
 	-- guessable from the wrong one, and neither is which of several columns
@@ -173,11 +174,10 @@ test("normalize: a value the shared keys do not take is refused", function()
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() prepare({ "fixed", scale = "LOG" }, CFG) end, "must be `linear` or `log`")
 
-	-- `false` rather than a wrong string, because `scale` is the one key of
-	-- the three whose sources are read with an `or` chain rather than through
-	-- `pick`, and an `or` skips a `false` the way it skips a nil. This used to
-	-- fall past `M.one_of` to the next source and be defaulted, which is the
-	-- whole mistake the refusals here were written to end.
+	-- `false` rather than a wrong string, because `scale` is the one key whose
+	-- sources are merged with an `or` chain, and an `or` skips a `false` the
+	-- way it skips a nil. It has to be refused where it is read, before any
+	-- chain can default it.
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() prepare({ "fixed", scale = false }, CFG) end, "must be `linear` or `log`")
 	---@diagnostic disable-next-line: assign-type-mismatch
@@ -193,7 +193,7 @@ test("normalize: a value the shared keys do not take is refused", function()
 end)
 
 test("normalize: a key that is called rather than read must be a function", function()
-	-- The three keys `COLUMN_KEYS` holds a type for, and the two of them that
+	-- The three keys `COMMON` in `column.lua` reads as functions, and the two that
 	-- were taken on trust. Each mistake they let through was answered
 	-- somewhere, and somewhere is the problem: `stats = 42` compiled, and
 	-- reached the reader at bind time as "column `fixed` threw from its
@@ -209,11 +209,11 @@ test("normalize: a key that is called rather than read must be a function", func
 
 	---@diagnostic disable-next-line: assign-type-mismatch
 	local counted = { "fixed", stats = 42 }
-	throws(function() prepare(counted, CFG) end, "`stats` of column `fixed`")
+	throws(function() prepare(counted, CFG) end, "spec.stats: ")
 	throws(function() prepare(counted, CFG) end, "must be a function, got `42`")
 
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() prepare({ "fixed", refresh = 42 }, CFG) end, "`refresh` of column `fixed`")
+	throws(function() prepare({ "fixed", refresh = 42 }, CFG) end, "spec.refresh: ")
 	-- Named by its type rather than shown, the way the sets name one.
 	---@diagnostic disable-next-line: assign-type-mismatch
 	throws(function() prepare({ "fixed", refresh = {} }, CFG) end, "got a table")
@@ -223,25 +223,26 @@ test("normalize: a key that is called rather than read must be a function", func
 	-- site may write one over the definition's, and that one went unread until
 	-- `layout.cell` tried to call it.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() prepare({ "fixed", render = "nope" }, CFG) end, "`render` of column `fixed`")
+	throws(function() prepare({ "fixed", render = "nope" }, CFG) end, "spec.render: ")
 
-	-- A definition's own, for the reason the alignment above gives: `pick`
-	-- reads the spec and then the definition, so a check on the spec alone
-	-- leaves exactly the half a reader of the use site cannot see.
-	---@diagnostic disable-next-line: assign-type-mismatch
-	register("untidy", { width = 4, refresh = 42, render = function() return "ab" end })
-	throws(function() prepare("untidy", CFG) end, "`refresh` of column `untidy`")
+	-- A definition's own, refused where it is registered: a check on the use
+	-- alone would leave exactly the half a reader of the use site cannot see.
+	throws(function()
+		---@diagnostic disable-next-line: assign-type-mismatch
+		register("untidy", { width = 4, refresh = 42, render = function() return "ab" end })
+	end, 'column("untidy").refresh: ')
 end)
 
 test("normalize: a definition's own wrong value is refused too", function()
-	-- `pick` reads the spec and then the definition, so a check that looked at
-	-- the spec alone would let a definition write `align = "centre"` and have
-	-- every use of that column draw it silently -- the worse of the two, since
-	-- the reader of a use site cannot see the definition.
-	---@diagnostic disable-next-line: assign-type-mismatch
-	register("bent", { width = 4, align = "centre", render = function() return "ab" end })
-	throws(function() prepare("bent", CFG) end, "`align` of column `bent`")
-	throws(function() prepare({ "bent" }, CFG) end, "`align` of column `bent`")
+	-- A use reads the definition's value wherever it wrote none, so one that
+	-- slipped through would reach every use of that column silently -- the
+	-- worse of the two, since the reader of a use site cannot see it. Refused
+	-- as it is registered, which is before any use exists.
+	throws(function()
+		---@diagnostic disable-next-line: assign-type-mismatch
+		register("bent", { width = 4, align = "centre", render = function() return "ab" end })
+	end, 'column("bent").align: must be `left` or `right`')
+	throws(function() prepare("bent", CFG) end, "unknown column `bent`")
 end)
 
 test("normalize: a width that would draw nothing is refused", function()
@@ -252,10 +253,10 @@ test("normalize: a width that would draw nothing is refused", function()
 	register("plain", { render = function() return "ab" end })
 
 	for _, w in ipairs { 0, -3 } do
-		throws(function() prepare({ "plain", width = w }, CFG) end, "`width` of column `plain`")
+		throws(function() prepare({ "plain", width = w }, CFG) end, "spec.width: ")
 		throws(function() prepare({ "plain", width = w }, CFG) end, "must be a whole number of cells, 1 or more")
 	end
-	throws(function() prepare({ "plain", max_width = 0 }, CFG) end, "`max_width` of column `plain`")
+	throws(function() prepare({ "plain", max_width = 0 }, CFG) end, "spec.max_width: ")
 	throws(function() prepare({ "plain", max_width = -1 }, CFG) end, "got `-1`")
 
 	-- Not floored. Rounding is a guess about which of two whole numbers was
@@ -263,21 +264,20 @@ test("normalize: a width that would draw nothing is refused", function()
 	throws(function() prepare({ "plain", width = 3.7 }, CFG) end, "got `3.7`")
 	throws(function() prepare({ "plain", max_width = 2.5 }, CFG) end, "got `2.5`")
 
-	-- `max_width` had no check of any kind: a string reached `cap`, which
-	-- compares it against a number, and the reader got `attempt to compare
-	-- string with number` out of a line of `column.lua` rather than anything
-	-- naming the key they wrote.
+	-- A string would otherwise reach `cap`, which compares it against a
+	-- number, and the reader would get `attempt to compare string with number`
+	-- rather than anything naming the key they wrote.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() prepare({ "plain", max_width = "x" }, CFG) end, "`max_width` of column `plain`")
+	throws(function() prepare({ "plain", max_width = "x" }, CFG) end, "spec.max_width: ")
 
 	-- Measured on 5.5.1: `math.tointeger("3")` answers 3, so the type has to be
 	-- asked before the conversion or a width written as a string passes as one.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() prepare({ "plain", max_width = "3" }, CFG) end, "`max_width` of column `plain`")
+	throws(function() prepare({ "plain", max_width = "3" }, CFG) end, "spec.max_width: ")
 	-- `width` keeps its own message for a value that is no kind of width,
 	-- because it takes two more shapes than `max_width` does.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() prepare({ "plain", width = "3" }, CFG) end, 'must be a number, "auto", or a function')
+	throws(function() prepare({ "plain", width = "3" }, CFG) end, 'must be a number of cells, "auto", or a function')
 end)
 
 test("normalize: a width it does take still goes through", function()
@@ -384,7 +384,7 @@ test("register: an inline definition's `options` is checked too", function()
 	throws(function()
 		local options = "format" ---@type any
 		prepare({ render = function() return "x" end, options = options }, CFG)
-	end, "declares `options` as a string")
+	end, "spec.options: must be the list of names this column reads off `ctx.opts`")
 	throws(function()
 		local options = { "width" } ---@type any
 		prepare({ render = function() return "x" end, options = options }, CFG)
@@ -480,10 +480,10 @@ test("register: a definition is swept the same way, and `options` is checked", f
 		-- for -- and this one would then fail the type check, not the suite.
 		local options = "format" ---@type any
 		register("odd", { render = function() return "x" end, options = options })
-	end, "declares `options` as a string")
+	end, 'column("odd").options: must be the list of names')
 	throws(function()
 		register("odd", { render = function() return "x" end, options = {} })
-	end, "as an empty list")
+	end, "got an empty list")
 	throws(function()
 		local options = { 42 } ---@type any
 		register("odd", { render = function() return "x" end, options = options })
@@ -567,7 +567,7 @@ test("normalize: an unusable width is refused", function()
 	throws(function()
 		---@diagnostic disable-next-line: assign-type-mismatch
 		prepare({ render = function() return "" end, width = "wide" }, CFG)
-	end, 'must be a number, "auto", or a function')
+	end, 'must be a number of cells, "auto", or a function')
 end)
 
 test("register: a column needs a render function", function()
@@ -575,7 +575,7 @@ test("register: a column needs a render function", function()
 	throws(function() register("bad", {}) end, "needs a `render` function")
 	throws(function()
 		register("", { render = function() end })
-	end, "non-empty name")
+	end, "the non-empty string it is registered under")
 end)
 
 test("register: a name a theme field cannot hold is refused here", function()
@@ -653,18 +653,20 @@ end)
 
 register("plain", { width = 2, render = function() return "x" end })
 
---- The record `normalize` puts on a column for the separator written at
---- `value`. Read through a column rather than through `setup` because a
---- column's separator is the one of the three places that reached Yazi
---- unread: `separator = 42` emptied the pane, with the cause a whole session
---- behind it.
+--- The separator a column carries for the value written at `value`, with a
+--- style written as a function called the way a build calls it. Read through
+--- a column rather than through `setup`, because a column's own separator is
+--- the one of the three places nothing else reads before a row does.
 ---@param value any
----@return supaline.Sep
+---@return { text: string, style: unknown? }
 local function separator(value)
-	-- Cast because a column's `sep` is `false` where the column drops the
-	-- separator before it, and that is the one value nothing below writes:
-	-- every call here hands in a separator for `style.separator` to read.
-	return prepare({ "plain", separator = value }, CFG).paint.sep --[[@as supaline.Sep]]
+	-- Cast because a column's own is `false` where it drops the separator
+	-- before it, and that is the one value nothing below writes.
+	local sep = prepare({ "plain", separator = value }, CFG).plan.separator --[[@as supaline.Sep]]
+	if sep.call then
+		return { text = sep.text, style = appearance.separator(sep) or nil }
+	end
+	return sep
 end
 
 --- Assert that a separator is refused, with a message mentioning `pattern`.
@@ -698,10 +700,10 @@ test("separator: the table form with no style says what the bare string says", f
 end)
 
 test("separator: a style written as a function is called", function()
-	-- Called inside `normalize`, which runs inside `build`, so it follows a
-	-- theme reload the way a column's `style` function does. That it is called
-	-- again on the next build is `main_spec.lua`'s to say, since only `setup`
-	-- has a build to run twice.
+	-- Called when the appearance is resolved, which is every `build`, so it
+	-- follows a theme reload the way a column's `style` function does. That it
+	-- is called again on the next build is `main_spec.lua`'s to say, since only
+	-- `setup` has a build to run twice.
 	eq(separator({ "|", style = function() return "#ff8800" end }).style.fg, "#ff8800")
 
 	-- And named when it raises, which is the half the `pcall` around it is
@@ -709,33 +711,31 @@ test("separator: a style written as a function is called", function()
 	-- against a flavor with no `[status]` section raises `attempt to index a
 	-- nil value`, and it reaches the user as `build`'s notification -- where a
 	-- message carrying no location says nothing about which line to open.
-	refuses_sep(
-		{ "|", style = function() return th.nosuch.field end },
-		"the style function under `separator` of column `plain` raised"
-	)
+	refuses_sep({ "|", style = function() return th.nosuch.field end }, "spec.separator.style(): raised: ")
 end)
 
 test("separator: what a separator is refused for", function()
 	-- Every one of these would be silence without `style.separator`: a
 	-- column's own goes through no other check, and the rest are shapes only
 	-- the table form can hold.
-	refuses_sep(42, "`separator` of column `plain`")
-	refuses_sep({ style = { fg = "cyan" } }, "given nothing to draw")
-	refuses_sep({ 42, style = { fg = "cyan" } }, "given a number to draw")
+	refuses_sep(42, "spec.separator: must be a string or a table")
+	refuses_sep({ style = { fg = "cyan" } }, "spec.separator[1]: must be the text to draw")
+	refuses_sep({ style = { fg = "cyan" } }, "got nothing")
+	refuses_sep({ 42, style = { fg = "cyan" } }, "got a number")
 	refuses_sep({ "|", styel = { fg = "cyan" } }, "`styel`")
-	refuses_sep({ "", style = { fg = "cyan" } }, 'draws "" in a colour')
+	refuses_sep({ "", style = { fg = "cyan" } }, 'spec.separator.style: colours `""`')
 
 	-- `style = false` on a column turns off a colour the theme or the
 	-- definition would otherwise supply. A separator
 	-- has neither behind it, so the value has nothing to mean.
-	refuses_sep({ "|", style = false }, "nothing there to turn off")
+	refuses_sep({ "|", style = false }, "nothing here to turn off")
 end)
 
 test("separator: every key nobody claimed, in an order two runs agree on", function()
 	-- `pairs` walks a table in whatever order the hash gives, so naming
 	-- whichever came up first would hide the second misspelling until the first
-	-- was fixed. The same sentence `panes_of` and `style.layer` are both
-	-- written under.
+	-- was fixed. The same sentence every other table a user writes is
+	-- refused in, through `schema.sweep`.
 	refuses_sep({ "|", styel = 1, colour = 2 }, "`colour`, `styel`")
 end)
 
@@ -1090,24 +1090,24 @@ test("style: a gradient may sit under `bg`, and needs extremes as one under `fg`
 
 	throws(function()
 		prepare({ render = function() return "" end, style = { bg = BLUES } }, CFG)
-	end, "`bg` is a gradient, but that column has no `stats`")
+	end, "`bg` is a gradient, but this column has no `stats`")
 end)
 
 test("style: a column with no extremes to place a value between is refused", function()
 	-- Without `stats` the ratio is nil for every row, so the gradient could
 	-- only ever draw its low end. A gradient that silently is not one has
-	-- nothing else to report it, so `normalize` does -- and names the writer,
-	-- since a theme's gradient reaches a spec that wrote nothing of its own.
+	-- nothing else to report it, so resolving the appearance does -- and names
+	-- the writer, since a theme's gradient reaches a spec that wrote nothing.
 	throws(function()
 		prepare({ render = function() return "" end, style = BLUES }, CFG)
-	end, "the `style` of column `?`: `fg` is a gradient, but that column has no `stats`")
+	end, "spec.style: `fg` is a gradient, but this column has no `stats`")
 	throws(function()
 		prepare({ render = function() return "" end, style = BLUES }, CFG)
 	end, "Give the column a `stats` function, or write a flat colour")
 
 	register("hue2b", { render = function() return "" end })
 	with(stub.th, "supaline", { hue2b = BLUES }, function()
-		throws(function() prepare("hue2b", CFG) end, "the `[supaline] hue2b` field in your theme: `fg` is a gradient")
+		throws(function() prepare("hue2b", CFG) end, "theme.toml [supaline].hue2b: `fg` is a gradient")
 		throws(function() prepare("hue2b", CFG) end, "Write a flat colour there instead")
 	end)
 end)
@@ -1123,7 +1123,7 @@ test("style: a table is the theme's spelling, and anything else is refused", fun
 	-- Still an allow-list: what is not a colour, a style table, a `ui.Style`
 	-- or `false` survives `setup` and then empties the screen, because
 	-- `Span:style` takes a Style or nil and a number reaches Yazi as neither.
-	throws(function() coloured { style = 42 } end, "is a number")
+	throws(function() coloured { style = 42 } end, "got a number")
 end)
 
 test("style: a function is called for its style, and called again on the next build", function()
@@ -1286,7 +1286,7 @@ test("style: a function that fails is reported in terms of the file it was writt
 	-- refusal under test is the runtime one.
 	---@diagnostic disable-next-line: return-type-mismatch
 	register("hue5", { render = function() return "" end, style = function() return 42 end })
-	throws(function() prepare("hue5", CFG) end, "what the default `style` function of column `hue5` returned")
+	throws(function() prepare("hue5", CFG) end, 'column("hue5").style(): must be a colour string')
 
 	-- The call raising is the likelier half: a flavor with no such section, a
 	-- field that moved. Lua's own message for it carries no column at all. On
@@ -1295,30 +1295,27 @@ test("style: a function that fails is reported in terms of the file it was writt
 	register("hue5b", { render = function() return "" end })
 	throws(function()
 		prepare({ "hue5b", style = function() return th.nosuch.field end }, CFG)
-	end, "the `style` function of column `hue5b` raised")
+	end, "spec.style(): raised: ")
 end)
 
 test("style: a value Yazi would refuse says which column it was", function()
 	register("hue", { render = function() return "" end, style = "nosuchcolour" })
-	throws(function() prepare("hue", CFG) end, "the default `style` of column `hue`")
+	throws(function() prepare("hue", CFG) end, 'column("hue").style: `nosuchcolour` is not a colour')
 
 	register("hue2", {
 		render = function() return "" end,
 		stats = function() return nil end,
 		style = "cyan -> #7fd4ff",
 	})
-	throws(function() prepare("hue2", CFG) end, "column `hue2`")
+	throws(function() prepare("hue2", CFG) end, 'column("hue2").style: ')
 
 	register("att5", { render = function() return "" end })
-	throws(
-		function() prepare({ "att5", style = { fgg = "cyan" } }, CFG) end,
-		"the `style` of column `att5`: `fgg` is not a style key"
-	)
+	throws(function() prepare({ "att5", style = { fgg = "cyan" } }, CFG) end, "spec.style: `fgg` is not a style key")
 	-- Suppressed on the line rather than at the top of the file: the class
 	-- refuses this at check time, and the refusal under test is the runtime one
 	-- -- the only one a user's `init.lua` ever meets, since no check reads it.
 	---@diagnostic disable-next-line: assign-type-mismatch
-	throws(function() prepare({ "att5", style = 42 }, CFG) end, "the `style` of column `att5` is a number")
+	throws(function() prepare({ "att5", style = 42 }, CFG) end, "spec.style: must be a colour string")
 end)
 
 -- --- derived widths --------------------------------------------------------

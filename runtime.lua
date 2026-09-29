@@ -1,11 +1,18 @@
 --- @since 26.9.1
---- Folder preparation and drawing. Each cached pane owns its contexts; plans
---- and appearances are read-only inputs, never rebound to a different folder.
+--- Folders prepared for drawing, and the rows drawn from them. A plan and an
+--- appearance are read-only inputs; each prepared folder owns its contexts.
+---
+--- Every call into a column's own code is made here under `pcall`. Measured on
+--- 26.9.1: an error raised under a linemode's render blanks the whole screen,
+--- on every frame, and `refresh` runs from places nobody can raise to.
 local layout = require(".layout")
+local report = require(".report")
+local schema = require(".schema")
 
 ---@class supaline.RuntimeModule
 local M = {}
 
+--- What a `render` is handed beside the file.
 ---@class supaline.Ctx
 ---@field style unknown the flat style, or the ramp's low end
 ---@field fg_written boolean an explicit foreground, including false
@@ -15,8 +22,8 @@ local M = {}
 ---@field ratio fun(value: number?): number?
 ---@field style_at fun(ratio: number?): unknown
 
----@class supaline.PreparedColumn
----@field column supaline.ColumnPlan
+---@class supaline.Prepared
+---@field cell supaline.Cell
 ---@field ctx supaline.Ctx
 
 ---@class supaline.Runtime
@@ -24,15 +31,39 @@ local M = {}
 ---@field invalidate fun()
 ---@field refresh fun()
 
+--- A `stats` over the extremes of the listing: what a gradient is stretched
+--- between and what `ctx.ratio` normalises against. A value at or below zero
+--- stays out of it -- a directory Yazi has not sized, a file with no
+--- timestamp. Rounding is `get`'s, since `render` has to round the same way.
+---@param get fun(file: supaline.File): number?
+---@return fun(files: supaline.File[]): table?
+function M.extremes(get)
+	return function(files)
+		local min, max
+		for i = 1, #files do
+			local v = get(files[i])
+			if v and v > 0 then
+				if not min or v < min then
+					min = v
+				end
+				if not max or v > max then
+					max = v
+				end
+			end
+		end
+		return min and { min = min, max = max } or nil
+	end
+end
+
 ---@param stats any
 ---@return boolean
 function M.has_extremes(stats)
 	return type(stats) == "table" and type(stats.min) == "number" and type(stats.max) == "number"
 end
 
---- No range state is stored on the public context or on the column plan.
---- During auto measurement width is initially nil; the completed context is
---- published to the cache only after the width pass has finished.
+--- The context one column is drawn with in one folder. The range lives in
+--- the closures rather than on the context, so a context handed out is never
+--- rebound to another folder.
 ---@param col supaline.ColumnPlan
 ---@param paint supaline.ColumnAppearance
 ---@param stats any
@@ -73,7 +104,8 @@ function M.context(col, paint, stats, width)
 				return ctx.style
 			end
 			local i = 1 + math.floor(r * last + 0.5)
-			-- NaN is possible with a custom logarithmic range below -1.
+			-- A log scale over extremes at or below -1 makes a NaN, which
+			-- answers false to every comparison.
 			if not (i >= 1) then
 				i = 1
 			elseif i > n then
@@ -87,28 +119,31 @@ function M.context(col, paint, stats, width)
 	return ctx
 end
 
+---@param width integer
+---@param max integer?
+---@return integer
 local function cap(width, max) return max and width > max and max or width end
 
---- User callbacks may throw; the folder pass contains this whole operation.
---- An unusable returned width is a refusal, not a callback exception.
+--- A column's width in one folder. What a `width` function returns that is
+--- no count of cells is supaline's refusal, and comes back beside a nil
+--- rather than raised: the caller's `pcall` could not tell it from the
+--- function throwing.
 ---@param col supaline.ColumnPlan
 ---@param ctx supaline.Ctx
 ---@param files supaline.File[]
 ---@return integer?
----@return string?
+---@return string? why
 function M.width(col, ctx, files)
 	local width = col.width
 	if width.kind == "computed" then
 		local w = width.compute(ctx.stats)
-		local cells = type(w) == "number" and math.tointeger(w) or nil
-		if not cells or cells < 1 then
-			local t = type(w)
-			local written = (t == "string" or t == "number") and string.format("`%s`", tostring(w)) or "a " .. t
+		local cells = schema.cells_of(w)
+		if not cells then
 			return nil,
 				string.format(
 					"supaline: the `width` function of column `%s` returned %s; it must return a whole number of cells, 1 or more",
 					col.name or "?",
-					written
+					schema.as_written(w)
 				)
 		end
 		return cap(cells, col.max_width)
@@ -117,9 +152,7 @@ function M.width(col, ctx, files)
 	end
 	local widest = 0
 	for i = 1, #files do
-		local out = col.render(files[i], ctx)
-		local measured = layout.measure(out)
-		widest = math.max(widest, measured)
+		widest = math.max(widest, layout.measure(col.render(files[i], ctx)))
 	end
 	return cap(widest, col.max_width)
 end
@@ -129,23 +162,22 @@ end
 ---@param reporter supaline.Reporter survives a theme replacement, not a setup
 ---@return supaline.Runtime
 function M.new(plan, appearance, reporter)
-	local cache, cache_n = {}, 0 ---@type table<string, supaline.PreparedColumn[]>, integer
+	-- At most eight folders, cleared whole when a ninth arrives.
+	local cache, cache_n = {}, 0 ---@type table<string, supaline.Prepared[]>, integer
 	local last_mode, last_pane, last_cwd, last_n, last_prepared
-	-- A missing folder is a pane identity too. In particular, two modes drawing
-	-- the filesystem root's absent parent must not borrow each other's context.
-	local absent = {} ---@type table<supaline.ModePlan, table<string, supaline.PreparedColumn[]>>
 
 	local function invalidate()
-		cache, cache_n, absent = {}, 0, {}
+		cache, cache_n = {}, 0
 		last_mode, last_pane, last_cwd, last_n, last_prepared = nil, nil, nil, nil, nil
 	end
 
-	---@param cols supaline.ColumnPlan[]
+	---@param cells supaline.Cell[]
 	---@param files supaline.File[]?
-	---@return supaline.PreparedColumn[]
-	local function prepare(cols, files)
+	---@return supaline.Prepared[]
+	local function prepare(cells, files)
 		local prepared = {}
-		for i, col in ipairs(cols) do
+		for i, cell in ipairs(cells) do
+			local col = cell.column
 			local paint, stats = appearance.columns[col], nil
 			if files and col.stats then
 				local ok, got = pcall(col.stats, files)
@@ -158,6 +190,8 @@ function M.new(plan, appearance, reporter)
 					reporter.stats(col)
 				end
 			end
+			-- Published only once the width pass is done, so a render measured
+			-- for `auto` sees `width` nil and nothing else does.
 			local ctx = M.context(col, paint, stats)
 			if files and col.needs_pass then
 				local ok, got, why = pcall(M.width, col, ctx, files)
@@ -169,36 +203,28 @@ function M.new(plan, appearance, reporter)
 					ctx.width = got
 				end
 			end
-			prepared[i] = { column = col, ctx = ctx }
+			prepared[i] = { cell = cell, ctx = ctx }
 		end
 		return prepared
 	end
 
+	--- A missing folder is a pane of its own too: two linemodes drawing the
+	--- filesystem root's absent parent must not share a context. Its key has
+	--- one separator where a folder's has three.
 	---@param mode supaline.ModePlan
 	---@param pane string
 	---@param folder supaline.Folder?
-	---@return supaline.PreparedColumn[]
+	---@return supaline.Prepared[]
 	local function prepared_for(mode, pane, folder)
-		if not folder then
-			local by_pane = absent[mode]
-			if not by_pane then
-				by_pane = {}
-				absent[mode] = by_pane
-			end
-			if not by_pane[pane] then
-				by_pane[pane] = prepare(mode.cols[pane])
-			end
-			return by_pane[pane]
-		end
-		local files, cwd = folder.files, folder.cwd
-		local n = #files
+		local files, cwd = folder and folder.files, folder and folder.cwd
+		local n = files and #files or 0
 		if last_mode == mode and last_pane == pane and last_cwd == cwd and last_n == n then
 			return last_prepared
 		end
-		local key = mode.name .. "\0" .. pane .. "\0" .. tostring(cwd) .. "\0" .. n
+		local key = cwd and table.concat({ mode.name, pane, tostring(cwd), n }, "\0") or (mode.name .. "\0" .. pane)
 		local prepared = cache[key]
 		if not prepared then
-			prepared = prepare(mode.cols[pane], files)
+			prepared = prepare(mode.panes[pane], files)
 			if cache_n >= 8 then
 				cache, cache_n = {}, 0
 			end
@@ -220,26 +246,29 @@ function M.new(plan, appearance, reporter)
 	end
 
 	local function render(mode, pane, file, folder)
-		local prepared = prepared_for(mode, pane, folder)
 		local out = {}
-		for i, one in ipairs(prepared) do
-			local col, ctx = one.column, one.ctx
-			local sep = appearance.columns[col].sep
-			if i > 1 and sep ~= false then
-				sep = sep or appearance.separators[mode]
-				out[#out + 1] = sep.style and ui.Span(sep.text):style(sep.style) or sep.text
+		for _, one in ipairs(prepared_for(mode, pane, folder)) do
+			local cell, ctx = one.cell, one.ctx
+			local sep = cell.sep
+			if sep then
+				local style = sep.style
+				if sep.call then
+					style = appearance.seps[sep] or nil
+				end
+				out[#out + 1] = style and ui.Span(sep.text):style(style) or sep.text
 			end
-			-- Keep layout in the protected call: a malformed renderable or a
-			-- failing truncate is just as capable of blanking Yazi's Root.
-			local ok, cell = pcall(layout.cell, col, ctx, file)
+			-- Layout inside the protected call too: a malformed renderable or a
+			-- failing truncate blanks the screen as surely as a throwing render.
+			local ok, drawn = pcall(layout.cell, cell.column, ctx, file)
 			if not ok then
-				reporter.threw(col, "render", cell)
-				cell = string.rep("!", ctx.width or 1)
+				reporter.threw(cell.column, "render", drawn)
+				drawn = string.rep(report.BROKEN, ctx.width or 1)
 			end
-			out[#out + 1] = cell
+			out[#out + 1] = drawn
 		end
 		return ui.Line(out)
 	end
+
 	return { render = render, invalidate = invalidate, refresh = refresh }
 end
 

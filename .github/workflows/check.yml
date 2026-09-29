@@ -424,9 +424,9 @@ jobs:
     # lifetimes is actually made of, and nothing said so until this job.
     # `main.lua` is the adapter: it reads `cx`, subscribes with `ps`, installs
     # on `Linemode`, and hands everything else down as an argument -- the
-    # theme reaches `style.resolve` as a parameter, the Linemode test reaches
-    # `config.compile` as `is_yazis`, and the screen reaches
-    # `diagnostics.new` as a sink. That arrangement is the whole reason a
+    # theme reaches `appearance.resolve` as a parameter, the Linemode test
+    # reaches `config.compile` as `is_yazis`, and the screen reaches
+    # `report.new` as a sink. That arrangement is the whole reason a
     # theme reload can be exercised in `lifecycle_spec.lua` at all: the trap
     # arrives as a value a spec can pass rather than as a global it would
     # have to stand up first.
@@ -440,11 +440,11 @@ jobs:
     #
     # `ui` is not here and is allowed everywhere. It is the output
     # vocabulary rather than state -- `layout`, `style` and `runtime` build
-    # with it, the stub models it in full, and naming it costs a spec
-    # nothing.
+    # with it, `paint` asks it whether Yazi takes a colour, the stub models it
+    # in full, and naming it costs a spec nothing.
     #
     # Nothing below is caught by the suite. `lifecycle_spec.lua` pins that
-    # the colour arithmetic needs no globals, which is one module of seven; a
+    # the colour arithmetic needs no globals, which is one module of many; a
     # *new* `cx.active` written into `runtime.lua` passes every test green
     # and takes the folder back out of the caller's hands, which is the one
     # thing separating the lifetimes was for.
@@ -485,9 +485,9 @@ jobs:
             to the framework: a module that names one cannot be exercised
             without standing up that much of Yazi, and the four traps no test
             reaches all sit on that surface. main.lua passes down what is
-            needed -- the theme to `style.resolve`, the Linemode test to
-            `config.compile` as `is_yazis`, the screen to `diagnostics.new`
-            as a sink. Take it as a parameter here too.'
+            needed -- the theme to `appearance.resolve`, the Linemode test to
+            `config.compile` as `is_yazis`, the screen to `report.new` as a
+            sink. Take it as a parameter here too.'
 
           only 'main.lua' '(ps|Linemode)' \
             '  `ps` and `Linemode` are the adapter alone. Subscribing and

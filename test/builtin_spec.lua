@@ -19,12 +19,12 @@ for name, def in pairs(definitions) do
 	end
 end
 
-local CFG = { scale = "linear" }
+local CFG = { scale = "linear", band = {} }
 -- A `setup` that said nothing about scale, which is the only way a column
 -- definition's own is what decides. A local rather than a `{}` written at the
 -- call: a table constructor passed straight as an argument is checked for the
 -- fields its class requires, and this one is deliberately without them.
-local NO_SCALE = {}
+local NO_SCALE = { band = {} }
 
 --- Run `fn` with `cx.active:history` answering `folder`, and put the stub's own
 --- back afterwards.

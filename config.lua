@@ -1,20 +1,18 @@
 --- @since 26.9.1
---- Structural configuration compilation. Theme callbacks are left unevaluated.
-local column = require(".column")
-local diagnostics = require(".diagnostics")
+--- What `setup` is handed, read once into a plan: which columns each pane of
+--- each linemode draws, and the separator before each of them. Nothing here
+--- reads the theme or calls a function the configuration wrote.
+local paint = require(".paint")
+local schema = require(".schema")
 local style = require(".style")
+
 ---@class supaline.ConfigModule
 local M = {}
+
 local PANES = { "current", "parent", "preview" }
 
---- What the user writes for one linemode: the columns in order, or a list of
---- columns under each pane that draws something, and the one option that
---- belongs to the linemode rather than to any column in it.
----
---- A pane is a key here rather than a value, so each of the three is a declared
---- field and `parent = 42` is refused by name. A key that is none of the four
---- names is past what the checker reaches into a table constructor, which is
---- what `OPTIONS` below is for.
+--- One linemode: the columns in order, or a list of columns under each pane
+--- that draws something, and the one option that belongs to the linemode.
 ---@class supaline.LinemodeSpec
 ---@field [integer] supaline.ColumnSpec
 ---@field current supaline.ColumnSpec[]? what the current pane draws, instead of the list above
@@ -22,10 +20,9 @@ local PANES = { "current", "parent", "preview" }
 ---@field preview supaline.ColumnSpec[]? what the preview pane draws; nothing by default
 ---@field separator string|supaline.SepSpec|nil overrides the plugin-wide one
 
---- The table `setup` is handed. `linemodes` is the only field it cannot do
---- without and it is still optional here, because `setup` takes the dot call
---- as well as the colon call and has to look at what arrived before it can
---- say which one it was.
+--- The table `setup` is handed. `linemodes` is optional here only because
+--- `setup` takes a dot call as well as a colon call, and has to look at what
+--- arrived before it can say which one it was.
 ---@class supaline.Opts
 ---@field linemodes table<string, supaline.LinemodeSpec>?
 ---@field separator string|supaline.SepSpec|nil
@@ -33,289 +30,211 @@ local PANES = { "current", "parent", "preview" }
 ---@field scale "linear"|"log"|nil
 ---@field band supaline.Bands? the bands a `<->` may name, by name
 
--- What `setup` itself takes, which is the only thing that refuses everything
--- else. The same reason `OPTIONS` above has, one level up: a key in the table
--- constructor `setup` is handed is past what `lua-language-server` checks
--- against `supaline.Opts` -- `(exact)` was measured not to change that -- so
--- `bnad`, `scal` and `seperator` reach this or they reach nobody. A `band`
--- written `bnad` defines no band at all, so the `<->`s that were to use it are
--- each refused for naming nothing -- loud, but pointed at the wrong table: the
--- reader is told to define `fg` while a whole `fg` sits three lines above,
--- spelled right, under a key nobody reads.
---
--- This is the outermost of the five tables a user writes. The other four -- a
--- linemode spec, a separator, a style, and a column spec or definition -- are
--- swept the same way, through `diagnostics.unknown`.
-local SETUP_KEYS = {
-	band = true,
-	linemodes = true,
-	order = true,
-	scale = true,
-	separator = true,
-}
-
-local function claims_setup(key) return SETUP_KEYS[key] end
-
--- The keys above, in the order the message lists them. `key_list_of` sorts,
--- for the reason it gives: `pairs` gives a set back in whatever order the hash
--- does, and a message that reorders itself between runs reads as a different
--- message.
-local SETUP_KEY_LIST = diagnostics.key_list_of(SETUP_KEYS)
-
--- What a key that is none of them most likely meant. Both are mistakes about
--- where a thing goes rather than misspellings: one linemode written where the
--- table of them goes, and a linemode's columns written beside the table
--- instead of inside a linemode in it.
-local SETUP_MEANT = {
-	linemode = "`linemodes` is the spelling, and it is a table of them keyed by the name " .. "each one is switched to",
-	columns = 'columns go inside a linemode -- `linemodes = { detail = { "size", "mtime" } }` '
-		.. "-- rather than beside the table of them",
-}
-
-local SETUP_UNKNOWN = "supaline: %s. `setup` takes %s%s"
-
----@class supaline.Cfg
----@field separator string|supaline.SepSpec
----@field order integer
----@field scale "linear"|"log"|nil
----@field band supaline.Bands
+--- One column in one pane, and what is drawn before it.
+---@class supaline.Cell
+---@field column supaline.ColumnPlan
+---@field sep supaline.Sep? nil for the first column, and for one that wrote `separator = false`
 
 ---@class supaline.ModePlan
 ---@field name string
----@field cols table<string, supaline.ColumnPlan[]>
----@field outer boolean
----@field separator string|supaline.SepSpec|nil
+---@field panes table<string, supaline.Cell[]> only the panes that draw something
+---@field outer boolean whether a pane besides the current one draws
 
 ---@class supaline.Plan
----@field cfg supaline.Cfg
+---@field order integer where the parent/preview child sits among `Linemode`'s
+---@field band supaline.Bands
 ---@field modes table<string, supaline.ModePlan>
----@field columns supaline.ColumnPlan[] each use once, shared pane lists deduplicated
+---@field columns supaline.ColumnPlan[] every column once, a list shared by two panes compiled once
+---@field seps supaline.Sep[] every separator whose style a function returns, drawn or not, once
 ---@field outer boolean
 
--- Quoted by every refusal that is about the shape of a linemode. A message
--- that says what is wrong without saying what to write instead sends the
--- reader back to the README for the half it left out, which is why the one
--- below names the keys a linemode takes rather than only the key it got.
-local PANES_HELP = "supaline: a linemode is a list of columns, drawn in the current pane -- "
-	.. 'e.g. { "size", "mtime" } -- or a list of columns under each pane it draws in -- '
-	.. 'e.g. { current = { "size" }, parent = { "count" } }'
+local SETUP = schema.record(
+	{
+		band = paint.bands,
+		linemodes = schema.any,
+		order = schema.whole,
+		scale = schema.enum { "linear", "log" },
+		separator = style.separator,
+	},
+	"setup",
+	"`setup` takes `band`, `linemodes`, `order`, `scale` and `separator`",
+	{
+		linemode = "`linemodes` is the spelling, and it is a table of them keyed by the name each one is switched to",
+		columns = 'columns go inside a linemode -- `linemodes = { detail = { "size", "mtime" } }` -- rather '
+			.. "than beside the table of them",
+	}
+)
 
--- What a linemode may carry besides its columns and its panes. Anything else
--- is refused rather than ignored, because nothing else refuses it: a key in a
--- table constructor is past what `lua-language-server` checks against the
--- class -- `(exact)` was measured not to change that -- so `separatorr` and
--- `parnet` reach here or they reach nobody.
-local OPTIONS = { separator = true }
+-- What every refusal about the shape of a linemode says it could have been.
+local LINEMODE = 'A linemode is a list of columns, drawn in the current pane -- `{ "size", "mtime" }` -- '
+	.. 'or a list of columns under each pane it draws in -- `{ current = { "size" }, parent = { "count" } }`'
 
-local OPTION_HELP = "supaline: besides its columns a linemode takes `current`, `parent`, "
-	.. "`preview` and `separator`; got %s"
-
--- A separator is drawn before its column, so the first column of a pane's
--- list has nothing before it and `render` skips the separator there. Written
--- on that column anyway, a `separator` is drawn nowhere and says nothing --
--- the silence every other refusal in this file exists for.
---
--- The message names the pane, because a list is the pane's rather than the
--- linemode's: two panes of one linemode each have a first column, and only a
--- list written under both is the same one twice.
-local FIRST_SEP = "supaline: the first column of `%s` on linemode `%s` was given a "
-	.. "`separator`, which is drawn by nobody: a separator goes before its column, and "
-	.. "the first column has nothing before it. Write it on the column it should "
-	.. "precede, or drop it -- `separator = false` is accepted there, since it asks for "
-	.. "nothing and gets nothing"
-
--- `PANES` as a set, so a key can be classified without walking it. Derived
--- rather than written out, because a list and a set of the same three names
--- are two things to keep in step.
-local IS_PANE = {} ---@type table<string, boolean>
+local IS_PANE = {}
 for _, pane in ipairs(PANES) do
 	IS_PANE[pane] = true
 end
 
--- What a linemode spec is entitled to: its columns at the numeric keys, a pane
--- name, or one of the options above.
-local function claims_spec(key) return type(key) == "number" or IS_PANE[key] or OPTIONS[key] end
+-- A linemode's columns, a pane's name, or its one option.
+local function linemode_key(key) return type(key) == "number" or IS_PANE[key] or key == "separator" end
 
---- How many columns are written in `list`, counting the ones `ipairs` would
---- never reach. `compile` walks a column list with `ipairs`, so it stops at
---- the first missing index and anything past a gap draws nowhere -- the same
---- silence a key nobody claimed is refused for, arrived at by arithmetic
---- rather than by spelling.
----
---- `#list` is what `ipairs` will reach and this is what was written, so the
---- two differing is the whole of the test. `#` alone cannot make it: a list
---- that starts at index 2 has an entry in it and a `#` of 0.
----@param list table
----@return integer
-local function entries_of(list)
-	local n = 0
-	for key in pairs(list) do
-		if type(key) == "number" then
-			n = n + 1
-		end
-	end
-	return n
-end
-
---- What each pane of a linemode draws, keyed by pane name, with a pane that
---- draws nothing absent rather than empty. One table answers both "which
---- panes" and "which columns", so there is one thing for `compile` to walk and
---- one thing per row to look up.
----
---- A linemode written as a bare list of columns draws them in the current pane
---- and nowhere else, which is all Yazi itself does. Naming a pane gives that
---- pane a list of its own, and is then the only place columns may be written:
---- a list left beside the pane keys would be drawn nowhere, and drawing
---- nothing without a word is the failure this refuses rather than ships.
----@param spec supaline.LinemodeSpec
----@return table<string, supaline.ColumnSpec[]> by pane
-local function panes_of(spec)
-	local sets = {}
+--- What each pane of a linemode draws, with a pane that draws nothing absent.
+--- A bare list is the current pane's, which is all Yazi itself draws in.
+--- Naming a pane gives it a list of its own, and is then the only place
+--- columns may be written: one left beside the pane keys would draw nowhere.
+---@param spec table
+---@param at supaline.Path
+---@return table<string, table>
+local function lists_of(spec, at)
+	local lists = {}
 	for _, pane in ipairs(PANES) do
-		local list = spec[pane]
+		local list, where = spec[pane], at:key(pane)
 		if list ~= nil then
 			if type(list) ~= "table" then
-				error(string.format("%s; `%s` was given a %s rather than a list of columns", PANES_HELP, pane, type(list)))
-			elseif #list == 0 then
-				-- Leaving the pane out says exactly this and says it in one
-				-- place, so an empty list is a second spelling of nothing.
-				error(string.format("%s; `%s` was given an empty list -- leave the pane out instead", PANES_HELP, pane))
+				where:refuse("must be a list of columns, got a %s. %s", type(list), LINEMODE)
+			elseif next(list) == nil then
+				-- Leaving the pane out says exactly this, in one place.
+				where:refuse("is an empty list -- leave the pane out instead. %s", LINEMODE)
 			end
-			-- A pane takes columns and nothing else. The options live on the
-			-- linemode, one level up, where they apply to every pane it draws
-			-- in -- and a name written in here is not refused for being the
-			-- wrong option but dropped for being somewhere `ipairs` never
-			-- goes, which is the same silence again.
-			for key in pairs(list) do
-				if type(key) ~= "number" then
-					error(
-						string.format(
-							"%s; `%s` takes a list of columns and nothing else, and was given "
-								.. "`%s` beside them -- an option goes on the linemode itself",
-							PANES_HELP,
-							pane,
-							tostring(key)
-						)
-					)
-				end
+			local others, dense = schema.shape(list)
+			if #others > 0 then
+				where:refuse(
+					"takes a list of columns and nothing else, and was given %s beside them -- an option "
+						.. "goes on the linemode itself",
+					schema.quoted(others)
+				)
+			elseif not dense then
+				where:refuse("has a gap in its numbering, and nothing past a gap is drawn. %s", LINEMODE)
 			end
-			if entries_of(list) ~= #list then
-				error(string.format("%s; `%s` has a gap in its numbering", PANES_HELP, pane))
-			end
-			sets[pane] = list
+			lists[pane] = list
 		end
 	end
 
-	local _, unknown = diagnostics.unknown(spec, claims_spec)
-	if unknown then
-		error(string.format(OPTION_HELP, unknown))
-	end
+	schema.sweep(
+		spec,
+		at,
+		linemode_key,
+		"linemode",
+		"Besides its columns a linemode takes `current`, `parent`, `preview` and `separator`"
+	)
 
-	if next(sets) == nil then
-		-- No pane was named, so the linemode's own list is what the current
-		-- pane draws. An empty one draws nothing there, which is a thing to
-		-- ask for and is pinned as one -- a gap in a list that has entries is
-		-- not, and is refused here as it is under a pane.
-		if entries_of(spec) ~= #spec then
-			error(string.format("%s; this one has a gap in its numbering", PANES_HELP))
+	local _, dense = schema.shape(spec)
+	if next(lists) == nil then
+		-- An empty list draws nothing in the current pane, which is a thing
+		-- to ask for; a gap in one that has entries is not.
+		if not dense then
+			at:refuse("has a gap in its numbering, and nothing past a gap is drawn. %s", LINEMODE)
 		end
 		return { current = spec }
-	-- Every column written on the linemode, not the ones `ipairs` would reach.
-	-- A list starting at index 2 has a `#` of 0, so asking `#` here let a
-	-- stray column through the moment a pane was named -- and refused the very
-	-- same column when it sat at index 1.
-	elseif entries_of(spec) > 0 then
-		error(
-			"supaline: a pane's columns are written under that pane's own name, so the "
-				.. "columns beside them on the linemode would be drawn nowhere; move them "
-				.. "under a pane"
-		)
 	end
-	return sets
+	for key in pairs(spec) do
+		if type(key) == "number" then
+			at:refuse(
+				"names a pane, so its columns go under that pane's own name, and the ones beside the pane "
+					.. "keys would be drawn nowhere; move them under a pane"
+			)
+		end
+	end
+	return lists
 end
 
----@param opts supaline.Opts
+---@param opts table
 ---@param registry supaline.Registry
----@param is_yazis fun(name: string): boolean
+---@param is_yazis fun(name: string): boolean whether a name would replace part of Yazi's `Linemode`
 ---@return supaline.Plan
 function M.compile(opts, registry, is_yazis)
-	-- Before a single key is read off it, and before anything is committed. A
-	-- key this function does not know is not a value it would ever object to;
-	-- it is a key nothing reads, which is the whole of what stands between
-	-- `scal = "log"` and a plugin that quietly scales nothing.
-	local _, _, subject, hints = diagnostics.unknown(opts, claims_setup, "`setup`", SETUP_MEANT)
-	if subject then
-		error(string.format(SETUP_UNKNOWN, subject, SETUP_KEY_LIST, hints))
-	end
+	local root = schema.path("setup")
+	local o = SETUP(opts, root)
+	local band = o.band or {}
+	local cfg = { scale = o.scale, band = band }
+	local wide = o.separator or { text = " " }
 
-	local sep = opts.separator
-	if sep == nil then
-		sep = " "
+	local linemodes, at = o.linemodes, root:key("linemodes")
+	if linemodes ~= nil and type(linemodes) ~= "table" then
+		at:refuse("must be a table of linemodes by name, got a %s", type(linemodes))
+	elseif linemodes == nil or next(linemodes) == nil then
+		at:refuse("names no linemode, so there is nothing to render")
 	end
-	local cfg = {
-		separator = column.snapshot_separator(sep),
-		order = opts.order or 1400,
-		scale = column.one_of("scale", opts.scale, "in `setup`"),
-		band = style.bands(opts.band, "`band` in `setup`"),
-	}
-	local next_specs = opts.linemodes or {}
-	if not next(next_specs) then
-		error("supaline: `linemodes` is empty; there is nothing to render")
-	end
+	---@cast linemodes table
 
-	for name, spec in pairs(next_specs) do
-		-- Yazi's limit is 1 to 20 *characters*; `#name` would refuse a CJK
-		-- name of seven. `utf8.len` returns nil for a string that is not
-		-- valid UTF-8, and such a name is Yazi's to refuse, not ours.
+	local names = {}
+	for name in pairs(linemodes) do
+		names[#names + 1] = name
+	end
+	table.sort(names, function(a, b) return tostring(a) < tostring(b) end)
+	for _, name in ipairs(names) do
+		-- Yazi's limit is 1 to 20 characters, not bytes; a name that is not
+		-- valid UTF-8 is Yazi's to refuse.
 		local len = type(name) == "string" and (utf8.len(name) or #name) or nil
 		if not len or len < 1 or len > 20 then
-			error(string.format("supaline: a linemode name must be 1 to 20 characters, got `%s`", tostring(name)))
+			at:refuse("`%s` cannot be a linemode name: Yazi takes one of 1 to 20 characters", tostring(name))
 		elseif is_yazis(name) then
-			error(
-				string.format(
-					"supaline: `%s` is part of Yazi's `Linemode` component; a linemode of "
-						.. "that name would replace it. Overriding a built-in linemode "
-						.. "(`size`, `mtime`, ...) is fine, replacing the component is not",
-					name
-				)
+			at:refuse(
+				"`%s` is part of Yazi's `Linemode` component; a linemode of that name would replace it. "
+					.. "Overriding a built-in linemode (`size`, `mtime`, ...) is fine, replacing the component is not",
+				name
 			)
-		elseif type(spec) ~= "table" then
-			error(string.format("%s; linemode `%s` is a %s", PANES_HELP, name, type(spec)))
+		elseif type(linemodes[name]) ~= "table" then
+			at:key(name):refuse("must be a table, got a %s. %s", type(linemodes[name]), LINEMODE)
 		end
 	end
 
-	local plan = { cfg = cfg, modes = {}, columns = {}, outer = false }
-	for name, spec in pairs(next_specs) do
-		local sets = panes_of(spec)
-		local built, cols = {}, {}
+	---@type supaline.Plan
+	local plan = { order = o.order or 1400, band = band, modes = {}, columns = {}, seps = {}, outer = false }
+	-- A separator whose style is a function is called on every build, drawn
+	-- or not -- the plugin-wide one under a linemode of one column included --
+	-- so what it returns is refused while `setup` can still say so.
+	local seen = {}
+	local function keep(sep)
+		if type(sep) == "table" and sep.call and not seen[sep] then
+			seen[sep] = true
+			plan.seps[#plan.seps + 1] = sep
+		end
+	end
+	keep(wide)
+	for _, name in ipairs(names) do
+		local spec, where = linemodes[name], at:key(name)
+		local lists = lists_of(spec, where)
+		local own = spec.separator ~= nil and style.separator(spec.separator, where:key("separator")) or wide
+		keep(own)
+
+		local built, panes = {}, {}
 		for _, pane in ipairs(PANES) do
-			local list = sets[pane]
-			local made = list and built[list]
-			if list and not made then
+			local list = lists[pane]
+			local cells = list and built[list]
+			if list and not cells then
+				local base = list == spec and where or where:key(pane)
+				-- A separator goes before its column, so one the spec wrote on
+				-- the first is drawn by nobody. A registered column's own may
+				-- head a list: it is read at every use, and refusing it would
+				-- stop that column being written first anywhere.
 				local first = list[1]
 				if type(first) == "table" and first.separator then
-					error(string.format(FIRST_SEP, pane, name))
+					base:key(1):key("separator"):refuse(
+						"is drawn by nobody: a separator goes before its column, and the first column has "
+							.. "nothing before it. Write it on the column it should precede, or drop it -- "
+							.. "`separator = false` is accepted there, since it asks for nothing and gets nothing"
+					)
 				end
-				made = {}
+				cells = {}
 				for i, entry in ipairs(list) do
-					local col = registry.compile(entry, cfg)
-					made[i] = col
+					local col = registry.compile(entry, base:key(i), cfg)
+					keep(col.separator)
+					local sep = nil ---@type supaline.Sep?
+					if i > 1 and col.separator ~= false then
+						sep = col.separator or own
+					end
+					cells[i] = { column = col, sep = sep }
 					plan.columns[#plan.columns + 1] = col
 				end
-				built[list] = made
+				built[list] = cells
 			end
-			if made and #made > 0 then
-				cols[pane] = made
+			if cells and #cells > 0 then
+				panes[pane] = cells
 			end
 		end
-		local outer = cols.parent ~= nil or cols.preview ~= nil
+		local outer = panes.parent ~= nil or panes.preview ~= nil
 		plan.outer = plan.outer or outer
-		plan.modes[name] = {
-			name = name,
-			cols = cols,
-			outer = outer,
-			separator = column.snapshot_separator(spec.separator),
-		}
+		plan.modes[name] = { name = name, panes = panes, outer = outer }
 	end
 	return plan
 end
