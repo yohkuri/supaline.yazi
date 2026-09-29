@@ -575,7 +575,12 @@ test("register: a column needs a render function", function()
 	throws(function() register("bad", {}) end, "needs a `render` function")
 	throws(function()
 		register("", { render = function() end })
-	end, "the non-empty string it is registered under")
+	end, "`` cannot be a column name")
+	-- A `render` that is there and is not a function is refused where it
+	-- was written, by the rule every function-valued key is held to.
+	local wrong = { render = 42 } ---@type any
+	throws(function() register("bad", wrong) end, 'column("bad").render: must be a function, got `42`')
+	throws(function() prepare(wrong, CFG) end, "spec.render: must be a function, got `42`")
 end)
 
 test("register: a name a theme field cannot hold is refused here", function()
@@ -1107,7 +1112,7 @@ test("style: a column with no extremes to place a value between is refused", fun
 
 	register("hue2b", { render = function() return "" end })
 	with(stub.th, "supaline", { hue2b = BLUES }, function()
-		throws(function() prepare("hue2b", CFG) end, "theme.toml [supaline].hue2b: `fg` is a gradient")
+		throws(function() prepare("hue2b", CFG) end, "theme [supaline].hue2b: `fg` is a gradient")
 		throws(function() prepare("hue2b", CFG) end, "Write a flat colour there instead")
 	end)
 end)
@@ -1307,7 +1312,8 @@ test("style: a value Yazi would refuse says which column it was", function()
 		stats = function() return nil end,
 		style = "cyan -> #7fd4ff",
 	})
-	throws(function() prepare("hue2", CFG) end, 'column("hue2").style: ')
+	-- Named by its place along the ramp, which a path alone could not say.
+	throws(function() prepare("hue2", CFG) end, 'column("hue2").style, stop 1: `cyan` cannot be a gradient endpoint')
 
 	register("att5", { render = function() return "" end })
 	throws(function() prepare({ "att5", style = { fgg = "cyan" } }, CFG) end, "spec.style: `fgg` is not a style key")

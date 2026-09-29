@@ -83,9 +83,9 @@ Two things follow for anyone writing a spec:
 If a spec's assertions about a module look suspiciously cheap, plant a wrong
 argument rather than a misspelled field before believing them: a misspelled
 field bites only on a value carrying a declared class, and a module table has
-none until someone gives it one. `runtime.extremez(42)` passes on the line
-above a refused `runtime.extremes(42)` for any module whose table carries no
-class. `runtime.lua`'s carries `supaline.RuntimeModule`; `th` carries nothing at
+none until someone gives it one. `builtin.extremez(42)` passes on the line
+above a refused `builtin.extremes(42)` for any module whose table carries no
+class. `builtin.lua`'s carries `supaline.BuiltinModule`; `th` carries nothing at
 all, so it takes whatever name a spec spells.
 
 Plant it below the line that binds the value. Above it the checker reports

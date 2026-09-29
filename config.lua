@@ -131,15 +131,22 @@ local function lists_of(spec, at)
 	return lists
 end
 
----@param opts table
+---@param opts any
 ---@param registry supaline.Registry
 ---@param is_yazis fun(name: string): boolean whether a name would replace part of Yazi's `Linemode`
 ---@return supaline.Plan
 function M.compile(opts, registry, is_yazis)
 	local root = schema.path("setup")
+	if type(opts) ~= "table" then
+		root:refuse(
+			'must be handed a table of options, as `setup { linemodes = { detail = { "size", "mtime" } } }`, got %s',
+			schema.as_written(opts)
+		)
+	end
 	local o = SETUP(opts, root)
 	local band = o.band or {}
 	local cfg = { scale = o.scale, band = band }
+	local parsed = {} ---@type supaline.Parsed
 	local wide = o.separator or { text = " " }
 
 	local linemodes, at = o.linemodes, root:key("linemodes")
@@ -155,7 +162,14 @@ function M.compile(opts, registry, is_yazis)
 		-- Yazi's limit is 1 to 20 characters, not bytes; a name that is not
 		-- valid UTF-8 is Yazi's to refuse.
 		local len = type(name) == "string" and (utf8.len(name) or #name) or nil
-		if not len or len < 1 or len > 20 then
+		if type(name) == "number" then
+			-- The one mistake this is likely to be: the columns written where
+			-- the table of linemodes goes, so the key is a position.
+			at:refuse(
+				'is a list, and a linemode is found by its name: write `linemodes = { detail = { "size", "mtime" } }`, '
+					.. "keyed by the name each one is switched to"
+			)
+		elseif not len or len < 1 or len > 20 then
 			at:refuse("`%s` cannot be a linemode name: Yazi takes one of 1 to 20 characters", tostring(name))
 		elseif is_yazis(name) then
 			at:refuse(
@@ -207,7 +221,7 @@ function M.compile(opts, registry, is_yazis)
 				end
 				cells = {}
 				for i, entry in ipairs(list) do
-					local col = registry.compile(entry, base:key(i), cfg)
+					local col = registry.compile(entry, base:key(i), cfg, parsed)
 					keep(col.separator)
 					local sep = nil ---@type supaline.Sep?
 					if i > 1 and col.separator ~= false then

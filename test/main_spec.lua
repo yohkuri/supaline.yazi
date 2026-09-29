@@ -237,6 +237,26 @@ test("setup: an empty configuration is refused", function()
 	throws(function() main.setup({}, { linemodes = "detail" }) end, "setup.linemodes: must be a table")
 end)
 
+test("setup: what is not a table of options is refused as the options", function()
+	-- Read as a table otherwise, and refused by Lua from inside supaline, with
+	-- a line of supaline's in front and nothing about what to write.
+	local said = "supaline: setup: must be handed a table of options"
+	---@diagnostic disable-next-line: param-type-mismatch
+	throws(function() main.setup({}, "detail") end, said)
+	---@diagnostic disable-next-line: param-type-mismatch
+	throws(function() main.setup("detail") end, said)
+	---@diagnostic disable-next-line: param-type-mismatch
+	throws(function() main.setup({}, "detail") end, "got `detail`")
+end)
+
+test("setup: columns written where the table of linemodes goes are refused as that", function()
+	-- The key is then a position, and a length rule would read as nonsense
+	-- about a name one character long.
+	local columns = { { "size", "mtime" } }
+	throws(function() main.setup({}, { linemodes = columns }) end, "setup.linemodes: is a list")
+	throws(function() main.setup({}, { linemodes = columns }) end, "linemodes = { detail = ")
+end)
+
 test("setup: a refusal is raised as the one sentence it was written as", function()
 	-- Raised at level 0, so nothing is put in front of the path and the reason:
 	-- a position in a file of supaline's is the wrong place to send the reader,
@@ -929,7 +949,7 @@ test("theme: a ramp on a column with no extremes says which file to fix", functi
 	with_theme({ owner = "#0b3d91 -> #7fd4ff" }, function()
 		local err = select(2, pcall(setup, { detail = { "owner" } }))
 		local text = tostring(err)
-		assert(text:find("theme.toml [supaline].owner: ", 1, true), text)
+		assert(text:find("theme [supaline].owner: ", 1, true), text)
 		assert(text:find("Write a flat colour there instead", 1, true), text)
 	end)
 end)
@@ -963,7 +983,7 @@ test("theme: a reload the theme breaks keeps the old colours and says so", funct
 		local said = last_said()
 		eq(
 			said,
-			"supaline: theme.toml [supaline].size: `nosuchcolour` is not a colour Yazi "
+			"supaline: theme [supaline].size: `nosuchcolour` is not a colour Yazi "
 				.. "accepts. Write `#rrggbb`, a name such as `cyan`, a 256-colour index as a string such "
 				.. "as `129`, or `reset`",
 			"the message, and nothing Lua or Yazi wrapped around it"

@@ -67,7 +67,7 @@ function M.key_list(names, conj)
 end
 
 --- Where a value was written: `setup.linemodes.detail[2].align`,
---- `column("mark").style`, `theme.toml [supaline].size`. `()` marks what a
+--- `column("mark").style`, `theme [supaline].size`. `()` marks what a
 --- function written there returned.
 ---@class supaline.Path
 ---@field s string

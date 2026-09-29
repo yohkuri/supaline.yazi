@@ -31,30 +31,6 @@ local M = {}
 ---@field invalidate fun()
 ---@field refresh fun()
 
---- A `stats` over the extremes of the listing: what a gradient is stretched
---- between and what `ctx.ratio` normalises against. A value at or below zero
---- stays out of it -- a directory Yazi has not sized, a file with no
---- timestamp. Rounding is `get`'s, since `render` has to round the same way.
----@param get fun(file: supaline.File): number?
----@return fun(files: supaline.File[]): table?
-function M.extremes(get)
-	return function(files)
-		local min, max
-		for i = 1, #files do
-			local v = get(files[i])
-			if v and v > 0 then
-				if not min or v < min then
-					min = v
-				end
-				if not max or v > max then
-					max = v
-				end
-			end
-		end
-		return min and { min = min, max = max } or nil
-	end
-end
-
 ---@param stats any
 ---@return boolean
 function M.has_extremes(stats)
@@ -203,8 +179,8 @@ function M.new(plan, appearance, reporter)
 	end
 
 	--- A missing folder is a pane of its own too: two linemodes drawing the
-	--- filesystem root's absent parent must not share a context. Its `cwd`
-	--- keys as `nil`, which no folder's path spells.
+	--- filesystem root's absent parent must not share a context. Its key has
+	--- one separator where a folder's has three, so no folder can spell it.
 	---@param mode supaline.ModePlan
 	---@param pane string
 	---@param folder supaline.Folder?
@@ -215,7 +191,10 @@ function M.new(plan, appearance, reporter)
 		if last_mode == mode and last_pane == pane and last_cwd == cwd and last_n == n then
 			return last_prepared
 		end
-		local key = mode.name .. "\0" .. pane .. "\0" .. tostring(cwd) .. "\0" .. n
+		local key = mode.name .. "\0" .. pane
+		if cwd then
+			key = key .. "\0" .. tostring(cwd) .. "\0" .. n
+		end
 		local prepared = cache[key]
 		if not prepared then
 			prepared = prepare(mode.panes[pane], files)

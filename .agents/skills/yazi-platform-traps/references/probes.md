@@ -142,11 +142,11 @@ field twice — once in `init.lua`, once inside a `theme` handler:
 Three things fall out of it.
 
 **A flavor can supply a gradient endpoint.** It writes every colour as
-`#rrggbb`, so `raw().fg` off one is a value `style.stops` would take. Yazi's
+`#rrggbb`, so `raw().fg` off one is a value `paint.stops` would take. Yazi's
 own preset does not: `Yellow` is a name, and a name cannot anchor a ramp. So a
 gradient anchored on a colour a function returned would refuse a flavorless
 user's, and refuse it from inside a `theme` handler rather than while `setup`
-ran — which is the part to design before the part that works. `style.lua`
+ran — which is the part to design before the part that works. `paint.lua`
 does not do it yet.
 
 **The flavor timing is measured a second way here.** The two columns disagree
