@@ -145,8 +145,7 @@ function M.compile(opts, registry, is_yazis)
 	end
 	local o = SETUP(opts, root)
 	local band = o.band or {}
-	local cfg = { scale = o.scale, band = band }
-	local parsed = {} ---@type supaline.Parsed
+	local columns = registry.open { scale = o.scale, band = band }
 	local wide = o.separator or { text = " " }
 
 	local linemodes, at = o.linemodes, root:key("linemodes")
@@ -221,7 +220,7 @@ function M.compile(opts, registry, is_yazis)
 				end
 				cells = {}
 				for i, entry in ipairs(list) do
-					local col = registry.compile(entry, base:key(i), cfg, parsed)
+					local col = columns.compile(entry, base:key(i))
 					keep(col.separator)
 					local sep = nil ---@type supaline.Sep?
 					if i > 1 and col.separator ~= false then
