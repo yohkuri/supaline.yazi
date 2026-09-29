@@ -15,6 +15,7 @@ import contextlib
 import io
 import unittest
 
+import e2e
 import screen as sc
 import setup as fixture
 from harness import Checks
@@ -543,6 +544,19 @@ class TheFixtureItReads(unittest.TestCase):
                 flat = fixture.theme_values(self.fixture, name)[0]
                 for colour in (flat, *fixture.theme_ends(self.fixture, name)):
                     self.assertRegex(colour, self.HEX)
+
+    def test_e2e_presses_every_linemode_the_keymap_binds(self):
+        # `e2e.py` presses what this answers, so an empty one would press
+        # nothing and pass; the leaders prove the `cd` and shell keys were left
+        # out; and a colour mode needs a folder to be read in.
+        modes = fixture.linemodes((self.fixture / "keymap.toml").read_text())
+        under = {
+            lead: {n for ld, _, n in modes if ld == lead} for lead in "mbc"
+        }
+        self.assertEqual({lead for lead, _, _ in modes}, set(under))
+        self.assertEqual(under["c"], set(e2e.COLOUR_FOLDERS))
+        self.assertIn("b_tick", under["b"], "`broken_run` presses it last")
+        self.assertTrue(under["m"])
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.

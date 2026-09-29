@@ -429,6 +429,25 @@ def broken_columns(init: str) -> list[str]:
     return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
 
 
+def linemodes(keymap: str) -> list[tuple[str, str, str]]:
+    """Every linemode the keymap binds, as its leader, its key and its name,
+    in the keymap's order.
+
+    Read off what a binding runs, so a `cd` or a theme swap under the same
+    leader is left out without a list of keys to skip.
+    """
+    # Here rather than at the top, for the reason `theme_values` gives.
+    import tomllib
+
+    found = []
+    for bound in tomllib.loads(keymap)["mgr"]["prepend_keymap"]:
+        command, *args = bound["run"].split()
+        if command == "linemode":
+            leader, key = bound["on"]
+            found.append((leader, key, args[0]))
+    return found
+
+
 def band_width(init: str, name: str) -> int:
     """The width a `c_bg` column states beside the ground it names, or 0.
 

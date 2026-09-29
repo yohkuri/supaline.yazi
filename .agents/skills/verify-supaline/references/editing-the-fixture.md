@@ -17,18 +17,21 @@ that comes back empty fails loudly with every bound key named at once, while an
 empty authority would let all three comparisons pass over nothing. So it is
 checked against the keymap's own shape — one `on` line per
 `[[mgr.prepend_keymap]]` block — rather than against a count written in the
-spec, which would be a fifth place holding the size of the set.
+spec, which would be one more place holding the size of the set.
 
 A key the banner offers and nothing binds is refused as well, unless
 `NOT_BOUND` says whose it is — `m s` is Yazi's — and an entry there has to
 still be offered, so that table cannot fill up with keys the banner has
 dropped.
 
-`e2e.py` is left out of that comparison on purpose. It presses `c 2` and
-neither `c 1` nor `c 3`, because that key replaces `theme.toml` wholesale and
-one swap is all a run whose earlier captures were taken against that file can
-afford. Comparing against it would need a list of which keys are exempt, and
-that list is the fifth place again.
+`e2e.py` is left out of that comparison on purpose, and needs no place in it
+for its linemodes: it reads those off the keymap through `setup.py`'s
+`linemodes`, and `TheFixtureItReads` holds `COLOUR_FOLDERS` to the colour ones.
+Past them it presses `c 2` and neither `c 1` nor `c 3`, because that key
+replaces `theme.toml` wholesale and one swap is all a run whose earlier
+captures were taken against that file can afford. Comparing the rest against
+it would need a list of which keys are exempt, and that list would be one more
+place naming the set.
 
 ## The broken columns, and why they run in a second Yazi
 

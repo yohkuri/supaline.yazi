@@ -138,13 +138,13 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   hand-written capture in `test_screen.py` beside it. A raw escape sequence is
   the most worth moving rather than the least: it is the one thing a capture
   written by hand can state exactly.
-- A fact about **what the fixture spells** belongs in a reader in `setup.py`,
+- A fact about **what the fixture spells** belongs in a reader in `setup.py`
   beside the copy it reads — `binding`, `broken_columns`, `band_width`,
-  `c_bg_grounds`, `theme_values` and `theme_ends` — and `TheFixtureItReads`
-  calls those readers rather than re-spelling their patterns. A copy of a pattern
-  goes on passing while the reader beside it has quietly stopped matching, and
-  `e2e.py` is not in CI to say so — a pattern anchored on stylua's indentation
-  most of all, since re-nesting a table leaves the sweep passing over nothing.
+  `c_bg_grounds`, `theme_values`, `theme_ends`, `linemodes` — which
+  `TheFixtureItReads` calls rather than re-spelling their patterns. A copy of a
+  pattern passes on after its reader has quietly stopped matching, and `e2e.py`
+  is not in CI to say so: a pattern anchored on stylua's indentation most of
+  all, since re-nesting a table leaves the sweep passing over nothing.
 - What is left for `e2e.py` is driving Yazi and holding the parsed answer
   against what this machine says: `pwd`, `grp`, a file on disk, a colour read
   out of the fixture.
@@ -189,13 +189,13 @@ look for in each. Yazi's own `m s` and `m n` still work, which is what makes
 them worth comparing against. A third leader, `b`, draws the columns that are
 wrong on purpose, and `e2e.py` presses those in a second Yazi of their own.
 
-The same spec holds the fixture's **key set** together. Four places name that
-set — `test/fixture/keymap.toml`, `test/fixture/banner.txt`, `test/MANUAL.md`,
-and `e2e.py`'s capture loops — and the banner is the only one whose reader is a
-person, so it is the one that can fall behind with everything still green. The
-keymap is the authority and the spec names no key of its own: it reads the `on`
-lines, then asks whether the banner offers each and whether `MANUAL.md` spells
-each.
+The same spec holds the fixture's **key set** together. Three places name that
+set — `test/fixture/keymap.toml`, `test/fixture/banner.txt` and
+`test/MANUAL.md` — and the banner is the only one whose reader is a person, so
+it is the one that can fall behind with everything still green. The keymap is
+the authority and the spec names no key of its own: it reads the `on` lines,
+then asks whether the banner offers each and whether `MANUAL.md` spells each.
+`e2e.py` names no linemode either; it presses every one `linemodes` reads.
 
 `references/editing-the-fixture.md` is what to open before changing either
 half: what that comparison is shaped against, why the broken columns need a
