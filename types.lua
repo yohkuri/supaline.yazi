@@ -54,7 +54,7 @@
 ---@class supaline.Style : ui.Style
 ---@field raw fun(self: self): supaline.StyleTable
 
---- `Line:truncate`, which 26.9.1 has and `test/truncate_spec.lua` pins. The
+--- `Line:truncate`, which 26.9.1 has and `test/stub_spec.lua` pins. The
 --- two options are the ones this plugin passes, not all 26.9.1 accepts.
 ---@class supaline.Line : ui.Line
 ---@field truncate fun(self: self, opts: { max: integer, ellipsis: string? }): supaline.Line

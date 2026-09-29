@@ -18,7 +18,7 @@ description: >-
 ## Stubs are worth exactly their fidelity
 
 `ui.truncate` and `Line:truncate` are line-by-line ports of Yazi's own, and
-`truncate_spec.lua` pins them: the first against the assertions in Yazi's test
+`stub_spec.lua` pins them: the first against the assertions in Yazi's test
 suite, the second against a table measured from a running 26.9.1, since it has
 no suite to copy. If you stub something new, pin it the same way — a stub
 nothing measures is a stub that drifts, and it drifts towards making tests
@@ -32,8 +32,8 @@ Where Yazi fails silently, the stub deliberately fails **loudly** instead: an
 unknown `AuthKind`, an unpublished DDS kind, a write to `th`. Yazi accepts all
 three without a word, which is what makes them worth catching here — a stub
 that reproduced the silence would let a test pass while the plugin was dead.
-Each such divergence is pinned by a spec of its own, so the stub cannot drift
-from Yazi unnoticed either.
+`stub_spec.lua` pins each such divergence, so the stub cannot drift from Yazi
+unnoticed either.
 
 The other side of the rule: where the behaviour under test *is* Yazi's, the
 stub reproduces it exactly, name and all. `in_preview` is computed the way
@@ -99,7 +99,9 @@ something: a class on the configuration means
 `{ linemodes = { detail = "size" } }` are refused by the checker as well as by
 the code under test. Suppress those on the line, with
 `---@diagnostic disable-next-line`, and never at the top of the file — a
-blanket disable there grows to cover code nobody meant to exempt.
+blanket disable there grows to cover code nobody meant to exempt. A table of
+refusals handed to a helper that takes `any` needs no suppression at all,
+which is why the specs write them that way.
 
 ## What the Lua unit suite can prove
 
@@ -115,6 +117,12 @@ rather than tests.
 Write the test code for **Lua 5.5**, the version Yazi runs: `%z` in a pattern
 means the NUL byte on 5.1 and the letter `z` from 5.2 on, and `utf8` arrived in
 5.3. `test/run.lua` refuses any other version and says where to get one.
+
+Every test starts from fresh stubs: `run.lua` puts back `ui`, `th`, `ya`, `cx`
+and what `ya` recorded before each one, so a test writes straight onto them and
+restores nothing. `ps`, `Linemode` and the plugin's modules last a whole spec
+file, because `main.lua` holds on to them, so a test that changes `Linemode`
+puts it back itself.
 
 ## The second unit suite, and where a fact belongs
 

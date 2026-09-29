@@ -1,44 +1,26 @@
---- The fixture's own configuration, put through `setup` the way Yazi puts it.
+--- The fixture's own configuration, put through `setup` the way Yazi puts it,
+--- and the fixture's key set held together across the files that name it.
 ---
---- `test/fixture/init.lua` is the configuration `test/setup.py` copies into
---- the scratch tree, and until this file nothing but a real Yazi read it. No
---- spec loaded the fixture's configuration, so nothing in the suite stood
---- between a refusal added to `setup` and `e2e.py` failing minutes later, on a
---- machine with tmux on it.
----
---- What that was costing is **not measured**. Two refusals were planted to
---- catch the suite passing one the fixture trips, and the suite caught both of
---- them anyway: it tests its own boundaries directly, and nothing the fixture
---- writes is exotic enough to slip past that. So this closes a gap that was
---- argued rather than one that was seen open -- which is the honest version,
---- and still worth the file. The fixture is the one configuration here written
---- to be right rather than wrong, at a length no spec writes, and a refusal is
---- exactly the kind of change that turns a right configuration away.
+--- `test/fixture/init.lua` is the configuration `test/setup.py` copies into the
+--- scratch tree. It is the one configuration here written to be right rather
+--- than wrong, at a length no spec writes, and a refusal added to `setup` is
+--- exactly the kind of change that turns a right configuration away -- which
+--- would otherwise surface only in `e2e.py`, minutes later and outside CI.
 ---
 --- What this does not do is draw. `e2e.py` is still the only thing that says
---- the configuration produces the screen `test/MANUAL.md` describes; this says
---- only that `setup` takes it.
+--- the configuration produces the screen `test/MANUAL.md` describes.
 ---
---- The second half of the file is the same move made about the keys. The
---- fixture's key set is named in four places -- `test/fixture/keymap.toml`,
---- `test/fixture/banner.txt`, `test/MANUAL.md`, and `e2e.py`'s capture loops
---- -- and three of them are read by something. The banner's only reader is a
---- person, so it is the one that can fall behind without anything going red,
---- and it did: eight `c` keys were bound, sectioned and captured while the
---- banner offered six.
----
---- All four are now files of their own rather than heredocs inside a shell
---- script, so every extraction below is a read rather than a pattern over
---- somebody else's quoting. The guards that say "this spec is reading nothing"
---- are kept regardless: a file that is present and empty fails exactly the way
---- a heredoc that had been renamed did.
+--- The key set is named in four places -- `test/fixture/keymap.toml`,
+--- `test/fixture/banner.txt`, `test/MANUAL.md`, and `e2e.py`'s capture loops.
+--- The banner's only reader is a person, so it is the one that can fall behind
+--- with everything green. The keymap is the authority, and nothing here names a
+--- key of its own.
 
 ---@type supaline.Main
 local main = require(".main")
 
--- Read rather than copied. A copy kept here would be a configuration this spec
--- passes while the fixture drew from a different one, which is the failure the
--- spec exists for wearing a disguise.
+-- Read rather than copied: a copy kept here would be a configuration this spec
+-- passes while the fixture drew from a different one.
 local INIT = ROOT .. "/test/fixture/init.lua"
 local KEYMAP = ROOT .. "/test/fixture/keymap.toml"
 local BANNER = ROOT .. "/test/fixture/banner.txt"
@@ -54,57 +36,36 @@ local function read(path)
 	return body
 end
 
-test("fixture: the `init.lua` this spec reads is the one Yazi is given", function()
-	local body = read(INIT)
-
-	-- The guard, and it is a guard rather than a formality: a file that is
-	-- there and empty compiles, runs and refuses nothing -- a spec exiting 0
-	-- over a configuration it never saw, which is the one outcome this file
-	-- was written to make impossible.
-	assert(body:find("supaline:setup", 1, true), "the fixture carries no `setup` call")
-	assert(body:find("supaline.column", 1, true), "the fixture registers no columns")
-end)
-
 test("fixture: the configuration `e2e.py` draws is one `setup` takes", function()
-	-- Told apart from the refusal below, because they are different faults with
-	-- different fixes: this one is Lua declining to compile the fixture at all.
-	local chunk, why = load(read(INIT), "@test/fixture/init.lua")
+	-- A file that is there and empty compiles, runs and refuses nothing, so the
+	-- read has to prove it found a configuration first.
+	local body = read(INIT)
+	has(body, "supaline:setup", "supaline.column")
+
+	-- Told apart from the refusal below, because the fix is different: this is
+	-- Lua declining to compile the fixture at all.
+	local chunk, why = load(body, "@test/fixture/init.lua")
 	assert(chunk, "the fixture's `init.lua` does not compile: " .. tostring(why))
 
-	-- Yazi's own spelling. A plugin reaches itself by name, and the fixture is
-	-- written to be read by Yazi rather than by this, so the name is resolved
-	-- here instead of the call being rewritten there.
+	-- A plugin reaches itself by name in Yazi's spelling, so the name is
+	-- resolved here instead of the call being rewritten there.
 	local before = package.preload["supaline"]
 	package.preload["supaline"] = function() return main end
-
 	local ok, err = pcall(chunk)
-
 	package.preload["supaline"] = before
 	package.loaded["supaline"] = nil
 
-	-- Reported rather than re-raised, so the message names the fixture instead
-	-- of arriving as a stack from somewhere under `setup`.
 	assert(ok, "the fixture's own configuration was refused by `setup`:\n    " .. tostring(err))
 end)
 
--- `e2e.py` names this key set too and is deliberately not compared against it.
--- It presses `c 2` and neither `c 1` nor `c 3`: that key replaces `theme.toml`
--- wholesale, and every capture taken before it was taken against the file the
--- run had been editing in place, so one swap is all a run can afford. "Every
--- bound key is pressed there" is false on purpose, and a check written around
--- it would have to carry a list of which keys are exempt. Such a list is a
--- fifth place naming the set, which is the thing this half of the file exists
--- not to become.
+-- `e2e.py` is deliberately not compared against the key set. It presses `c 2`
+-- and neither `c 1` nor `c 3`, because that key replaces `theme.toml` wholesale
+-- and a run can afford one swap, so a check there would need a list of exempt
+-- keys -- a fifth place naming the set.
 
 --- Keys the banner offers that the keymap does not bind, and why each is not a
---- fault.
----
---- Yazi's own, offered because half of what the fixture asks is "how does this
---- read against what Yazi does" -- `m 0` exists to be pressed against `m s`.
---- Nothing binds them because nothing has to.
----
---- An entry that is no longer offered is refused rather than ignored, so this
---- cannot silently become a list of keys the banner stopped mentioning.
+--- fault. An entry the banner no longer offers is refused, so this cannot
+--- become a list of keys the banner stopped mentioning.
 local NOT_BOUND = {
 	["m s"] = "Yazi's own size linemode, which `m 0` is the baseline for",
 }
@@ -117,13 +78,11 @@ local NOT_BOUND = {
 local function bound_keys()
 	local toml = read(KEYMAP)
 	local keys, ons = {}, 0
-
 	for line in toml:gmatch("[^\n]+") do
 		local rhs = line:match("^on%s*=%s*(.*)$")
 		if rhs then
-			-- `on = "T"` and `on = [ "m", "0" ]` are one thing said at two
-			-- lengths, so the quoted parts are taken in order and joined with the
-			-- space every other file here spells a key with.
+			-- `on = "T"` and `on = [ "m", "0" ]` are one thing at two lengths, so
+			-- the quoted parts are joined with the space every other file uses.
 			local press = {}
 			for k in rhs:gmatch('"([^"]*)"') do
 				press[#press + 1] = k
@@ -132,7 +91,6 @@ local function bound_keys()
 			ons = ons + 1
 		end
 	end
-
 	return keys, ons, select(2, toml:gsub("%[%[mgr%.prepend_keymap%]%]", "%0"))
 end
 
@@ -140,11 +98,8 @@ end
 ---
 --- An offer is a column: the key stands alone, with two or more spaces either
 --- side of it and its description beside it. A mention runs on into the
---- sentence around it -- "press b u straight after", "g 6 breaks the left one"
---- -- with one space, so the banner can go on talking about a key without that
---- counting as a place to find it. That distinction is the whole check: a key
---- named in the prose and offered nowhere is exactly how `c b` and `c a` went
---- missing.
+--- sentence around it with one space, so the banner can talk about a key
+--- without that counting as a place to find it.
 ---@return table<string, true> # the keys, as a set
 local function offered_keys()
 	local banner = read(BANNER)
@@ -152,24 +107,18 @@ local function offered_keys()
 
 	local keys = {}
 	for line in banner:gmatch("[^\n]+") do
-		-- Split on the runs of two or more spaces the banner's columns are made
-		-- of. A marker rather than a pattern with alternation in it, which Lua
-		-- patterns do not have.
 		local fields = {}
-		local marked = line:gsub("  +", "\1")
-		for field in marked:gmatch("[^\1]+") do
+		for field in line:gsub("  +", "\1"):gmatch("[^\1]+") do
 			fields[#fields + 1] = field
 		end
-
-		-- Never the last field: a key with nothing beside it is not an offer of
-		-- anything, and the last field is where a stray one-letter word lands.
+		-- Never the last field: a key with nothing beside it offers nothing, and
+		-- the last field is where a stray one-letter word lands.
 		for i = 1, #fields - 1 do
 			if fields[i]:match("^%a %w$") or fields[i]:match("^%a$") then
 				keys[fields[i]] = true
 			end
 		end
 	end
-
 	return keys
 end
 
@@ -189,16 +138,10 @@ local function missing_from(set, other)
 end
 
 test("fixture: this spec reads every key the keymap binds", function()
-	-- The guard the three tests below inherit, and the reason none of them
-	-- needs one of its own. Each of those asks whether some other file carries
+	-- The guard the tests below inherit: each asks whether another file carries
 	-- the keys found here, so an extraction that came back empty *here* would
-	-- let all three pass over nothing, while one that came back empty *there*
-	-- fails loudly with every bound key named at once. Only the authority has
-	-- to prove it was read.
-	--
-	-- Proved against the file's own shape rather than against a count written
-	-- here, which would be a fifth place holding the size of the set and would
-	-- go stale the first time a key is added.
+	-- let all of them pass over nothing. Proved against the file's own shape
+	-- rather than a count written here, which would go stale with the next key.
 	local keys, ons, blocks = bound_keys()
 	assert(ons > 0, "no `on` line in test/fixture/keymap.toml; this spec is reading nothing")
 	eq(ons, blocks, "every keymap block has an `on` line this spec could read")
@@ -210,48 +153,30 @@ test("fixture: this spec reads every key the keymap binds", function()
 	eq(distinct, ons, "no two keymap blocks bind the same key")
 end)
 
-test("fixture: the manual banner offers every key the keymap binds", function()
-	local missing = missing_from(bound_keys(), offered_keys())
-	assert(
-		missing == "",
-		"bound by test/fixture/keymap.toml and not offered by test/fixture/banner.txt: "
-			.. missing
-			.. "\n    a key a reader cannot find is a case nobody reads"
-	)
-end)
-
-test("fixture: the manual banner offers nothing the keymap leaves unbound", function()
-	local keys = bound_keys()
-	local offered = offered_keys()
+test("fixture: the manual banner offers every key the keymap binds, and no other", function()
+	local keys, offered = bound_keys(), offered_keys()
+	eq(missing_from(keys, offered), "", "bound by test/fixture/keymap.toml and not offered by test/fixture/banner.txt")
 
 	for key, why in pairs(NOT_BOUND) do
 		assert(offered[key], string.format("`%s` is exempted as %s, and the banner no longer offers it", key, why))
 		keys[key] = true
 	end
-
-	local extra = missing_from(offered, keys)
-	assert(
-		extra == "",
-		"offered by test/fixture/banner.txt and bound nowhere: "
-			.. extra
-			.. "\n    either bind it in test/fixture/keymap.toml or say in `NOT_BOUND` whose key it is"
+	eq(
+		missing_from(offered, keys),
+		"",
+		"offered by test/fixture/banner.txt and bound nowhere; bind it, or say in `NOT_BOUND` whose key it is"
 	)
 end)
 
 test("fixture: `MANUAL.md` spells every key the keymap binds", function()
-	-- Fenced blocks first: they are screen captures, and a key that appears
-	-- only inside one has been drawn rather than documented.
+	-- Fenced blocks first: they are screen captures, and a key that appears only
+	-- inside one has been drawn rather than documented.
 	local prose = read(MANUAL_MD):gsub("\n```.-\n```\n", "\n")
-
 	local spans = {}
 	for span in prose:gmatch("`([^`]*)`") do
 		spans[span] = true
 	end
-
-	-- One direction only. A document naming a key nobody bound is a fault too,
-	-- but this set cannot say so: `MANUAL.md` spells `m s`, `m b`, `c c` and
-	-- `j` as well, because comparing the fixture against Yazi's own keys is
-	-- half of what several of its sections are for.
-	local missing = missing_from(bound_keys(), spans)
-	assert(missing == "", "bound by test/fixture/keymap.toml and never spelled in test/MANUAL.md: " .. missing)
+	-- One direction only: `MANUAL.md` spells Yazi's own keys as well, because
+	-- comparing the fixture against them is half of what it is for.
+	eq(missing_from(bound_keys(), spans), "", "bound by test/fixture/keymap.toml and never spelled in test/MANUAL.md")
 end)

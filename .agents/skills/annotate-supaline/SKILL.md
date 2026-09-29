@@ -87,7 +87,7 @@ string where 26.9.1 has a method, declares `ui.truncate` but nothing for
 `style.lua` reads every `ui.Style` it is handed through — so `types.lua`
 declares the difference, in one place, with the evidence written beside the
 classes: a probe for the four read off `cx`,
-`test/truncate_spec.lua` for the one method, which pins what it does, and
+`test/stub_spec.lua` for the one method, which pins what it does, and
 `colour_spec.lua` against `yazi-platform-traps/references/probes.md` for the
 other. A newer Yazi is a reason to run those again and correct them there,
 never to work around them at the call site.
@@ -109,8 +109,8 @@ The sixth is worth knowing about for how it can hide rather than for what it
 declares. A spec that assigns a method under a file-wide `inject-field`
 disable injects that field workspace-wide, so the plugin's own call to it is
 blessed by a line in a test and checks out with no class behind it. Swap a
-method through `with` in `test/run.lua`, which indexes the field rather than
-assigning it. And when a check goes red at a change that could not have
+method with `rawset`, which the checker reads as a call rather than as an
+assignment. And when a check goes red at a change that could not have
 touched it, expect a declaration a spec was hiding rather than a false alarm.
 `tab__Tab` is `(exact)`, so nothing the harness builds can declare a field on
 one.

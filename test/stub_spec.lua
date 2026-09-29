@@ -1,4 +1,4 @@
---- Pins the truncation stubs in `stub.lua`.
+--- Pins `stub.lua` against Yazi, because a stub is worth exactly its fidelity.
 ---
 --- `ui.truncate` is pinned to the assertions in Yazi's own test suite
 --- (`yazi-plugin/src/ui/utils.rs`). `Line:truncate` has no upstream suite to
@@ -10,6 +10,9 @@
 --- The two cuts do not agree, and the tests below say where. `layout.cell` is
 --- what closes the gap, so a stub that quietly closed it here would let the
 --- correction be deleted with the suite still green.
+---
+--- The rest pins where the stub is deliberately louder than Yazi: a value Yazi
+--- would take in silence, or could never have produced, is refused here.
 
 local function t(s, max, rtl) return stub.truncate(s, { max = max, rtl = rtl }) end
 
@@ -59,17 +62,12 @@ test("truncate: a wide character straddling the edge comes back short", function
 	eq(stub.str_width(t("你好，世界", 4)), 3)
 end)
 
-test("width: East Asian characters take two cells", function()
+test("width: East Asian characters and emoji take two cells", function()
+	-- `unicode-width`, which Yazi uses, gives emoji presentation two cells, and
+	-- the fixture carries `絵文字🎨のなまえ.txt` for that reason.
 	eq(stub.str_width("你好"), 4)
 	eq(stub.str_width("Hello"), 5)
 	eq(stub.str_width("日本語のファイル名.txt"), 22)
-end)
-
-test("width: an emoji takes two cells, like an East Asian character", function()
-	-- `unicode-width`, which Yazi uses, gives emoji presentation two cells. The
-	-- fixture carries `絵文字🎨のなまえ.txt` precisely because of it, so a stub
-	-- that measured one would disagree with the harness built to check the same
-	-- names.
 	eq(stub.str_width("🎨"), 2)
 	eq(stub.str_width("絵文字🎨のなまえ.txt"), 20)
 end)
@@ -103,18 +101,17 @@ test("Line:truncate: an empty ellipsis still costs a cell", function()
 	eq(lt("abcdefgh", 4), "abc…")
 
 	-- `test/e2e.py` renders `exactly-1k.bin` (fourteen cells) through columns
-	-- of twelve, and has one that hands back a Line rather than a string
-	-- precisely so this cell is on screen to be checked.
+	-- of twelve, and has one that hands back a Line so this cell is on screen.
 	eq(lt("exactly-1k.bin", 12), "exactly-1k.…")
 	eq(lt("exactly-1k.bin", 12, ""), "exactly-1k.")
 end)
 
 test("Line:truncate: it counts characters, and can come back wider than max", function()
-	-- The other half of the gap. `❤️` is one character of one cell and one of
-	-- none, and two cells on screen; `Line:truncate` adds the characters up,
-	-- decides a five-cell line fits in four, and hands it back untouched.
-	-- Measured on Yazi 26.9.1 -- and there is no `max` that cuts this line to
-	-- exactly four, which is why `layout.cell` cuts again rather than once.
+	-- `❤️` is one character of one cell and one of none, and two cells on
+	-- screen; `Line:truncate` adds the characters up, decides a five-cell line
+	-- fits in four, and hands it back untouched. Measured on Yazi 26.9.1 -- and
+	-- no `max` cuts this line to exactly four, which is why `layout.cell` cuts
+	-- again rather than once.
 	eq(stub.Line("\u{2764}\u{FE0F}abc"):truncate({ max = 4, ellipsis = "" }):width(), 5)
 	eq(lt("\u{2764}\u{FE0F}abc", 3, ""), "\u{2764}\u{FE0F}a")
 end)
@@ -126,11 +123,9 @@ test("Line:truncate: it fits, or it is left whole", function()
 end)
 
 test("Line:truncate: a character it can measure is never overrun", function()
-	-- Where its own count agrees with the screen -- everything but the clusters
-	-- above -- it comes back at most `max` cells and on a character boundary.
-	-- It may come back short when a wide character straddles the edge, which is
-	-- why the cell measures the result again and pads. Every byte of the result
-	-- has to belong to a whole one of the three-byte characters it was given.
+	-- Where its own count agrees with the screen it comes back at most `max`
+	-- cells and on a character boundary, possibly short when a wide character
+	-- straddles the edge.
 	for _, ellipsis in ipairs { "…", "" } do
 		for max = 1, 12 do
 			local out = lt("你好，世界", max, ellipsis)
@@ -143,12 +138,8 @@ test("Line:truncate: a character it can measure is never overrun", function()
 end)
 
 test("Line:width: the parts are measured one by one, not joined up", function()
-	-- Measured on Yazi 26.9.1. A heart is one cell and the variation selector
-	-- after it is none, so the two as separate parts come to one; the same two
-	-- characters inside a single part are the cluster `\u{2764}\u{FE0F}`, which
-	-- is two. A stub that joined the parts and measured the string would check
-	-- a column handing back several spans against a number the screen never
-	-- shows -- its width and its padding both.
+	-- Measured on Yazi 26.9.1: a heart and the variation selector after it are
+	-- one cell as separate parts and two inside a single part.
 	local heart, vs = "\u{2764}", "\u{FE0F}"
 	eq(stub.Line({ stub.Span(heart), stub.Span(vs) }):width(), 1)
 	eq(stub.Line({ stub.Span(heart .. vs) }):width(), 2)
@@ -158,33 +149,24 @@ end)
 
 test("Line:truncate: it modifies the line it was given and hands that back", function()
 	-- Measured on Yazi 26.9.1, where the receiver came back four cells wide
-	-- from eight and `rawequal` held. `cut` in `layout.lua` says so and relies
-	-- on it -- each pass cuts the previous result further -- and a column that
-	-- kept a renderable across rows would find it cut down by the first row
-	-- that overflowed. A stub that built a new Line and left the original
-	-- untouched would let neither show up in a test.
+	-- from eight and `rawequal` held. `cut` in `layout.lua` relies on it.
 	local line = stub.Line { stub.Span("abcdefgh") }
-	eq(line:width(), 8)
 	local out = line:truncate { max = 4 }
 	eq(rawequal(out, line), true, "the same line comes back")
 	eq(line:width(), 4, "and it has been cut where it stands")
 
-	-- One that fits is handed back untouched, and is still the same line.
 	local fits = stub.Line { stub.Span("ab") }
-	eq(rawequal(fits:truncate { max = 4 }, fits), true)
+	eq(rawequal(fits:truncate { max = 4 }, fits), true, "one that fits is the same line too")
 	eq(fits:width(), 2)
 
-	-- A `max` below one empties it rather than leaving it alone.
 	local none = stub.Line { stub.Span("abcd") }
 	none:truncate { max = 0, ellipsis = "" }
-	eq(none:width(), 0)
+	eq(none:width(), 0, "a `max` below one empties it")
 end)
 
 test("Line:truncate: the cut keeps the part boundaries", function()
-	-- Measured on Yazi 26.9.1, and the reason the cut rebuilds only the part it
-	-- lands inside rather than flattening the line into one string: the same
-	-- characters cut at the same `max` come out a cell apart depending on how
-	-- they were split up.
+	-- Measured on Yazi 26.9.1: the same characters cut at the same `max` come
+	-- out a cell apart depending on how they were split up.
 	local heart, vs = "\u{2764}", "\u{FE0F}"
 	local many = stub.Line { stub.Span(heart), stub.Span(vs), stub.Span("abcdef") }
 	many:truncate { max = 4, ellipsis = "" }
@@ -195,30 +177,13 @@ test("Line:truncate: the cut keeps the part boundaries", function()
 	eq(one:width(), 4)
 end)
 
---- The style on each part of a renderable, in order. `first_style` stops at
---- the first one, and what a cut has to be checked for is the second.
-local function styles(x)
-	local out = {}
-	for i, part in ipairs(x._parts) do
-		out[i] = stub.style_of(part)
-	end
-	return out
-end
-
 test("Line:truncate: every span keeps its own style through the cut", function()
-	-- Measured on Yazi 26.9.1 by putting a two-colour line through a linemode
-	-- and reading the colours back off the screen with `tmux capture-pane -e`,
-	-- which is the only place this shows: a cut line and a whole one are the
-	-- same width either way, so nothing above could tell them apart. A red
-	-- "aaa" and a green "bbbbb" cut to six drew "aaabb" with **both** colours
-	-- still on screen -- the span the cut landed inside included. Flattening
-	-- the line into one string would have taken the second colour with it.
+	-- Measured on Yazi 26.9.1 by reading the colours back off the screen with
+	-- `tmux capture-pane -e`: a red "aaa" and a green "bbbbb" cut to six drew
+	-- "aaabb" with both colours still on screen.
 	local red, green = ui.Style():fg("#ff0000"), ui.Style():fg("#00ff00")
-	-- `stub.Line` rather than `ui.Line`, as everywhere else in this file:
-	-- `types.yazi` declares `ui.truncate` but nothing for `Line:truncate`, so
-	-- the checker refuses the call on a value it has typed. `types.lua`
-	-- declares `supaline.Line` for that and `layout.lua` casts at the call to `cut`; the
-	-- stub's Line is its own and needs neither.
+	-- `stub.Line` rather than `ui.Line`: `types.yazi` declares nothing for
+	-- `Line:truncate`, so the checker refuses the call on a value it has typed.
 	local line = stub.Line {
 		stub.Span("aaa"):style(red),
 		stub.Span("bbbbb"):style(green),
@@ -226,7 +191,45 @@ test("Line:truncate: every span keeps its own style through the cut", function()
 	line:truncate { max = 6, ellipsis = "" }
 	eq(stub.text_of(line), "aaabb", "the same five cells Yazi drew")
 
-	local got = styles(line)
+	local got = stub.drawn_styles(line)
 	eq(got[1], red, "the span that survived whole keeps its style")
 	eq(got[2], green, "and so does the one the cut landed inside")
+end)
+
+-- --- what the stub refuses and Yazi would not ------------------------------
+
+test("refused: an `AuthKind` Yazi does not have", function()
+	throws(function() stub.spec_of("regualr") end, "no such AuthKind")
+end)
+
+test("refused: a DDS kind Yazi does not publish", function()
+	-- `bulk` is what Yazi published before `bulk-rename`, and a subscription
+	-- to it would never fire.
+	throws(function()
+		ps.sub("bulk", function() end)
+	end, "no such DDS kind")
+end)
+
+test("refused: a permission string Yazi could not have produced", function()
+	throws(function() stub.file { perm = "nope" } end, "ten-character")
+	throws(function() stub.file { perm = "drwxr-xr-" } end, "ten-character")
+	throws(function() stub.file { perm = "?rwxr-xr-x" } end, "type character from `dlbcsp-`")
+	-- `ChaMode::permissions` returns on the dummy before it writes a single
+	-- bit, so `?` is all nine or none.
+	throws(function() stub.file { perm = "drwxr-x???" } end, "nine `?`")
+	throws(function() stub.file { perm = "dswxr-xr-x" } end, "per position")
+
+	-- Left out is the platform, not the file: `Cha:perm` is nil on Windows.
+	eq(stub.file({}).cha:perm(), nil)
+	eq(stub.file({ perm = "-?????????" }).cha:perm(), "-?????????")
+end)
+
+test("refused: an owner id Yazi could not have produced", function()
+	throws(function() stub.file { uid = "root" } end, "`uid` is a `u32`")
+	throws(function() stub.file { gid = -1 } end, "`gid` is a `u32`")
+	throws(function() stub.file { uid = 1.5 } end, "whole number")
+
+	-- Left out is the `0` Yazi fills in where the platform has no owner.
+	eq(stub.file({}).cha.uid, 0)
+	eq(stub.file({}).cha.gid, 0)
 end)

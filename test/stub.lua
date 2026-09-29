@@ -4,7 +4,7 @@
 --- These are only worth anything if they behave like the real thing.
 --- `ui.truncate` in particular is a line-by-line port of Yazi's own, because
 --- the layout code leans on two of its habits: it appends an ellipsis of its
---- own, and it returns *at most* `max` cells. `truncate_spec.lua` pins the port
+--- own, and it returns *at most* `max` cells. `stub_spec.lua` pins the port
 --- against the assertions in Yazi's own test suite, and pins `Line:truncate`
 --- -- which has no upstream test suite to copy -- against what a real Yazi put
 --- on screen and against the contract `layout.cell` relies on.
@@ -22,9 +22,8 @@
 ---@class supaline.Stub
 local M = {}
 
--- Captured here rather than inside `install`: that runs once per spec file,
--- and taking `require` from the global there would capture the previous
--- wrapper and nest one more level on every call.
+-- Captured here rather than inside `install`, which runs once per spec file:
+-- taking `require` from the global there would capture the previous wrapper.
 local REAL_REQUIRE = require
 
 -- --- Unicode ---------------------------------------------------------------
@@ -145,9 +144,9 @@ end
 --- on Yazi 26.9.1: `❤` is one cell, the selector after it is none, and `❤️` is
 --- two; `👩‍💻` and `👍🏽` are two apiece where their characters add up to four.
 ---
---- The two disagreeing is not a detail of the model. It is the reason
---- `layout.lua` cuts on cluster boundaries, and a stub that added characters
---- up here would let that be deleted with the suite still green.
+--- The two disagreeing is the reason `layout.lua` cuts on cluster boundaries,
+--- and a stub that added characters up here would let that be deleted with the
+--- suite still green.
 ---@param s string
 ---@return integer
 local function str_width(s)
@@ -263,8 +262,8 @@ end
 -- the names: `#rrggbb`, and a decimal index from "0" to "255" -- while `#rgb`,
 -- `#rrggbbaa`, `""`, `"256"`, `rgb(1,2,3)` and `indexed(5)` are all refused.
 --
--- Refused here rather than waved through, because the plugin now decides what
--- a colour is before Yazi sees it: a stub that took anything would let a spec
+-- Refused here rather than waved through, because the plugin decides what a
+-- colour is before Yazi sees it: a stub that took anything would let a spec
 -- assert an error message the plugin never had to produce.
 local NAMED = { reset = true }
 for _, name in ipairs { "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray", "grey" } do
@@ -458,12 +457,6 @@ end
 
 M.text_of = text_of
 
---- The style attached to a Span, so a test can check what colour a column
---- asked for.
----@param x any
----@return table?
-function M.style_of(x) return getmetatable(x) == Span and x._style or nil end
-
 --- The style each leaf of a renderable is drawn in, in order -- a Span's own
 --- patched over every Line's around it, `false` where nothing styles it.
 ---
@@ -502,33 +495,12 @@ function M.drawn_styles(x)
 	return out
 end
 
---- The first style found anywhere inside a renderable, for asserting on what a
---- linemode came back with without unpicking its structure.
----@param x any
----@return table?
-function M.first_style(x)
-	local own = M.style_of(x)
-	if own then
-		return own
-	elseif type(x) == "table" and x._parts then
-		for _, part in ipairs(x._parts) do
-			local found = M.first_style(part)
-			if found then
-				return found
-			end
-		end
-	end
-	return nil
-end
-
 --- Measured part by part and added up, the way Yazi's own does, rather than
 --- over the parts joined into one string. The two disagree wherever a cluster
 --- straddles a part boundary: measured on 26.9.1,
 --- `ui.Line { ui.Span("\u{2764}"), ui.Span("\u{FE0F}") }` is **one** cell --
 --- a heart, plus a variation selector that measures nothing on its own --
---- where the joined string is two. A column handing back several spans would
---- otherwise have its width and its padding checked against a number the
---- screen never shows.
+--- where the joined string is two.
 local function part_width(part)
 	if getmetatable(part) ~= Line then
 		return str_width(text_of(part))
@@ -587,21 +559,17 @@ end
 ---   * it counts characters while the width is counted in cells, so a line it
 ---     thinks fits can come back wider than `max`;
 ---   * it **modifies the line it was given** and hands that same line back,
----     rather than building a new one. `cut` in `layout.lua` says so and
----     relies on it; a column holding on to a renderable across rows would
----     find it cut down by the first row that overflowed.
+---     rather than building a new one. `cut` in `layout.lua` relies on it; a
+---     column holding on to a renderable across rows would find it cut down by
+---     the first row that overflowed.
 ---
 --- Reproduced rather than repaired: a stub that quietly did the right thing
 --- would let the correction be deleted with every test still green.
 ---
 --- The cut keeps the part boundaries, which is what makes the width above come
---- out right afterwards: measured on 26.9.1,
---- `ui.Line { ui.Span("\u{2764}"), ui.Span("\u{FE0F}"), ui.Span("abcdef") }`
---- cut to four is three cells, and the same characters in one span are four.
---- Each part keeps its own style through the cut, the one the cut lands inside
---- included -- measured by drawing a two-colour line and reading the colours
---- back off the screen, since two lines of equal width cannot be told apart
---- any other way.
+--- out right afterwards, and each part keeps its own style through it -- both
+--- measured on 26.9.1, the second by drawing a two-colour line and reading the
+--- colours back off the screen.
 function Line:truncate(opts)
 	local max = opts.max
 	if max < 1 then
@@ -650,12 +618,9 @@ end
 --- Measured on 26.9.1 for a span and a line alike, in a table and bare;
 --- `Span:style` does not consume, and the same span can be styled twice.
 ---
---- Loud here for the reason every other divergence in this file is loud.
---- Yazi's own message reaches nobody -- a linemode that raises stops drawing
---- the pane, and the traceback goes to `yazi.log` alone -- while a stub that
---- let one span be drawn twice would make caching a built list of them look
---- correct, and that cache is exactly what a column drawing a character at a
---- time invites.
+--- Loud here because Yazi's own message reaches nobody -- a linemode that
+--- raises stops drawing the pane -- while a stub that let one span be drawn
+--- twice would make caching a built list of them look correct.
 ---@param part any
 ---@return any
 local function take(part)
@@ -677,15 +642,11 @@ end
 
 --- A Line that is handed a Line is not given it back: measured on 26.9.1,
 --- `ui.Line(line)` succeeds once and the same line offered a second time
---- raises `expected a string, Span, Line, or a table of them`, the refusal a
---- reused Span gets. So a bare Line is consumed and wrapped like any other
---- part, and the wrapper that comes back is a Line of its own, which a further
---- `ui.Line` may consume in turn -- also measured.
----
---- Handing it straight back would cost the whole point of the check:
---- `layout.cell` calls `ui.Line(out)` on whatever a render returns, so a
---- column caching one finished Line would be green here and blank the pane on
---- the second row.
+--- raises the refusal a reused Span gets. So a bare Line is consumed and
+--- wrapped like any other part, and the wrapper is a Line of its own, which a
+--- further `ui.Line` may consume in turn -- also measured. `layout.cell` calls
+--- `ui.Line(out)` on whatever a render returns, so a column caching one
+--- finished Line blanks the pane on the second row.
 function M.Line(x)
 	local mt = getmetatable(x)
 	local parts = x
@@ -701,12 +662,6 @@ end
 function M.Span(text) return setmetatable({ _text = text }, Span) end
 
 -- --- fixtures --------------------------------------------------------------
-
--- Yazi's `AuthKind`, and which side of `is_local()` each variant falls on.
--- Written out rather than derived from a pair of comparisons, because the
--- partition is the claim being made about Yazi: a typo in a spec's `url_kind`
--- would otherwise pass as virtual and make a test succeed for the wrong
--- reason. `auth_spec.lua` pins all six.
 
 --- Every DDS kind Yazi publishes, and so every kind `ps.sub` can be given
 --- that will ever fire.
@@ -736,6 +691,14 @@ for _, kind in ipairs {
 	M.DDS_KINDS[kind] = true
 end
 
+-- Yazi's `AuthKind`, and which side of `is_local()` each variant falls on, read
+-- off `yazi-shared/src/auth/kind.rs` and the three flags
+-- `yazi-shared/src/spec/lua.rs` exposes. Written out rather than derived from
+-- a pair of comparisons, because the partition is the claim being made about
+-- Yazi. `is_local` is not bound to Lua and `is_virtual` is its exact
+-- complement, which is why the plugin keys on that: a search result is a local
+-- file with `is_regular = false`, so `not is_regular` would demote every
+-- search hit along with the remote ones.
 M.AUTH_KINDS = {
 	regular = { is_regular = true, is_search = false, is_virtual = false },
 	search = { is_regular = false, is_search = true, is_virtual = false },
@@ -745,7 +708,9 @@ M.AUTH_KINDS = {
 	sftp = { is_regular = false, is_search = false, is_virtual = true },
 }
 
---- The `Url.spec` of a file whose URL has the given `AuthKind`.
+--- The `Url.spec` of a file whose URL has the given `AuthKind`. A typo in a
+--- spec's `url_kind` is refused rather than passing as virtual, which would
+--- make a test succeed for the wrong reason.
 ---@param kind string
 ---@return table
 function M.spec_of(kind)
@@ -764,15 +729,11 @@ end
 --- Numbers, always. Yazi's `Cha` carries `uid` and `gid` as `u32` rather than
 --- `Option<u32>`, filling them with the `0` of `unix_either!(m.uid(), 0)` on a
 --- platform that has neither, so Lua is never handed a nil here and a column
---- cannot ask "does this file have an owner". A stub that left them nil let a
---- `not cha.uid` guard look like the Windows case while Yazi was reaching the
---- branch below it and drawing `0:0`.
+--- cannot ask "does this file have an owner".
 ---
---- `nil or 0` alone would be half a stub: it stops a spec seeing a nil and
---- passes anything else through untouched, so `uid = "root"` reaches
---- `ya.user_name` and comes back `userroot`, green, describing a file no Yazi
---- has ever produced -- the silence this harness is supposed to break rather
---- than reproduce.
+--- Anything else is refused rather than passed through: `uid = "root"` would
+--- reach `ya.user_name` and come back `userroot`, green, describing a file no
+--- Yazi has ever produced.
 ---@param t table
 ---@param field "uid"|"gid"
 ---@return integer
@@ -809,15 +770,11 @@ local PERM_DUMMY = "^[dlbcsp%-]" .. ("%?"):rep(9) .. "$"
 ---
 --- nil is the one value that is not an error, and is the platform rather than
 --- the file: `Cha:perm` is `Ok(Value::Nil)` under `#[cfg(windows)]` and ten
---- bytes under `#[cfg(unix)]`, never an empty string and never a short one. So
---- leaving the field out is how a spec asks for a build with no permissions to
---- name, which is what `builtin.lua` spells `cha:perm() or ""`.
+--- bytes under `#[cfg(unix)]`, never an empty string and never a short one.
 ---
---- Everything else is gated because the column will not notice. `perm_spans`
---- walks the string a character at a time and falls back to `PERM_TYPE` for
---- anything it does not know, so `perm = "nope"` renders four spans and a spec
---- asserting on them passes, describing a file no Yazi has ever produced --
---- the same silence `id_of` above was written to break, one field over.
+--- Everything else is gated because the column will not notice: `perm_spans`
+--- falls back to `PERM_TYPE` for any character it does not know, so
+--- `perm = "nope"` renders four spans and a spec asserting on them passes.
 ---@param t table
 ---@return string?
 local function perm_of(t)
@@ -845,8 +802,8 @@ end
 --- Claiming `supaline.File` rather than `table` is what puts the specs under
 --- the same type check the plugin is under: a spec reaching for a field Yazi
 --- does not have is refused here too. It says nothing about the stub itself --
---- the class is not `(exact)`, so the table below is accepted however little
---- of it is filled in -- and fidelity is still read against a running Yazi.
+--- the class is not `(exact)` -- and fidelity is still read against a running
+--- Yazi.
 ---@param t table
 ---@return supaline.File
 function M.file(t)
@@ -855,8 +812,7 @@ function M.file(t)
 	--- `scope` or `sftp`.
 	local kind = t.url_kind or "regular"
 	-- Read now rather than inside the closure below, so a string Yazi could
-	-- not have produced is refused at the `stub.file` that wrote it rather
-	-- than at whichever render first reaches for it.
+	-- not have produced is refused at the `stub.file` that wrote it.
 	local perm = perm_of(t)
 	local file = {
 		name = name,
@@ -865,17 +821,11 @@ function M.file(t)
 		-- `idx` is the row's 1-based position in its own folder. `M.folder`
 		-- overwrites it, so a file placed in one always agrees with it.
 		idx = t.idx or 1,
-		-- `in_preview` is deliberately absent here and computed below: Yazi
-		-- derives it per read, and a stub that stored a flag would let the
-		-- plugin trust it.
 		url = {
 			ext = name:match("%.([^.]+)$"),
-			-- Yazi's `Url.spec`, from the `AuthKind` table above rather than
-			-- from a flag the caller hands in: `regular` and `search` are
-			-- local and everything else is virtual, so a search result keeps
-			-- its owner names and an `sftp` file does not. A stub that took
-			-- the flag directly would let a column key on `is_regular` --
-			-- which is false for a search result too -- and still pass.
+			-- From the `AuthKind` table rather than a flag the caller hands in,
+			-- so a column keying on `is_regular` -- false for a search result
+			-- too -- cannot pass.
 			spec = M.spec_of(kind),
 		},
 		cha = {
@@ -895,9 +845,9 @@ function M.file(t)
 	--     me.idx == me.folder.cursor && tab.hovered() is this folder
 	--
 	-- so it is true for the previewed folder's cursor row and false for every
-	-- other row of the same pane. Reproduce that exactly: a stub that instead
-	-- flagged the whole pane would let the plugin read it as the counterpart
-	-- of `in_current`, which is the bug this fidelity exists to catch.
+	-- other row of the same pane. Reproduced exactly: a stub that flagged the
+	-- whole pane would let the plugin read it as the counterpart of
+	-- `in_current`, which is the bug this fidelity exists to catch.
 	setmetatable(file, {
 		__index = function(_, k)
 			if k ~= "in_preview" then
@@ -910,9 +860,7 @@ function M.file(t)
 	return file
 end
 
---- Fire every handler subscribed to a DDS event, in subscription order. One
---- way to say it, rather than reaching into `M.subs` by index -- which quietly
---- does nothing the day the subscription order changes.
+--- Fire every handler subscribed to a DDS event, in subscription order.
 ---@param kind string
 function M.fire(kind)
 	for _, fn in ipairs(M.subs[kind] or {}) do
@@ -922,8 +870,7 @@ end
 
 --- A stand-in for a folder, with a `cwd` that stringifies and a file list.
 ---
---- Claims `supaline.Folder` for the reason `M.file` claims `supaline.File`:
---- it is what puts a spec's reads under the same check the plugin's are.
+--- Claims `supaline.Folder` for the reason `M.file` claims `supaline.File`.
 ---@param cwd string
 ---@param files supaline.File[]
 ---@param cursor integer? the hovered row, 1-based; the first by default
@@ -941,49 +888,46 @@ end
 
 -- --- installation ----------------------------------------------------------
 
---- Put the stubs in place as globals, and teach `require` Yazi's relative
---- form so `require(".column")` finds `column.lua` next to it.
----@param root string repository root
-function M.install(root)
+--- Put back every Yazi value a test may write: `ui`, `th`, `ya`, `cx`, and
+--- what `ya` recorded. `run.lua` calls this before every test, so a test
+--- writes what it needs and leaves the next one nothing to trip over.
+---
+--- Not `ps`, `Linemode` or the modules: `main.lua` subscribes and registers
+--- when it loads and holds on to all three, so those last for a spec file.
+function M.reset()
 	_G.ui = {
 		Line = M.Line,
 		Span = M.Span,
 		-- A callable table rather than a function, because that is what Yazi
 		-- has: measured on 26.9.1, `type(ui.Style)` is `table` and only
-		-- `ui.Style()` is userdata. It matters now that `style.layer`
-		-- branches on `type`: written as a plain function here, a
-		-- `style = ui.Style` with the call forgotten would be called for its
-		-- colour and come back an empty style, where Yazi refuses the table
-		-- outright.
+		-- `ui.Style()` is userdata. `style.layer` branches on `type`, so a
+		-- `style = ui.Style` with the call forgotten has to reach it as Yazi's
+		-- would.
 		Style = setmetatable({}, { __call = function() return new_style {} end }),
 		truncate = truncate,
 		width = function(x) return str_width(text_of(x)) end,
-		render = function() end,
 	}
 
 	-- One table, because 26.9.1 has one state by the time the plugin draws
 	-- anything. `theme.toml` is merged before any plugin code runs, so
 	-- `th.supaline` and a `[mgr]` override alike are readable from the first
-	-- line of `init.lua`. Measured, not assumed -- a `[mgr] cwd` captured at
-	-- load time paints the user's colour, and a `Style` read out of `th` is a
-	-- value frozen at that moment, not a handle that follows later reloads.
+	-- line of `init.lua`, and a `Style` read out of `th` is a value frozen at
+	-- that moment, not a handle that follows later reloads.
 	--
 	-- The flavor is *not* there that early: a field only the flavor supplies
 	-- holds Yazi's preset while `init.lua` runs and reaches its real value with
-	-- an unasked `theme` event a few milliseconds later. One table is still
-	-- right, because nothing here models a startup -- a spec that cares writes
-	-- the preset, then writes the flavor's value and calls `fire("theme")`.
-	--
-	-- What a test writes here is what the plugin can already see.
-	--
-	-- What survives is the reload: `app:theme` re-reads `theme.toml` from disk
-	-- mid-run, so a colour resolved once and cached goes stale with nothing to
-	-- say so. Write the new section here and `fire("theme")` to reproduce it.
+	-- an unasked `theme` event a few milliseconds later. A spec that cares
+	-- writes the preset, then the flavor's value, and calls `fire("theme")` --
+	-- which is also how `app:theme` re-reading `theme.toml` mid-run is
+	-- reproduced.
 	M.th = {}
 	_G.th = setmetatable({}, {
 		__index = function(_, k) return M.th[k] end,
 		__newindex = function(_, k) error("stub: write to `stub.th`, not `th." .. tostring(k) .. "`") end,
 	})
+
+	M.notified = {}
+	M.logged = {}
 	_G.ya = {
 		readable_size = function(size)
 			local units = { "B", "K", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
@@ -997,29 +941,15 @@ function M.install(root)
 		end,
 		user_name = function(uid) return "user" .. tostring(uid) end,
 		group_name = function(gid) return "group" .. tostring(gid) end,
-		dbg = function() end,
-		-- Recorded rather than dropped, for the reason `notify` below is and one
-		-- of its own. A report is two halves, and this is the longer one: what
-		-- the fault cost the rest of the line, and the traceback, go here and
-		-- nowhere else. A spec that can read only the notification can therefore
-		-- say nothing about the half a reader is sent to the log for -- and that
-		-- half carried one stage's sentence for three of them, unseen by the
-		-- suite, until `manual.py` put the three on a screen.
-		--
-		-- `msg` and `...` as Yazi declares them, and every argument kept: the
-		-- plugin passes one, and a stub that folded the rest away would take a
-		-- call shaped like `ya.err("a", "b")` without a word.
+		-- Recorded, because a report is two halves and this is the longer one:
+		-- what the fault cost the rest of the line, and the traceback, go here
+		-- and nowhere else. `msg` and `...` as Yazi declares them, and every
+		-- argument kept, so a call shaped like `ya.err("a", "b")` is visible.
 		err = function(msg, ...) table.insert(M.logged, { msg, ... }) end,
-		-- Recorded rather than dropped, because this is the plugin's only way
-		-- to put anything in front of a user from a `ps.sub` handler -- there
-		-- is nobody to raise to there -- and a spec has to be able to say the
-		-- message was delivered. `title` and `content` are asserted on;
-		-- `timeout` and `level` are Yazi's to draw.
-		--
-		-- Refused when it is not shaped the way 26.9.1 wants it. Yazi takes one
-		-- table and reads four fields off it, and a call written as
-		-- `ya.notify(title, body)` would go through a stub that only stored its
-		-- first argument.
+		-- Recorded, because this is the plugin's only way to put anything in
+		-- front of a user from a `ps.sub` handler. Refused when it is not the
+		-- one table 26.9.1 reads `title` and `content` off, so a call written as
+		-- `ya.notify(title, body)` cannot pass.
 		notify = function(opts)
 			if type(opts) ~= "table" or type(opts.title) ~= "string" or type(opts.content) ~= "string" then
 				error("stub: `ya.notify` takes one table with `title` and `content`, as Yazi's does")
@@ -1027,17 +957,29 @@ function M.install(root)
 			table.insert(M.notified, opts)
 		end,
 	}
-	M.notified = {}
-	M.logged = {}
+
+	-- `preview` is always a table: Yazi has one whether or not a folder is
+	-- being previewed, and the plugin reads `preview.folder` on every row that
+	-- is not in the current pane.
+	--
+	-- `history` is written with the parameters Yazi's takes, and reads
+	-- neither, so a spec swapping it out is what looks different rather than
+	-- the plugin's own `cx.active:history(url)`. `tab__Tab` is `(exact)`, so
+	-- the type `types.yazi` leaves out is `supaline.Tab` in `types.lua`.
+	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
+end
+
+--- Put the stubs in place as globals, and teach `require` Yazi's relative
+--- form so `require(".column")` finds `column.lua` next to it.
+---@param root string repository root
+function M.install(root)
+	M.reset()
 
 	M.subs = {}
 	_G.ps = {
-		-- Yazi's own `ps.sub` takes any string and returns without
-		-- complaining, so a stale kind is a subscription that simply never
-		-- fires: no error, no warning, nothing on screen. This one refuses
-		-- instead. It is the same deliberate divergence `spec_of` makes for
-		-- `AuthKind` -- a stub that reproduces a silent failure lets a test
-		-- pass while the plugin is dead.
+		-- Yazi's own `ps.sub` takes any string and returns without complaining,
+		-- so a stale kind is a subscription that never fires. This one refuses
+		-- instead, for the reason `spec_of` refuses an unknown `AuthKind`.
 		sub = function(kind, fn)
 			if not M.DDS_KINDS[kind] then
 				error("stub: no such DDS kind: " .. tostring(kind))
@@ -1080,29 +1022,12 @@ function M.install(root)
 		_G.Linemode[name] = function() return "" end
 	end
 
-	-- `preview` is always a table: Yazi has one whether or not a folder is
-	-- being previewed, and the plugin reads `preview.folder` on every row that
-	-- is not in the current pane.
-	--
-	-- `history` is written with the parameters Yazi's takes, and reads
-	-- neither: a nullary one here would make the plugin's own
-	-- `cx.active:history(url)` the thing that looks wrong when a spec swaps it
-	-- out. It declares nothing, though -- `tab__Tab` is `(exact)`, so a field
-	-- this table adds is the stub's alone. The type `types.yazi` leaves out is
-	-- `supaline.Tab` in `types.lua`, beside the rest of the disagreements.
-	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return nil end } }
-
-	-- Whatever the module returned, handed back exactly as it came. This used
-	-- to read `chunk() or {}`, which turned the one value Yazi refuses --
-	-- Yazi wraps every module in a state table, so `false` fails the load with
-	-- "error converting Lua boolean to table" -- into the one it wants.
-	-- `module_spec.lua` is written to catch that and could not: a `builtin.lua`
-	-- ending `return false` passed all 110 tests while a real Yazi would not
-	-- load the plugin at all.
-	--
+	-- Whatever the module returned, handed back exactly as it came: Yazi wraps
+	-- every module in a state table, so `false` fails the load with "error
+	-- converting Lua boolean to table", and `module_spec.lua` has to see it.
 	-- Whether a module has been loaded is kept apart from what it returned, so
-	-- that a module returning `false` or nothing is loaded once rather than on
-	-- every require -- registering its columns again each time.
+	-- one returning `false` or nothing is loaded once rather than registering
+	-- its columns again on every require.
 	local loaded = {}
 	_G.require = function(name)
 		if name:sub(1, 1) ~= "." then

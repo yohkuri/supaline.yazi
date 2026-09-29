@@ -31,38 +31,12 @@
 
 local HERE = (arg[0] or "test/ramp.lua"):match("^(.*)[/\\]") or "."
 
--- `paint.lua` reads hex through colour.rgb and reaches for
--- Yazi only to ask whether it takes one of the *other* spellings -- a name, a
--- 256-colour index -- by trying to build a style out of one. There is no Yazi
--- here, so this stands in for it.
---
--- Permissive rather than strict, which is the opposite of what a stub in this
--- harness usually owes Yazi, and for a reason that only holds here: nothing but
--- `#rrggbb` can be drawn either way, because `paint.stops` needs numbers at
--- both ends and refuses everything else on the next line. So the only thing
--- this choice decides is which refusal a reader gets. Accepting sends `cyan` to
--- the message about why an endpoint cannot be a palette name -- the true one,
--- and the one a real Yazi gives. Refusing sends it to "not a colour Yazi
--- accepts", which goes on to recommend writing `cyan`.
----@diagnostic disable-next-line: lowercase-global
-ui = {
-	Style = function()
-		return { fg = function(self) return self end }
-	end,
-}
-
--- Yazi's relative module spelling, scoped to these pure/formatting helpers.
-local require_before = require
-local loaded = {}
-require = function(name)
-	if name:sub(1, 1) ~= "." then
-		return require_before(name)
-	end
-	if not loaded[name] then
-		loaded[name] = dofile(HERE .. "/../" .. name:sub(2) .. ".lua")
-	end
-	return loaded[name]
-end
+-- The unit suite's stubs, so a colour is refused in the words a real Yazi's
+-- parser would refuse it in -- `paint.lua` asks Yazi whether it takes a name
+-- or a 256-colour index by building a style out of one.
+---@type supaline.Stub
+local stub = dofile(HERE .. "/stub.lua")
+stub.install(HERE .. "/..")
 local colour = require(".colour")
 local paint = require(".paint")
 local schema = require(".schema")
