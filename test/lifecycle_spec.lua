@@ -149,13 +149,13 @@ test("snapshot: a style written as a value is read once, at `setup`", function()
 	local written = setmetatable({ bold = true }, { __index = inherited })
 	local plan = compile { linemodes = { detail = { { "probe", style = written } } } }
 	inherited.fg, written.bold = "blue", false
-	local paint = appearance.resolve(plan, {}).columns[plan.columns[1]]
+	local paint = appearance.resolve(plan, {})[plan.columns[1].slot]
 	eq(paint.style:raw().fg, "Red")
 	eq(paint.style:raw().bold, true)
 
 	-- A `ui.Style` is read through `raw()`, the same way.
 	local opaque = compile { linemodes = { detail = { { "probe", style = ui.Style():fg("green") } } } }
-	eq(appearance.resolve(opaque, {}).columns[opaque.columns[1]].style:raw().fg, "Green")
+	eq(appearance.resolve(opaque, {})[opaque.columns[1].slot].style:raw().fg, "Green")
 
 	-- And refused there too, before any theme is looked at.
 	throws(function() compile { linemodes = { detail = { { "probe", style = ui.Style } } } } end, "constructor")

@@ -25,6 +25,7 @@ local M = {}
 ---@class supaline.Prepared
 ---@field cell supaline.Cell
 ---@field ctx supaline.Ctx
+---@field sep_style unknown? the style the separator before the cell is drawn in, nil for none
 
 ---@class supaline.Runtime
 ---@field render fun(mode: supaline.ModePlan, pane: string, file: supaline.File, folder: supaline.Folder?): unknown
@@ -41,10 +42,10 @@ end
 --- the closures rather than on the context, so a context handed out is never
 --- rebound to another folder.
 ---@param col supaline.ColumnPlan
----@param paint supaline.ColumnAppearance
+---@param look supaline.Resolved
 ---@param stats any
 ---@return supaline.Ctx
-function M.context(col, paint, stats)
+function M.context(col, look, stats)
 	local lo, hi
 	local log = col.scale == "log"
 	if M.has_extremes(stats) then
@@ -54,8 +55,8 @@ function M.context(col, paint, stats)
 		end
 	end
 	local ctx = {
-		style = paint.style,
-		fg_written = paint.fg_written,
+		style = look.style,
+		fg_written = look.fg_written,
 		opts = col.options,
 		stats = stats,
 		width = col.width.value,
@@ -71,7 +72,7 @@ function M.context(col, paint, stats)
 		local r = (v - lo) / (hi - lo)
 		return r < 0 and 0 or r > 1 and 1 or r
 	end
-	local steps = paint.steps
+	local steps = look.steps
 	if steps then
 		local n, last = #steps, #steps - 1
 		function ctx.style_at(r)
@@ -148,7 +149,7 @@ function M.new(plan, appearance, reporter)
 		local prepared = {}
 		for i, cell in ipairs(cells) do
 			local col = cell.column
-			local paint, stats = appearance.columns[col], nil
+			local look, stats = appearance[col.slot], nil
 			if files and col.stats then
 				local ok, got = pcall(col.stats, files)
 				if ok then
@@ -156,13 +157,13 @@ function M.new(plan, appearance, reporter)
 				else
 					reporter.threw(col, "stats", got)
 				end
-				if paint.steps and stats ~= nil and not M.has_extremes(stats) then
+				if look.steps and stats ~= nil and not M.has_extremes(stats) then
 					reporter.stats(col)
 				end
 			end
 			-- Published only once the width pass is done, so a render measured
 			-- for `auto` sees `width` nil and nothing else does.
-			local ctx = M.context(col, paint, stats)
+			local ctx = M.context(col, look, stats)
 			if files and col.needs_pass then
 				local ok, got, refused = pcall(M.width, col, ctx, files)
 				if not ok then
@@ -173,7 +174,8 @@ function M.new(plan, appearance, reporter)
 					ctx.width = got
 				end
 			end
-			prepared[i] = { cell = cell, ctx = ctx }
+			local sep = cell.sep and cell.sep.slot and appearance[cell.sep.slot]
+			prepared[i] = { cell = cell, ctx = ctx, sep_style = sep and sep.written and sep.style or nil }
 		end
 		return prepared
 	end
@@ -224,7 +226,7 @@ function M.new(plan, appearance, reporter)
 			local cell, ctx = one.cell, one.ctx
 			local sep = cell.sep
 			if sep then
-				local style = sep.call and appearance.seps[sep] or sep.style
+				local style = one.sep_style
 				out[#out + 1] = style and ui.Span(sep.text):style(style) or sep.text
 			end
 			-- Layout inside the protected call too: a malformed renderable or a

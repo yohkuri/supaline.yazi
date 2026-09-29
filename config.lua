@@ -42,10 +42,9 @@ local PANES = { "current", "parent", "preview" }
 
 ---@class supaline.Plan
 ---@field order integer where the parent/preview child sits among `Linemode`'s
----@field band supaline.Bands
 ---@field modes table<string, supaline.ModePlan>
 ---@field columns supaline.ColumnPlan[] every column once, a list shared by two panes compiled once
----@field seps supaline.Sep[] every separator whose style a function returns, drawn or not, once
+---@field slots supaline.Slot[] every column's slot and every styled separator's, drawn or not, once
 ---@field outer boolean
 
 local SETUP_FIELDS = {
@@ -144,8 +143,7 @@ function M.compile(opts, registry, is_yazis)
 		)
 	end
 	local o = SETUP(opts, root)
-	local band = o.band or {}
-	local columns = registry.open { scale = o.scale, band = band }
+	local columns = registry.open { scale = o.scale, band = o.band or {} }
 	local wide = o.separator or { text = " " }
 
 	local linemodes, at = o.linemodes, root:key("linemodes")
@@ -182,15 +180,18 @@ function M.compile(opts, registry, is_yazis)
 	end
 
 	---@type supaline.Plan
-	local plan = { order = o.order or 1400, band = band, modes = {}, columns = {}, seps = {}, outer = false }
-	-- A separator whose style is a function is called on every build, drawn
-	-- or not -- the plugin-wide one under a linemode of one column included --
-	-- so what it returns is refused while `setup` can still say so.
-	local seen = {}
+	local plan = { order = o.order or 1400, modes = {}, columns = {}, slots = {}, outer = false }
+	-- Every slot is resolved on every build, drawn or not -- the plugin-wide
+	-- separator under a linemode of one column included -- so what a function
+	-- written for one returns is refused while `setup` can still say so. The
+	-- columns' come first, so of two refusals the column's is the one said.
+	local seps, seen = {}, {}
+	---@param sep supaline.Sep|false|nil
 	local function keep(sep)
-		if type(sep) == "table" and sep.call and not seen[sep] then
-			seen[sep] = true
-			plan.seps[#plan.seps + 1] = sep
+		local slot = sep and sep.slot
+		if slot and not seen[slot] then
+			seen[slot] = true
+			seps[#seps + 1] = slot
 		end
 	end
 	keep(wide)
@@ -221,6 +222,7 @@ function M.compile(opts, registry, is_yazis)
 				cells = {}
 				for i, entry in ipairs(list) do
 					local col = columns.compile(entry, base:key(i))
+					plan.slots[#plan.slots + 1] = col.slot
 					keep(col.separator)
 					local sep = nil ---@type supaline.Sep?
 					if i > 1 and col.separator ~= false then
@@ -239,6 +241,7 @@ function M.compile(opts, registry, is_yazis)
 		plan.outer = plan.outer or outer
 		plan.modes[name] = { name = name, panes = panes, outer = outer }
 	end
+	table.move(seps, 1, #seps, #plan.slots + 1, plan.slots)
 	return plan
 end
 

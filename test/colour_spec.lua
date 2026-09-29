@@ -144,7 +144,7 @@ local function stops(value, band) return paint.stops(value, X, { fg = band or RE
 --- reaches have to vary them; everything else wants the one pair `BANDS`
 --- holds and says so by leaving it out. They reach `style.layer` as the
 --- painter built from them, which is what a column's style is read with --
---- `style.flat` is the other painter and has a block of its own.
+--- `paint.flat` is the other painter and has a block of its own.
 ---@param value any
 ---@param bands supaline.Bands? `BANDS` when omitted
 ---@return supaline.Layer
@@ -422,10 +422,20 @@ end)
 
 -- --- one style, for a separator ---------------------------------------------
 
+--- A separator's style, read with the painter a separator's slot reads with
+--- and built the way a build builds it.
+---@param value any
+---@param at supaline.Path
+---@return unknown
+local function flat(value, at)
+	local layer = style.layer(value, at, paint.flat) --[[@as supaline.Layer]]
+	return (style.build(layer))
+end
+
 test("flat: a separator's style is one layer built on its own, and takes no gradient", function()
-	eq(style.flat("#ff8800", X).fg, "#ff8800")
-	eq(style.flat({ bold = true }, X).bold, true)
-	eq(style.flat(ui.Style():fg("cyan"), X).fg, "Cyan")
+	eq(flat("#ff8800", X).fg, "#ff8800")
+	eq(flat({ bold = true }, X).bold, true)
+	eq(flat(ui.Style():fg("cyan"), X).fg, "Cyan")
 
 	-- A separator is drawn between two columns rather than on a file, so there
 	-- is no value to place on a gradient and every spelling of one is refused
@@ -442,15 +452,15 @@ test("flat: a separator's style is one layer built on its own, and takes no grad
 	-- are one message four times over, deliberately, and a fifth spelling that
 	-- found its way to a different one would be the same bug returning.
 	local SAME = "is a gradient, and there is no value here to place"
-	throws(function() style.flat("#0b3d91 -> #7fd4ff", X) end, "`#0b3d91 -> #7fd4ff` " .. SAME)
-	throws(function() style.flat("#0b3d91 <->", X) end, "`#0b3d91 <->` " .. SAME)
-	throws(function() style.flat("#0b3d91 <-> nosuch", X) end, "`#0b3d91 <-> nosuch` " .. SAME)
-	throws(function() style.flat("cyan <->", X) end, "`cyan <->` " .. SAME)
+	throws(function() flat("#0b3d91 -> #7fd4ff", X) end, "`#0b3d91 -> #7fd4ff` " .. SAME)
+	throws(function() flat("#0b3d91 <->", X) end, "`#0b3d91 <->` " .. SAME)
+	throws(function() flat("#0b3d91 <-> nosuch", X) end, "`#0b3d91 <-> nosuch` " .. SAME)
+	throws(function() flat("cyan <->", X) end, "`cyan <->` " .. SAME)
 
 	-- Under a key it is the value that is named, not the key: the bare-string
 	-- form above has no key to name, and one message reading two ways is what
 	-- put the reader in front of the wrong one to begin with.
-	throws(function() style.flat({ bg = "#0b3d91 <->" }, X) end, "x.bg: `#0b3d91 <->` " .. SAME)
+	throws(function() flat({ bg = "#0b3d91 <->" }, X) end, "x.bg: `#0b3d91 <->` " .. SAME)
 end)
 
 -- --- what a style answers `raw()` with ------------------------------------

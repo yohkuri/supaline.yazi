@@ -70,7 +70,7 @@ local M = {}
 ---@field needs_pass boolean
 ---@field options table<string, any> the declared options, and nothing else
 ---@field separator supaline.Sep|false|nil the column's own, `false` for none
----@field styles supaline.Source[] the definition's, the theme's and the use's, farthest first
+---@field slot supaline.Slot the definition's style, the theme's and the use's
 
 --- What compiling one column needs from `setup`.
 ---@class supaline.Cfg
@@ -283,8 +283,9 @@ local function theme_at(name) return schema.path("theme [supaline]." .. name) en
 ---@param use table? nil for an inline definition
 ---@param at supaline.Path where the use was written
 ---@param cfg supaline.Cfg
+---@param read supaline.Reader what a style written for a column means under this `setup`'s bands
 ---@return supaline.ColumnPlan
-local function merge(def, use, at, cfg)
+local function merge(def, use, at, cfg, read)
 	local fields = def.fields
 	---@return any
 	local function pick(key)
@@ -299,6 +300,20 @@ local function merge(def, use, at, cfg)
 	local width = pick("width") or { kind = "natural" } ---@type supaline.Width
 	if width.kind == "fixed" and max_width and width.value > max_width then
 		width = { kind = "fixed", value = max_width }
+	end
+
+	-- Three writers, farthest first: the definition's default, the theme's
+	-- field, and the use's own. An inline definition is one table and one
+	-- writer, so it writes the definition's layer and the theme stays nearer.
+	-- Without `stats` every row's ratio is nil, so the slot may hold no
+	-- gradient once the three are merged.
+	local sources = {}
+	sources[#sources + 1] = style.source(fields.style, def.at:key("style"), read)
+	if def.name then
+		sources[#sources + 1] = { at = theme_at(def.name), theme = def.name }
+	end
+	if use then
+		sources[#sources + 1] = style.source(use.style, at:key("style"), read)
 	end
 
 	---@type supaline.ColumnPlan
@@ -317,23 +332,11 @@ local function merge(def, use, at, cfg)
 		scale = (use or fields).scale or cfg.scale or fields.scale or "linear",
 		needs_pass = stats ~= nil or width.kind == "auto" or width.kind == "computed",
 		options = {},
-		styles = {},
+		slot = { sources = sources, read = read, ranged = stats ~= nil },
 	}
 
 	for _, key in ipairs(def.options or {}) do
 		col.options[key] = pick(key)
-	end
-
-	-- Three writers, farthest first: the definition's default, the theme's
-	-- field, and the use's own. An inline definition is one table and one
-	-- writer, so it writes the definition's layer and the theme stays nearer.
-	local styles = col.styles
-	styles[#styles + 1] = style.source(fields.style, def.at:key("style"), cfg.band)
-	if col.name then
-		styles[#styles + 1] = { at = theme_at(col.name), theme = col.name }
-	end
-	if use then
-		styles[#styles + 1] = style.source(use.style, at:key("style"), cfg.band)
 	end
 	return col
 end
@@ -365,6 +368,7 @@ function M.new_registry()
 		-- By registration rather than by name, so a column registered again
 		-- after this was opened is not answered from here.
 		local read = {} ---@type table<table, { def: supaline.Definition, use: fun(t: table, at: supaline.Path): table }>
+		local reader = style.reader(cfg.band)
 
 		---@param registered { t: table, at: supaline.Path }
 		---@param name string
@@ -410,7 +414,7 @@ function M.new_registry()
 			else
 				def = definition(spec, at, nil)
 			end
-			return merge(def, use, at, cfg)
+			return merge(def, use, at, cfg, reader)
 		end
 
 		return { compile = compile }

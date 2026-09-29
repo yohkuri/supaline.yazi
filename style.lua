@@ -1,7 +1,8 @@
 --- @since 26.9.1
 --- The style language: what one writer puts under `style`, read into a layer;
---- the layers merged key by key; the `ui.Style` built out of the result; and a
---- separator, which is text and a flat style.
+--- the slot that gathers every writer of one place; the layers merged key by
+--- key; the `ui.Style` built out of the result; and a separator, which is text
+--- and a slot of its own.
 ---
 --- Every value here is read at `setup` except what a function returns and what
 --- the theme holds, which are read again on every `theme` event.
@@ -103,6 +104,19 @@ local STYLE_HELP = string.format(
 ---@field call function? a function to call for the value
 ---@field theme string? the `[supaline]` field to look up
 
+--- How a value written in one slot is read into a layer, refusing what that
+--- slot cannot draw.
+---@alias supaline.Reader fun(value: any, at: supaline.Path): supaline.Layer|false
+
+--- One place a style goes -- a column, or a separator -- with everything
+--- written for it and how it is read. A value is read at `setup`, and what a
+--- function returns or the theme holds is read on every build by the same
+--- reader, so the two are refused alike.
+---@class supaline.Slot
+---@field sources supaline.Source[] farthest first
+---@field read supaline.Reader
+---@field ranged boolean? `false` for a column with no `stats`, whose merged style may hold no gradient
+
 --- Whether `value` is a `ui.Style`, by what it answers to. `getmetatable`
 --- cannot tell: measured on 26.9.1, every Yazi userdata answers `false`, a
 --- Span as much as a Style. `patch` is a Style's method and nothing else's.
@@ -178,19 +192,28 @@ function M.layer(value, at, painter)
 	return layer
 end
 
+--- How a column's style is read: a gradient resolved against the bands
+--- `setup` defined, anything else a colour Yazi takes.
+---@param bands supaline.Bands
+---@return supaline.Reader
+function M.reader(bands)
+	local painter = paint.painter(bands)
+	return function(value, at) return M.layer(value, at, painter) end
+end
+
 --- A style as configuration wrote it, read as far as it can be before a theme
 --- exists.
 ---@param value any
 ---@param at supaline.Path
----@param bands supaline.Bands
+---@param read supaline.Reader
 ---@return supaline.Source?
-function M.source(value, at, bands)
+function M.source(value, at, read)
 	if value == nil then
 		return nil
 	elseif type(value) == "function" then
 		return { at = at, call = value }
 	end
-	return { at = at, layer = M.layer(value, at, paint.painter(bands)) }
+	return { at = at, layer = read(value, at) }
 end
 
 --- Stack the layers, farthest first, giving each key to the nearest layer
@@ -270,58 +293,43 @@ function M.build(resolved)
 	return ground, steps
 end
 
---- One style on its own, with no gradient: what a separator is drawn in.
----@param value any what `M.layer` takes, but `false`
----@param at supaline.Path
----@return unknown a ui.Style
-function M.flat(value, at)
-	local layer = M.layer(value, at, paint.flat) --[[@as supaline.Layer]]
-	return (M.build(layer))
-end
-
 --- A separator as it is written: the text first, the style beside it, which
 --- reads the way `{ "size", style = ... }` does.
 ---@class supaline.SepSpec
 ---@field [1] string what to draw
 ---@field style supaline.StyleSpec?
 
---- A separator as a plan holds it: the text, and the style it is drawn in --
---- built already when one was written, and called for on every build when a
---- function was.
+--- A separator as a plan holds it: the text, and the slot its style is
+--- resolved in, when one was written.
 ---@class supaline.Sep
 ---@field text string
----@field style unknown? a ui.Style
----@field call function?
----@field at supaline.Path? where the function was written
+---@field slot supaline.Slot?
 
 local SEP_KEYS = { [1] = true, style = true }
 local function sep_key(k) return SEP_KEYS[k] end
 
---- The style a separator's text is drawn in, from what was written for it.
---- Used at `setup` for a value and on every build for what a function
---- returned, so the two are refused the same way.
+--- How a separator's style is read. A separator is drawn between two columns
+--- rather than on a file, so a gradient is refused by the painter; `false` and
+--- a style on `""` are refused here. The same reader takes what a function
+--- returns, so the two are refused the same way.
 ---@param text string
----@param value any
----@param at supaline.Path
----@return unknown? a ui.Style, or nil for none
-function M.sep_style(text, value, at)
-	if value == nil then
-		-- The table form with the colour left out says what the bare string
-		-- says; it does not inherit a style from the level above.
-		return nil
-	elseif value == false then
-		at:refuse(
-			"is `false`, and there is nothing here to turn off. A column's `style = false` drops what its "
-				.. "theme or its definition would otherwise supply; a separator has neither behind it, so "
-				.. "leaving `style` out is how one goes uncoloured"
-		)
-	elseif text == "" then
-		at:refuse(
-			'colours `""`, which draws nothing: a span of no cells shows no style. Write `""` on its own '
-				.. "to put nothing between two columns, or give the separator something to draw"
-		)
+---@return supaline.Reader
+local function separator_reader(text)
+	return function(value, at)
+		if value == false then
+			at:refuse(
+				"is `false`, and there is nothing here to turn off. A column's `style = false` drops what its "
+					.. "theme or its definition would otherwise supply; a separator has neither behind it, so "
+					.. "leaving `style` out is how one goes uncoloured"
+			)
+		elseif value ~= nil and text == "" then
+			at:refuse(
+				'colours `""`, which draws nothing: a span of no cells shows no style. Write `""` on its own '
+					.. "to put nothing between two columns, or give the separator something to draw"
+			)
+		end
+		return M.layer(value, at, paint.flat)
 	end
-	return M.flat(value, at)
 end
 
 --- Read a separator, in either shape. `false` is not one: it drops the
@@ -357,11 +365,13 @@ function M.separator(value, at)
 			text == nil and "nothing" or "a " .. type(text)
 		)
 	end
-	local style = value.style
-	if type(style) == "function" then
-		return { text = text, call = style, at = at:key("style") }
+	if value.style == nil then
+		-- The table form with the colour left out says what the bare string
+		-- says; it does not inherit a style from the level above.
+		return { text = text }
 	end
-	return { text = text, style = M.sep_style(text, style, at:key("style")) }
+	local read = separator_reader(text)
+	return { text = text, slot = { sources = { M.source(value.style, at:key("style"), read) }, read = read } }
 end
 
 return M
