@@ -580,20 +580,21 @@ two:
    only that folder holds in `FOLDERS` in `test/e2e.py`, so the press can be
    waited on rather than slept through.
 
-Then add it to `COLOUR_MODES` in `test/e2e.py`, which is both what presses the
-key and what asserts the capture came back. That does not judge it
-— judging is what this document is for — but an unregistered linemode name is
-drawn as literal text and one that threw takes the rows with it, and without
-that line the first person to find out is whoever next runs `manual.py`.
+Then give it a folder in `COLOUR_FOLDERS` in `test/e2e.py`; the unit suite
+refuses a colour linemode bound with none. `e2e.py` presses every one the
+keymap binds and asserts its capture came back. That does not judge it —
+judging is what this document is for — but an unregistered linemode name is
+drawn as literal text and one that threw takes the rows with it, and `e2e.py`
+finds either before whoever next runs `manual.py` does.
 
 A case under `b` takes a different line, and takes it in the second Yazi
 `e2e.py` starts for exactly these — the run that is meant to be clean fails for
 logging an error at all, and a column that is wrong on purpose makes it log
-one. Register the column and send its key in that run's loop. Which columns
-that run expects is read out of `test/fixture/init.lua` rather than written in
-`e2e.py`, so
-a seventh registered and never pressed is a red suite rather than a case
-nobody checks. [Broken columns](#broken-columns) has the rest of it.
+one. Register the column and bind its key under `b`; that run presses every
+`b` linemode the keymap binds. Which columns that run expects is read out of
+`test/fixture/init.lua` rather than written in `e2e.py`, so a seventh
+registered and never pressed is a red suite rather than a case nobody checks.
+[Broken columns](#broken-columns) has the rest of it.
 
 ## Broken columns
 

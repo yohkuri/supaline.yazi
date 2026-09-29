@@ -10,11 +10,11 @@
 --- What this does not do is draw. `e2e.py` is still the only thing that says
 --- the configuration produces the screen `test/MANUAL.md` describes.
 ---
---- The key set is named in four places -- `test/fixture/keymap.toml`,
---- `test/fixture/banner.txt`, `test/MANUAL.md`, and `e2e.py`'s capture loops.
---- The banner's only reader is a person, so it is the one that can fall behind
---- with everything green. The keymap is the authority, and nothing here names a
---- key of its own.
+--- The key set is named in three places -- `test/fixture/keymap.toml`,
+--- `test/fixture/banner.txt` and `test/MANUAL.md` -- and `e2e.py` reads its
+--- linemode keys off the keymap rather than naming them. The banner's only
+--- reader is a person, so it is the one that can fall behind with everything
+--- green. The keymap is the authority, and nothing here names a key of its own.
 
 ---@type supaline.Main
 local main = require(".main")
@@ -58,10 +58,10 @@ test("fixture: the configuration `e2e.py` draws is one `setup` takes", function(
 	assert(ok, "the fixture's own configuration was refused by `setup`:\n    " .. tostring(err))
 end)
 
--- `e2e.py` is deliberately not compared against the key set. It presses `c 2`
--- and neither `c 1` nor `c 3`, because that key replaces `theme.toml` wholesale
--- and a run can afford one swap, so a check there would need a list of exempt
--- keys -- a fifth place naming the set.
+-- `e2e.py` is deliberately not compared against the whole key set. Past the
+-- linemodes it reads, it presses `c 2` and neither `c 1` nor `c 3`, because
+-- that key replaces `theme.toml` wholesale and a run can afford one swap, so a
+-- check there would need a list of exempt keys -- another place naming the set.
 
 --- Keys the banner offers that the keymap does not bind, and why each is not a
 --- fault. An entry the banner no longer offers is refused, so this cannot
