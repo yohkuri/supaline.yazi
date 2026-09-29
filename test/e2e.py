@@ -790,7 +790,7 @@ def check_scale(k: Checks, capture: str, init: str) -> None:
     # The premise under both claims: a row whose halves read differently is a
     # fixture that moved, and two scales over two numbers compare nothing.
     drifted = [r for r in rows if r.log_text != r.linear_text]
-    k.verdict(
+    if not k.verdict(
         f"c_scale: the two scales draw one number ({len(rows)} rows)",
         len(rows) < SCALE_FLOOR
         and f"c_scale: only {len(rows)} row(s) carried a pair either side of "
@@ -799,8 +799,7 @@ def check_scale(k: Checks, capture: str, init: str) -> None:
         and f"c_scale: {len(drifted)} row(s) draw a different number either "
         f"side of the seam -- `{drifted[0].log_text}` against "
         f"`{drifted[0].linear_text}`",
-    )
-    if len(rows) < SCALE_FLOOR or drifted:
+    ):
         return
 
     # The sizes double down the folder, so log spaces them evenly and takes a

@@ -171,19 +171,21 @@ class Checks:
         print(f"  FAIL {label}", file=sys.stderr)
         self.failed.append(label)
 
-    def verdict(self, label: str, *faults: str | None) -> None:
-        """Fail on the first fault that is a message, or pass as `label`.
+    def verdict(self, label: str, *faults: str | None) -> bool:
+        """Fail on the first fault that is a message, or pass as `label`, and
+        say which, so a check that reads further returns on the same guards
+        rather than spelling them twice.
 
-        Written `bad and f"...{bad[0]}..."`, a fault is built only when there
-        is one, so it may index what would be empty otherwise; and the order
-        is the order of the guards, so a later fault may assume the earlier
-        ones did not hold.
+        Every fault is evaluated before the call, so none may lean on another:
+        written `bad and f"...{bad[0]}..."`, each is built only when it holds
+        and indexes only what it has just found is there.
         """
         for fault in faults:
             if fault:
                 self.fail(fault)
-                return
+                return False
         self.ok(label)
+        return True
 
     def that(self, held: bool, label: str) -> None:
         """`label` states what is true when it passes, so it reads either way."""

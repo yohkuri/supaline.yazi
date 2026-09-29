@@ -34,7 +34,10 @@ local stub = dofile(ROOT .. "/test/stub.lua")
 --- spec left off a list never runs and the suite stays green without it.
 ---@return string[]
 local function specs()
-	local pipe = assert(io.popen('ls "' .. ROOT .. '/test"'))
+	-- Quoted whole for the shell, so no character in the checkout's path is
+	-- one the shell reads.
+	local dir = (ROOT .. "/test"):gsub("'", [['\'']])
+	local pipe = assert(io.popen("ls '" .. dir .. "'"))
 	local names = {}
 	for file in pipe:read("a"):gmatch("[^\n]+") do
 		names[#names + 1] = file:match("^(.+_spec)%.lua$")
