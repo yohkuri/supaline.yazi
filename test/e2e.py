@@ -1268,7 +1268,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     # capture taken before it proved a colour resolved at `setup` was the
     # preset's; 26.9.1 has `th.supaline` populated before `setup` runs, and
     # that capture now proves nothing. A reload still does: it is
-    # `ps.sub("theme", build)` that repaints what is already on screen, and a
+    # `ps.sub("theme", ...)` that repaints what is already on screen, and a
     # plugin without it holds the old colour.
     (before,) = rows("colour-theme-before", flat_old)
     stale, after = rows("colour-theme-after", flat_old, flat_new)

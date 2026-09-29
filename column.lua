@@ -22,7 +22,7 @@ local M = {}
 ---@class supaline.ColumnOpts
 ---@field render supaline.Render?
 ---@field stats fun(files: supaline.File[]): table?|nil
----@field refresh function? run whenever a linemode is installed, and on `cd`
+---@field refresh function? run at `setup`, after every theme that resolves, and on `cd`
 ---@field style supaline.StyleSpec?
 ---@field align "left"|"right"|nil
 ---@field overflow "ellipsis"|"clip"|"grow"|nil

@@ -118,7 +118,7 @@ function M.definitions()
 	local YEAR_FROM, YEAR_TO = 0, 0
 
 	--- Re-read the year. Declared as the `refresh` hook of every time column, so
-	--- session.lua runs it at `setup`, after every `theme` event and on every
+	--- session.lua runs it at `setup`, after every theme it resolves and on every
 	--- `cd`. A session left open across New Year and never navigated still shows
 	--- the old year's formatting until something moves.
 	local function refresh_year()
@@ -207,14 +207,15 @@ function M.definitions()
 	local PERM, PERM_TYPE = {}, nil
 
 	--- Re-read the permission styles. Declared as the column's `refresh` hook, so
-	--- session.lua runs it at `setup`, after every `theme` event and on every
-	--- `cd`.
+	--- session.lua runs it at `setup`, after every theme it resolves and on every
+	--- `cd`. A theme supaline refuses keeps the last appearance drawing and
+	--- refreshes nothing, so what this read before stays until the next `cd`.
 	---
 	--- That hook is the whole of why this column can read the theme at all. A
 	--- `th.status` read while `init.lua` runs is Yazi's preset: 26.9.1 merges
 	--- `theme.toml` before any plugin code runs but not the flavor, which arrives
 	--- with an unasked `theme` event a few milliseconds later. `refresh` runs
-	--- after both, and again after every reload.
+	--- after both, and again after every reload that resolves.
 	local function refresh_perms()
 		local st = th.status or {}
 		PERM_TYPE = st.perm_type
