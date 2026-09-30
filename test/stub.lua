@@ -895,7 +895,6 @@ end
 --- Not `ps`, `Linemode` or the modules: `main.lua` subscribes and registers
 --- when it loads and holds on to all three, so those last for a spec file.
 function M.reset()
-	M.wrappers = 0
 	_G.ui = {
 		Line = M.Line,
 		Span = M.Span,
@@ -979,9 +978,8 @@ end
 --- A call through the wrapper is the module's function with a proxy in first
 --- place swapped for its module, which is what makes `mod:fn()` see the module
 --- as `self`. In Yazi it also enters and leaves a nested runtime, which the
---- stub leaves out. What it counts instead is the reads, in `M.wrappers`:
---- `session.lua` has what one costs a row, and `main_spec.lua` holds a frame
---- to none. `stub_spec.lua` pins the rest against 26.9.1.
+--- stub leaves out. What it counts instead is the reads, in `M.wrappers`.
+--- `stub_spec.lua` pins the rest against 26.9.1.
 ---@param mod table
 ---@return table
 local function proxy(mod)
@@ -993,10 +991,8 @@ local function proxy(mod)
 			end
 			M.wrappers = M.wrappers + 1
 			return function(first, ...)
-				if type(first) == "table" and rawget(first, "__mod") then
-					return v(rawget(first, "__mod"), ...)
-				end
-				return v(first, ...)
+				local unwrapped = type(first) == "table" and rawget(first, "__mod")
+				return v(unwrapped or first, ...)
 			end
 		end,
 		__newindex = function(_, key, value) rawset(mod, key, value) end,
@@ -1010,6 +1006,8 @@ function M.install(root)
 	M.reset()
 
 	M.subs = {}
+	-- Read as a difference, so it runs on across the tests of a spec file.
+	M.wrappers = 0
 	_G.ps = {
 		-- Yazi's own `ps.sub` takes any string and returns without complaining,
 		-- so a stale kind is a subscription that never fires. This one refuses
