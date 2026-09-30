@@ -975,10 +975,11 @@ end
 --- wrapper (`create_mt` in `yazi-runner/src/loader/require.rs`). Any other
 --- field comes back as it is, and a write lands on the module.
 ---
---- A call through the wrapper is the module's function with a proxy in first
---- place swapped for its module, which is what makes `mod:fn()` see the module
---- as `self`. In Yazi it also enters and leaves a nested runtime, which the
---- stub leaves out. What it counts instead is the reads, in `M.wrappers`.
+--- A wrapper holds the name, not the function: a call looks it up then, on
+--- the module, or on the module of a proxy passed first, which is handed over
+--- in the proxy's place -- what makes `mod:fn()` see the module as `self`
+--- (`split_mod_and_args`). In Yazi it also enters and leaves a nested
+--- runtime, which the stub leaves out. What it counts instead is the reads, in `M.wrappers`.
 --- `stub_spec.lua` pins the rest against 26.9.1.
 ---@param mod table
 ---@return table
@@ -990,9 +991,13 @@ local function proxy(mod)
 				return v
 			end
 			M.wrappers = M.wrappers + 1
-			return function(first, ...)
-				local unwrapped = type(first) == "table" and rawget(first, "__mod")
-				return v(unwrapped or first, ...)
+			return function(...)
+				local first = ...
+				local other = type(first) == "table" and rawget(first, "__mod")
+				if type(other) == "table" then
+					return other[key](other, select(2, ...))
+				end
+				return mod[key](...)
 			end
 		end,
 		__newindex = function(_, key, value) rawset(mod, key, value) end,

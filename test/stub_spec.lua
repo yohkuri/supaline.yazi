@@ -238,11 +238,27 @@ test("require: a proxy over the module, as Yazi hands back", function()
 	eq(proxy.any(t), t, "a table argument goes through")
 	eq(proxy:any(), mod, "a proxy in first place arrives as its module")
 	eq(proxy.any(mod.any), mod.any, "and what a call returns is not wrapped")
+	local fake = { __mod = 7 }
+	eq(proxy.any(fake), fake, "a table whose `__mod` is no module goes through as it is")
 
-	proxy.probe = 1
-	eq(rawget(mod, "probe"), 1, "a write lands on the module")
+	-- Written as a second function further down, which the checker would call
+	-- a duplicate field.
+	---@diagnostic disable-next-line: duplicate-set-field
+	proxy.probe = function(...) return select("#", ...) end
+	eq(rawget(mod, "probe") ~= nil, true, "a write lands on the module")
 	eq(rawget(proxy, "probe"), nil, "and not on the proxy")
-	proxy.probe = nil
+	eq(proxy.probe(), 0, "a call with no argument is handed none")
+	eq(proxy.probe(nil), 1, "and one with a nil is handed the nil")
+
+	local kept = proxy.probe
+	---@diagnostic disable-next-line: duplicate-set-field
+	proxy.probe = function() return "replaced" end
+	eq(kept(), "replaced", "a kept wrapper calls whatever the name holds when it is called")
+
+	local report = rawget(require(".report"), "__mod")
+	report.probe = function() return "report" end
+	eq(proxy.probe(require(".report")), "report", "on the module of a proxy passed first")
+	report.probe, proxy.probe = nil, nil
 end)
 
 -- --- what the stub refuses and Yazi would not ------------------------------

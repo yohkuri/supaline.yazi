@@ -14,8 +14,8 @@ local report = require(".report")
 -- leaves a nested runtime. Measured on 26.9.1, over a row of six built-in
 -- columns: 57.7us with `layout.cell` read per cell, 42.9us with this local,
 -- and 33.0us with the function reached through no wrapper at all -- what the
--- one kept here still costs on every call. `main_spec.lua` holds a frame to
--- no such read.
+-- one kept here still costs on every call. `main_spec.lua` holds what a
+-- frame reads this way to a count that does not grow with the folder.
 local layout_cell = require(".layout").cell
 
 ---@class supaline.SessionModule
