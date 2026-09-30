@@ -942,9 +942,10 @@ function M.reset()
 		user_name = function(uid) return "user" .. tostring(uid) end,
 		group_name = function(gid) return "group" .. tostring(gid) end,
 		-- Recorded, because a report is two halves and this is the longer one:
-		-- what the fault cost the rest of the line, and the traceback, go here
-		-- and nowhere else. `msg` and `...` as Yazi declares them, and every
-		-- argument kept, so a call shaped like `ya.err("a", "b")` is visible.
+		-- what the fault cost the rest of the line, and the whole of what was
+		-- thrown, go here and nowhere else. `msg` and `...` as Yazi declares
+		-- them, and every argument kept, so a call shaped like
+		-- `ya.err("a", "b")` is visible.
 		err = function(msg, ...) table.insert(M.logged, { msg, ... }) end,
 		-- Recorded, because this is the plugin's only way to put anything in
 		-- front of a user from a `ps.sub` handler. Refused when it is not the

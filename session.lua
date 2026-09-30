@@ -8,15 +8,21 @@ local appearance = require(".appearance")
 local listing = require(".listing")
 local report = require(".report")
 
--- Taken off the module once, at load, because `draw` calls it for every cell
--- of every frame. What `require` hands back is a proxy that builds a new
--- wrapper on each read of a function field, and a call through one enters and
--- leaves a nested runtime. Measured on 26.9.1, over a row of six built-in
--- columns: 57.7us with `layout.cell` read per cell, 42.9us with this local,
--- and 33.0us with the function reached through no wrapper at all -- what the
--- one kept here still costs on every call. `main_spec.lua` holds what a
--- frame reads this way to a count that does not grow with the folder.
-local layout_cell = require(".layout").cell
+-- The function itself, off the module under the proxy `require` hands back,
+-- because `draw` calls it for every cell of every frame. A read of a function
+-- field through the proxy builds a new wrapper, and a call through one enters
+-- and leaves a nested runtime. Measured on 26.9.1, over a row of six built-in
+-- columns: 57.7us with `layout.cell` read per cell, 42.9us with the wrapper
+-- read once and kept, 33.0us with this.
+--
+-- What a `render` gives up, measured on 26.9.1: it runs under Yazi's `root`
+-- frame rather than `supaline.layout`, so a relative `require` in one
+-- resolves under `root` and fails; and what it throws reaches `report.lua`
+-- as raised, with no traceback. What it gains: an async call that waits fails
+-- inside the render's own `pcall`, where through a wrapper it escaped past
+-- it. `main_spec.lua` holds what a frame does through wrappers to a count
+-- that does not grow with the folder.
+local layout_cell = rawget(require(".layout"), "__mod").cell
 
 ---@class supaline.SessionModule
 local M = {}

@@ -631,13 +631,12 @@ after the key, and times out after twenty seconds. Read one before pressing
 the next.
 
 It is the shorter half. What the fault cost the rest of the line, and the
-traceback naming the function that threw and the line it threw on, go to the
-log instead — `manual.py` prints its path before it opens Yazi, and `--clean`
-takes it away with the fixture. Reading the two against each other is the only
-way to judge the split, which is the whole of what `tell` in `main.lua` is
-for. Outside this harness there is no log at all unless `YAZI_LOG` was set
-before Yazi started, which is why the notification says the traceback *goes*
-to the log rather than that it is in one.
+whole of what was thrown, go to the log instead — `manual.py` prints its path
+before it opens Yazi, and `--clean` takes it away with the fixture. Reading the
+two against each other is the only way to judge the split, which is the whole
+of what `tell` in `main.lua` is for. Outside this harness there is no log at
+all unless `YAZI_LOG` was set before Yazi started, which is why the
+notification says the rest *goes* to the log rather than that it is in one.
 
 **Each of these is worth one look per session.** `told` in `report.lua` marks a
 column against the kind of thing it was told off for — a `stats` with no
@@ -685,7 +684,7 @@ Yazi opens:
 tail -F "${TMPDIR:-/tmp}/supaline-manual/state/yazi/yazi.log" | awk '/ ERROR / { sub(/.*log: "/, ""); sub(/"$/, ""); gsub(/\\n/, "\n"); gsub(/\\t/, "    "); gsub(/\\"/, "\""); print; print ""; fflush() }'
 ```
 
-One report is one physical line there, with the traceback escaped into it, so a
+One report is one physical line there, with its line breaks escaped, so a
 plain `tail` hands you a paragraph with no line breaks in it. That `awk` undoes
 the escaping and puts a blank line between reports. To read them after the fact
 instead, drop the `tail -F |` and give `awk` the path.

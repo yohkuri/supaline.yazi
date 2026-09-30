@@ -7,11 +7,12 @@
 ---@class supaline.ReportModule
 local M = {}
 
---- The first line of an error, for the screen. Measured on 26.9.1: what
---- `pcall` hands back from under Yazi is `runtime error: <chunk>:<line>:
---- <message>` and two tracebacks, and `ya.notify` draws every line of it. The
---- log keeps the whole; the `<chunk>:<line>:` stays, since it is where the
---- reader's own function threw.
+--- The first line of an error, for the screen. Measured on 26.9.1: an error
+--- that crossed one of Yazi's module wrappers on its way to `pcall` comes back
+--- as `runtime error: <chunk>:<line>: <message>` and two tracebacks, and
+--- `ya.notify` draws every line of it; one that crossed none comes back as
+--- raised. The log keeps the whole; the `<chunk>:<line>:` stays, since it is
+--- where the reader's own function threw.
 ---@param err any what `pcall` handed back
 ---@return string
 function M.one_line(err) return (tostring(err):gsub("\nstack traceback:.*", ""):gsub("^runtime error: ", "")) end
@@ -111,8 +112,11 @@ function M.new(sink)
 	--- under a linemode's render fails the whole `Root` component, on every
 	--- frame, with nothing on screen and no log unless `YAZI_LOG` was set --
 	--- worse than any mistake it could report. The screen gets the first line
-	--- and the log the traceback, since a whole traceback in a notification
-	--- pushes the line that names the column off the top of the pane.
+	--- and the log the whole, since what follows it in a notification pushes
+	--- the line that names the column off the top of the pane. None of the
+	--- four is called through a module wrapper, so the whole is what was
+	--- raised, in the shape `M.one_line` describes, and Yazi loads no `debug`
+	--- to add a traceback here.
 	---@param col supaline.ColumnPlan
 	---@param stage supaline.Stage which of the four threw
 	---@param err any what it threw
@@ -130,7 +134,7 @@ function M.new(sink)
 				said
 			),
 			string.format(
-				"column `%s` threw from its `%s`: %s (the traceback goes to the log)",
+				"column `%s` threw from its `%s`: %s (the rest goes to the log)",
 				name_of(col),
 				stage,
 				M.one_line(said)
