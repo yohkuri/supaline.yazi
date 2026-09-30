@@ -980,7 +980,8 @@ end
 --- the module, or on the module of a proxy passed first, which is handed over
 --- in the proxy's place -- what makes `mod:fn()` see the module as `self`
 --- (`split_mod_and_args`). In Yazi it also enters and leaves a nested
---- runtime, which the stub leaves out. What it counts instead is the reads, in `M.wrappers`.
+--- runtime, which the stub leaves out. What it counts instead, in
+--- `M.wrappers`, is what Yazi charges for: every read, and every call.
 --- `stub_spec.lua` pins the rest against 26.9.1.
 ---@param mod table
 ---@return table
@@ -993,6 +994,7 @@ local function proxy(mod)
 			end
 			M.wrappers = M.wrappers + 1
 			return function(...)
+				M.wrappers = M.wrappers + 1
 				local first = ...
 				local other = type(first) == "table" and rawget(first, "__mod")
 				if type(other) == "table" then

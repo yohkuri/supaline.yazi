@@ -764,7 +764,7 @@ test("stats: the pass runs once per folder, not once per row", function()
 	eq(calls, 1, "every row, one pass")
 end)
 
-test("rendering: what a frame reads off other modules does not grow with the folder", function()
+test("rendering: what a frame does through wrappers does not grow with the folder", function()
 	-- An `auto` column in every pane, so the per-file width pass runs as well
 	-- as the per-row draw, and a computed one, whose once-per-folder read is
 	-- what this allows.
@@ -784,10 +784,11 @@ test("rendering: what a frame reads off other modules does not grow with the fol
 		return out
 	end
 
-	--- The wrappers one first frame builds, with `n` files in every pane.
+	--- The wrappers one first frame builds and calls, with `n` files in every
+	--- pane.
 	---@param n integer
 	---@return integer
-	local function reads(n)
+	local function crossings(n)
 		setup { detail = { current = cols, parent = cols, preview = cols } }
 		cx.active.current = stub.folder("/current", files(n, true))
 		cx.active.parent = stub.folder("/", files(n, false))
@@ -804,7 +805,12 @@ test("rendering: what a frame reads off other modules does not grow with the fol
 		return stub.wrappers - before
 	end
 
-	eq(reads(4), reads(2), "a module's function read per row or per file; take it into a local at load")
+	eq(
+		crossings(4),
+		crossings(2),
+		"a module's function read or called through a wrapper per row or per file; take it off `__mod` at load,"
+			.. " and see `session.lua` for what that costs a render"
+	)
 end)
 
 test("stats: a column with a stated width still receives them", function()
