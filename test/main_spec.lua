@@ -1078,6 +1078,18 @@ test("throwing: a `render` that throws is kept inside that column's cells", func
 	eq(draw("detail"), "ok !!!", "the line still draws")
 end)
 
+test("throwing: a thrown value whose `__tostring` throws is reported, not raised again", function()
+	-- The report turns what was thrown into text, and a value's `__tostring`
+	-- is the column's own code; raised from there, it would reach the render
+	-- the call that caught it was containing.
+	local mute = setmetatable({}, { __tostring = function() error("cannot say") end })
+	main.column("mute", { width = 3, render = function() error(mute) end })
+	setup { detail = { "mute" } }
+	draw_all("detail")
+	has(reported(1), "`mute`", "`render`", "a table whose `__tostring` threw")
+	eq(draw("detail"), "!!!", "the line still draws")
+end)
+
 test("throwing: a `stats` that throws leaves the rest of the line drawing", function()
 	-- `render` never asked for the stats, so the column draws as it would have.
 	main.column("bad_stats", {
