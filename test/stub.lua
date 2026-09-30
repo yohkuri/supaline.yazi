@@ -895,6 +895,7 @@ end
 --- Not `ps`, `Linemode` or the modules: `main.lua` subscribes and registers
 --- when it loads and holds on to all three, so those last for a spec file.
 function M.reset()
+	M.wrappers = 0
 	_G.ui = {
 		Line = M.Line,
 		Span = M.Span,
@@ -970,6 +971,38 @@ function M.reset()
 	_G.cx = { active = { pref = {}, preview = {}, history = function(_, _url) return M.listed end } }
 end
 
+--- What `require` hands back on 26.9.1: not the module but a fresh table
+--- holding it under `__mod`, whose every read of a function field builds a new
+--- wrapper (`create_mt` in `yazi-runner/src/loader/require.rs`). Any other
+--- field comes back as it is, and a write lands on the module.
+---
+--- A call through the wrapper is the module's function with a proxy in first
+--- place swapped for its module, which is what makes `mod:fn()` see the module
+--- as `self`. In Yazi it also enters and leaves a nested runtime, which the
+--- stub leaves out. What it counts instead is the reads, in `M.wrappers`:
+--- `session.lua` has what one costs a row, and `main_spec.lua` holds a frame
+--- to none. `stub_spec.lua` pins the rest against 26.9.1.
+---@param mod table
+---@return table
+local function proxy(mod)
+	return setmetatable({ __mod = mod }, {
+		__index = function(_, key)
+			local v = rawget(mod, key)
+			if type(v) ~= "function" then
+				return v
+			end
+			M.wrappers = M.wrappers + 1
+			return function(first, ...)
+				if type(first) == "table" and rawget(first, "__mod") then
+					return v(rawget(first, "__mod"), ...)
+				end
+				return v(first, ...)
+			end
+		end,
+		__newindex = function(_, key, value) rawset(mod, key, value) end,
+	})
+end
+
 --- Put the stubs in place as globals, and teach `require` Yazi's relative
 --- form so `require(".column")` finds `column.lua` next to it.
 ---@param root string repository root
@@ -1023,12 +1056,12 @@ function M.install(root)
 		_G.Linemode[name] = function() return "" end
 	end
 
-	-- Whatever the module returned, handed back exactly as it came: Yazi wraps
-	-- every module in a state table, so `false` fails the load with "error
-	-- converting Lua boolean to table", and `module_spec.lua` has to see it.
-	-- Whether a module has been loaded is kept apart from what it returned, so
-	-- one returning `false` or nothing is loaded once rather than registering
-	-- its columns again on every require.
+	-- A table comes back behind a proxy like Yazi's; anything else exactly as
+	-- it came: Yazi wraps every module in a state table, so `false` fails the
+	-- load with "error converting Lua boolean to table", and `module_spec.lua`
+	-- has to see it. Whether a module has been loaded is kept apart from what
+	-- it returned, so one returning `false` or nothing is loaded once rather
+	-- than registering its columns again on every require.
 	local loaded = {}
 	_G.require = function(name)
 		if name:sub(1, 1) ~= "." then
@@ -1038,7 +1071,8 @@ function M.install(root)
 			local chunk = assert(loadfile(root .. "/" .. name:sub(2) .. ".lua"))
 			loaded[name] = { chunk() }
 		end
-		return loaded[name][1]
+		local mod = loaded[name][1]
+		return type(mod) == "table" and proxy(mod) or mod
 	end
 end
 

@@ -80,8 +80,10 @@ end)
 local MAIN_EXPORTS = { "column", "extremes", "setup" }
 
 test("modules: `supaline.Main` names what main.lua exports", function()
+	-- Off the module rather than what `require` hands back, which in Yazi and
+	-- the stub alike is a proxy whose only key is `__mod`.
 	local names = {}
-	for name in pairs(require(".main")) do
+	for name in pairs(rawget(require(".main"), "__mod")) do
 		names[#names + 1] = name
 	end
 	table.sort(names)

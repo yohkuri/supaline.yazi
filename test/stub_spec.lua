@@ -210,6 +210,41 @@ test("AuthKind: each variant's three flags, as Yazi sets them", function()
 	end
 end)
 
+-- --- require ---------------------------------------------------------------
+
+test("require: a proxy over the module, as Yazi hands back", function()
+	-- Measured on 26.9.1 with a probe plugin reading its own module this way,
+	-- every assertion below included. `table`, because what is probed here is
+	-- the proxy and not the module's declared shape.
+	local proxy = require(".schema") --[[@as table]]
+	local again = require(".schema")
+	local mod = rawget(proxy, "__mod")
+	eq(proxy == again, false, "each require is a table of its own")
+	eq(rawget(again, "__mod"), mod, "over the one module")
+
+	local keys = {}
+	for k in pairs(proxy) do
+		keys[#keys + 1] = k
+	end
+	eq(table.concat(keys, ","), "__mod", "and it holds nothing else")
+
+	local before = stub.wrappers
+	eq(proxy.any == proxy.any, false, "a function field is a new wrapper on every read")
+	eq(proxy.any == mod.any, false, "and never the function itself")
+	eq(stub.wrappers - before, 3, "each read counted")
+	eq(require(".report").BROKEN, rawget(require(".report"), "__mod").BROKEN, "any other field is itself")
+
+	local t = {}
+	eq(proxy.any(t), t, "a table argument goes through")
+	eq(proxy:any(), mod, "a proxy in first place arrives as its module")
+	eq(proxy.any(mod.any), mod.any, "and what a call returns is not wrapped")
+
+	proxy.probe = 1
+	eq(rawget(mod, "probe"), 1, "a write lands on the module")
+	eq(rawget(proxy, "probe"), nil, "and not on the proxy")
+	proxy.probe = nil
+end)
+
 -- --- what the stub refuses and Yazi would not ------------------------------
 
 test("refused: an `AuthKind` Yazi does not have", function()
