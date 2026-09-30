@@ -15,10 +15,11 @@ local report = require(".report")
 -- columns: 57.7us with `layout.cell` read per cell, 42.9us with the wrapper
 -- read once and kept, 33.0us with this.
 --
--- What a `render` gives up, measured on 26.9.1: it runs under Yazi's `root`
--- frame rather than `supaline.layout`, so a relative `require` in one
--- resolves under `root` and fails; and what it throws reaches `report.lua`
--- as raised, with no traceback. What it gains: an async call that waits fails
+-- What a `render` written as a plain function gives up, measured on 26.9.1:
+-- it runs under Yazi's `root` frame rather than `supaline.layout`, so a
+-- relative `require` in one resolves under `root` and fails; and what it
+-- throws reaches `report.lua` as raised, with no traceback. One that is
+-- another plugin's export is that plugin's wrapper, and runs as it did. What it gains: an async call that waits fails
 -- inside the render's own `pcall`, where through a wrapper it escaped past
 -- it. `main_spec.lua` holds what a frame does through wrappers to a count
 -- that does not grow with the folder.

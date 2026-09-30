@@ -113,10 +113,15 @@ function M.new(sink)
 	--- frame, with nothing on screen and no log unless `YAZI_LOG` was set --
 	--- worse than any mistake it could report. The screen gets the first line
 	--- and the log the whole, since what follows it in a notification pushes
-	--- the line that names the column off the top of the pane. None of the
-	--- four is called through a module wrapper, so the whole is what was
-	--- raised, in the shape `M.one_line` describes, and Yazi loads no `debug`
-	--- to add a traceback here.
+	--- the line that names the column off the top of the pane. supaline calls
+	--- none of the four through a module wrapper, so unless the column's own
+	--- function is one, the whole is what was raised, in the shape
+	--- `M.one_line` describes, and Yazi loads no `debug` to add a traceback
+	--- here.
+	---
+	--- What was raised is the column's own value, and `tostring` runs its
+	--- `__tostring`, which is the column's code too: a throw from it here
+	--- would escape the containment the call it came from was under.
 	---@param col supaline.ColumnPlan
 	---@param stage supaline.Stage which of the four threw
 	---@param err any what it threw
@@ -124,7 +129,10 @@ function M.new(sink)
 		if told(col, "threw") then
 			return
 		end
-		local said = tostring(err)
+		local stated, said = pcall(tostring, err)
+		if not stated then
+			said = string.format("a %s whose `__tostring` threw", type(err))
+		end
 		sink(
 			string.format(
 				"supaline: column `%s` threw from its `%s`. %s. It threw: %s",
