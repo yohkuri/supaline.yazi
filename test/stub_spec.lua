@@ -232,6 +232,13 @@ test("require: a proxy over the module, as Yazi hands back", function()
 	eq(proxy.any == proxy.any, false, "a function field is a new wrapper on every read")
 	eq(proxy.any == mod.any, false, "and never the function itself")
 	eq(stub.wrappers - before, 3, "each read counted")
+	do
+		local kept = proxy.any
+		before = stub.wrappers
+		kept()
+		kept()
+		eq(stub.wrappers - before, 2, "and each call through one")
+	end
 	eq(require(".report").BROKEN, rawget(require(".report"), "__mod").BROKEN, "any other field is itself")
 
 	local t = {}
