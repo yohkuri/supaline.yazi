@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import stat
 import sys
@@ -434,14 +435,15 @@ def linemodes(keymap: str) -> dict[str, list[tuple[str, str]]]:
     in the keymap's order.
 
     Read off what a binding runs, so a `cd` or a theme swap under the same
-    leader is left out without a list of keys to skip.
+    leader is left out without a list of keys to skip. Split the way a shell
+    splits, because Yazi takes a quoted name as the name inside the quotes.
     """
     # Here rather than at the top, for the reason `theme_values` gives.
     import tomllib
 
     found: dict[str, list[tuple[str, str]]] = {}
     for bound in tomllib.loads(keymap)["mgr"]["prepend_keymap"]:
-        command, *args = bound["run"].split()
+        command, *args = shlex.split(bound["run"])
         if command == "linemode":
             leader, key = bound["on"]
             found.setdefault(leader, []).append((key, args[0]))
@@ -452,11 +454,17 @@ def read_in(manual: str) -> dict[str, str]:
     """The `g` key `MANUAL.md` says each `c` key is read in, by `c` key.
 
     The table a person follows, so the run captures each colour mode in the
-    folder the person is sent to.
+    folder the person is sent to. A `c` key found twice is refused rather than
+    answered with whichever row came last.
     """
-    return dict(
-        re.findall(r"^\| `c (\w)` \|.*\| `g (\w)` +\|$", manual, re.MULTILINE)
-    )
+    found: dict[str, str] = {}
+    for key, folder in re.findall(
+        r"^\| `c (\w)` \|.*\| `g (\w)` +\|$", manual, re.MULTILINE
+    ):
+        if key in found:
+            raise ValueError(f"MANUAL.md sends `c {key}` to two folders")
+        found[key] = folder
+    return found
 
 
 def band_width(init: str, name: str) -> int:
