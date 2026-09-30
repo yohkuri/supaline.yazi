@@ -17,7 +17,7 @@ import unittest
 
 import screen as sc
 import setup as fixture
-from harness import ROOT, Checks
+from harness import Checks
 
 
 #: A row of a capture as tmux writes one: three panes, two dividers.
@@ -544,27 +544,67 @@ class TheFixtureItReads(unittest.TestCase):
                 for colour in (flat, *fixture.theme_ends(self.fixture, name)):
                     self.assertRegex(colour, self.HEX)
 
-    def test_e2e_presses_every_linemode_the_keymap_binds(self):
+    def test_e2e_presses_every_case_the_list_holds(self):
         # `e2e.py` presses what this answers, so an empty one would press
-        # nothing and pass; the leaders prove the `cd` and shell keys were left
-        # out; each colour mode is read in the folder `MANUAL.md` sends a person
-        # to; and `b_tick` comes last, right before `g 6` throws its `refresh`.
-        modes = fixture.linemodes((self.fixture / "keymap.toml").read_text())
-        self.assertEqual(set(modes), set("mbc"))
-        read_in = fixture.read_in((ROOT / "test" / "MANUAL.md").read_text())
-        self.assertEqual({key for key, _ in modes["c"]}, set(read_in))
-        self.assertEqual(modes["b"][-1][1], "b_tick")
+        # nothing and pass; both runs have cases to press; and `b_tick` comes
+        # last, right before the `cd` to `broken/` throws its `refresh`.
+        listing = fixture.cases(fixture.CASES.read_text())
+        self.assertTrue([c for c in listing.cases if not c.broken])
+        broken = [c for c in listing.cases if c.broken]
+        self.assertTrue(broken)
+        self.assertEqual(broken[-1].linemode, "b_tick")
+        # The folders `e2e.py` names outright, each with a landmark to wait on.
+        for path in ("data", "data/nested", "broken"):
+            with self.subTest(folder=path):
+                self.assertTrue(listing.folders[path].landmark)
+        self.assertEqual(listing.case("default").folder, "data")
 
-    def test_a_quoted_linemode_name_is_read_without_its_quotes(self):
-        keymap = "[mgr]\nprepend_keymap = [\n"
-        keymap += """  { on = ["c", "r"], run = "linemode 'c_ramp'" },\n]\n"""
-        self.assertEqual(fixture.linemodes(keymap), {"c": [("r", "c_ramp")]})
+    @staticmethod
+    def one_case(path="a", folder_key="g 1", folder="a", extra="") -> str:
+        """A `cases.toml` of one folder and one case, with a part swapped."""
+        return (
+            f'[[folder]]\npath = "{path}"\nkey = "{folder_key}"\n'
+            'landmark = "x"\ndesc = "a"\n'
+            f'[[case]]\nid = "one"\nkey = "m 0"\nfolder = "{folder}"\n'
+            f'linemode = "plain"\ndesc = "one"\n{extra}'
+        )
 
-    def test_a_c_key_the_manual_sends_to_two_folders_is_refused(self):
-        row = "| `c r` | a ramp | `g {}` |\n"
-        self.assertEqual(fixture.read_in(row.format(3)), {"r": "3"})
+    def test_the_list_of_one_case_is_read_whole(self):
+        # The premise under the refusals below: the list they each spoil in
+        # one place is one this reads.
+        listing = fixture.cases(self.one_case(extra='hover = "x"\n'))
+        self.assertEqual(listing.folders["a"].key, "g 1")
+        self.assertEqual(
+            listing.case("one"),
+            fixture.Case("one", "m 0", "a", "plain", "one", "x", False),
+        )
+
+    def test_a_case_in_a_folder_nobody_lists_is_refused(self):
         with self.assertRaises(ValueError):
-            fixture.read_in(row.format(3) + row.format(4))
+            fixture.cases(self.one_case(folder="b"))
+
+    def test_a_key_two_entries_bind_is_refused(self):
+        with self.assertRaises(ValueError):
+            fixture.cases(self.one_case(folder_key="m 0"))
+
+    def test_a_field_the_list_does_not_define_is_refused(self):
+        # A misspelled `hover` read past would be a case that never moves it.
+        with self.assertRaises(ValueError):
+            fixture.cases(self.one_case(extra='hovre = "x"\n'))
+
+    def test_a_name_that_would_need_quoting_is_refused(self):
+        # A folder's path goes into a keymap `run` unquoted.
+        with self.assertRaises(ValueError):
+            fixture.cases(self.one_case(path="a b", folder="a b"))
+
+    def test_a_list_with_no_case_is_refused(self):
+        only = self.one_case().split("[[case]]")[0]
+        with self.assertRaises(ValueError):
+            fixture.cases(only)
+
+    def test_a_lua_string_carries_a_quote_a_backslash_and_a_newline(self):
+        self.assertEqual(fixture.lua_string('a"b\\c\nd'), '"a\\"b\\\\c\\010d"')
+        self.assertEqual(fixture.lua_string("日本"), '"日本"')
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.

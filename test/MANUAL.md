@@ -26,6 +26,7 @@ comparing against.
 | `m 1` | `default`    | size + mtime — the everyday case                  |
 | `m 2` | `everything` | Every built-in column                             |
 | `m 3` | `widths`     | Stated width vs `"auto"` vs `max_width`           |
+| `m i` | `widths`     | The same, in `nested/`                            |
 | `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`, string and Line   |
 | `m 5` | `seps`       | The separator, `separator = false`, and a colour  |
 | `m 6` | `pane_cur`   | The current pane alone                            |
@@ -36,6 +37,13 @@ comparing against.
 | `m s` | —            | Yazi's own size linemode                          |
 | `m n` | —            | Yazi's own "none"                                 |
 | `T`   | —            | Reload the theme                                  |
+
+Every key here but Yazi's own and `T` is a case in `test/fixture/cases.toml`,
+which is where its folder and linemode are written down. A case's key takes
+you to the folder it is read in, hovers the row it names if it names one,
+switches the linemode, and has the preview pane peek again — the whole state,
+from wherever you pressed it. Pressed in its folder already, it leaves your
+hover and your scroll where they were.
 
 Colour has leaders of its own, `g` and `c`, and folders of its own to be read
 in. They are in [Colour](#colour) below rather than here, because a colour case
@@ -127,14 +135,16 @@ a cap of 8.
   column looks the same at any width. The row to read is
   `a-very-long-file-name…`, the one Yazi had to truncate — there the name fills
   its budget exactly, so the gap after it is the column's own padding.
-- Now enter `nested`, where the widest size is `300K`. The measured column
-  should **narrow to four** while the stated one does not move:
+- Now press `m i`, the same linemode in `nested/`, where the widest size is
+  `300K`. The measured column should **narrow to four** while the stated one
+  does not move:
 
   ```text
    inner-b.bin              300K 300K octocat…
   ```
 
-  Come back out and it widens again. Each folder is measured on its own.
+  Press `m 3` to come back and it widens again. Each folder is measured on its
+  own.
 - The third column never goes past its cap of eight — `octocat…` here.
 
 ### `m 4` — overflow
@@ -188,9 +198,10 @@ the same in all three; the difference is at the edges.
 - `m 6` — the left and right panes carry no columns at all.
 - `m 7` — the left pane fills in. `sibling-one` and `sibling-two` get a marker,
   measured against **their own folder**, not this one.
-- `m 8` — the right pane fills in. Hover `nested` to give it a folder. Check
-  **both** rows: Yazi's `in_preview` is true for the hovered row alone, so a
-  pane bug here shows up on the second row and nowhere else.
+- `m 8` — the right pane fills in. The key hovers `nested`, so the pane has a
+  folder to draw. Check **both** rows: Yazi's `in_preview` is true for the
+  hovered row alone, so a pane bug here shows up on the second row and nowhere
+  else.
 
 `e2e.py` reads the marker off every row of whichever pane the mode named — the
 middle pane in all three, the left pane in `m 7`, both rows of the right pane
@@ -207,10 +218,11 @@ marker, and there is no built-in that narrow to demonstrate it with. `mark` is
 the fixture's own, defined in `test/fixture/init.lua` beside the m9
 columns.
 
-The preview pane keeps whatever its last peek drew, so switching between these
-without moving the hover leaves the right pane showing the previous mode. Move
-the hover — `j` then `k` — and it catches up. This is Yazi caching the
-previewer's output, not a supaline bug.
+Switching the linemode does not make Yazi peek again, so on its own the right
+pane would go on showing the previous mode until the hover moved. Every case
+key forces that peek, so the pane is current the moment the key lands. Yazi's
+own `m s` and `m n` do not, and after one of them `j` then `k` catches the pane
+up. This is Yazi caching the previewer's output, not a supaline bug.
 
 ### `m e` — a column set per pane
 
@@ -224,8 +236,8 @@ hands them one list between them:
 - The **right pane** is bare. Nobody names `preview`, and that is all it takes;
   there is no `false` to write.
 
-The caching note above applies here too, so move the hover before reading the
-right pane.
+`m e` hovers `nested` and forces the peek as well, so the right pane is read
+the moment the key lands.
 
 ### `m 9` — user-written columns
 
@@ -255,9 +267,10 @@ steps — four of them in the top third, with a dozen rows sharing the highest �
 so no two rows in it are anywhere near adjacent, and the one question worth
 putting to a reader cannot be asked in it at all.
 
-Hence folders of colour's own, under `colour/`, and two leaders instead of one.
-`g` says **where you are**, which is the spread; `c` says **how it is
-coloured**, which is the linemode or the theme.
+Hence folders of colour's own, under `colour/`, and a colour case that is a
+folder and a linemode together. `g` says **where you are**, which is the
+spread; `c` says **how it is coloured**, which is the linemode or the theme,
+and takes you to the folder that case is read in.
 
 | Key   | Goes to         | What its values are                       |
 | ----- | --------------- | ----------------------------------------- |
@@ -267,7 +280,7 @@ coloured**, which is the linemode or the theme.
 | `g 4` | `colour/scale/` | sizes doubling from 1B                    |
 | `g 5` | `colour/edge/`  | every value the same, and two with none   |
 
-| Key   | Draws                               | Read it in |
+| Key   | Draws                               | Goes to    |
 | ----- | ----------------------------------- | ---------- |
 | `c r` | a ramp climbing in every channel     | `g 3`      |
 | `c b` | a band derived from one colour       | `g 3`      |
@@ -285,10 +298,11 @@ coloured**, which is the linemode or the theme.
 | `c 3` | flat colours carrying backgrounds         |
 | `T`   | — reloads without changing the file       |
 
-A `g` key moves you and leaves the colours alone. A `c` key changes the colours
-and leaves your folder, your scroll and your hover alone — so two of them
-pressed one after the other differ in exactly one thing, which is what makes
-them worth putting side by side.
+A `g` key moves you and leaves the colours alone. A `c` key goes to the folder
+its case is read in and changes the colours; pressed in that folder already, it
+leaves your scroll and your hover alone. So two that share a folder, pressed one
+after the other, differ in exactly one thing, which is what makes them worth
+putting side by side — and five of them share `g 3`.
 
 Only `c t` reads the theme. The other six write their colours in the spec,
 where a colour written wins over `[supaline]`'s, so they hold still while
@@ -571,27 +585,29 @@ anything: 26.9.1 applies the user's theme before any plugin code runs.
 
 ### Adding a case
 
-A fourth folder is three edits, and a fourth treatment of an existing folder is
-two:
+A case is a `[[case]]` in `test/fixture/cases.toml`: an id, a key, the folder
+it is read in, the linemode, and a row to hover if it needs one. A fourth
+folder is three edits, and a fourth treatment of an existing folder is two:
 
 1. the folder, in `build_colour` in `test/setup.py`;
 2. the linemode, in the `linemodes` table of `test/fixture/init.lua`;
-3. the key, in the `c`/`g` section of `test/fixture/keymap.toml`, and a name
-   only that folder holds in `FOLDERS` in `test/e2e.py`, so the press can be
-   waited on rather than slept through.
+3. a `[[case]]` in `test/fixture/cases.toml`, and for a new folder a
+   `[[folder]]` beside it with a `landmark` — a name only that folder holds,
+   so `e2e.py` can wait for it rather than sleep through the press.
 
-Then give it a row in the table above, with the `g` key to read it in: `e2e.py`
-presses every colour linemode the keymap binds, in the folder that table names,
-and the unit suite refuses one bound with no row there. That does not judge it —
-judging is what this document is for — but an unregistered linemode name is
-drawn as literal text and one that threw takes the rows with it, and `e2e.py`
-finds either before whoever next runs `manual.py` does.
+Then give it a row in the table above. `e2e.py` presses every case the list
+holds and keeps a capture under its id, and the unit suite refuses a case whose
+linemode `init.lua` never declared, a linemode no case names, and a key the
+banner or this document never spells. That does not judge it — judging is what
+this document is for — but an unregistered linemode name is drawn as literal
+text and one that threw takes the rows with it, and `e2e.py` finds either
+before whoever next runs `manual.py` does.
 
 A case under `b` takes a different line, and takes it in the second Yazi
 `e2e.py` starts for exactly these — the run that is meant to be clean fails for
 logging an error at all, and a column that is wrong on purpose makes it log
-one. Register the column and bind its key under `b`; that run presses every
-`b` linemode the keymap binds. Which columns that run expects is read out of
+one. Register the column and give it a case with `broken = true`; that run
+presses every such case. Which columns that run expects is read out of
 `test/fixture/init.lua` rather than written in `e2e.py`, so a seventh
 registered and never pressed is a red suite rather than a case nobody checks.
 [Broken columns](#broken-columns) has the rest of it.
@@ -614,7 +630,7 @@ Hence a third leader. `b` says **what is broken**, and each key under it draws
 one column that is wrong on purpose between a `size` and an `mtime` that are
 not.
 
-| Key   | The column's fault                          | Read it in |
+| Key   | The column's fault                          | Goes to    |
 | ----- | ------------------------------------------- | ---------- |
 | `b r` | a `render` that throws                      | `g 1`      |
 | `b s` | a `stats` that throws                       | `g 1`      |
@@ -863,9 +879,10 @@ find it stops rather than building a folder that quietly means something else.
 
 ## If something looks wrong
 
-Note which linemode, which row, and what you expected. `test/e2e.py --keep`
-leaves its captures in `$TMPDIR/supaline-e2e.<pid>` and prints the path on the
-way out — `screen-mN.txt` is the plain text and `color-mN.txt` keeps the escape
+Note which key, which row, and what you expected. `test/e2e.py --keep` leaves
+its captures in `$TMPDIR/supaline-e2e.<pid>` and prints the path on the way out,
+one pair per case and named after its `id` in `test/fixture/cases.toml` —
+`screen-widths.txt` is the plain text and `color-widths.txt` keeps the escape
 sequences, which is how to tell a colour problem from a layout one.
 
 A regression worth keeping should end up in `test/run.lua` if it is about the

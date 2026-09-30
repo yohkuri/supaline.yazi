@@ -14,23 +14,27 @@ here alone: a harness that wrote its own `rmtree` would be the copy that
 forgets it.
 
 The configuration itself is not written from here. It sits under
-`test/fixture/` as the files Yazi reads -- an `init.lua` that stylua formats
-and `lua-language-server` type-checks along with the plugin, and TOML that is
-TOML rather than a heredoc, and a `theme-key.py` that ruff reads along with
-this file. `@DIR@` in any of them is replaced with the scratch directory as it
-is copied, and the script is given a shebang, which is the whole of what this
-script does to them.
+`test/fixture/` as the files Yazi reads -- an `init.lua` and a `case` plugin
+that stylua formats and `lua-language-server` type-checks along with the
+plugin, and TOML that is TOML rather than a heredoc, and a `theme-key.py` that
+ruff reads along with this file. `@DIR@` in any of them is replaced with the
+scratch directory as it is copied, and the script is given a shebang.
+
+The one thing written rather than copied is what `cases.toml` becomes: a
+binding per folder and per case, appended to the keymap, and the table the
+`case` plugin reads. `write_cases` says why that is generated.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
-import shlex
 import shutil
 import stat
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -206,7 +210,7 @@ def build_colour(root: Path) -> None:
 
     Each folder here is one distribution that question needs, and nothing else
     is in them. A fourth is three edits: a folder here, a linemode in
-    `init.lua`, and a key in `keymap.toml`.
+    `init.lua`, and a folder and a case in `cases.toml`.
     """
     ramp = root / "colour" / "ramp"
     scale = root / "colour" / "scale"
@@ -304,6 +308,11 @@ def copy_config(target: Path) -> None:
     for theme in sorted((FIXTURE / "themes").glob("*.toml")):
         place(theme, themes / theme.name)
 
+    # The table it reads is written beside it by `write_cases`, once the
+    # folders it names exist.
+    (config / "plugins" / "case.yazi").mkdir()
+    place(FIXTURE / "case.lua", config / "plugins" / "case.yazi" / "main.lua")
+
     # `default.toml` is what Yazi opens with, and `e2e.py` rewrites this copy
     # in place -- it greps for the values that file spells, so change them
     # there too.
@@ -396,6 +405,124 @@ def write_ramps(target: Path) -> None:
         )
 
 
+def check_cases(target: Path, listing: Cases) -> None:
+    """Every folder, landmark and hover `cases.toml` names is on disk.
+
+    The half of the case list `cases` cannot see, asked once the fixture is
+    built. A landmark another listed folder holds as well is refused along
+    with a missing one: `e2e.py` would find it on screen before the `cd` that
+    was meant to put it there.
+    """
+    root = target / "fixture"
+    faults = []
+    for folder in listing.folders.values():
+        if not (root / folder.path / folder.landmark).exists():
+            faults.append(f"`{folder.landmark}` is not in {folder.path}/")
+        also = [
+            other.path
+            for other in listing.folders.values()
+            if other is not folder
+            and (root / other.path / folder.landmark).exists()
+        ]
+        if also:
+            faults.append(
+                f"`{folder.landmark}`, the landmark of {folder.path}/, is in "
+                f"{', '.join(also)} as well"
+            )
+    for case in listing.cases:
+        if case.hover and not (root / case.folder / case.hover).exists():
+            faults.append(
+                f"case `{case.id}` hovers `{case.hover}`, not in {case.folder}/"
+            )
+    if faults:
+        for fault in faults:
+            print(f"  {fault}", file=sys.stderr)
+        refuse(
+            "setup: test/fixture/cases.toml names what the fixture did not build"
+        )
+
+
+def toml_string(text: str) -> str:
+    """`text` as a TOML basic string. JSON's escapes are a subset of TOML's."""
+    return json.dumps(text, ensure_ascii=False)
+
+
+def lua_string(text: str) -> str:
+    """`text` as a Lua string literal: the quote and the backslash escaped, a
+    control character as its decimal escape, and every other byte as itself."""
+    out = []
+    for ch in text:
+        if ch in '"\\':
+            out.append("\\" + ch)
+        elif ord(ch) < 0x20 or ch == "\x7f":
+            out.append(f"\\{ord(ch):03d}")
+        else:
+            out.append(ch)
+    return '"' + "".join(out) + '"'
+
+
+def write_cases(target: Path, listing: Cases) -> None:
+    """The keymap bindings and the plugin's table, out of `cases.toml`.
+
+    Generated rather than written by hand beside it, because a case is a key,
+    a folder and a linemode together, and two files each holding half of that
+    is the pair that drifts: a key bound to a case the table no longer has
+    presses nothing and says so only on screen.
+
+    The plugin's table is Lua, because Yazi hands a plugin no TOML reader, and
+    it carries the absolute paths, so neither Yazi's own argument parser nor a
+    TOML string ever has to quote one. A binding carries only names `cases`
+    has already held to what needs no quoting.
+    """
+    root = target / "fixture"
+    blocks = [
+        "",
+        "# --- written by test/setup.py from test/fixture/cases.toml ---",
+    ]
+
+    def bind(key: str, run: str, desc: str) -> None:
+        on = ", ".join(toml_string(k) for k in key.split(" "))
+        blocks.extend(
+            [
+                "",
+                "[[mgr.prepend_keymap]]",
+                f"on   = [ {on} ]",
+                f"run  = {toml_string(run)}",
+                f"desc = {toml_string(desc)}",
+            ]
+        )
+
+    table = [
+        "-- Written by test/setup.py from test/fixture/cases.toml.",
+        "return {",
+        "\tfolders = {",
+    ]
+    for folder in listing.folders.values():
+        bind(folder.key, f"plugin case -- cd {folder.path}", folder.desc)
+        table.append(
+            f"\t\t[{lua_string(folder.path)}] = "
+            f"{lua_string(str(root / folder.path))},"
+        )
+    table += ["\t},", "\tcases = {"]
+    for case in listing.cases:
+        bind(case.key, f"plugin case -- show {case.id}", case.desc)
+        fields = [
+            f"folder = {lua_string(str(root / case.folder))}",
+            f"linemode = {lua_string(case.linemode)}",
+        ]
+        if case.hover:
+            fields.append(f"hover = {lua_string(case.hover)}")
+        table.append(
+            f"\t\t[{lua_string(case.id)}] = {{ {', '.join(fields)} }},"
+        )
+    table += ["\t},", "}"]
+
+    keymap = target / "config" / "keymap.toml"
+    keymap.write_text(keymap.read_text() + "\n".join(blocks) + "\n")
+    plugin = target / "config" / "plugins" / "case.yazi"
+    (plugin / "cases.lua").write_text("\n".join(table) + "\n")
+
+
 # --- what the fixture spells ------------------------------------------------
 #
 # Readers over the configuration this script copies, for `e2e.py` to assert
@@ -430,41 +557,162 @@ def broken_columns(init: str) -> list[str]:
     return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
 
 
-def linemodes(keymap: str) -> dict[str, list[tuple[str, str]]]:
-    """Every linemode the keymap binds, by leader: each one's key and name,
-    in the keymap's order.
+#: The fixture's case list, which `cases` reads.
+CASES = FIXTURE / "cases.toml"
 
-    Read off what a binding runs, so a `cd` or a theme swap under the same
-    leader is left out without a list of keys to skip. Split the way a shell
-    splits, because Yazi takes a quoted name as the name inside the quotes.
+
+@dataclass(frozen=True)
+class Folder:
+    """A `[[folder]]` of `cases.toml`: a directory under `fixture/`, the key
+    that goes there, and a name only it holds."""
+
+    path: str
+    key: str
+    landmark: str
+    desc: str
+
+
+@dataclass(frozen=True)
+class Case:
+    """A `[[case]]` of `cases.toml`: a state, and the key that puts Yazi in it.
+
+    `hover` is empty for a case that leaves the hover where it is.
+    """
+
+    id: str
+    key: str
+    folder: str
+    linemode: str
+    desc: str
+    hover: str = ""
+    broken: bool = False
+
+
+@dataclass(frozen=True)
+class Cases:
+    """Every folder, by path, and every case, both in the file's order."""
+
+    folders: dict[str, Folder]
+    cases: list[Case]
+
+    def case(self, id: str) -> Case:
+        """The case called `id`, which the file has already been held to."""
+        return next(c for c in self.cases if c.id == id)
+
+
+#: What a name in `cases.toml` may be spelled with, by what it names. Each goes
+#: into a keymap `run` or a plugin's arguments unquoted, so each is held to what
+#: needs no quoting in either.
+NAME = re.compile(r"[a-z][a-z0-9_]*")
+FOLDER = re.compile(r"[a-z0-9_-]+(/[a-z0-9_-]+)*")
+KEY = re.compile(r'[^\s"\\]+( [^\s"\\]+)*')
+
+
+def cases(text: str) -> Cases:
+    """The folders and cases `cases.toml` lists, refused if any is malformed.
+
+    Refused with `ValueError` rather than read past, because every reader of
+    the answer trusts it: a case whose folder is misspelled would be a key that
+    goes nowhere, and `e2e.py` would wait out its whole deadline on a landmark
+    that is never coming. What this cannot see is the disk -- whether each
+    folder, landmark and hover exists -- and `check_cases` asks that once the
+    fixture is built.
     """
     # Here rather than at the top, for the reason `theme_values` gives.
     import tomllib
 
-    found: dict[str, list[tuple[str, str]]] = {}
-    for bound in tomllib.loads(keymap)["mgr"]["prepend_keymap"]:
-        command, *args = shlex.split(bound["run"])
-        if command == "linemode":
-            leader, key = bound["on"]
-            found.setdefault(leader, []).append((key, args[0]))
-    return found
+    data = tomllib.loads(text)
+    if set(data) - {"folder", "case"}:
+        raise ValueError(
+            f"unknown table(s): {sorted(set(data) - {'folder', 'case'})}"
+        )
+
+    def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
+        got = set(row)
+        if want - got or got - want - may:
+            raise ValueError(
+                f"a [[{kind}]] with {sorted(got)}: it needs {sorted(want)}"
+                + (f" and may have {sorted(may)}" if may else "")
+            )
+        for name, value in row.items():
+            if name == "broken":
+                if not isinstance(value, bool):
+                    raise ValueError(f"[[{kind}]] `broken` is not a boolean")
+            elif not isinstance(value, str) or not value:
+                raise ValueError(
+                    f"[[{kind}]] `{name}` is not a non-empty string"
+                )
+
+    def spelled(what: str, value: str, pattern: re.Pattern[str]) -> str:
+        if not pattern.fullmatch(value):
+            raise ValueError(
+                f"{what} `{value}` does not match `{pattern.pattern}`"
+            )
+        return value
+
+    keys: set[str] = set()
+
+    def unique_key(key: str) -> str:
+        spelled("key", key, KEY)
+        if key in keys:
+            raise ValueError(f"two entries bind `{key}`")
+        keys.add(key)
+        return key
+
+    folders: dict[str, Folder] = {}
+    for row in data.get("folder", []):
+        fields("folder", row, {"path", "key", "landmark", "desc"}, set())
+        path = spelled("folder", row["path"], FOLDER)
+        if path in folders:
+            raise ValueError(f"two [[folder]]s at `{path}`")
+        folders[path] = Folder(
+            path, unique_key(row["key"]), row["landmark"], row["desc"]
+        )
+
+    listed: list[Case] = []
+    for row in data.get("case", []):
+        fields(
+            "case",
+            row,
+            {"id", "key", "folder", "linemode", "desc"},
+            {"hover", "broken"},
+        )
+        id = spelled("case", row["id"], NAME)
+        if any(c.id == id for c in listed):
+            raise ValueError(f"two [[case]]s called `{id}`")
+        if row["folder"] not in folders:
+            raise ValueError(
+                f"case `{id}` is read in `{row['folder']}`, which no [[folder]] lists"
+            )
+        if "/" in row.get("hover", ""):
+            raise ValueError(
+                f"case `{id}` hovers `{row['hover']}`, which is not a name in its folder"
+            )
+        listed.append(
+            Case(
+                id,
+                unique_key(row["key"]),
+                row["folder"],
+                spelled("linemode", row["linemode"], NAME),
+                row["desc"],
+                row.get("hover", ""),
+                row.get("broken", False),
+            )
+        )
+
+    # The guard every reader inherits: an empty list would press nothing, bind
+    # nothing, and pass.
+    if not folders or not listed:
+        raise ValueError("no [[folder]] or no [[case]] at all")
+    return Cases(folders, listed)
 
 
-def read_in(manual: str) -> dict[str, str]:
-    """The `g` key `MANUAL.md` says each `c` key is read in, by `c` key.
-
-    The table a person follows, so the run captures each colour mode in the
-    folder the person is sent to. A `c` key found twice is refused rather than
-    answered with whichever row came last.
-    """
-    found: dict[str, str] = {}
-    for key, folder in re.findall(
-        r"^\| `c (\w)` \|.*\| `g (\w)` +\|$", manual, re.MULTILINE
-    ):
-        if key in found:
-            raise ValueError(f"MANUAL.md sends `c {key}` to two folders")
-        found[key] = folder
-    return found
+def read_cases() -> Cases:
+    """`cases.toml` itself, or a refusal that says what is wrong with it."""
+    try:
+        return cases(CASES.read_text())
+    except ValueError as error:
+        refuse(f"setup: test/fixture/cases.toml: {error}")
 
 
 def band_width(init: str, name: str) -> int:
@@ -513,6 +761,10 @@ def theme_ends(dir: Path, name: str) -> tuple[str, str]:
 
 
 def build(target: Path) -> None:
+    # Read before anything is built, so a malformed list stops the build with
+    # its own sentence rather than half a fixture.
+    listing = read_cases()
+
     # Stated, so the fixture carries the same modes whoever builds it. `e2e.py`
     # greps the permissions column for `drwxr-xr-x`, and under `umask 077` the
     # directories come out `drwx------` -- the column right, the check failing.
@@ -527,6 +779,8 @@ def build(target: Path) -> None:
         build_colour(target / "fixture")
         build_broken(target / "fixture")
         write_ramps(target)
+        check_cases(target, listing)
+        write_cases(target, listing)
     finally:
         os.umask(was)
 
