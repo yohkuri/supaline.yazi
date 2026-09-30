@@ -5,9 +5,18 @@
 --- whole. No Yazi globals: `main.lua` hands in the theme and the sink that
 --- writes the log and the screen.
 local appearance = require(".appearance")
-local layout = require(".layout")
 local listing = require(".listing")
 local report = require(".report")
+
+-- Taken off the module once, at load, because `draw` calls it for every cell
+-- of every frame. What `require` hands back is a proxy that builds a new
+-- wrapper on each read of a function field, and a call through one enters and
+-- leaves a nested runtime. Measured on 26.9.1, over a row of six built-in
+-- columns: 57.7us with `layout.cell` read per cell, 42.9us with this local,
+-- and 33.0us with the function reached through no wrapper at all -- what the
+-- one kept here still costs on every call. `main_spec.lua` holds a frame to
+-- no such read.
+local layout_cell = require(".layout").cell
 
 ---@class supaline.SessionModule
 local M = {}
@@ -78,7 +87,7 @@ function M.new(plan, theme, sink)
 			end
 			-- Layout inside the protected call too: a malformed renderable or a
 			-- failing truncate blanks the screen as surely as a throwing render.
-			local ok, drawn = reporter.call(cell.column, "render", layout.cell, cell.column, ctx, file)
+			local ok, drawn = reporter.call(cell.column, "render", layout_cell, cell.column, ctx, file)
 			if not ok then
 				drawn = string.rep(report.BROKEN, ctx.width or 1)
 			end
