@@ -5,6 +5,7 @@ supaline manual test
   m 2   every built-in column           widths and alignment at a glance
 
   m 3   fixed vs auto width             column 2 fits the folder, 3 caps at 8
+  m i   the same, in nested/            column 2 narrows, column 1 does not
   m 4   ellipsis / clip / grow          one name, three ways
   m 5   separators                      default, none, and "│"
 
@@ -17,10 +18,11 @@ supaline manual test
 
   m s   Yazi's own size linemode        m n turns the linemode off
 ──── colour ────────────────────────────────────────────────────────────────
-  Two halves, because they move apart. `g` is where you are, which is the
-  spread of values a ramp gets stretched over; `c` is how it is coloured. A
-  `c` key holds your folder, your scroll and your hover still, so two of them
-  pressed one after the other differ in exactly one thing.
+  A colour case is a folder and a linemode together, because the spread of
+  values in the folder is what a ramp gets stretched over. A `c` key takes
+  you to the folder its case is read in; pressed where you already are, it
+  holds your scroll and your hover still, so two of them sharing a folder
+  differ in exactly one thing. `g` goes to a folder and changes nothing else.
 
   g 1   the layout fixture              g 2   a folder of other widths
   g 3   one file per ramp step          g 4   sizes doubling from 1B
@@ -55,14 +57,14 @@ supaline manual test
 ────────────────────────────────────────────────────────────────────────────
   You start in `data/`, which carries the awkward cases: CJK and emoji names,
   one far too long, and sizes either side of the 1K boundary. `sibling-one`
-  and `sibling-two` give the parent pane rows; hover `nested` to give the
-  preview pane a folder.
+  and `sibling-two` give the parent pane rows.
 
   `never-opened` is the directory the size and count columns have no entry
   count for until you have been inside it.
 
-  The preview pane keeps its last peek, so m 6 to m 8 only reach it once the
-  hover has moved.
+  Every `m`, `c` and `b` key has the preview pane peek again, so it draws the
+  new linemode at once, and m 6 to m 8 and m e hover `nested` for you so it
+  has a folder to draw. Yazi's own m s and m n do neither.
 
   Quit with q. `test/manual.py --clean` throws the fixture away.
   What to look for: test/MANUAL.md

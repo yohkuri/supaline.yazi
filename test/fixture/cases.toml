@@ -1,0 +1,317 @@
+# The fixture's cases: every state `test/e2e.py` captures, and the key a person
+# presses to be put in the same one.
+#
+# A case is a folder and a linemode together, and sometimes a file to hover.
+# The folder matters as much as the linemode: where a row lands on a ramp is
+# `ctx.ratio`, which normalises against the extremes of the folder being drawn,
+# so the same linemode is a different case in a different folder. So a case's
+# key goes to its folder, puts the hover where the case says, switches the
+# linemode, and has the preview pane peek again -- one key, and the whole state.
+#
+# `test/setup.py` reads this file and writes two things from it: a keymap
+# binding per folder and per case, appended to the fixture's own keymap, and
+# the table the `case` plugin reads when one of those keys is pressed. Nothing
+# else names a case's folder or linemode, and `e2e.py` names a case only by its
+# `id`, which is also what a capture it keeps is called.
+#
+# A key goes to a case's folder, but a key pressed in that folder already
+# leaves the hover and the scroll where they were -- measured on 26.9.1, a `cd`
+# to the current folder moves neither. So two cases that share a folder,
+# pressed one after the other, differ in the linemode alone, which is the whole
+# of what comparing two treatments of one folder is. A case that names a
+# `hover` moves it, every time, because what it asks about is that row.
+#
+# The file's order is `e2e.py`'s: it presses every case that is not `broken`
+# in this order in one Yazi, and every one that is in a second.
+#
+# Every field is a string on a line of its own, `broken` excepted, because
+# `fixture_spec.lua` reads the keys and linemodes out of this file with a
+# pattern -- and holds each count against the blocks, so a spelling it could
+# not read is a refusal rather than a key that went missing.
+
+# --- folders ----------------------------------------------------------------
+# One per distribution the cases are read over. `landmark` is a name only that
+# folder holds, which is what `e2e.py` waits for in the current pane after a
+# key that goes there, rather than sleeping: the panes either side draw the
+# neighbouring folders, so a name they hold is on screen before the `cd` that
+# makes it current. `setup.py` refuses one that another folder holds as well.
+#
+# `g` is Yazi's own leader and binds only letters under itself, so the digits
+# are free.
+
+[[folder]]
+path     = "data"
+key      = "g 1"
+landmark = "exactly-1k.bin"
+desc     = "supaline: go to the layout fixture"
+
+[[folder]]
+path     = "data/nested"
+key      = "g 2"
+landmark = "inner-a.txt"
+desc     = "supaline: go to a folder whose widest size differs"
+
+[[folder]]
+path     = "colour/ramp"
+key      = "g 3"
+landmark = "step-00.txt"
+desc     = "supaline: go to one file per ramp step"
+
+[[folder]]
+path     = "colour/scale"
+key      = "g 4"
+landmark = "pow-00.bin"
+desc     = "supaline: go to sizes doubling from 1B"
+
+[[folder]]
+path     = "colour/edge"
+key      = "g 5"
+landmark = "same-a.txt"
+desc     = "supaline: go to the degenerate distributions"
+
+# The one folder in the fixture whose only purpose is to break something.
+# Arriving here throws the `refresh` hook of `torn_tick`, and every `cd` after
+# it throws again -- so the count that column draws stops climbing while the
+# sound one beside it goes on, which is the two halves of what that report
+# claims, on screen.
+#
+# A folder rather than a case, because `refresh` is not reached by choosing a
+# linemode. The comment beside `torn_tick` has the rest of it.
+[[folder]]
+path     = "broken"
+key      = "g 6"
+landmark = "a-longer-name.txt"
+desc     = "supaline: go to the folder that breaks a `refresh`"
+
+# --- layout -----------------------------------------------------------------
+# Yazi's own linemode leader is `m`, and it only binds letters, so the digits
+# are free. `m s` and `m n` still reach Yazi's built-ins, which is what makes
+# them worth comparing against.
+#
+# The order climbs: `m 0` to `m 2` are the built-in columns at increasing
+# richness, `m 3` to `m 5` the layout decisions, `m 6` to `m 8` and `m e` the
+# panes, and `m 9` extensibility.
+
+[[case]]
+id       = "plain"
+key      = "m 0"
+folder   = "data"
+linemode = "plain"
+desc     = "supaline: one column, to compare against m s"
+
+[[case]]
+id       = "default"
+key      = "m 1"
+folder   = "data"
+linemode = "default"
+desc     = "supaline: size + mtime"
+
+[[case]]
+id       = "everything"
+key      = "m 2"
+folder   = "data"
+linemode = "everything"
+desc     = "supaline: every built-in column"
+
+[[case]]
+id       = "widths"
+key      = "m 3"
+folder   = "data"
+linemode = "widths"
+desc     = "supaline: fixed vs auto width"
+
+# The same linemode in a folder whose widest size is narrower, because a
+# measured width is a claim about a folder and one folder cannot show it
+# changing. `i` for the `inner-` files it lists; the letters Yazi takes under
+# `m` are `n`, `s`, `p`, `b`, `m` and `o`.
+[[case]]
+id       = "widths_nested"
+key      = "m i"
+folder   = "data/nested"
+linemode = "widths"
+desc     = "supaline: fixed vs auto width, in nested/"
+
+[[case]]
+id       = "overflow"
+key      = "m 4"
+folder   = "data"
+linemode = "overflow"
+desc     = "supaline: ellipsis / clip / grow"
+
+[[case]]
+id       = "seps"
+key      = "m 5"
+folder   = "data"
+linemode = "seps"
+desc     = "supaline: separators"
+
+# The four pane cases hover `nested`, so the preview pane has a folder to draw
+# rows in -- a file's preview carries no linemode at all.
+[[case]]
+id       = "pane_cur"
+key      = "m 6"
+folder   = "data"
+hover    = "nested"
+linemode = "pane_cur"
+desc     = "supaline: the current pane alone"
+
+[[case]]
+id       = "pane_par"
+key      = "m 7"
+folder   = "data"
+hover    = "nested"
+linemode = "pane_par"
+desc     = "supaline: current + parent"
+
+[[case]]
+id       = "pane_prev"
+key      = "m 8"
+folder   = "data"
+hover    = "nested"
+linemode = "pane_prev"
+desc     = "supaline: current + preview"
+
+[[case]]
+id       = "custom"
+key      = "m 9"
+folder   = "data"
+linemode = "custom"
+desc     = "supaline: user-written columns"
+
+# A letter rather than a digit only because the digits are spoken for.
+[[case]]
+id       = "pane_each"
+key      = "m e"
+folder   = "data"
+hover    = "nested"
+linemode = "pane_each"
+desc     = "supaline: a column set per pane"
+
+# --- colour -----------------------------------------------------------------
+# `c` is Yazi's own leader as well. The four letters it takes -- `c c`, `c d`,
+# `c f`, `c n`, all of them copying a path to the clipboard -- are avoided
+# rather than shadowed, since there is no reason to spend them;
+# `prepend_keymap` would win if they were. The digits under it are the theme
+# keys in `keymap.toml`.
+#
+# Five of these share `colour/ramp`, so pressing one after another holds the
+# scroll still and changes the treatment alone.
+
+[[case]]
+id       = "c_ramp"
+key      = "c r"
+folder   = "colour/ramp"
+linemode = "c_ramp"
+desc     = "supaline: a ramp that climbs in every channel"
+
+[[case]]
+id       = "c_hue"
+key      = "c h"
+folder   = "colour/ramp"
+linemode = "c_hue"
+desc     = "supaline: a ramp that turns in hue"
+
+[[case]]
+id       = "c_band"
+key      = "c b"
+folder   = "colour/ramp"
+linemode = "c_band"
+desc     = "supaline: a ramp derived from one colour"
+
+[[case]]
+id       = "c_bg"
+key      = "c g"
+folder   = "colour/ramp"
+linemode = "c_bg"
+desc     = "supaline: a ramp over a background"
+
+[[case]]
+id       = "c_bold"
+key      = "c a"
+folder   = "colour/ramp"
+linemode = "c_bold"
+desc     = "supaline: a bold over a colour the ramp chose"
+
+[[case]]
+id       = "c_scale"
+key      = "c s"
+folder   = "colour/scale"
+linemode = "c_scale"
+desc     = "supaline: log beside linear"
+
+[[case]]
+id       = "c_edge"
+key      = "c e"
+folder   = "colour/edge"
+linemode = "c_edge"
+desc     = "supaline: a ramp with nothing to spread over"
+
+# The one colour case that reads the theme, so the one the theme keys move.
+[[case]]
+id       = "c_theme"
+key      = "c t"
+folder   = "data"
+linemode = "c_theme"
+desc     = "supaline: the colours the theme decides"
+
+# --- broken on purpose ------------------------------------------------------
+# A leader of their own. `b` binds nothing at all in Yazi's own `mgr` table --
+# the `b` that is bound is `m b`, its btime linemode -- so nothing here shadows
+# anything.
+#
+# A leader rather than six more keys under `m`, because these are not cases of
+# the thing that table is about. Every one of them is a *report* supaline can
+# put on the screen, and the column under it exists only to cause one. They
+# make Yazi log an error on purpose, which is what `broken` says: `e2e.py`
+# presses them in a second Yazi with a log of its own.
+
+[[case]]
+id       = "b_render"
+key      = "b r"
+folder   = "data"
+linemode = "b_render"
+broken   = true
+desc     = "supaline: a `render` that throws"
+
+[[case]]
+id       = "b_stats"
+key      = "b s"
+folder   = "data"
+linemode = "b_stats"
+broken   = true
+desc     = "supaline: a `stats` that throws"
+
+[[case]]
+id       = "b_width"
+key      = "b w"
+folder   = "data"
+linemode = "b_width"
+broken   = true
+desc     = "supaline: a `width` function that throws"
+
+[[case]]
+id       = "b_zero"
+key      = "b u"
+folder   = "data"
+linemode = "b_zero"
+broken   = true
+desc     = "supaline: a `width` function returning no usable number"
+
+# In `colour/ramp`, where the real `ratio` beside it climbs through every step.
+[[case]]
+id       = "b_range"
+key      = "b g"
+folder   = "colour/ramp"
+linemode = "b_range"
+broken   = true
+desc     = "supaline: a ramp whose `stats` found no extremes"
+
+# Last: `e2e.py` goes to `broken/` straight after it, and that `cd` has to land
+# while this one is drawn.
+[[case]]
+id       = "b_tick"
+key      = "b f"
+folder   = "data"
+linemode = "b_tick"
+broken   = true
+desc     = "supaline: two columns counting their own refreshes"

@@ -6,18 +6,22 @@ against, which is what a change to either has to keep.
 
 ## Contents
 
-- The key set, and why the keymap is the only side that proves it was read
+- The key set, and why the binding files are the only side that proves it was read
 - The broken columns, and why they run in a second Yazi
 - Three things measured on 26.9.1
 
-## The key set, and why the keymap is the only side that proves it was read
+## The key set, and why the binding files are the only side that proves it was read
 
 The authority is the only side that has to prove it was read. A reader side
 that comes back empty fails loudly with every bound key named at once, while an
 empty authority would let all three comparisons pass over nothing. So it is
-checked against the keymap's own shape — one `on` line per
-`[[mgr.prepend_keymap]]` block — rather than against a count written in the
-spec, which would be one more place holding the size of the set.
+checked against each binding file's own shape — one `on` line per
+`[[mgr.prepend_keymap]]` block in `keymap.toml`, one `key` line per
+`[[case]]` and `[[folder]]` in `cases.toml` — rather than against a count
+written in the spec, which would be one more place holding the size of the
+set. That is also why `cases.toml` writes every field as a string on a line of
+its own: a key spelled any other way is a block the count finds and the
+pattern does not, and the spec says so rather than reading past it.
 
 A key the banner offers and nothing binds is refused as well, unless
 `NOT_BOUND` says whose it is — `m s` is Yazi's — and an entry there has to
@@ -25,19 +29,19 @@ still be offered, so that table cannot fill up with keys the banner has
 dropped.
 
 `e2e.py` is left out of that comparison on purpose, and needs no place in it
-for its linemodes: it reads those off the keymap through `setup.py`'s
-`linemodes`, and the folder for each colour one off `MANUAL.md`'s table.
-Past them it presses `c 2` and neither `c 1` nor `c 3`, because that key
-replaces `theme.toml` wholesale and one swap is all a run whose earlier
-captures were taken against that file can afford. Comparing the rest against
-it would need a list of which keys are exempt, and that list would be one more
-place naming the set.
+for its cases: it presses every one `setup.py`'s `cases` reads, by what it is
+rather than by its key. Of the keys that are not cases it presses `T`, and
+`c 2` and neither `c 1` nor `c 3`, because that key replaces `theme.toml`
+wholesale and one swap is all a run whose earlier captures were taken against
+that file can afford. Comparing the rest against it would need a list of which
+keys are exempt, and that list would be one more place naming the set.
 
 ## The broken columns, and why they run in a second Yazi
 
-The `b` leader draws the columns that are wrong on purpose, one per report
-supaline can put on a screen, and `e2e.py` presses all of them in a **second
-Yazi with a log of its own**, started once the first has been torn down.
+The cases marked `broken`, on the `b` leader, draw the columns that are wrong
+on purpose, one per report supaline can put on a screen, and `e2e.py` presses
+all of them in a **second Yazi with a log of its own**, started once the first
+has been torn down.
 
 The shape is decided by what it must not be. `tell` writes to `yazi.log` as
 well as to the screen, and `e2e.py` fails a run in which Yazi logged an error,

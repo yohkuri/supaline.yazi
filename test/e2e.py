@@ -76,6 +76,12 @@ class Run:
         self.session = Session(f"supaline-e2e-{pid}")
         self.keep = keep
         self.shots: dict[str, str] = {}
+        # Every key this presses is one `cases.toml` binds, found by what it
+        # does rather than by how it is spelled.
+        self.listing = fixture.read_cases()
+        #: The folder the current pane is showing, under `fixture/`, which is
+        #: what decides whether a case's key has a landmark to wait for.
+        self.where = ""
 
     # --- the fixture -------------------------------------------------------
 
@@ -106,11 +112,13 @@ class Run:
         # A name out of the fixture rather than a fixed wait: it says Yazi got
         # as far as listing the folder, where a sleep says only that time
         # passed.
+        landmark = self.listing.folders["data"].landmark
         self.session.wait_for(
-            lambda s: "exactly-1k.bin" in s,
+            lambda s: landmark in s,
             "the fixture listed",
             timeout=30,
         )
+        self.where = "data"
 
     def store(self, label: str, plain: str, colour: str = "") -> None:
         """Hold a capture under `label`, in memory and on disk.
@@ -134,60 +142,61 @@ class Run:
             self.session.capture(colour=True),
         )
 
-    def goto(self, key: str) -> None:
-        """Press a `g` key and wait until the current pane is the folder it names.
+    def arrive(self, path: str, key: str) -> None:
+        """Press `key`, and wait until the current pane is the folder `path`.
 
-        The predicate is a name only that folder holds, taken from `FOLDERS`
-        rather than from the caller so the two cannot disagree, and it is read
-        off the **current pane**: the panes either side draw the neighbouring
-        folders, so a name they hold is on screen before the `cd` that makes
-        it current. Measured on 26.9.1, `inner-a.txt` is in the preview pane
-        throughout `data/`.
+        The predicate is the folder's landmark in `cases.toml`, a name only
+        that folder holds, and it is read off the **current pane**: the panes
+        either side draw the neighbouring folders, so a name they hold is on
+        screen before the `cd` that makes it current. Measured on 26.9.1,
+        `inner-a.txt` is in the preview pane throughout `data/`.
         """
-        expect = FOLDERS[key]
-        self.session.press(
-            "g",
-            key,
-            until=lambda s: any(expect in f for f in sc.current_fields(s)),
-            what=f"`{expect}` in the current pane after g {key}",
+        expect = self.listing.folders[path].landmark
+        self.session.keys(*key.split(" "))
+        self.session.wait_for(
+            lambda s: any(expect in f for f in sc.current_fields(s)),
+            f"`{expect}` in the current pane after {key}",
         )
+        self.where = path
+
+    def goto(self, path: str) -> None:
+        """Go to a folder `cases.toml` lists, by its key."""
+        self.arrive(path, self.listing.folders[path].key)
+        self.session.settle(stable=0.2)
+
+    def show(self, case: fixture.Case) -> None:
+        """Press a case's key, and wait for the state it names.
+
+        A case in another folder waits for that folder's landmark first. What
+        follows is the whole settle rather than the short one after a `goto`,
+        because the same press switched the linemode and forced a peek, and
+        either can repaint after the listing lands.
+        """
+        if case.folder == self.where:
+            self.session.keys(*case.key.split(" "))
+        else:
+            self.arrive(case.folder, case.key)
+        self.session.settle()
 
 
-def clean_run(r: Run, modes: dict[str, list[tuple[str, str]]]) -> None:
+def clean_run(r: Run) -> None:
     """The run that is meant to log nothing, and every capture read below."""
     r.open_yazi("state")
 
-    # Every linemode the manual harness offers, so a broken one cannot hide.
-    for key, _ in modes["m"]:
-        r.session.press("m", key)
-        # Switching linemode does not re-peek the preview, so the hover moves
-        # to force one under the mode now active -- one press of the pair, and
-        # the settle after it covers the peek landing.
-        r.session.press("j", "k")
-        r.shot(f"m{key}")
-
-    # The colour linemodes, each pressed in the folder it is meant to be read
-    # in, because the spread of values in the folder decides what a ramp puts
-    # on screen. What this does *not* do is judge them: `MANUAL.md` says which
-    # questions a reader is the only instrument for. They settle rather than
-    # wait on a name, because two colour modes over one folder draw the same
-    # text in different colours.
-    folders = fixture.read_in((ROOT / "test" / "MANUAL.md").read_text())
-    for key, name in modes["c"]:
-        r.goto(folders[key])
-        r.session.press("c", key)
-        r.shot(name)
-
-    # m3 states one size column at 10 and measures the other, so the widths
-    # have to disagree -- and the measured one has to change with the folder.
-    r.session.press("m", "3")
-    r.goto("2")
-    r.shot("m3-nested")
-    r.goto("1")
+    # Every case a person can press, so a broken one cannot hide, each put in
+    # place by its own key and kept under its own name. The key is what forces
+    # the preview to peek under the new linemode, and the settle after it
+    # covers that landing. What this does *not* do is judge them: `MANUAL.md`
+    # says which questions a reader is the only instrument for.
+    for case in r.listing.cases:
+        if not case.broken:
+            r.show(case)
+            r.shot(case.id)
 
     # Late, because it rewrites the theme every capture above was taken under,
-    # and on m1 so a `size` and an `mtime` column are both there to recolour.
-    r.session.press("m", "1")
+    # and on `default` so a `size` and an `mtime` column are both there to
+    # recolour.
+    r.show(r.listing.case("default"))
     r.shot("theme-before")
     theme = r.dir / "config" / "theme.toml"
     body = theme.read_text()
@@ -208,25 +217,24 @@ def clean_run(r: Run, modes: dict[str, list[tuple[str, str]]]) -> None:
     r.session.quit("q")
 
 
-def broken_run(
-    r: Run, init: str, modes: dict[str, list[tuple[str, str]]]
-) -> None:
+def broken_run(r: Run, init: str) -> None:
     """A second Yazi, with a log of its own, for the columns that are wrong.
 
     The separate log is the design: the clean run's log is held to no error at
     all, unfiltered, and the errors this run makes land in a different file
     read for the opposite claim, so neither check learns an exception. And
-    `g 6` arms a `refresh` that throws at every `cd` after it, which no capture
-    of the clean run should be taken past.
+    `broken/` arms a `refresh` that throws at every `cd` after it, which no
+    capture of the clean run should be taken past.
     """
     r.open_yazi("state-broken")
 
-    # In the keymap's order, which ends on `b_tick`: it draws the counting pair
-    # and breaks nothing by itself, and `g 6` is what throws its `refresh`.
-    # Last, because every `cd` after it throws again.
-    for key, _ in modes["b"]:
-        r.session.press("b", key)
-    r.goto("6")
+    # In the case list's order, which ends on `b_tick`: it draws the counting
+    # pair and breaks nothing by itself, and `broken/` is what throws its
+    # `refresh`. Last, because every `cd` after it throws again.
+    for case in r.listing.cases:
+        if case.broken:
+            r.show(case)
+    r.goto("broken")
 
     # A union of many captures rather than one: measured on 26.9.1, Yazi draws
     # three notifications at a time and queues the rest, each for the twenty
@@ -247,8 +255,8 @@ def broken_run(
     # let go: two more `cd`s, since a throwing `refresh` throws at every folder,
     # and two `app:theme`s, since a rebuild must not re-arm the gate. The
     # per-column count below answers all of it by still being 1.
-    r.goto("1")
-    r.goto("2")
+    r.goto("data")
+    r.goto("data/nested")
     r.session.press("T")
     r.session.press("T")
 
@@ -260,18 +268,6 @@ def broken_run(
 #: shapes a `[supaline]` value can take, because different code rebuilds them:
 #: a flat colour is one `ui.Style` and a ramp is `STEPS` of them.
 THEME_NEW = ("#00ccff", "#1a5e00 -> #9bff66")
-
-
-#: A name only the folder behind each `g` key holds, so the press can be waited
-#: on rather than slept through.
-FOLDERS = {
-    "1": "exactly-1k.bin",
-    "2": "inner-a.txt",
-    "3": "step-00.txt",
-    "4": "pow-00.bin",
-    "5": "same-a.txt",
-    "6": "a-longer-name.txt",
-}
 
 
 def lines_with(text: str, needle: str) -> int:
@@ -346,90 +342,87 @@ def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
 
 
 def check_rows_present(
-    k: Checks, shots: dict[str, str], modes: dict[str, list[tuple[str, str]]]
+    k: Checks, shots: dict[str, str], listing: fixture.Cases
 ) -> None:
-    """Yazi is alive and every linemode name resolved.
+    """Yazi is alive and every case's linemode name resolved.
 
     An unregistered one is drawn as literal text and a linemode that threw
     takes the rows with it. This does *not* prove any of them drew a column,
     because the file names satisfy it on their own; the sections after it are
     for the columns.
     """
-    k.section("every linemode left the rows on screen")
-
-    def have(summary: str, labels: list[str]) -> None:
-        # Row 3 clears the header, and 8 is inside the shortest listing.
-        blank = [
-            n
-            for n in labels
-            if not any(
-                re.search(r"[A-Za-z0-9]", row)
-                for row in sc.rows(shots[n], 3, 8)
-            )
-        ]
-        k.verdict(
-            summary, blank and f"{', '.join(blank)}: the rows came back blank"
+    k.section("every case left the rows on screen")
+    labels = [c.id for c in listing.cases if not c.broken]
+    # Row 3 clears the header and is inside the shortest listing, the two
+    # files of `nested/`. A whole line is read, so the panes beside it count.
+    blank = [
+        n
+        for n in labels
+        if not any(
+            re.search(r"[A-Za-z0-9]", row) for row in sc.rows(shots[n], 3, 8)
         )
-
-    have(
-        f"the {len(modes['m'])} `m` linemodes all have rows",
-        [f"m{key}" for key, _ in modes["m"]],
-    )
-    have(
-        f"the {len(modes['c'])} colour modes all have rows",
-        [name for _, name in modes["c"]],
+    ]
+    k.verdict(
+        f"the {len(labels)} cases all have rows",
+        blank and f"{', '.join(blank)}: the rows came back blank",
     )
 
 
 def check_columns(k: Checks, shots: dict[str, str]) -> None:
     k.section("columns")
-    k.holds(shots["m0"], "87.9M", "m0: size")
-    k.holds(shots["m1"], "87.9M 05/06  2024", "m1: size + mtime")
-    k.holds(shots["m2"], "drwxr-xr-x", "m2: permissions")
+    k.holds(shots["plain"], "87.9M", "plain: size")
+    k.holds(shots["default"], "87.9M 05/06  2024", "default: size + mtime")
+    k.holds(shots["everything"], "drwxr-xr-x", "everything: permissions")
 
-    check_owner(k, shots["m2"])
-    check_overflow(k, shots["m4"])
+    check_owner(k, shots["everything"])
+    check_overflow(k, shots["overflow"])
 
-    # m3: `size` stated at 10 beside `size` measured. In `data/` the widest
+    # widths: `size` stated at 10 beside `size` measured. In `data/` the widest
     # size is "1023.4K", so the measured column is 7; in `nested/` it is
     # "300K", so it narrows to 4.
     k.holds(
-        shots["m3"],
+        shots["widths"],
         "1024B   1024B",
-        "m3: a stated width and a measured one differ",
+        "widths: a stated width and a measured one differ",
     )
     k.holds(
-        shots["m3-nested"],
+        shots["widths_nested"],
         "      300K 300K",
-        "m3: the measured width follows the folder",
+        "widths_nested: the measured width follows the folder",
     )
     # Yazi absorbs what the linemode does not use into the file name's padding,
     # so the one row that pins the *stated* column is the one whose name Yazi
     # had to truncate: there the gap after it is one space of separator, then
     # 10 less the two cells of "1B".
     k.holds(
-        shots["m3"],
+        shots["widths"],
         "….txt         1B",
-        "m3: a stated width does not shrink to fit",
+        "widths: a stated width does not shrink to fit",
     )
 
-    # m5: `ext` (5, left), then `size` with `separator = false`, then `mtime`
+    # seps: `ext` (5, left), then `size` with `separator = false`, then `mtime`
     # behind the divider, in the colour it was given and just before its glyph.
     k.holds(
-        shots["m5"],
+        shots["seps"],
         "bin    1024B" + sc.BAR,
-        "m5: separator = false and a separator of a column's own",
+        "seps: separator = false and a separator of a column's own",
     )
     k.holds(
-        shots["colour-m5"],
+        shots["colour-seps"],
         sc.sgr(38, "#a6e3a1") + sc.BAR,
-        "m5: that separator is drawn in its own colour",
+        "seps: that separator is drawn in its own colour",
     )
 
-    # m9: a registered column, one clipped to 8 without an ellipsis, and a bare
+    # custom: a registered column, one clipped to 8 without an ellipsis, and a bare
     # function in the spec.
-    k.holds(shots["m9"], "bin   exactly- file", "m9: user-written columns")
-    k.holds(shots["m9"], "never-op ", "m9: a clipped cell carries no ellipsis")
+    k.holds(
+        shots["custom"], "bin   exactly- file", "custom: user-written columns"
+    )
+    k.holds(
+        shots["custom"],
+        "never-op ",
+        "custom: a clipped cell carries no ellipsis",
+    )
 
 
 def check_owner(k: Checks, capture: str) -> None:
@@ -445,11 +438,13 @@ def check_owner(k: Checks, capture: str) -> None:
     )
     rows = sc.owner_cells(capture)
     if not rows:
-        k.fail("m2: no permissions field on screen, and no cells behind one")
+        k.fail(
+            "everything: no permissions field on screen, and no cells behind one"
+        )
         return
 
     def agreed(what: str, cells: set[str]) -> str:
-        """The one cell every m2 row agrees on, or empty with a fault said.
+        """The one cell every `everything` row agrees on, or empty with a fault said.
 
         Every row lists a file this run created, so all of them carry the same
         two names; two answers is a column reading per row what it should read
@@ -457,22 +452,24 @@ def check_owner(k: Checks, capture: str) -> None:
         """
         if len(cells) > 1:
             k.fail(
-                f"m2: the rows disagree on the {what}: {' '.join(sorted(cells))}"
+                f"everything: the rows disagree on the {what}: {' '.join(sorted(cells))}"
             )
             return ""
         return next(iter(cells))
 
     seen = agreed("owner cell", {r.owner for r in rows})
     if seen == who:
-        k.ok(f"m2: the owner column holds `{who}` whole, with no ellipsis")
+        k.ok(
+            f"everything: the owner column holds `{who}` whole, with no ellipsis"
+        )
     elif seen:
         dots = seen.count("…")
         k.verdict(
-            f"m2: the owner column cuts `{who}` with one ellipsis",
+            f"everything: the owner column cuts `{who}` with one ellipsis",
             dots != 1
-            and f"m2: the owner cell carries {dots} ellipses, wanted one -- `{seen}`",
+            and f"everything: the owner cell carries {dots} ellipses, wanted one -- `{seen}`",
             not sc.is_cut_of(who, seen)
-            and f"m2: the owner cell `{seen}` is not a cut of `{who}`",
+            and f"everything: the owner cell `{seen}` is not a cut of `{who}`",
         )
 
     # `user` and `group` draw the same two names in eight cells each, so each
@@ -482,16 +479,16 @@ def check_owner(k: Checks, capture: str) -> None:
     got_group = agreed("group cell", {r.group for r in rows})
     if got_user and got_group:
         k.verdict(
-            f"m2: the user and group columns hold the halves of `{who}`",
+            f"everything: the user and group columns hold the halves of `{who}`",
             not sc.is_cut_of(want_user, got_user)
-            and f"m2: `{got_user}` is not a cut of `{want_user}`",
+            and f"everything: `{got_user}` is not a cut of `{want_user}`",
             not sc.is_cut_of(want_group, got_group)
-            and f"m2: `{got_group}` is not a cut of `{want_group}`",
+            and f"everything: `{got_group}` is not a cut of `{want_group}`",
         )
 
 
 def check_overflow(k: Checks, capture: str) -> None:
-    """m4 puts one over-long name through ellipsis, clip and grow.
+    """`overflow` puts one over-long name through ellipsis, clip and grow.
 
     The same row must carry all four renderings of it -- Yazi truncates long
     names in the parent pane by itself, and that ellipsis would satisfy a
@@ -504,10 +501,10 @@ def check_overflow(k: Checks, capture: str) -> None:
             (line for line in capture.splitlines() if name in line), None
         )
         k.verdict(
-            f"m4: {label}",
+            f"overflow: {label}",
             found is None
-            and f"m4: {label} -- no row on screen carries `{name}`",
-            cells not in (found or "") and f"m4: {label}",
+            and f"overflow: {label} -- no row on screen carries `{name}`",
+            cells not in (found or "") and f"overflow: {label}",
         )
 
     # `exactly-1k.bin` is 14 characters against a column of 12. The two clips
@@ -538,14 +535,14 @@ def check_overflow(k: Checks, capture: str) -> None:
 
 
 def check_panes(k: Checks, shots: dict[str, str]) -> None:
-    """m6 asks for the current pane alone, so its edges are the baseline.
+    """`pane_cur` asks for the current pane alone, so its edges are the baseline.
 
     Whole panes are compared rather than a column grepped for, which keeps this
     independent of which columns the fixture happens to use.
     """
     k.section("panes")
-    bare_parent = sc.parent_of(shots["m6"])
-    bare_preview = sc.preview_of(shots["m6"])
+    bare_parent = sc.parent_of(shots["pane_cur"])
+    bare_preview = sc.preview_of(shots["pane_cur"])
 
     def all_marked(
         label: str, pane: list[str], rows: int | None = None
@@ -559,56 +556,64 @@ def check_panes(k: Checks, shots: dict[str, str]) -> None:
     # A pane drawing nothing where it was asked to would pass everything else
     # in this section, so each asked-for pane is held to every row. The parent
     # pane is where a linemode child being called for parent rows would show,
-    # and the preview's row count comes off m6's bare preview -- the same
+    # and the preview's row count comes off `pane_cur`'s bare preview -- the same
     # folder under a mode that draws nothing into it.
-    for n in "678":
+    for id in ("pane_cur", "pane_par", "pane_prev"):
         all_marked(
-            f"m{n}: every current-pane row carries the marker",
-            sc.current_of(shots[f"m{n}"]),
+            f"{id}: every current-pane row carries the marker",
+            sc.current_of(shots[id]),
         )
     all_marked(
-        "m7: every parent-pane row carries the marker",
-        sc.parent_of(shots["m7"]),
+        "pane_par: every parent-pane row carries the marker",
+        sc.parent_of(shots["pane_par"]),
     )
     all_marked(
-        "m8: every preview-pane row carries the marker",
-        sc.preview_of(shots["m8"]),
+        "pane_prev: every preview-pane row carries the marker",
+        sc.preview_of(shots["pane_prev"]),
         sc.drawn(bare_preview),
     )
 
-    k.same(sc.parent_of(shots["m8"]), bare_parent, "m8: parent pane left alone")
     k.same(
-        sc.preview_of(shots["m7"]), bare_preview, "m7: preview pane left alone"
+        sc.parent_of(shots["pane_prev"]),
+        bare_parent,
+        "pane_prev: parent pane left alone",
+    )
+    k.same(
+        sc.preview_of(shots["pane_par"]),
+        bare_preview,
+        "pane_par: preview pane left alone",
     )
     k.same(
         sc.marked(bare_parent) + sc.marked(bare_preview),
         0,
-        "m6: both edges left alone",
+        "pane_cur: both edges left alone",
     )
 
-    # `me` names the same two panes as m7 and gives each a list of its own, so
-    # it agrees with m7 about the parent pane and disagrees about the middle
+    # `pane_each` names the same two panes as `pane_par` and gives each a list
+    # of its own, so it agrees with `pane_par` about the parent pane and disagrees about the middle
     # one. `differs` alone would pass on a pane drawing nothing, so the cells it
     # was given are asked for too: `ext` then `size`, five cells left-aligned,
     # a separator, seven right-aligned.
     k.same(
-        sc.parent_of(shots["me"]),
-        sc.parent_of(shots["m7"]),
-        "me: the parent pane draws what m7 drew",
+        sc.parent_of(shots["pane_each"]),
+        sc.parent_of(shots["pane_par"]),
+        "pane_each: the parent pane draws what pane_par drew",
     )
     k.differs(
-        sc.current_of(shots["me"]),
-        sc.current_of(shots["m7"]),
-        "me: the current pane draws columns of its own",
+        sc.current_of(shots["pane_each"]),
+        sc.current_of(shots["pane_par"]),
+        "pane_each: the current pane draws columns of its own",
     )
     k.that(
-        any("bin     1024B" in row for row in sc.current_of(shots["me"])),
-        "me: ... and they are the ext and size it was given",
+        any(
+            "bin     1024B" in row for row in sc.current_of(shots["pane_each"])
+        ),
+        "pane_each: ... and they are the ext and size it was given",
     )
     k.same(
-        sc.preview_of(shots["me"]),
+        sc.preview_of(shots["pane_each"]),
         bare_preview,
-        "me: the pane nobody named is bare",
+        "pane_each: the pane nobody named is bare",
     )
 
 
@@ -622,9 +627,11 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
     # do it: its high end is below the window.
     low, high = fixture.theme_ends(dir, "default")
     k.holds(
-        shots["colour-m1"], sc.sgr(38, low), "a themed ramp draws its low end"
+        shots["colour-default"],
+        sc.sgr(38, low),
+        "a themed ramp draws its low end",
     )
-    k.holds(shots["colour-m1"], sc.sgr(38, high), "... and its high end")
+    k.holds(shots["colour-default"], sc.sgr(38, high), "... and its high end")
 
     def rows_hold(label: str, ramp: list[sc.RampRow], monotone: bool) -> None:
         """Enough rows, and no fault in the sequence."""
@@ -954,25 +961,22 @@ def main(argv: list[str]) -> int:
         # The fixture as Yazi is about to read it, `@DIR@` filled in, rather
         # than the source under `test/fixture/`.
         init = (r.dir / "config" / "init.lua").read_text()
-        modes = fixture.linemodes(
-            (r.dir / "config" / "keymap.toml").read_text()
-        )
-        clean_run(r, modes)
-        broken_run(r, init, modes)
+        clean_run(r)
+        broken_run(r, init)
 
         k = Checks()
         check_log(k, yazi_log(r.dir, "state"))
         check_reports(
             k, yazi_log(r.dir, "state-broken"), r.shots["broken"], init
         )
-        check_rows_present(k, r.shots, modes)
+        check_rows_present(k, r.shots, r.listing)
         check_columns(k, r.shots)
         check_panes(k, r.shots)
         check_ramp(k, r.shots, init, r.dir)
         check_theme(k, r.shots, r.dir)
 
         print()
-        for row in sc.rows(r.shots["m7"], 2, 7):
+        for row in sc.rows(r.shots["pane_par"], 2, 7):
             print(row)
         print()
 

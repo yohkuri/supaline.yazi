@@ -394,7 +394,8 @@ supaline:setup {
 		-- The colour cases, `c r` to `c t`. Each is meant to be read in one of
 		-- the folders under `colour/`, because the spread of values in the
 		-- folder being drawn is what decides which part of a ramp reaches the
-		-- screen; `MANUAL.md` says which goes with which.
+		-- screen; `cases.toml` says which goes with which, and each key goes
+		-- there.
 		--
 		-- Five of the six write their colours here rather than taking them
 		-- from the theme, and that is the point: a colour written in the spec

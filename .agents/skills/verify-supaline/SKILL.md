@@ -140,7 +140,7 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   written by hand can state exactly.
 - A fact about **what the fixture spells** belongs in a reader in `setup.py`
   beside the copy it reads — `binding`, `broken_columns`, `band_width`,
-  `c_bg_grounds`, `theme_values`, `theme_ends`, `linemodes`, `read_in` — which
+  `c_bg_grounds`, `theme_values`, `theme_ends`, `cases` — which
   `TheFixtureItReads` calls rather than re-spelling their patterns. A copy of a
   pattern passes on after its reader has quietly stopped matching, and `e2e.py`
   is not in CI to say so: a pattern anchored on stylua's indentation most of
@@ -158,11 +158,13 @@ sweep that read nothing looks like a sweep that found nothing wrong.
 ## The fixture, shared by both harnesses
 
 The configuration Yazi is given sits under `test/fixture/` as the files Yazi
-reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, and
-`banner.txt`, which is what `manual.py` prints. `test/setup.py` copies them
-into a scratch tree and replaces `@DIR@` with it, and that is the whole of what
-it does to them. `e2e.py` and `manual.py` both call it, so what a person looks
-at and what the headless run asserts on cannot drift apart.
+reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, the `case`
+plugin in `case.lua`, and `banner.txt`, which is what `manual.py` prints.
+`test/setup.py` copies them into a scratch tree and replaces `@DIR@` with it.
+The one thing it writes rather than copies is what `cases.toml` becomes: a
+binding per folder and per case, appended to the keymap, and the table the
+plugin reads. `e2e.py` and `manual.py` both call it, so what a person looks at
+and what the headless run asserts on cannot drift apart.
 
 They are real files rather than heredocs, and that buys three readers the
 fixture did not have: `stylua` formats `init.lua`, `lua-language-server`
@@ -183,19 +185,19 @@ is still what says the configuration draws what `MANUAL.md` describes.
 The fixture opens on a directory carrying the cases that break width
 arithmetic — CJK, emoji, an over-long name, sizes either side of the 1K
 boundary — with siblings above it and a subdirectory below, so all three panes
-have rows. `m0` to `m9`, and `me` once the digits ran out, switch between the
-linemodes, one per decision worth looking at, and `test/MANUAL.md` says what to
-look for in each. Yazi's own `m s` and `m n` still work, which is what makes
-them worth comparing against. A third leader, `b`, draws the columns that are
-wrong on purpose, and `e2e.py` presses those in a second Yazi of their own.
+have rows. A **case** is a folder and a linemode together, and
+`test/fixture/cases.toml` gives each a key that puts Yazi in the whole state;
+`test/MANUAL.md` says what to look for in each. Yazi's own `m s` and `m n`
+still work, which is what makes them worth comparing against. `e2e.py` names a
+case only by its `id`, and presses the ones marked `broken` in a second Yazi.
 
-The same spec holds the fixture's **key set** together. Three places name that
-set — `test/fixture/keymap.toml`, `test/fixture/banner.txt` and
-`test/MANUAL.md` — and the banner is the only one whose reader is a person, so
-it is the one that can fall behind with everything still green. The keymap is
-the authority and the spec names no key of its own: it reads the `on` lines,
-then asks whether the banner offers each and whether `MANUAL.md` spells each.
-`e2e.py` names no linemode either; it presses every one `linemodes` reads.
+The same spec holds the fixture's **key set** together. `cases.toml` and
+`keymap.toml` bind it and are the authority; `banner.txt` and `MANUAL.md` name
+it, and the banner, read only by a person, is the one that can fall behind with
+everything still green. The spec names no key of its own: it reads the binding
+files' key lines and asks whether the banner offers each and `MANUAL.md`
+spells each — and holds every case's linemode against the ones `init.lua`
+declares, both ways.
 
 `references/editing-the-fixture.md` is what to open before changing either
 half: what that comparison is shaped against, why the broken columns need a
