@@ -764,19 +764,34 @@ test("stats: the pass runs once per folder, not once per row", function()
 	eq(calls, 1, "every row, one pass")
 end)
 
-test("rendering: a frame reads no function off another module", function()
-	-- In Yazi each such read builds a wrapper and each call through it enters
-	-- a nested runtime; the stub counts the reads. `session.lua` has the cost.
+test("rendering: what a frame reads off other modules does not grow with the folder", function()
 	-- An `auto` column in every pane, so the per-file width pass runs as well
-	-- as the per-row draw.
+	-- as the per-row draw, and a computed one, whose once-per-folder read is
+	-- what this allows.
 	main.column("measured", { width = "auto", render = function(file) return file.name end })
-	local cols = { "size", "measured" }
-	setup { detail = { current = cols, parent = cols, preview = cols } }
-	local before = stub.wrappers
-	draw_all("detail")
-	draw_child(stub.file { name = "current", in_current = false })
-	draw_child(PREVIEW.files[2])
-	eq(stub.wrappers - before, 0, "a module's function read on the per-row path; take it into a local at load")
+	main.column("computed", { width = function() return 3 end, render = function() return "x" end })
+	local cols = { "size", "measured", "computed" }
+
+	--- The wrappers one first frame builds, with `n` files in the current pane.
+	---@param n integer
+	---@return integer
+	local function reads(n)
+		setup { detail = { current = cols, parent = cols, preview = cols } }
+		local files = {}
+		for i = 1, n do
+			files[i] = stub.file { name = "f" .. i, size = i }
+		end
+		cx.active.current = stub.folder("/current", files)
+		local before = stub.wrappers
+		for _, file in ipairs(files) do
+			draw("detail", file)
+		end
+		draw_child(stub.file { name = "current", in_current = false })
+		draw_child(PREVIEW.files[2])
+		return stub.wrappers - before
+	end
+
+	eq(reads(4), reads(2), "a module's function read per row or per file; take it into a local at load")
 end)
 
 test("stats: a column with a stated width still receives them", function()
