@@ -555,6 +555,17 @@ class TheFixtureItReads(unittest.TestCase):
         self.assertEqual({key for key, _ in modes["c"]}, set(read_in))
         self.assertEqual(modes["b"][-1][1], "b_tick")
 
+    def test_a_quoted_linemode_name_is_read_without_its_quotes(self):
+        keymap = "[mgr]\nprepend_keymap = [\n"
+        keymap += """  { on = ["c", "r"], run = "linemode 'c_ramp'" },\n]\n"""
+        self.assertEqual(fixture.linemodes(keymap), {"c": [("r", "c_ramp")]})
+
+    def test_a_c_key_the_manual_sends_to_two_folders_is_refused(self):
+        row = "| `c r` | a ramp | `g {}` |\n"
+        self.assertEqual(fixture.read_in(row.format(3)), {"r": "3"})
+        with self.assertRaises(ValueError):
+            fixture.read_in(row.format(3) + row.format(4))
+
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.
         self.assertEqual(fixture.band_width(self.init, "HUE"), 0)
