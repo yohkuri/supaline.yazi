@@ -772,22 +772,35 @@ test("rendering: what a frame reads off other modules does not grow with the fol
 	main.column("computed", { width = function() return 3 end, render = function() return "x" end })
 	local cols = { "size", "measured", "computed" }
 
-	--- The wrappers one first frame builds, with `n` files in the current pane.
+	--- `n` files, in the current pane or not.
+	---@param n integer
+	---@param current boolean
+	---@return supaline.File[]
+	local function files(n, current)
+		local out = {}
+		for i = 1, n do
+			out[i] = stub.file { name = "f" .. i, size = i, in_current = current }
+		end
+		return out
+	end
+
+	--- The wrappers one first frame builds, with `n` files in every pane.
 	---@param n integer
 	---@return integer
 	local function reads(n)
 		setup { detail = { current = cols, parent = cols, preview = cols } }
-		local files = {}
-		for i = 1, n do
-			files[i] = stub.file { name = "f" .. i, size = i }
-		end
-		cx.active.current = stub.folder("/current", files)
+		cx.active.current = stub.folder("/current", files(n, true))
+		cx.active.parent = stub.folder("/", files(n, false))
+		cx.active.preview = { folder = stub.folder("/current/nested", files(n, false)), skip = 0 }
 		local before = stub.wrappers
-		for _, file in ipairs(files) do
+		for _, file in ipairs(cx.active.current.files) do
 			draw("detail", file)
 		end
-		draw_child(stub.file { name = "current", in_current = false })
-		draw_child(PREVIEW.files[2])
+		for _, pane in ipairs { cx.active.parent, cx.active.preview.folder } do
+			for _, file in ipairs(pane.files) do
+				draw_child(file)
+			end
+		end
 		return stub.wrappers - before
 	end
 
