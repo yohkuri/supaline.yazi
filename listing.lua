@@ -5,8 +5,11 @@
 --- the appearance it prepares under, and is replaced rather than cleared --
 --- by a theme event, and by anything that makes a folder's stale -- so a
 --- context handed out is never rebound.
-local layout = require(".layout")
 local schema = require(".schema")
+
+-- Taken off the module once, for the reason `session.lua` gives: an `auto`
+-- width calls it for every file in the folder.
+local layout_measure = require(".layout").measure
 
 ---@class supaline.ListingModule
 local M = {}
@@ -137,7 +140,7 @@ function M.width(col, ctx, files)
 	end
 	local widest = 0
 	for i = 1, #files do
-		widest = math.max(widest, layout.measure(col.render(files[i], ctx)))
+		widest = math.max(widest, layout_measure(col.render(files[i], ctx)))
 	end
 	return cap(widest, col.max_width)
 end

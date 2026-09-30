@@ -764,6 +764,21 @@ test("stats: the pass runs once per folder, not once per row", function()
 	eq(calls, 1, "every row, one pass")
 end)
 
+test("rendering: a frame reads no function off another module", function()
+	-- In Yazi each such read builds a wrapper and each call through it enters
+	-- a nested runtime; the stub counts the reads. `session.lua` has the cost.
+	-- An `auto` column in every pane, so the per-file width pass runs as well
+	-- as the per-row draw.
+	main.column("measured", { width = "auto", render = function(file) return file.name end })
+	local cols = { "size", "measured" }
+	setup { detail = { current = cols, parent = cols, preview = cols } }
+	local before = stub.wrappers
+	draw_all("detail")
+	draw_child(stub.file { name = "current", in_current = false })
+	draw_child(PREVIEW.files[2])
+	eq(stub.wrappers - before, 0, "a module's function read on the per-row path; take it into a local at load")
+end)
+
 test("stats: a column with a stated width still receives them", function()
 	local seen = "not called"
 	main.column("stated", {
