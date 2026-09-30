@@ -90,8 +90,8 @@ def main(argv: list[str]) -> int:
     rule = "─" * 76
     print()
     print("  What a report says past its one sentence -- what the fault cost,")
-    print("  and the traceback -- goes to the log rather than to the screen.")
-    print("  This run keeps one:")
+    print("  and the whole of what was thrown -- goes to the log rather than")
+    print("  to the screen. This run keeps one:")
     print(f"  {yazi_log(DIR, 'state')}")
     print(rule)
 

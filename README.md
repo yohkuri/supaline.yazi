@@ -438,8 +438,8 @@ rest of the pair and said the same way.
 is drawn, and an error raised there fails Yazi's whole screen — file list,
 header and status bar together, on every frame, with nothing written anywhere
 unless `YAZI_LOG` was set before Yazi started. So all three are called under
-`pcall`: the column is named once in a notification, with what it threw and a
-full traceback in the log, and everything else on the line goes on drawing. A
+`pcall`: the column is named once in a notification, with what it threw in the
+log, and everything else on the line goes on drawing. A
 cell the column cannot draw at all is filled with `!` so the row keeps its
 shape; a `width` function that threw leaves the column unpadded, which is
 ragged but readable. None of this applies to a mistake in the configuration —

@@ -91,7 +91,7 @@ end
 --- Put a report in the log in full and a short form of it on the screen. A
 --- notification long enough to fill the preview pane pushes its own first
 --- line off the top -- measured on 26.9.1 -- so the screen gets one sentence
---- and the log keeps the traceback.
+--- and the log keeps the whole.
 ---@param logged any the whole of it
 ---@param shown string? the sentence for the screen, if it is not the whole
 local function tell(logged, shown)

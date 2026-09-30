@@ -7,9 +7,9 @@
 --- context handed out is never rebound.
 local schema = require(".schema")
 
--- Taken off the module once, for the reason `session.lua` gives: an `auto`
--- width calls it for every file in the folder.
-local layout_measure = require(".layout").measure
+-- The function itself, for the reason `session.lua` gives: an `auto` width
+-- calls it for every file in the folder.
+local layout_measure = rawget(require(".layout"), "__mod").measure
 
 ---@class supaline.ListingModule
 local M = {}
