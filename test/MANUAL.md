@@ -597,8 +597,9 @@ folder is three edits, and a fourth treatment of an existing folder is two:
 
 Then give it a row in the table above. `e2e.py` presses every case the list
 holds and keeps a capture under its id, and the unit suite refuses a case whose
-linemode `init.lua` never declared, a linemode no case names, and a key the
-banner or this document never spells. That does not judge it — judging is what
+linemode `init.lua` never declared, a linemode no case names, a key the banner
+or this document never spells, and a row whose `g` key is not where the case's
+own key goes. That does not judge it — judging is what
 this document is for — but an unregistered linemode name is drawn as literal
 text and one that threw takes the rows with it, and `e2e.py` finds either
 before whoever next runs `manual.py` does.

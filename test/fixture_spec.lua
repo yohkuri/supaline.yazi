@@ -181,9 +181,9 @@ local function offered_keys()
 	return keys
 end
 
---- The members of `set` that `other` has not got, sorted, as one string.
----@param set table<string, true>
----@param other table<string, true>
+--- The keys of `set` that `other` has not got, sorted, as one string.
+---@param set table<string, any>
+---@param other table<string, any>
 ---@return string # empty when there are none
 local function missing_from(set, other)
 	local out = {}
@@ -252,10 +252,7 @@ test("fixture: every case names a linemode `init.lua` declares, and every one it
 
 	local ok, err, opts = configure()
 	assert(ok and opts and opts.linemodes, "the fixture's `init.lua` handed `setup` no linemodes: " .. tostring(err))
-	local declared = {}
-	for name in pairs(opts.linemodes) do
-		declared[name] = true
-	end
+	local declared = opts.linemodes
 
 	eq(missing_from(named, declared), "", "named by test/fixture/cases.toml and declared by no linemode in init.lua")
 	eq(missing_from(declared, named), "", "declared in init.lua and named by no case in test/fixture/cases.toml")

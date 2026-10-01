@@ -548,16 +548,28 @@ class TheFixtureItReads(unittest.TestCase):
         # `e2e.py` presses what this answers, so an empty one would press
         # nothing and pass; both runs have cases to press; and `b_tick` comes
         # last, right before the `cd` to `broken/` throws its `refresh`.
-        listing = fixture.cases(fixture.CASES.read_text())
-        self.assertTrue([c for c in listing.cases if not c.broken])
-        broken = [c for c in listing.cases if c.broken]
-        self.assertTrue(broken)
-        self.assertEqual(broken[-1].linemode, "b_tick")
-        # The folders `e2e.py` names outright, each with a landmark to wait on.
-        for path in ("data", "data/nested", "broken"):
-            with self.subTest(folder=path):
-                self.assertTrue(listing.folders[path].landmark)
-        self.assertEqual(listing.case("default").folder, "data")
+        listing = fixture.read_cases()
+        self.assertTrue(listing.clean)
+        self.assertTrue(listing.broken)
+        self.assertEqual(listing.broken[-1].linemode, "b_tick")
+        # The folders and the case `e2e.py` names outright.
+        self.assertLessEqual(
+            {"data", "data/nested", "broken"}, listing.folders.keys()
+        )
+        self.assertEqual(listing.cases["default"].folder, "data")
+
+    def test_the_manual_sends_each_case_to_the_folder_its_key_goes_to(self):
+        # Nothing a run presses reads that column, so this is all that holds it
+        # to `cases.toml`; an empty answer would hold it to nothing.
+        listing = fixture.read_cases()
+        sent = fixture.goes_to(fixture.MANUAL.read_text())
+        self.assertTrue(sent)
+        by_key = {case.key: case for case in listing.cases.values()}
+        for key, folder_key in sent.items():
+            with self.subTest(case=key):
+                self.assertEqual(
+                    listing.folders[by_key[key].folder].key, folder_key
+                )
 
     @staticmethod
     def one_case(path="a", folder_key="g 1", folder="a", extra="") -> str:
@@ -575,36 +587,34 @@ class TheFixtureItReads(unittest.TestCase):
         listing = fixture.cases(self.one_case(extra='hover = "x"\n'))
         self.assertEqual(listing.folders["a"].key, "g 1")
         self.assertEqual(
-            listing.case("one"),
+            listing.cases["one"],
             fixture.Case("one", "m 0", "a", "plain", "one", "x", False),
         )
 
-    def test_a_case_in_a_folder_nobody_lists_is_refused(self):
-        with self.assertRaises(ValueError):
-            fixture.cases(self.one_case(folder="b"))
-
-    def test_a_key_two_entries_bind_is_refused(self):
-        with self.assertRaises(ValueError):
-            fixture.cases(self.one_case(folder_key="m 0"))
-
-    def test_a_field_the_list_does_not_define_is_refused(self):
-        # A misspelled `hover` read past would be a case that never moves it.
-        with self.assertRaises(ValueError):
-            fixture.cases(self.one_case(extra='hovre = "x"\n'))
-
-    def test_a_name_that_would_need_quoting_is_refused(self):
-        # A folder's path goes into a keymap `run` unquoted.
-        with self.assertRaises(ValueError):
-            fixture.cases(self.one_case(path="a b", folder="a b"))
-
-    def test_a_list_with_no_case_is_refused(self):
-        only = self.one_case().split("[[case]]")[0]
-        with self.assertRaises(ValueError):
-            fixture.cases(only)
-
-    def test_a_lua_string_carries_a_quote_a_backslash_and_a_newline(self):
-        self.assertEqual(fixture.lua_string('a"b\\c\nd'), '"a\\"b\\\\c\\010d"')
-        self.assertEqual(fixture.lua_string("日本"), '"日本"')
+    def test_a_list_spoiled_in_one_place_is_refused(self):
+        spoiled = {
+            "a case in a folder nobody lists": self.one_case(folder="b"),
+            "a key two entries bind": self.one_case(folder_key="m 0"),
+            # A misspelled `hover` read past would be a case that never moves it.
+            "a field the list does not define": self.one_case(
+                extra='hovre = "x"\n'
+            ),
+            # A folder's path goes into a keymap `run` unquoted.
+            "a name that would need quoting": self.one_case(
+                path="a b", folder="a b"
+            ),
+            # A hover goes into the plugin's table as a Lua string, unescaped.
+            "a hover that would need escaping": self.one_case(
+                extra='hover = "a\\"b"\n'
+            ),
+            "a hover that is not a name in its folder": self.one_case(
+                extra='hover = "a/b"\n'
+            ),
+            "a list with no case": self.one_case().split("[[case]]")[0],
+        }
+        for reason, text in spoiled.items():
+            with self.subTest(reason), self.assertRaises(ValueError):
+                fixture.cases(text)
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.
