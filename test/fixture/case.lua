@@ -12,19 +12,25 @@
 --- from one key press. Measured on 26.9.1, a `cd`, a `linemode` and a
 --- `reveal` emitted together all land.
 
--- The table `setup.py` writes from `cases.toml`, by absolute path. `dofile`
--- rather than `require`: measured on 26.9.1, a `require` in the main chunk of a
--- sync plugin yields, and the entry fails with "attempt to yield from outside a
--- coroutine" on every press.
-local TABLE = dofile("@DIR@/config/plugins/case.yazi/cases.lua")
+-- Where every folder the bindings and the table name is, filled in by
+-- `setup.py` as every file it copies is. Here rather than in either of those,
+-- so that what they carry is a name alone, which needs no quoting in a keymap's
+-- `run` or in Yazi's own argument parser.
+local ROOT = "@DIR@/fixture/"
 
---- Say that a key named nothing the table holds, which is a fixture out of step
---- with itself rather than anything a reader did.
----@param what string
-local function unknown(what)
+-- The table `setup.py` writes from `cases.toml`, each case by its `id`.
+-- `dofile` rather than `require`: measured on 26.9.1, a `require` in the main
+-- chunk of a sync plugin yields, and the entry fails with "attempt to yield
+-- from outside a coroutine" on every press.
+local CASES = dofile("@DIR@/config/plugins/case.yazi/cases.lua")
+
+--- Say that a key named a case the table does not hold, which is a fixture out
+--- of step with itself rather than anything a reader did.
+---@param name string?
+local function unknown(name)
 	ya.notify {
 		title = "case",
-		content = what .. " is not in the table setup.py wrote from cases.toml",
+		content = "case `" .. tostring(name) .. "` is not in the table setup.py wrote from cases.toml",
 		timeout = 10,
 		level = "error",
 	}
@@ -37,17 +43,13 @@ function M:entry(job)
 	local verb, name = job.args[1], job.args[2]
 
 	if verb == "cd" then
-		local folder = TABLE.folders[name]
-		if not folder then
-			return unknown("folder `" .. tostring(name) .. "`")
-		end
-		ya.emit("cd", { Url(folder) })
+		ya.emit("cd", { Url(ROOT .. name) })
 		return
 	end
 
-	local case = verb == "show" and TABLE.cases[name]
+	local case = verb == "show" and CASES[name]
 	if not case then
-		return unknown("case `" .. tostring(name) .. "`")
+		return unknown(name)
 	end
 
 	-- A `cd` to the folder already showing moves neither the hover nor the
@@ -55,9 +57,9 @@ function M:entry(job)
 	-- the linemode alone. `reveal` moves both, which is what a case that names
 	-- a row asks for.
 	if case.hover then
-		ya.emit("reveal", { Url(case.folder):join(case.hover) })
+		ya.emit("reveal", { Url(ROOT .. case.folder .. "/" .. case.hover) })
 	else
-		ya.emit("cd", { Url(case.folder) })
+		ya.emit("cd", { Url(ROOT .. case.folder) })
 	end
 	ya.emit("linemode", { case.linemode })
 

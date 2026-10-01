@@ -28,6 +28,7 @@ import re
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -79,9 +80,6 @@ class Run:
         # Every key this presses is one `cases.toml` binds, found by what it
         # does rather than by how it is spelled.
         self.listing = fixture.read_cases()
-        #: The folder the current pane is showing, under `fixture/`, which is
-        #: what decides whether a case's key has a landmark to wait for.
-        self.where = ""
 
     # --- the fixture -------------------------------------------------------
 
@@ -118,7 +116,6 @@ class Run:
             "the fixture listed",
             timeout=30,
         )
-        self.where = "data"
 
     def store(self, label: str, plain: str, colour: str = "") -> None:
         """Hold a capture under `label`, in memory and on disk.
@@ -142,40 +139,40 @@ class Run:
             self.session.capture(colour=True),
         )
 
-    def arrive(self, path: str, key: str) -> None:
-        """Press `key`, and wait until the current pane is the folder `path`.
+    def here(self, path: str) -> Callable[[str], bool]:
+        """Whether a screen's current pane is the folder `path`.
 
-        The predicate is the folder's landmark in `cases.toml`, a name only
-        that folder holds, and it is read off the **current pane**: the panes
-        either side draw the neighbouring folders, so a name they hold is on
-        screen before the `cd` that makes it current. Measured on 26.9.1,
-        `inner-a.txt` is in the preview pane throughout `data/`.
+        Read off the folder's landmark in `cases.toml`, a name only that
+        folder holds, in the **current pane**: the panes either side draw the
+        neighbouring folders, so a name they hold is on screen before the `cd`
+        that makes it current. Measured on 26.9.1, `inner-a.txt` is in the
+        preview pane throughout `data/`.
         """
         expect = self.listing.folders[path].landmark
-        self.session.keys(*key.split(" "))
-        self.session.wait_for(
-            lambda s: any(expect in f for f in sc.current_fields(s)),
-            f"`{expect}` in the current pane after {key}",
-        )
-        self.where = path
+        return lambda s: any(expect in f for f in sc.current_fields(s))
 
     def goto(self, path: str) -> None:
         """Go to a folder `cases.toml` lists, by its key."""
-        self.arrive(path, self.listing.folders[path].key)
-        self.session.settle(stable=0.2)
+        self.session.press(
+            *self.listing.folders[path].key.split(" "),
+            until=self.here(path),
+            what=f"{path}/ in the current pane",
+        )
 
     def show(self, case: fixture.Case) -> None:
         """Press a case's key, and wait for the state it names.
 
-        A case in another folder waits for that folder's landmark first. What
-        follows is the whole settle rather than the short one after a `goto`,
-        because the same press switched the linemode and forced a peek, and
-        either can repaint after the listing lands.
+        Its folder's landmark first, which a case pressed in the folder it is
+        already in has on screen at once. What follows is the whole settle
+        rather than the short one after a `goto`, because the same press
+        switched the linemode and forced a peek, and either can repaint after
+        the listing lands.
         """
-        if case.folder == self.where:
-            self.session.keys(*case.key.split(" "))
-        else:
-            self.arrive(case.folder, case.key)
+        self.session.keys(*case.key.split(" "))
+        self.session.wait_for(
+            self.here(case.folder),
+            f"{case.folder}/ in the current pane after {case.key}",
+        )
         self.session.settle()
 
 
@@ -188,15 +185,14 @@ def clean_run(r: Run) -> None:
     # the preview to peek under the new linemode, and the settle after it
     # covers that landing. What this does *not* do is judge them: `MANUAL.md`
     # says which questions a reader is the only instrument for.
-    for case in r.listing.cases:
-        if not case.broken:
-            r.show(case)
-            r.shot(case.id)
+    for case in r.listing.clean:
+        r.show(case)
+        r.shot(case.id)
 
     # Late, because it rewrites the theme every capture above was taken under,
     # and on `default` so a `size` and an `mtime` column are both there to
     # recolour.
-    r.show(r.listing.case("default"))
+    r.show(r.listing.cases["default"])
     r.shot("theme-before")
     theme = r.dir / "config" / "theme.toml"
     body = theme.read_text()
@@ -231,9 +227,8 @@ def broken_run(r: Run, init: str) -> None:
     # In the case list's order, which ends on `b_tick`: it draws the counting
     # pair and breaks nothing by itself, and `broken/` is what throws its
     # `refresh`. Last, because every `cd` after it throws again.
-    for case in r.listing.cases:
-        if case.broken:
-            r.show(case)
+    for case in r.listing.broken:
+        r.show(case)
     r.goto("broken")
 
     # A union of many captures rather than one: measured on 26.9.1, Yazi draws
@@ -352,7 +347,7 @@ def check_rows_present(
     for the columns.
     """
     k.section("every case left the rows on screen")
-    labels = [c.id for c in listing.cases if not c.broken]
+    labels = [c.id for c in listing.clean]
     # Row 3 clears the header and is inside the shortest listing, the two
     # files of `nested/`. A whole line is read, so the panes beside it count.
     blank = [

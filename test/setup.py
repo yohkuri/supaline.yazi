@@ -429,7 +429,7 @@ def check_cases(target: Path, listing: Cases) -> None:
                 f"`{folder.landmark}`, the landmark of {folder.path}/, is in "
                 f"{', '.join(also)} as well"
             )
-    for case in listing.cases:
+    for case in listing.cases.values():
         if case.hover and not (root / case.folder / case.hover).exists():
             faults.append(
                 f"case `{case.id}` hovers `{case.hover}`, not in {case.folder}/"
@@ -447,20 +447,6 @@ def toml_string(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
-def lua_string(text: str) -> str:
-    """`text` as a Lua string literal: the quote and the backslash escaped, a
-    control character as its decimal escape, and every other byte as itself."""
-    out = []
-    for ch in text:
-        if ch in '"\\':
-            out.append("\\" + ch)
-        elif ord(ch) < 0x20 or ch == "\x7f":
-            out.append(f"\\{ord(ch):03d}")
-        else:
-            out.append(ch)
-    return '"' + "".join(out) + '"'
-
-
 def write_cases(target: Path, listing: Cases) -> None:
     """The keymap bindings and the plugin's table, out of `cases.toml`.
 
@@ -469,12 +455,13 @@ def write_cases(target: Path, listing: Cases) -> None:
     is the pair that drifts: a key bound to a case the table no longer has
     presses nothing and says so only on screen.
 
-    The plugin's table is Lua, because Yazi hands a plugin no TOML reader, and
-    it carries the absolute paths, so neither Yazi's own argument parser nor a
-    TOML string ever has to quote one. A binding carries only names `cases`
-    has already held to what needs no quoting.
+    The plugin's table is Lua, because Yazi hands a plugin no TOML reader.
+    Neither it nor a binding carries the scratch directory: the plugin puts
+    that in front of a folder itself, from the `@DIR@` it was copied with, so
+    neither Yazi's own argument parser nor a string written here ever has to
+    quote one. What both carry is names `cases` has already held to what
+    needs no quoting.
     """
-    root = target / "fixture"
     blocks = [
         "",
         "# --- written by test/setup.py from test/fixture/cases.toml ---",
@@ -495,27 +482,16 @@ def write_cases(target: Path, listing: Cases) -> None:
     table = [
         "-- Written by test/setup.py from test/fixture/cases.toml.",
         "return {",
-        "\tfolders = {",
     ]
     for folder in listing.folders.values():
         bind(folder.key, f"plugin case -- cd {folder.path}", folder.desc)
-        table.append(
-            f"\t\t[{lua_string(folder.path)}] = "
-            f"{lua_string(str(root / folder.path))},"
-        )
-    table += ["\t},", "\tcases = {"]
-    for case in listing.cases:
+    for case in listing.cases.values():
         bind(case.key, f"plugin case -- show {case.id}", case.desc)
-        fields = [
-            f"folder = {lua_string(str(root / case.folder))}",
-            f"linemode = {lua_string(case.linemode)}",
-        ]
+        fields = [f'folder = "{case.folder}"', f'linemode = "{case.linemode}"']
         if case.hover:
-            fields.append(f"hover = {lua_string(case.hover)}")
-        table.append(
-            f"\t\t[{lua_string(case.id)}] = {{ {', '.join(fields)} }},"
-        )
-    table += ["\t},", "}"]
+            fields.append(f'hover = "{case.hover}"')
+        table.append(f'\t["{case.id}"] = {{ {", ".join(fields)} }},')
+    table.append("}")
 
     keymap = target / "config" / "keymap.toml"
     keymap.write_text(keymap.read_text() + "\n".join(blocks) + "\n")
@@ -590,14 +566,20 @@ class Case:
 
 @dataclass(frozen=True)
 class Cases:
-    """Every folder, by path, and every case, both in the file's order."""
+    """Every folder, by path, and every case, by id, both in the file's order."""
 
     folders: dict[str, Folder]
-    cases: list[Case]
+    cases: dict[str, Case]
 
-    def case(self, id: str) -> Case:
-        """The case called `id`, which the file has already been held to."""
-        return next(c for c in self.cases if c.id == id)
+    @property
+    def clean(self) -> list[Case]:
+        """The cases one Yazi presses, logging nothing."""
+        return [c for c in self.cases.values() if not c.broken]
+
+    @property
+    def broken(self) -> list[Case]:
+        """The cases a second Yazi presses, with a log of its own."""
+        return [c for c in self.cases.values() if c.broken]
 
 
 #: What a name in `cases.toml` may be spelled with, by what it names. Each goes
@@ -606,6 +588,9 @@ class Cases:
 NAME = re.compile(r"[a-z][a-z0-9_]*")
 FOLDER = re.compile(r"[a-z0-9_-]+(/[a-z0-9_-]+)*")
 KEY = re.compile(r'[^\s"\\]+( [^\s"\\]+)*')
+#: A hover goes into the plugin's table as a Lua string, and names a file rather
+#: than a folder, so it is held to one name with nothing that string escapes.
+HOVER = re.compile(r'[^/"\\\x00-\x1f\x7f]+')
 
 
 def cases(text: str) -> Cases:
@@ -669,7 +654,7 @@ def cases(text: str) -> Cases:
             path, unique_key(row["key"]), row["landmark"], row["desc"]
         )
 
-    listed: list[Case] = []
+    listed: dict[str, Case] = {}
     for row in data.get("case", []):
         fields(
             "case",
@@ -678,26 +663,21 @@ def cases(text: str) -> Cases:
             {"hover", "broken"},
         )
         id = spelled("case", row["id"], NAME)
-        if any(c.id == id for c in listed):
+        if id in listed:
             raise ValueError(f"two [[case]]s called `{id}`")
         if row["folder"] not in folders:
             raise ValueError(
                 f"case `{id}` is read in `{row['folder']}`, which no [[folder]] lists"
             )
-        if "/" in row.get("hover", ""):
-            raise ValueError(
-                f"case `{id}` hovers `{row['hover']}`, which is not a name in its folder"
-            )
-        listed.append(
-            Case(
-                id,
-                unique_key(row["key"]),
-                row["folder"],
-                spelled("linemode", row["linemode"], NAME),
-                row["desc"],
-                row.get("hover", ""),
-                row.get("broken", False),
-            )
+        hover = row.get("hover", "")
+        listed[id] = Case(
+            id,
+            unique_key(row["key"]),
+            row["folder"],
+            spelled("linemode", row["linemode"], NAME),
+            row["desc"],
+            hover and spelled("hover", hover, HOVER),
+            row.get("broken", False),
         )
 
     # The guard every reader inherits: an empty list would press nothing, bind
@@ -713,6 +693,30 @@ def read_cases() -> Cases:
         return cases(CASES.read_text())
     except ValueError as error:
         refuse(f"setup: test/fixture/cases.toml: {error}")
+
+
+#: What a person reads beside the screen, which `goes_to` reads.
+MANUAL = ROOT / "test" / "MANUAL.md"
+
+
+def goes_to(manual: str) -> dict[str, str]:
+    """The folder key `MANUAL.md`'s tables give each case key, by case key.
+
+    A row that ends in a `g` key, which is how the colour and broken tables
+    say where a case is drawn. The column is a copy of each case's `folder`
+    for a person to read, and nothing a run presses reads it: move a case in
+    `cases.toml` and its key goes with it, while the table goes on sending a
+    reader to the old folder. A case key found twice is refused rather than
+    answered with whichever row came last.
+    """
+    found: dict[str, str] = {}
+    for key, folder in re.findall(
+        r"^\| `(\S+ \S+)` \|.*\| `(g \S+)` +\|$", manual, re.MULTILINE
+    ):
+        if key in found:
+            raise ValueError(f"MANUAL.md sends `{key}` to two folders")
+        found[key] = folder
+    return found
 
 
 def band_width(init: str, name: str) -> int:
