@@ -560,16 +560,29 @@ class TheFixtureItReads(unittest.TestCase):
 
     def test_the_manual_sends_each_case_to_the_folder_its_key_goes_to(self):
         # Nothing a run presses reads that column, so this is all that holds it
-        # to `cases.toml`; an empty answer would hold it to nothing.
+        # to `cases.toml`. Every `c` and `b` case has a row, because a key
+        # dropped from the table is still spelled in the section under it, and
+        # the key-set check in `fixture_spec.lua` passes on that alone.
         listing = fixture.read_cases()
         sent = fixture.goes_to(fixture.MANUAL.read_text())
-        self.assertTrue(sent)
-        by_key = {case.key: case for case in listing.cases.values()}
+        tabled = {
+            case.key: case
+            for case in listing.cases.values()
+            if case.key.split(" ")[0] in ("c", "b")
+        }
+        self.assertTrue(tabled)
+        self.assertEqual(set(sent), set(tabled))
         for key, folder_key in sent.items():
             with self.subTest(case=key):
                 self.assertEqual(
-                    listing.folders[by_key[key].folder].key, folder_key
+                    listing.folders[tabled[key].folder].key, folder_key
                 )
+
+    def test_a_case_the_manual_sends_to_two_folders_is_refused(self):
+        row = "| `c r` | a ramp | `g {}` |\n"
+        self.assertEqual(fixture.goes_to(row.format(3)), {"c r": "g 3"})
+        with self.assertRaises(ValueError):
+            fixture.goes_to(row.format(3) + row.format(4))
 
     @staticmethod
     def one_case(path="a", folder_key="g 1", folder="a", extra="") -> str:
