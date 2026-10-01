@@ -220,7 +220,7 @@ jobs:
       # A release rather than the major tag every other action here is given:
       # this one publishes no bare major past v7, and `@v10` is a run that
       # fails to start rather than a job that runs against something newer.
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Skills, and the budget on the documents
         # The same command to run by hand, and the script says what it checks
         # and what it leans on. It walks the skills against the specification,
