@@ -412,17 +412,21 @@ def check_cases(target: Path, listing: Cases) -> None:
     built. A landmark another listed folder holds as well is refused along
     with a missing one: `e2e.py` would find it on screen before the `cd` that
     was meant to put it there.
+
+    A name is on disk when the folder lists it, which `lexists` asks and
+    `exists` does not: `exists` follows a symlink, and `data/` holds one that
+    points nowhere and that `MANUAL.md` asks a reader to hover.
     """
     root = target / "fixture"
     faults = []
     for folder in listing.folders.values():
-        if not (root / folder.path / folder.landmark).exists():
+        if not os.path.lexists(root / folder.path / folder.landmark):
             faults.append(f"`{folder.landmark}` is not in {folder.path}/")
         also = [
             other.path
             for other in listing.folders.values()
             if other is not folder
-            and (root / other.path / folder.landmark).exists()
+            and os.path.lexists(root / other.path / folder.landmark)
         ]
         if also:
             faults.append(
@@ -430,7 +434,7 @@ def check_cases(target: Path, listing: Cases) -> None:
                 f"{', '.join(also)} as well"
             )
     for case in listing.cases.values():
-        if case.hover and not (root / case.folder / case.hover).exists():
+        if case.hover and not os.path.lexists(root / case.folder / case.hover):
             faults.append(
                 f"case `{case.id}` hovers `{case.hover}`, not in {case.folder}/"
             )
