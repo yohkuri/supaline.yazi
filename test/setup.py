@@ -653,8 +653,9 @@ def fields(
             f"a [[{kind}]] with {sorted(got)}: it needs {sorted(want)}"
             + (f" and may have {sorted(may)}" if may else "")
         )
+    allowed = {**want, **may}
     for name, value in row.items():
-        wanted = {**want, **may}[name]
+        wanted = allowed[name]
         if not isinstance(value, wanted) or value == "":
             raise ValueError(
                 f"[[{kind}]] `{name}` is not a "

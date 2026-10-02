@@ -34,6 +34,7 @@ import sys
 import tempfile
 import unicodedata
 import webbrowser
+from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import IO, NamedTuple
@@ -46,6 +47,8 @@ from e2e import Run
 from harness import begin_verdicts, catch_term, need, print_verdicts, refuse
 
 DIR = Path(tempfile.gettempdir()) / "supaline-gallery"
+
+VERDICTS = DIR / fixture.VERDICTS
 
 #: Beside `DIR` rather than in it, since what it guards is the rebuilding of
 #: `DIR` itself.
@@ -203,13 +206,15 @@ def capture(r: Run, shown: Shown) -> None:
     its first frame, which the first half of `e2e.py`'s theme check holds every
     run. Killed rather than quit, since nothing here reads its log.
     """
-    for theme in dict.fromkeys(step.theme for step in shown.values()):
+    by_theme: dict[str, list[tuple[int, fixture.Step]]] = defaultdict(list)
+    for n, step in shown.items():
+        by_theme[step.theme].append((n, step))
+    for theme, steps in by_theme.items():
         fixture.put_theme(r.dir, theme)
         r.open_yazi("state")
-        for n, step in shown.items():
-            if step.theme == theme:
-                show(r, r.listing.cases[step.case])
-                r.shot(f"step-{n}")
+        for n, step in steps:
+            show(r, r.listing.cases[step.case])
+            r.shot(f"step-{n}")
         r.session.kill()
 
 
@@ -391,8 +396,10 @@ say so; answering a step again replaces the answer.</p>
 {sections}
 <script>
 for (const section of document.querySelectorAll("section[data-step]")) {{
-  const pane = section.querySelector("template").innerHTML;
-  for (const tile of section.querySelectorAll("figure pre")) tile.innerHTML = pane;
+  const pane = section.querySelector("template").content;
+  for (const tile of section.querySelectorAll("figure pre")) {{
+    tile.replaceChildren(pane.cloneNode(true));
+  }}
   const said = section.querySelector(".said");
   const buttons = section.querySelectorAll("button");
   // One answer in flight per step: the server writes each on its own thread,
@@ -455,13 +462,12 @@ def verdict_line(body: bytes, shown: Shown, names: set[str]) -> str:
     )
 
 
-def serve(page: str, shown: Shown, names: set[str], verdicts: Path) -> None:
+def serve(body: bytes, shown: Shown, names: set[str], verdicts: Path) -> None:
     """Serve the page, and write each verdict posted to it, until Ctrl-C.
 
     Threaded, so a connection a browser opens ahead and never uses holds up no
     request behind it.
     """
-    body = page.encode()
 
     class Handler(BaseHTTPRequestHandler):
         def reply(
@@ -529,6 +535,33 @@ def hold_lock() -> IO[str]:
     return file
 
 
+def prepare(grounds: list[tuple[str, str]]) -> tuple[bytes, Shown]:
+    """Capture and draw the page, keeping only its bytes and verdict steps."""
+    r = Run(keep=True, dir=DIR)
+    shown = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
+    if not shown:
+        refuse(
+            "gallery: no step in test/fixture/walk.toml says `gallery = true`"
+        )
+    try:
+        r.setup()
+        capture(r, shown)
+    finally:
+        # Kept, since the verdicts are written beside the captures.
+        r.teardown()
+
+    header = begin_verdicts(
+        VERDICTS,
+        "supaline gallery: step, case, theme, verdict, grounds",
+        "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
+    )
+    keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
+    panes = {
+        n: drawn(sc.current_cells(r.shots[f"colour-step-{n}"])) for n in shown
+    }
+    return page(header, shown, keys, panes, grounds).encode(), shown
+
+
 def main(argv: list[str]) -> int:
     with hold_lock():
         if argv[:1] == ["--clean"]:
@@ -549,38 +582,12 @@ def main(argv: list[str]) -> int:
                 "test/fixture/init.lua -- a name and a backticked hex each"
             )
 
-        r = Run(keep=True, dir=DIR)
-        shown = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
-        if not shown:
-            refuse(
-                "gallery: no step in test/fixture/walk.toml says "
-                "`gallery = true`"
-            )
+        body, shown = prepare(grounds)
         try:
-            r.setup()
-            capture(r, shown)
-        finally:
-            # Kept, since the verdicts are written beside the captures.
-            r.teardown()
-
-        verdicts = DIR / fixture.VERDICTS
-        header = begin_verdicts(
-            verdicts,
-            "supaline gallery: step, case, theme, verdict, grounds",
-            "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
-        )
-        keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
-        panes = {
-            n: drawn(sc.current_cells(r.shots[f"colour-step-{n}"]))
-            for n in shown
-        }
-        body = page(header, shown, keys, panes, grounds)
-
-        try:
-            serve(body, shown, {name for name, _ in grounds}, verdicts)
+            serve(body, shown, {name for name, _ in grounds}, VERDICTS)
         finally:
             # On a SIGTERM as well, which `catch_term` turns into an exit.
-            print_verdicts(verdicts, "gallery")
+            print_verdicts(VERDICTS, "gallery")
         return 0
 
 
