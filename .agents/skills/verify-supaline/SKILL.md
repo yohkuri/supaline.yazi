@@ -162,9 +162,9 @@ reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, the `case`
 plugin in `case.lua`, and `banner.txt`, which is what `manual.py` prints.
 `test/setup.py` copies them into a scratch tree and replaces `@DIR@` with it.
 The one thing it writes rather than copies is what `cases.toml` becomes: a
-binding per folder and per case, appended to the keymap, and the table the
-plugin reads. `e2e.py` and `manual.py` both call it, so what a person looks at
-and what the headless run asserts on cannot drift apart.
+binding per folder, per case and per theme, appended to the keymap, and the
+table the plugin reads. `e2e.py` and `manual.py` both call it, so what a person
+looks at and what the headless run asserts on cannot drift apart.
 
 They are real files rather than heredocs, and that buys three readers the
 fixture did not have: `stylua` formats `init.lua`, `lua-language-server`
