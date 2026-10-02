@@ -19,7 +19,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -27,12 +26,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import setup as fixture
 from harness import (
     ROOT,
+    begin_verdicts,
     need,
-    run,
+    print_verdicts,
     yazi_data,
     yazi_env,
     yazi_log,
-    yazi_version,
 )
 
 DIR = Path(tempfile.gettempdir()) / "supaline-manual"
@@ -76,51 +75,6 @@ def print_ramps(target: Path) -> None:
         )
 
 
-def begin_verdicts(path: Path) -> None:
-    """The header the walk's verdicts are written under.
-
-    What a verdict is about besides the step: the code it was given on, the
-    Yazi that drew it, and the terminal, which is the one thing a headless run
-    never has and the reason the walk exists. Written here rather than by the
-    plugin, which can ask none of the three.
-    """
-    commit = run(
-        ["git", "-C", str(ROOT), "describe", "--always", "--dirty"], check=False
-    ).stdout.strip()
-    term = " ".join(
-        os.environ.get(name, "")
-        for name in ("TERM_PROGRAM", "TERM_PROGRAM_VERSION")
-    ).strip()
-    path.write_text(
-        "# supaline manual walk: step, case, theme, verdict\n"
-        f"# commit   {commit or 'unknown'}\n"
-        f"# yazi     {yazi_version()}\n"
-        f"# terminal {term or 'unknown'} (TERM={os.environ.get('TERM', '')})\n"
-        f"# started  {time.strftime('%Y-%m-%d %H:%M:%S %z')}\n"
-    )
-
-
-def print_verdicts(path: Path) -> None:
-    """What the walk was told, once Yazi has gone, latest answer per step."""
-    lines = path.read_text().splitlines() if path.exists() else []
-    said = {
-        line.split("\t")[0]: line for line in lines if not line.startswith("#")
-    }
-    if not said:
-        print("manual: no verdict was given on the walk")
-        return
-    print(f"manual: the walk's verdicts, also in {path}")
-    for line in (
-        *(line for line in lines if line.startswith("#")),
-        *said.values(),
-    ):
-        print(f"  {line}")
-    wrong = sum(line.endswith("\tno") for line in said.values())
-    print(
-        f"manual: {len(said)} step(s) answered, {wrong} of them looking wrong"
-    )
-
-
 def main(argv: list[str]) -> int:
     if argv[:1] == ["--clean"]:
         # `setup.py` owns the marker file and the "is this ours" guard, so it
@@ -132,7 +86,17 @@ def main(argv: list[str]) -> int:
     need("yazi")
     fixture.main([str(DIR)])
     verdicts = DIR / fixture.VERDICTS
-    begin_verdicts(verdicts)
+    # The terminal, which is the one thing a headless run never has and the
+    # reason the walk exists.
+    term = " ".join(
+        os.environ.get(name, "")
+        for name in ("TERM_PROGRAM", "TERM_PROGRAM_VERSION")
+    ).strip()
+    begin_verdicts(
+        verdicts,
+        "supaline manual walk: step, case, theme, verdict",
+        f"terminal {term or 'unknown'} (TERM={os.environ.get('TERM', '')})",
+    )
 
     # Where to start and where the rest is written down, and no list of keys:
     # `MANUAL.md` is the one place that names them, and a second list printed
@@ -175,7 +139,7 @@ def main(argv: list[str]) -> int:
         env={**os.environ, **yazi_env(DIR, "state")},
         check=False,
     )
-    print_verdicts(verdicts)
+    print_verdicts(verdicts, "manual")
     return done.returncode
 
 
