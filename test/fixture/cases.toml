@@ -1,5 +1,6 @@
 # The fixture's cases: every state `test/e2e.py` captures, and the key a person
-# presses to be put in the same one.
+# presses to be put in the same one -- and the themes those states are drawn
+# under, each with the key that puts it in place.
 #
 # A case is a folder and a linemode together, and sometimes a file to hover.
 # The folder matters as much as the linemode: where a row lands on a ramp is
@@ -9,10 +10,11 @@
 # linemode, and has the preview pane peek again -- one key, and the whole state.
 #
 # `test/setup.py` reads this file and writes two things from it: a keymap
-# binding per folder and per case, appended to the fixture's own keymap, and
-# the table the `case` plugin reads when one of those keys is pressed. Nothing
-# else names a case's folder or linemode, and `e2e.py` names a case only by its
-# `id`, which is also what a capture it keeps is called.
+# binding per folder, per case and per theme, appended to the fixture's own
+# keymap, and the table the `case` plugin reads when one of those keys is
+# pressed. Nothing else names a case's folder or linemode, and `e2e.py` names a
+# case only by its `id`, which is also what a capture it keeps is called, and a
+# theme only by its `name`.
 #
 # A key goes to a case's folder, but a key pressed in that folder already
 # leaves the hover and the scroll where they were -- measured on 26.9.1, a `cd`
@@ -192,7 +194,7 @@ desc     = "supaline: a column set per pane"
 # `c f`, `c n`, all of them copying a path to the clipboard -- are avoided
 # rather than shadowed, since there is no reason to spend them;
 # `prepend_keymap` would win if they were. The digits under it are the theme
-# keys in `keymap.toml`.
+# keys below.
 #
 # Five of these share `colour/ramp`, so pressing one after another holds the
 # scroll still and changes the treatment alone.
@@ -253,6 +255,34 @@ key      = "c t"
 folder   = "data"
 linemode = "c_theme"
 desc     = "supaline: the colours the theme decides"
+
+# --- themes -----------------------------------------------------------------
+# One per file under `test/fixture/themes/`, named after it, and `setup.py`
+# refuses a file with no entry here as well as an entry with no file. A key
+# copies its file over `theme.toml` and reloads.
+#
+# A theme is global state rather than a case: it lasts until the next of these,
+# whatever case is pressed in between, so no case names one and pressing a
+# case leaves it alone. It is listed here rather than bound by hand because
+# what presses one does so by name, as a case is pressed by its `id`.
+#
+# Under the colour leader because the theme is the other half of how a column
+# is coloured, and on the digits because the cases above have the letters.
+
+[[theme]]
+name     = "default"
+key      = "c 1"
+desc     = "supaline: theme -- the default [supaline]"
+
+[[theme]]
+name     = "alt"
+key      = "c 2"
+desc     = "supaline: theme -- every field moved"
+
+[[theme]]
+name     = "bg"
+key      = "c 3"
+desc     = "supaline: theme -- flat colours with backgrounds"
 
 # --- broken on purpose ------------------------------------------------------
 # A leader of their own. `b` binds nothing at all in Yazi's own `mgr` table --

@@ -11,8 +11,8 @@
 --- the configuration produces the screen `test/MANUAL.md` describes.
 ---
 --- The key set is bound in two files -- `test/fixture/cases.toml`, a key per
---- folder and per case, and `test/fixture/keymap.toml`, the few that are
---- neither -- and named again in two more, `test/fixture/banner.txt` and
+--- folder, per case and per theme, and `test/fixture/keymap.toml`, the one
+--- that is none of those -- and named again in two more, `test/fixture/banner.txt` and
 --- `test/MANUAL.md`. `e2e.py` presses a case by what it is rather than by its
 --- key. The banner's only reader is a person, so it is the one that can fall
 --- behind with everything green. The two binding files are the authority, and
@@ -84,7 +84,7 @@ end)
 --- a string, as a set -- beside how many lines it was read from, and how many
 --- blocks the file holds of the kinds that should each carry one.
 ---@param field string
----@param blocks string[] # the kinds of block that carry it, `case` or `folder`
+---@param blocks string[] # the kinds of block that carry it: `case`, `folder`, `theme`
 ---@return table<string, true>
 ---@return integer # lines read
 ---@return integer # blocks of those kinds in the file
@@ -105,11 +105,11 @@ local function case_field(field, blocks)
 	return found, lines, count
 end
 
--- `e2e.py` is deliberately not compared against the keys `keymap.toml` binds.
--- It presses every folder and case by what it is, and of the rest `T` and
--- `c 2` and neither `c 1` nor `c 3`, because that key replaces `theme.toml`
--- wholesale and a run can afford one swap, so a check there would need a list
--- of exempt keys -- another place naming the set.
+-- `e2e.py` is deliberately not compared against the keys either file binds.
+-- It presses every folder and case by what it is, `T`, and of the themes `alt`
+-- alone, because a theme key replaces `theme.toml` wholesale and a run can
+-- afford one swap, so a check there would need a list of exempt keys --
+-- another place naming the set.
 
 --- Keys the banner offers that the fixture does not bind, and why each is not a
 --- fault. An entry the banner no longer offers is refused, so this cannot
@@ -120,7 +120,7 @@ local NOT_BOUND = {
 
 --- Every key the fixture binds, spelled the way a reader presses it: the ones
 --- `test/fixture/keymap.toml` writes, and the ones `test/fixture/cases.toml`
---- gives a folder or a case.
+--- gives a folder, a case or a theme.
 ---@return table<string, true> # the keys, as a set
 ---@return integer # lines a key was read from, across both files
 ---@return integer # blocks across both files that bind one
@@ -146,7 +146,7 @@ local function bound_keys()
 	-- as one string rather than as the list a keymap takes. A key bound twice,
 	-- in either file or across the two, is one member of the set and two
 	-- lines, which is how the test below finds it.
-	local listed, there, blocks_there = case_field("key", { "case", "folder" })
+	local listed, there, blocks_there = case_field("key", { "case", "folder", "theme" })
 	for key in pairs(listed) do
 		keys[key] = true
 	end

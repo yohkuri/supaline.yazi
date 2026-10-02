@@ -175,6 +175,10 @@ class Run:
         )
         self.session.settle()
 
+    def theme(self, name: str) -> None:
+        """Put a theme `cases.toml` lists in place, by its key."""
+        self.session.press(*self.listing.themes[name].key.split(" "))
+
 
 def clean_run(r: Run) -> None:
     """The run that is meant to log nothing, and every capture read below."""
@@ -202,10 +206,10 @@ def clean_run(r: Run) -> None:
     r.session.press("T")
     r.shot("theme-after")
 
-    # Last, because it replaces `theme.toml` wholesale. The `c` theme keys run a
+    # Last, because it replaces `theme.toml` wholesale. A theme key runs a
     # script through a `shell` template, the one part of either harness that
     # leaves Yazi to do its work, so the file is compared as well as the screen.
-    r.session.press("c", "2")
+    r.theme("alt")
     r.shot("theme-swapped")
 
     # Explicit rather than left to the teardown: the checks read what Yazi
@@ -903,11 +907,11 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
         f"... and rebuilds a ramp, not only a flat colour (old={old} new={new})",
     )
 
-    # `c 2` puts `themes/alt.toml` in place through a `shell` template, and a
-    # colour that did not change looks the same whether the copy never ran or
-    # the plugin ignored the reload -- so the file and the screen are asked
-    # apart. Spelled as a keymap `run` of the copy and `app:theme`, the two
-    # race and the reload wins, measured on 26.9.1.
+    # The `alt` key puts `themes/alt.toml` in place through a `shell` template,
+    # and a colour that did not change looks the same whether the copy never
+    # ran or the plugin ignored the reload -- so the file and the screen are
+    # asked apart. With the copy and an `app:theme` emitted side by side, the
+    # two race and the reload wins, measured on 26.9.1.
     alt_low = fixture.theme_ends(dir, "alt")[0]
     swapped, kept = rows("colour-theme-swapped", alt_low, new_ends[0])
     placed = (dir / "config" / "theme.toml").read_bytes() == (
@@ -915,9 +919,9 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     ).read_bytes()
     k.verdict(
         "a theme key swaps the file and the screen follows",
-        not placed and "c 2 did not put themes/alt.toml in place",
+        not placed and "the alt key did not put themes/alt.toml in place",
         (swapped == 0 or kept > 0)
-        and "c 2 swapped the file but the screen kept the old ramp "
+        and "the alt key swapped the file but the screen kept the old ramp "
         f"(new={swapped} old={kept})",
     )
 

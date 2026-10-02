@@ -1,37 +1,13 @@
 # The fixture's keymap, copied to `config/keymap.toml` by `test/setup.py`.
 #
-# Only the keys that are not cases are written here. Every folder and every
-# case has a key too, and those are in `cases.toml`, which `setup.py` turns
-# into bindings appended to this file as it is copied -- a case's key, its
-# folder and its linemode are then written in one place rather than two.
-#
-# The scratch directory is substituted into the paths below as this is copied,
-# so every one of them comes out absolute.
+# Only the key that names no state is written here: `T` reloads whatever
+# `theme.toml` holds, which is what `e2e.py` presses after rewriting that file
+# in place. Every folder, case and theme has a key too, and those are in
+# `cases.toml`, which `setup.py` turns into bindings appended to this file as
+# it is copied -- a case's key, its folder and its linemode are then written in
+# one place rather than two.
 
 [[mgr.prepend_keymap]]
 on   = "T"
 run  = "app:theme"
 desc = "Reload the theme"
-
-# The theme keys, under the colour leader because the theme is the other half
-# of how a column is coloured. The digits, because `cases.toml` gives the
-# colour cases the letters, and the four letters Yazi takes under `c` are left
-# alone.
-#
-# A theme is global state rather than a case: it lasts until the next of these,
-# whatever case is pressed in between, so it has no place in a table of states
-# a key restores.
-[[mgr.prepend_keymap]]
-on   = [ "c", "1" ]
-run  = "shell '@DIR@/theme-key.py default' --confirm"
-desc = "supaline: theme -- the default [supaline]"
-
-[[mgr.prepend_keymap]]
-on   = [ "c", "2" ]
-run  = "shell '@DIR@/theme-key.py alt' --confirm"
-desc = "supaline: theme -- every field moved"
-
-[[mgr.prepend_keymap]]
-on   = [ "c", "3" ]
-run  = "shell '@DIR@/theme-key.py bg' --confirm"
-desc = "supaline: theme -- flat colours with backgrounds"

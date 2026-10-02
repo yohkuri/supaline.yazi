@@ -12,16 +12,16 @@ against, which is what a change to either has to keep.
 
 ## The key set, and why the binding files are the only side that proves it was read
 
-The authority is the only side that has to prove it was read. A reader side
-that comes back empty fails loudly with every bound key named at once, while an
-empty authority would let all three comparisons pass over nothing. So it is
-checked against each binding file's own shape — one `on` line per
-`[[mgr.prepend_keymap]]` block in `keymap.toml`, one `key` line per
-`[[case]]` and `[[folder]]` in `cases.toml` — rather than against a count
-written in the spec, which would be one more place holding the size of the
-set. That is also why `cases.toml` writes every field as a string on a line of
-its own: a key spelled any other way is a block the count finds and the
-pattern does not, and the spec says so rather than reading past it.
+The authority is the only side that has to prove it was read. A reader side that
+comes back empty fails loudly with every bound key named at once, while an empty
+authority would let all three comparisons pass over nothing. So it is checked
+against each binding file's own shape — one `on` line per
+`[[mgr.prepend_keymap]]` block in `keymap.toml`, one `key` line per `[[case]]`,
+`[[folder]]` and `[[theme]]` in `cases.toml` — rather than against a count
+written in the spec, which would be one more place holding the size of the set.
+That is also why `cases.toml` writes every field as a string on a line of its
+own: a key spelled any other way is a block the count finds and the pattern does
+not, and the spec says so rather than reading past it.
 
 A key the banner offers and nothing binds is refused as well, unless
 `NOT_BOUND` says whose it is — `m s` is Yazi's — and an entry there has to
@@ -30,10 +30,10 @@ dropped.
 
 `e2e.py` is left out of that comparison on purpose, and needs no place in it
 for its cases: it presses every one `setup.py`'s `cases` reads, by what it is
-rather than by its key. Of the keys that are not cases it presses `T`, and
-`c 2` and neither `c 1` nor `c 3`, because that key replaces `theme.toml`
-wholesale and one swap is all a run whose earlier captures were taken against
-that file can afford. Comparing the rest against it would need a list of which
+rather than by its key. Beyond those it presses `T`, and of the themes `alt`
+alone, by name, because a theme key replaces `theme.toml` wholesale and one
+swap is all a run whose earlier captures were taken against that file can
+afford. Comparing the rest against it would need a list of which
 keys are exempt, and that list would be one more place naming the set.
 
 ## The broken columns, and why they run in a second Yazi

@@ -320,12 +320,12 @@ def copy_config(target: Path) -> None:
 
     (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
 
-    # The copy is a script rather than a `cp` spelled out three times in the
-    # keymap, because the keymap is TOML inside a `shell` template: a path with
-    # a space in it -- `TMPDIR` on a Mac is under `/var/folders/`, and `--clean`
-    # takes any directory a person names -- would have to survive both
-    # quotings, and one of them is Yazi's own template parser. One `argv` here,
-    # and the keymap carries a name.
+    # The copy is a script rather than a `cp` the `case` plugin spells out,
+    # because what the plugin emits is a `shell` template: a path with a space
+    # in it -- `TMPDIR` on a Mac is under `/var/folders/`, and `--clean` takes
+    # any directory a person names -- would have to survive the shell's
+    # quoting and Yazi's own template parser, twice over. One `argv` here, and
+    # the plugin hands it a name.
     # Why it emits the reload itself is in its own docstring, beside the line
     # that does it.
     #
@@ -461,10 +461,10 @@ def write_cases(target: Path, listing: Cases) -> None:
 
     The plugin's table is Lua, because Yazi hands a plugin no TOML reader.
     Neither it nor a binding carries the scratch directory: the plugin puts
-    that in front of a folder itself, from the `@DIR@` it was copied with, so
-    neither Yazi's own argument parser nor a string written here ever has to
-    quote one. What both carry is names `cases` has already held to what
-    needs no quoting.
+    that in front of a folder or a theme itself, from the `@DIR@` it was
+    copied with, so neither Yazi's own argument parser nor a string written
+    here ever has to quote one. What both carry is names `cases` has already
+    held to what needs no quoting.
     """
     blocks = [
         "",
@@ -486,6 +486,7 @@ def write_cases(target: Path, listing: Cases) -> None:
     table = [
         "-- Written by test/setup.py from test/fixture/cases.toml.",
         "return {",
+        "\tcases = {",
     ]
     for folder in listing.folders.values():
         bind(folder.key, f"plugin case -- cd {folder.path}", folder.desc)
@@ -494,8 +495,12 @@ def write_cases(target: Path, listing: Cases) -> None:
         fields = [f'folder = "{case.folder}"', f'linemode = "{case.linemode}"']
         if case.hover:
             fields.append(f'hover = "{case.hover}"')
-        table.append(f'\t["{case.id}"] = {{ {", ".join(fields)} }},')
-    table.append("}")
+        table.append(f'\t\t["{case.id}"] = {{ {", ".join(fields)} }},')
+    table.extend(["\t},", "\tthemes = {"])
+    for theme in listing.themes.values():
+        bind(theme.key, f"plugin case -- theme {theme.name}", theme.desc)
+        table.append(f'\t\t["{theme.name}"] = true,')
+    table.extend(["\t},", "}"])
 
     keymap = target / "config" / "keymap.toml"
     keymap.write_text(keymap.read_text() + "\n".join(blocks) + "\n")
@@ -569,11 +574,23 @@ class Case:
 
 
 @dataclass(frozen=True)
+class Theme:
+    """A `[[theme]]` of `cases.toml`: a file under `themes/`, by the name it is
+    named after, and the key that puts it in place."""
+
+    name: str
+    key: str
+    desc: str
+
+
+@dataclass(frozen=True)
 class Cases:
-    """Every folder, by path, and every case, by id, both in the file's order."""
+    """Every folder, by path, every case, by id, and every theme, by name, each
+    in the file's order."""
 
     folders: dict[str, Folder]
     cases: dict[str, Case]
+    themes: dict[str, Theme]
 
     @property
     def clean(self) -> list[Case]:
@@ -611,10 +628,9 @@ def cases(text: str) -> Cases:
     import tomllib
 
     data = tomllib.loads(text)
-    if set(data) - {"folder", "case"}:
-        raise ValueError(
-            f"unknown table(s): {sorted(set(data) - {'folder', 'case'})}"
-        )
+    unknown = set(data) - {"folder", "case", "theme"}
+    if unknown:
+        raise ValueError(f"unknown table(s): {sorted(unknown)}")
 
     def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
         got = set(row)
@@ -684,11 +700,20 @@ def cases(text: str) -> Cases:
             row.get("broken", False),
         )
 
+    themes: dict[str, Theme] = {}
+    for row in data.get("theme", []):
+        fields("theme", row, {"name", "key", "desc"}, set())
+        name = spelled("theme", row["name"], NAME)
+        if name in themes:
+            raise ValueError(f"two [[theme]]s called `{name}`")
+        themes[name] = Theme(name, unique_key(row["key"]), row["desc"])
+
     # The guard every reader inherits: an empty list would press nothing, bind
-    # nothing, and pass.
-    if not folders or not listed:
-        raise ValueError("no [[folder]] or no [[case]] at all")
-    return Cases(folders, listed)
+    # nothing, and pass. No theme is a fault as well, since `copy_config` opens
+    # Yazi on one; that it is the files under `themes/` is `test_screen.py`'s.
+    if not folders or not listed or not themes:
+        raise ValueError("no [[folder]], no [[case]] or no [[theme]] at all")
+    return Cases(folders, listed, themes)
 
 
 def read_cases() -> Cases:

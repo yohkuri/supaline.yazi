@@ -537,7 +537,7 @@ class TheFixtureItReads(unittest.TestCase):
     def test_the_theme_is_a_flat_colour_and_a_ramp_under_the_names_read(self):
         # `clean_run` rewrites the theme by replacing what this answers, and
         # the theme and ramp checks read the screen against it. Both themes,
-        # because the swap `c 2` makes is read the same way.
+        # because the swap to `alt` is read the same way.
         for name in ("default", "alt"):
             with self.subTest(theme=name):
                 flat = fixture.theme_values(self.fixture, name)[0]
@@ -557,6 +557,15 @@ class TheFixtureItReads(unittest.TestCase):
             {"data", "data/nested", "broken"}, listing.folders.keys()
         )
         self.assertEqual(listing.cases["default"].folder, "data")
+        self.assertIn("alt", listing.themes)
+
+    def test_every_theme_file_is_a_theme_the_list_holds(self):
+        # Both ways. A listed theme with no file is a key whose script fails
+        # inside Yazi's `shell`, where nothing reads the error; a file with no
+        # entry is a theme no key puts in place and no run draws.
+        files = {path.stem for path in (self.fixture / "themes").glob("*.toml")}
+        self.assertTrue(files)
+        self.assertEqual(set(fixture.read_cases().themes), files)
 
     def test_the_manual_sends_each_case_to_the_folder_its_key_goes_to(self):
         # Nothing a run presses reads that column, so this is all that holds it
@@ -585,11 +594,20 @@ class TheFixtureItReads(unittest.TestCase):
             fixture.goes_to(row.format(3) + row.format(4))
 
     @staticmethod
-    def one_case(path="a", folder_key="g 1", folder="a", extra="") -> str:
-        """A `cases.toml` of one folder and one case, with a part swapped."""
+    def one_case(
+        path="a",
+        folder_key="g 1",
+        folder="a",
+        theme="t",
+        theme_key="c 1",
+        extra="",
+    ) -> str:
+        """A `cases.toml` of one folder, one theme and one case, with a part
+        swapped. `extra` lands in the case."""
         return (
             f'[[folder]]\npath = "{path}"\nkey = "{folder_key}"\n'
             'landmark = "x"\ndesc = "a"\n'
+            f'[[theme]]\nname = "{theme}"\nkey = "{theme_key}"\ndesc = "t"\n'
             f'[[case]]\nid = "one"\nkey = "m 0"\nfolder = "{folder}"\n'
             f'linemode = "plain"\ndesc = "one"\n{extra}'
         )
@@ -599,6 +617,7 @@ class TheFixtureItReads(unittest.TestCase):
         # one place is one this reads.
         listing = fixture.cases(self.one_case(extra='hover = "x"\n'))
         self.assertEqual(listing.folders["a"].key, "g 1")
+        self.assertEqual(listing.themes["t"], fixture.Theme("t", "c 1", "t"))
         self.assertEqual(
             listing.cases["one"],
             fixture.Case("one", "m 0", "a", "plain", "one", "x", False),
@@ -608,6 +627,9 @@ class TheFixtureItReads(unittest.TestCase):
         spoiled = {
             "a case in a folder nobody lists": self.one_case(folder="b"),
             "a key two entries bind": self.one_case(folder_key="m 0"),
+            "a key a theme and a case both bind": self.one_case(
+                theme_key="m 0"
+            ),
             # A misspelled `hover` read past would be a case that never moves it.
             "a field the list does not define": self.one_case(
                 extra='hovre = "x"\n'
@@ -616,6 +638,8 @@ class TheFixtureItReads(unittest.TestCase):
             "a name that would need quoting": self.one_case(
                 path="a b", folder="a b"
             ),
+            # A theme's name goes into a `shell` template unquoted.
+            "a theme name that would need quoting": self.one_case(theme="a b"),
             # A hover goes into the plugin's table as a Lua string, unescaped.
             "a hover that would need escaping": self.one_case(
                 extra='hover = "a\\"b"\n'
@@ -624,6 +648,9 @@ class TheFixtureItReads(unittest.TestCase):
                 extra='hover = "a/b"\n'
             ),
             "a list with no case": self.one_case().split("[[case]]")[0],
+            "a list with no theme": self.one_case().replace(
+                '[[theme]]\nname = "t"\nkey = "c 1"\ndesc = "t"\n', ""
+            ),
         }
         for reason, text in spoiled.items():
             with self.subTest(reason), self.assertRaises(ValueError):
