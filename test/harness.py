@@ -162,6 +162,51 @@ def yazi_data(dir: Path) -> Path:
     return dir / "fixture" / "data"
 
 
+def begin_verdicts(path: Path, title: str, *notes: str) -> None:
+    """Start a file of a reader's verdicts, for `manual.py` or `gallery.py`.
+
+    Under a header of what a verdict is about besides the step: the code it
+    was given on, the Yazi that drew it, and whatever `notes` the caller can
+    add. Written by the harness rather than by what records a verdict, which
+    can ask none of it.
+    """
+    commit = run(
+        ["git", "-C", str(ROOT), "describe", "--always", "--dirty"], check=False
+    ).stdout.strip()
+    header = (
+        title,
+        f"commit   {commit or 'unknown'}",
+        f"yazi     {yazi_version()}",
+        *notes,
+        f"started  {time.strftime('%Y-%m-%d %H:%M:%S %z')}",
+    )
+    path.write_text("".join(f"# {line}\n" for line in header))
+
+
+def print_verdicts(path: Path, who: str) -> None:
+    """What a reader said, once they are done, latest answer per step.
+
+    A line is the step, then its case, its theme and `yes` or `no`, each after
+    a tab, and whatever the caller writes after those. The step is what a
+    later answer replaces.
+    """
+    lines = path.read_text().splitlines() if path.exists() else []
+    said = {
+        line.split("\t")[0]: line for line in lines if not line.startswith("#")
+    }
+    if not said:
+        print(f"{who}: no verdict was given")
+        return
+    print(f"{who}: the verdicts, also in {path}")
+    for line in (
+        *(line for line in lines if line.startswith("#")),
+        *said.values(),
+    ):
+        print(f"  {line}")
+    wrong = sum(line.split("\t")[3] == "no" for line in said.values())
+    print(f"{who}: {len(said)} step(s) answered, {wrong} of them looking wrong")
+
+
 def need(*tools: str) -> None:
     """Refuse to start without every binary the run is about to reach for."""
     missing = [tool for tool in tools if shutil.which(tool) is None]
