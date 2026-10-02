@@ -22,11 +22,14 @@
 
 -- Filled in by `setup.py` as every file it copies is.
 local CASES = "@DIR@/config/plugins/case.yazi/cases.lua"
-local VERDICTS = "@DIR@/verdicts.txt"
 
 -- `dofile` rather than `require`, for the reason `case.lua` gives. Read in
--- both contexts the plugin runs in, `init.lua`'s and the entry's.
-local STEPS = dofile(CASES).steps
+-- both contexts the plugin runs in, `init.lua`'s and the entry's. The verdicts'
+-- name is in it because `manual.py` reads them back from the name `setup.py`
+-- spells, and a second spelling here would be the one that drifts.
+local LISTED = dofile(CASES)
+local STEPS = LISTED.steps
+local VERDICTS = "@DIR@/" .. LISTED.verdicts
 
 local M = {}
 
@@ -45,10 +48,10 @@ end)
 
 --- The step a verdict is about, or `nil` before the walk has begun, and a
 --- record of the verdict where the status bar reads it.
----@param said string?
+---@param said string
 ---@return integer?
 local mark = ya.sync(function(st, said)
-	if st.i and said then
+	if st.i then
 		st.said = st.said or {}
 		st.said[st.i] = said
 	end

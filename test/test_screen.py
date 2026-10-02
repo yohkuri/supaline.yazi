@@ -600,6 +600,7 @@ class TheFixtureItReads(unittest.TestCase):
         folder="a",
         theme="t",
         theme_key="c 1",
+        case="one",
         extra="",
     ) -> str:
         """A `cases.toml` of one folder, one theme and one case, with a part
@@ -608,8 +609,8 @@ class TheFixtureItReads(unittest.TestCase):
             f'[[folder]]\npath = "{path}"\nkey = "{folder_key}"\n'
             'landmark = "x"\ndesc = "a"\n'
             f'[[theme]]\nname = "{theme}"\nkey = "{theme_key}"\ndesc = "t"\n'
-            f'[[case]]\nid = "one"\nkey = "m 0"\nfolder = "{folder}"\n'
-            f'linemode = "plain"\ndesc = "one"\n{extra}'
+            f'[[case]]\nid = "{case}"\nkey = "m 0"\nfolder = "{folder}"\n'
+            f'linemode = "plain"\ndesc = "{case}"\n{extra}'
         )
 
     def test_the_list_of_one_case_is_read_whole(self):
@@ -656,23 +657,12 @@ class TheFixtureItReads(unittest.TestCase):
             with self.subTest(reason), self.assertRaises(ValueError):
                 fixture.cases(text)
 
-    def test_the_walk_reads_and_the_plugin_writes_where_it_is_read(self):
-        # `manual.py` reads the verdicts back from the name `setup.py` spells,
-        # and `walk.lua` writes them under the one it spells itself.
-        listing = fixture.read_cases()
-        self.assertTrue(fixture.read_walk(listing))
-        self.assertIn(
-            f'"{fixture.DIR_TOKEN}/{fixture.VERDICTS}"',
-            (self.fixture / "walk.lua").read_text(),
-        )
+    def test_the_walk_the_fixture_offers_is_read(self):
+        self.assertTrue(fixture.read_walk(fixture.read_cases()))
 
     #: A list of one folder, one theme, one working case and one broken one,
     #: which the walk below is read against.
-    LISTED = (
-        '[[folder]]\npath = "a"\nkey = "g 1"\nlandmark = "x"\ndesc = "a"\n'
-        '[[theme]]\nname = "default"\nkey = "c 1"\ndesc = "t"\n'
-        '[[case]]\nid = "ok"\nkey = "m 0"\nfolder = "a"\n'
-        'linemode = "plain"\ndesc = "ok"\n'
+    LISTED = one_case(theme="default", case="ok") + (
         '[[case]]\nid = "bad"\nkey = "b r"\nfolder = "a"\n'
         'linemode = "b_render"\ndesc = "bad"\nbroken = true\n'
     )
@@ -702,6 +692,10 @@ class TheFixtureItReads(unittest.TestCase):
                 extra='theme = "alt"\n'
             ),
             "a field the walk does not define": self.step(extra='them = "x"\n'),
+            # Caught where it is read, not as a traceback where it is used.
+            "a field that is not a string": self.step(
+                extra='theme = ["alt"]\n'
+            ),
             # Drawn in the status bar, cut off at its edge.
             "a question too long to draw": self.step(ask="x" * 51),
             # Written into a Lua string, unescaped.

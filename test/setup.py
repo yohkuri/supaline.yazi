@@ -490,6 +490,7 @@ def write_cases(target: Path, listing: Cases, steps: list[Step]) -> None:
     table = [
         "-- Written by test/setup.py from test/fixture/cases.toml.",
         "return {",
+        f'\tverdicts = "{VERDICTS}",',
         "\tcases = {",
     ]
     for folder in listing.folders.values():
@@ -627,6 +628,25 @@ KEY = re.compile(r'[^\s"\\]+( [^\s"\\]+)*')
 HOVER = re.compile(r'[^/"\\\x00-\x1f\x7f]+')
 
 
+def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
+    """A `[[kind]]` of `cases.toml` or `walk.toml`, refused unless it has every
+    field in `want`, no field outside `want` and `may`, and each a non-empty
+    string -- `broken` a boolean -- so a value of the wrong type is a refusal
+    rather than a traceback from wherever it is first used."""
+    got = set(row)
+    if want - got or got - want - may:
+        raise ValueError(
+            f"a [[{kind}]] with {sorted(got)}: it needs {sorted(want)}"
+            + (f" and may have {sorted(may)}" if may else "")
+        )
+    for name, value in row.items():
+        if name == "broken":
+            if not isinstance(value, bool):
+                raise ValueError(f"[[{kind}]] `broken` is not a boolean")
+        elif not isinstance(value, str) or not value:
+            raise ValueError(f"[[{kind}]] `{name}` is not a non-empty string")
+
+
 def cases(text: str) -> Cases:
     """The folders and cases `cases.toml` lists, refused if any is malformed.
 
@@ -644,22 +664,6 @@ def cases(text: str) -> Cases:
     unknown = set(data) - {"folder", "case", "theme"}
     if unknown:
         raise ValueError(f"unknown table(s): {sorted(unknown)}")
-
-    def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
-        got = set(row)
-        if want - got or got - want - may:
-            raise ValueError(
-                f"a [[{kind}]] with {sorted(got)}: it needs {sorted(want)}"
-                + (f" and may have {sorted(may)}" if may else "")
-            )
-        for name, value in row.items():
-            if name == "broken":
-                if not isinstance(value, bool):
-                    raise ValueError(f"[[{kind}]] `broken` is not a boolean")
-            elif not isinstance(value, str) or not value:
-                raise ValueError(
-                    f"[[{kind}]] `{name}` is not a non-empty string"
-                )
 
     def spelled(what: str, value: str, pattern: re.Pattern[str]) -> str:
         if not pattern.fullmatch(value):
@@ -740,8 +744,8 @@ def read_cases() -> Cases:
 #: The walk `manual.py` offers, which `walk` reads.
 WALK = FIXTURE / "walk.toml"
 
-#: Where the `walk` plugin writes a verdict, under the scratch directory: the
-#: name `walk.lua` spells after its `@DIR@`, which `test_screen.py` holds it to.
+#: Where the `walk` plugin writes a verdict, under the scratch directory. Spelled
+#: here alone: `write_cases` hands it to the plugin in its table.
 VERDICTS = "verdicts.txt"
 
 
@@ -787,19 +791,14 @@ def walk(text: str, listing: Cases) -> list[Step]:
     steps: list[Step] = []
     shown: set[str] = set()
     for row in data.get("step", []):
-        got = set(row)
-        if {"case", "ask"} - got or got - {"case", "ask", "theme"}:
-            raise ValueError(
-                f"a [[step]] with {sorted(got)}: it needs ['ask', 'case'] "
-                "and may have ['theme']"
-            )
+        fields("step", row, {"case", "ask"}, {"theme"})
         case, ask = row["case"], row["ask"]
         theme = row.get("theme", "default")
         if case not in listing.cases:
             raise ValueError(f"a step shows `{case}`, which no [[case]] is")
         if theme not in listing.themes:
             raise ValueError(f"a step puts `{theme}` in, which no [[theme]] is")
-        if not isinstance(ask, str) or not ASK.fullmatch(ask):
+        if not ASK.fullmatch(ask):
             raise ValueError(
                 f"step `{case}` asks {ask!r}, which `{ASK.pattern}` refuses"
             )
