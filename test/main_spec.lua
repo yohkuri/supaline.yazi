@@ -570,11 +570,11 @@ test("theme: a themed `<->` is drawn at the `fg` band `setup` defines, through a
 	-- terminal asks for it: `from` is what ratio 0 draws, so the pair carries
 	-- its own direction and `setup` takes it as written.
 	stub.th.supaline = { size = "#0b3d91 <->" }
-	setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.88, to = 0.35 } } })
-	eq(style_in("detail", 2).fg, "#08347f", "the largest file is dark")
-	eq(style_in("detail", 1).fg, "#c2d9ff", "and the smallest pale")
+	setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.90, to = 0.40 } } })
+	eq(style_in("detail", 2).fg, "#0c4098", "the largest file is dark")
+	eq(style_in("detail", 1).fg, "#ccdfff", "and the smallest pale")
 	stub.fire("theme")
-	eq(style_in("detail", 2).fg, "#08347f", "and again after a reload")
+	eq(style_in("detail", 2).fg, "#0c4098", "and again after a reload")
 end)
 
 test("setup: a `style` function's band name is read on the pass that draws", function()

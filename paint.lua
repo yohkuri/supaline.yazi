@@ -31,19 +31,24 @@ local BOTH = "<->"
 
 -- The pair every refusal of an undefined band quotes, and applies to nobody.
 --
--- 0.35 is where a step stops being lighter than the ground: the lightest of
--- five common dark grounds (One Dark) sits at 0.293. 0.88 was settled by
--- looking, against 0.83, at 64 steps over four bases. A light terminal wants
--- `{ from = 0.90, to = 0.35 }`. supaline cannot see the ground a band is drawn
+-- 0.40 clears the lightest of five common dark grounds, One Dark at 0.293, by
+-- a tenth of the scale. Merely lighter than the ground is not enough: 0.35 is,
+-- and a navy row at 0.35 sinks into Solarized dark, whose ground is as blue as
+-- the row, judged by eye on that ground. 0.90 was judged by eye against
+-- 0.95 over nine hues on those five grounds: 0.95 still parts from white text,
+-- but red, orange and yellow pale into one another there. A light terminal
+-- wants this pair backwards, `{ from = 0.90, to = 0.40 }` -- the same 64
+-- colours in the other order. supaline cannot see the ground a band is drawn
 -- on, so this is a recommendation to paste and move rather than a default.
 ---@type supaline.Band
-local RECOMMENDED = { from = 0.35, to = 0.88 }
+local RECOMMENDED = { from = 0.40, to = 0.90 }
 
 --- The recommended pair, as a fresh table the caller may write to.
 ---@return supaline.Band
 function M.recommended() return { from = RECOMMENDED.from, to = RECOMMENDED.to } end
 
-local RECOMMENDED_AS_WRITTEN = string.format("{ from = %s, to = %s }", RECOMMENDED.from, RECOMMENDED.to)
+-- Two places, as every document writes the pair: `%s` would print 0.4.
+local RECOMMENDED_AS_WRITTEN = string.format("{ from = %.2f, to = %.2f }", RECOMMENDED.from, RECOMMENDED.to)
 
 -- A band's name holds what a column's does. Nothing parses a band name, so the
 -- 20-character cap Yazi puts on a column's is not taken; `colour_spec.lua`

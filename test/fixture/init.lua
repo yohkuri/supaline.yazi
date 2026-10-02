@@ -321,8 +321,8 @@ supaline:setup {
 	-- above `BAND` gives: the second search at the end of this file reads a
 	-- line with an arrow in it as a ramp, and the marker has one inside it.
 	band = {
-		fg = { from = 0.35, to = 0.88 },
-		both = { from = 0.35, to = 0.88 },
+		fg = { from = 0.40, to = 0.90 },
+		both = { from = 0.40, to = 0.90 },
 	},
 
 	linemodes = {
