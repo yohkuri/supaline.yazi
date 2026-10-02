@@ -66,7 +66,9 @@ or press *looks right*. Each verdict is a line in `verdicts.txt` beside the
 page, under the same header the walk writes, with the grounds after the walk's
 four fields; answer a step again and the later line is the one that counts.
 Ctrl-C stops the page and prints them. `test/gallery.py --clean` throws the
-directory away.
+directory away. Until Ctrl-C, a second `test/gallery.py`, `--clean` included,
+refuses to start, since it would rebuild the directory the verdicts are written
+to.
 
 Only the ground on a tile is a terminal's. The default foreground is black or
 white, and the sixteen named colours are xterm's on every tile, which is why

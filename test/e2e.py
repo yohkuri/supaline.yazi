@@ -72,8 +72,8 @@ class Run:
         # concurrent run leaves the marker `setup.py` guards removal with, so a
         # fixed directory would pass the guard and lose its fixture. `dir`
         # gives that up for `gallery.py`, which serves its page out of a
-        # directory a person can find again: one run at a time, as `manual.py`
-        # is.
+        # directory a person can find again, and holds a lock so that one run
+        # at a time uses it.
         pid = os.getpid()
         self.dir = dir or Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
         self.session = Session(f"supaline-e2e-{pid}")
