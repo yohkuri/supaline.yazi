@@ -26,12 +26,11 @@ from __future__ import annotations
 import html
 import itertools
 import json
-import shutil
 import sys
 import tempfile
 import unicodedata
 import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -65,41 +64,39 @@ XTERM = (
     "#00ffff",
     "#ffffff",
 )
+PALETTE = ";".join(f"--p{i}:{hex}" for i, hex in enumerate(XTERM))
 
-#: A gallery step with its number on the walk, which is what both files of
-#: verdicts call it by.
-Shown = tuple[int, fixture.Step]
+#: The gallery's steps by their number on the walk, which is what both files
+#: of verdicts call them by.
+Shown = dict[int, fixture.Step]
 
 
-def capture(r: Run, shown: list[Shown]) -> dict[int, str]:
-    """Each step's colour capture, by its number, out of a Yazi per theme.
+def capture(r: Run, shown: Shown) -> None:
+    """Each step's capture, kept by `Run.shot` as `step-<n>`, out of a Yazi
+    per theme.
 
     A Yazi per theme rather than the theme's key, because a theme changes the
     colours alone and `settle` reads plain text, so it would return before the
     repaint as readily as after it. A Yazi opened on a theme draws in it from
     its first frame, which the first half of `e2e.py`'s theme check holds every
-    run. The copy is the one `theme-key.py` makes, without the reload it
-    emits to a Yazi that is not running yet.
+    run. Killed rather than quit, since nothing here reads its log.
     """
-    shots: dict[int, str] = {}
-    for theme in dict.fromkeys(step.theme for _, step in shown):
-        shutil.copyfile(
-            r.dir / "themes" / f"{theme}.toml", r.dir / "config" / "theme.toml"
-        )
+    for theme in dict.fromkeys(step.theme for step in shown.values()):
+        fixture.put_theme(r.dir, theme)
         r.open_yazi("state")
-        for n, step in shown:
+        for n, step in shown.items():
             if step.theme == theme:
                 r.show(r.listing.cases[step.case])
-                shots[n] = r.session.capture(colour=True)
-        r.session.quit("q")
-    return shots
+                r.shot(f"step-{n}")
+        r.session.kill()
 
 
 def foreground(ground: str) -> str:
     """The default foreground on `ground`: black on a light one, white on a
     dark one, by the mean of its channels -- the seven are nowhere near the
     middle."""
-    return "#000000" if sum(bytes.fromhex(ground[1:])) > 3 * 127 else "#ffffff"
+    light = sum(int(c) for c in sc.rgb(ground).split(";")) > 3 * 127
+    return "#000000" if light else "#ffffff"
 
 
 def css(pen: sc.Pen) -> str:
@@ -142,7 +139,7 @@ def glyph(ch: str) -> str:
     return f'<span class="w{cells}">{html.escape(ch)}</span>'
 
 
-def drawn(rows: list[list[tuple[str, sc.Pen]]]) -> str:
+def drawn(rows: list[list[sc.Cell]]) -> str:
     """The rows `sc.current_cells` read, as HTML: a span per run of one pen."""
     lines = []
     for cells in rows:
@@ -158,22 +155,26 @@ def drawn(rows: list[list[tuple[str, sc.Pen]]]) -> str:
 
 
 def page(
-    header: list[str],
-    shown: list[Shown],
+    header: tuple[str, ...],
+    shown: Shown,
     keys: dict[int, str],
     panes: dict[int, str],
     grounds: list[tuple[str, str]],
 ) -> str:
     """The whole page: the header the verdicts are under, then a section per
-    step, its question and its buttons above a tile per ground."""
-    palette = ";".join(f"--p{i}:{hex}" for i, hex in enumerate(XTERM))
+    step, its question and its buttons above a tile per ground.
+
+    Each pane is written once, in a `<template>` the page's script copies into
+    every tile: the ground is the tile's and not the pane's, and seven copies
+    were six sevenths of the page.
+    """
     sections = []
-    for n, step in shown:
+    for n, step in shown.items():
         tiles = "".join(
             f'<figure style="--bg:{hex};--fg:{foreground(hex)}">'
             f'<figcaption><label><input type="checkbox" value="{html.escape(name)}">'
             f" {html.escape(name)} <code>{hex}</code></label></figcaption>"
-            f"<pre>{panes[n]}</pre></figure>"
+            "<pre></pre></figure>"
             for name, hex in grounds
         )
         sections.append(
@@ -184,10 +185,11 @@ def page(
             '<p><button data-said="yes">looks right</button> '
             '<button data-said="no">looks wrong on the ticked</button> '
             '<span class="said"></span></p>'
+            f"<template>{panes[n]}</template>"
             f'<div class="tiles">{tiles}</div></section>'
         )
     return PAGE.format(
-        palette=palette,
+        palette=PALETTE,
         header=html.escape("\n".join(header)),
         sections="\n".join(sections),
     )
@@ -227,6 +229,8 @@ step again replaces the answer.</p>
 {sections}
 <script>
 for (const section of document.querySelectorAll("section[data-step]")) {{
+  const pane = section.querySelector("template").innerHTML;
+  for (const tile of section.querySelectorAll("figure pre")) tile.innerHTML = pane;
   const said = section.querySelector(".said");
   for (const button of section.querySelectorAll("button")) {{
     button.addEventListener("click", async () => {{
@@ -257,7 +261,7 @@ for (const section of document.querySelectorAll("section[data-step]")) {{
 """
 
 
-def verdict_line(body: bytes, shown: list[Shown], names: set[str]) -> str:
+def verdict_line(body: bytes, shown: Shown, names: set[str]) -> str:
     """The line a verdict the page posted is written as, or `ValueError`.
 
     The walk's four fields, then the grounds a `no` was given on. Refused
@@ -266,7 +270,7 @@ def verdict_line(body: bytes, shown: list[Shown], names: set[str]) -> str:
     """
     said = json.loads(body)
     n = said.get("step") if isinstance(said, dict) else None
-    step = dict(shown).get(n) if type(n) is int else None
+    step = shown.get(n) if type(n) is int else None
     if step is None:
         raise ValueError("not a step the gallery shows")
     verdict, grounds = said.get("said"), said.get("grounds")
@@ -281,14 +285,18 @@ def verdict_line(body: bytes, shown: list[Shown], names: set[str]) -> str:
     )
 
 
-def serve(
-    body: str, shown: list[Shown], names: set[str], verdicts: Path
-) -> None:
-    """Serve the page, and write each verdict posted to it, until Ctrl-C."""
+def serve(page: str, shown: Shown, names: set[str], verdicts: Path) -> None:
+    """Serve the page, and write each verdict posted to it, until Ctrl-C.
+
+    Threaded, so a connection a browser opens ahead and never uses holds up no
+    request behind it.
+    """
+    body = page.encode()
 
     class Handler(BaseHTTPRequestHandler):
-        def reply(self, code: int, text: str, kind: str = "text/plain") -> None:
-            sent = text.encode()
+        def reply(
+            self, code: int, sent: bytes, kind: str = "text/plain"
+        ) -> None:
             self.send_response(code)
             self.send_header("Content-Type", f"{kind}; charset=utf-8")
             self.send_header("Content-Length", str(len(sent)))
@@ -299,26 +307,26 @@ def serve(
             if self.path == "/":
                 self.reply(200, body, "text/html")
             else:
-                self.reply(404, "only / is here")
+                self.reply(404, b"only / is here")
 
         def do_POST(self) -> None:
             if self.path != "/verdict":
-                self.reply(404, "only /verdict takes a verdict")
+                self.reply(404, b"only /verdict takes a verdict")
                 return
             length = int(self.headers.get("Content-Length", 0))
             try:
                 line = verdict_line(self.rfile.read(length), shown, names)
             except ValueError as error:
-                self.reply(400, str(error))
+                self.reply(400, str(error).encode())
                 return
             with verdicts.open("a") as file:
                 file.write(line + "\n")
-            self.reply(200, "recorded")
+            self.reply(200, b"recorded")
 
         def log_message(self, format: str, *args: object) -> None:
             pass
 
-    server = HTTPServer(("127.0.0.1", 0), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"gallery: {url} -- Ctrl-C when you are done")
     webbrowser.open(url)
@@ -350,32 +358,29 @@ def main(argv: list[str]) -> int:
         )
 
     r = Run(keep=True, dir=DIR)
-    shown = [(n, step) for n, step in enumerate(r.steps, 1) if step.gallery]
+    shown = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
     if not shown:
         refuse(
             "gallery: no step in test/fixture/walk.toml says `gallery = true`"
         )
     try:
         r.setup()
-        shots = capture(r, shown)
+        capture(r, shown)
     finally:
-        r.session.kill()
+        # Kept, since the verdicts are written beside the captures.
+        r.teardown()
 
     verdicts = DIR / fixture.VERDICTS
-    begin_verdicts(
+    header = begin_verdicts(
         verdicts,
         "supaline gallery: step, case, theme, verdict, grounds",
         "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
     )
-    header = [
-        line.removeprefix("# ") for line in verdicts.read_text().splitlines()
-    ]
-    keys = {n: r.listing.cases[step.case].key for n, step in shown}
-    panes = {n: drawn(sc.current_cells(shot)) for n, shot in shots.items()}
+    keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
+    panes = {
+        n: drawn(sc.current_cells(r.shots[f"colour-step-{n}"])) for n in shown
+    }
     body = page(header, shown, keys, panes, grounds)
-    (DIR / "index.html").write_text(body)
-    for n, shot in shots.items():
-        (DIR / f"step-{n}.txt").write_text(shot)
 
     try:
         serve(body, shown, {name for name, _ in grounds}, verdicts)

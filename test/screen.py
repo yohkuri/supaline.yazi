@@ -599,6 +599,9 @@ class Pen:
     reverse: bool = False
 
 
+#: One cell of a capture: the character drawn, and what it was drawn in.
+Cell = tuple[str, Pen]
+
 #: The attribute each SGR parameter turns on or off.
 _SWITCHES = {
     1: ("bold", True),
@@ -615,6 +618,11 @@ _SWITCHES = {
 _SEQUENCE = re.compile(rf"{OPEN}([0-9;:]*)m|{re.escape(ESC)}")
 
 
+def _hex(r: int, g: int, b: int) -> str:
+    """Three channels as a hex, which is how a `Pen` carries a colour."""
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def _indexed(n: int) -> str:
     """Colour `n` of 256: a named one, or a hex off the cube or the greys."""
     if n < 16:
@@ -622,10 +630,8 @@ def _indexed(n: int) -> str:
     if n < 232:
         levels = (0, 95, 135, 175, 215, 255)
         n -= 16
-        r, g, b = levels[n // 36], levels[n // 6 % 6], levels[n % 6]
-    else:
-        r = g = b = 8 + 10 * (n - 232)
-    return f"#{r:02x}{g:02x}{b:02x}"
+        return _hex(levels[n // 36], levels[n // 6 % 6], levels[n % 6])
+    return _hex(*[8 + 10 * (n - 232)] * 3)
 
 
 def _drawn_after(pen: Pen, body: str) -> Pen:
@@ -642,35 +648,31 @@ def _drawn_after(pen: Pen, body: str) -> Pen:
     i = 0
     while i < len(params):
         p = params[i]
+        layer = "fg" if p < 40 or 90 <= p < 100 else "bg"
         if p == 0:
             pen = Pen()
         elif p in _SWITCHES:
             name, on = _SWITCHES[p]
             pen = replace(pen, **{name: on})
-        elif 30 <= p <= 37 or 90 <= p <= 97:
-            pen = replace(pen, fg=f"p{p - 30 if p < 90 else p - 82}")
-        elif 40 <= p <= 47 or 100 <= p <= 107:
-            pen = replace(pen, bg=f"p{p - 40 if p < 100 else p - 92}")
+        elif 30 <= p <= 37 or 40 <= p <= 47:
+            pen = replace(pen, **{layer: f"p{p % 10}"})
+        elif 90 <= p <= 97 or 100 <= p <= 107:
+            pen = replace(pen, **{layer: f"p{p % 10 + 8}"})
         elif p in (39, 49):
-            pen = replace(pen, **{"fg" if p == 39 else "bg": ""})
+            pen = replace(pen, **{layer: ""})
         elif (
             p in (38, 48)
             and params[i + 1 : i + 2] == [5]
             and i + 2 < len(params)
         ):
-            pen = replace(
-                pen, **{"fg" if p == 38 else "bg": _indexed(params[i + 2])}
-            )
+            pen = replace(pen, **{layer: _indexed(params[i + 2])})
             i += 2
         elif (
             p in (38, 48)
             and params[i + 1 : i + 2] == [2]
             and i + 4 < len(params)
         ):
-            r, g, b = params[i + 2 : i + 5]
-            pen = replace(
-                pen, **{"fg" if p == 38 else "bg": f"#{r:02x}{g:02x}{b:02x}"}
-            )
+            pen = replace(pen, **{layer: _hex(*params[i + 2 : i + 5])})
             i += 4
         else:
             raise ValueError(f"SGR `{body}m` sets {p}, which is not read here")
@@ -678,7 +680,7 @@ def _drawn_after(pen: Pen, body: str) -> Pen:
     return pen
 
 
-def pens(capture: str) -> list[list[tuple[str, Pen]]]:
+def pens(capture: str) -> list[list[Cell]]:
     """Every line of a colour capture, as each character and its pen.
 
     The pen carries from one line into the next, as it would in a terminal
@@ -690,9 +692,9 @@ def pens(capture: str) -> list[list[tuple[str, Pen]]]:
     colour the terminal never showed.
     """
     pen = Pen()
-    lines: list[list[tuple[str, Pen]]] = []
+    lines: list[list[Cell]] = []
     for line in capture.split("\n"):
-        cells: list[tuple[str, Pen]] = []
+        cells: list[Cell] = []
         at = 0
         for found in _SEQUENCE.finditer(line):
             cells.extend((ch, pen) for ch in line[at : found.start()])
@@ -707,14 +709,14 @@ def pens(capture: str) -> list[list[tuple[str, Pen]]]:
     return lines
 
 
-def current_cells(capture: str) -> list[list[tuple[str, Pen]]]:
+def current_cells(capture: str) -> list[list[Cell]]:
     """The current pane of a colour capture, row by row, as `pens` reads it.
 
     The cells after a row's first divider and before its next, which is the
     field `field_of` takes out of plain text; a row with no divider -- the
     header, the status bar -- is left out rather than answered empty.
     """
-    rows: list[list[tuple[str, Pen]]] = []
+    rows: list[list[Cell]] = []
     for cells in pens(capture):
         bars = [i for i, (ch, _) in enumerate(cells) if ch == BAR]
         if bars:

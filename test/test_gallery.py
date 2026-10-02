@@ -16,12 +16,13 @@ import unittest
 import gallery
 import screen as sc
 import setup as fixture
+from test_screen import capture, row
 
 #: Two steps of the walk, numbered as the walk numbers them.
-SHOWN = [
-    (3, fixture.Step("c_ramp", "default", "can you tell rows apart?", True)),
-    (11, fixture.Step("c_theme", "bg", "size & owner on <grounds>?", True)),
-]
+SHOWN = {
+    3: fixture.Step("c_ramp", "default", "can you tell rows apart?", True),
+    11: fixture.Step("c_theme", "bg", "size & owner on <grounds>?", True),
+}
 NAMES = {"black", "Solarized light"}
 
 
@@ -63,14 +64,14 @@ class Drawing(unittest.TestCase):
         self.assertEqual(gallery.glyph(""), '<span class="w1"></span>')
 
     def test_a_run_of_one_pen_is_one_span(self):
-        rows = sc.current_cells(f"h\n{sc.BAR}\x1b[31mab\x1b[0mc{sc.BAR}")
+        rows = sc.current_cells(capture(row(current="\x1b[31mab\x1b[0mc")))
         self.assertEqual(
             gallery.drawn(rows), '<span style="color:var(--p1)">ab</span>c'
         )
 
     def test_the_page_carries_every_ground_and_every_question_escaped(self):
         body = gallery.page(
-            ["commit x"],
+            ("commit x",),
             SHOWN,
             {3: "c r", 11: "c t"},
             {3: "three", 11: "eleven"},
@@ -78,6 +79,8 @@ class Drawing(unittest.TestCase):
         )
         self.assertEqual(body.count('<figure style="--bg:#000000'), 2)
         self.assertEqual(body.count('<figure style="--bg:#fdf6e3'), 2)
+        # Each pane once, for the page to copy into every tile.
+        self.assertEqual(body.count("three"), 1)
         self.assertIn("size &amp; owner on &lt;grounds&gt;?", body)
         self.assertIn('<section id="step-11" data-step="11">', body)
 
