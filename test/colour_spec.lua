@@ -63,7 +63,7 @@ local ATTRS = {
 --- that function, so a change to the recommendation fails these tests rather
 --- than moving them along with it.
 ---@type supaline.Band
-local REC = { from = 0.35, to = 0.88 }
+local REC = { from = 0.40, to = 0.90 }
 
 ---@type supaline.Bands
 local BANDS = { fg = REC, bg = REC }
@@ -467,9 +467,9 @@ test("band: both ends are fixed, whatever the colour's own lightness", function(
 	-- `#0b1a2f` at 0.22, outside the band either way, and neither appears on
 	-- it: what the colour supplies is the hue.
 	local light = stops("#e8f4ff <->")
-	eq(hex(light[1]) .. " " .. hex(light[2]), "#383b3e #ced9e3")
+	eq(hex(light[1]) .. " " .. hex(light[2]), "#44484c #d5e0ea")
 	local dark = stops("#0b1a2f <->")
-	eq(hex(dark[1]) .. " " .. hex(dark[2]), "#1f3b61 #bfdaff")
+	eq(hex(dark[1]) .. " " .. hex(dark[2]), "#284875 #cae0ff")
 end)
 
 test("band: past the exposure's reach, lightness is bought with chroma", function()
@@ -477,11 +477,10 @@ test("band: past the exposure's reach, lightness is bought with chroma", functio
 	-- reaches 0.59 and no further. Above it the hue is held and the chroma
 	-- spent, which is the only thing that can be given up without turning the
 	-- colour.
-	eq(hex(stops("#0b3d91 <->")[2]), "#c2d9ff")
+	eq(hex(stops("#0b3d91 <->")[2]), "#ccdfff")
 	-- A channel already at 255 cannot be exposed at all, and 0.83 is below the
-	-- ceiling, so this one buys the rest with chroma too -- the reason the
-	-- ceiling is 0.88.
-	eq(hex(stops("#7fd4ff <->")[2]), "#a8e1ff")
+	-- ceiling, so this one buys the rest with chroma too.
+	eq(hex(stops("#7fd4ff <->")[2]), "#b7e6ff")
 	-- Never more chroma than the exposure would have reached: grey stays grey.
 	local grey = stops("#767676 <->")[2]
 	eq(grey[1], grey[2])
@@ -489,9 +488,9 @@ test("band: past the exposure's reach, lightness is bought with chroma", functio
 end)
 
 test("band: a dark colour spreads upwards, every step a colour of its own", function()
-	-- `#0b3d91` has almost no room below the floor -- 0.39 against 0.35 -- so a
-	-- band anchored at the colour would be four hundredths wide and half its
-	-- steps repeats. Taking the room above it spreads it floor to ceiling.
+	-- `#0b3d91` sits at 0.39, below the floor of 0.40, so a band anchored at the
+	-- colour would have no room below it at all and would have to start above
+	-- the colour itself. Taking the room above it spreads it floor to ceiling.
 	local r = colour.ramp(stops("#0b3d91 <->"))
 	local seen, n = {}, 0
 	for _, step in ipairs(r) do
@@ -500,8 +499,8 @@ test("band: a dark colour spreads upwards, every step a colour of its own", func
 		end
 	end
 	eq(n, #r, "every step distinct")
-	eq(r[1], "#08347f")
-	eq(r[#r], "#c2d9ff")
+	eq(r[1], "#0c4098")
+	eq(r[#r], "#ccdfff")
 end)
 
 test("band: black is a grey band rather than a refusal", function()
@@ -511,14 +510,16 @@ test("band: black is a grey band rather than a refusal", function()
 	local black = stops("#000000 <->")
 	same_band(black, stops("#767676 <->"), "black against a mid grey")
 	same_band(black, stops("#ffffff <->"), "black against white")
-	eq(hex(black[1]) .. " " .. hex(black[2]), "#3a3a3a #d7d7d7")
+	eq(hex(black[1]) .. " " .. hex(black[2]), "#484848 #dedede")
 end)
 
 test("band: the pair is directed, so writing it backwards inverts the ramp", function()
 	-- What a light terminal needs, and the reason the two numbers are `from`
 	-- and `to` rather than a floor and a ceiling with a boolean beside them.
-	local up = colour.ramp(stops("#0b3d91 <->", { fg = { from = 0.35, to = 0.88 } }))
-	local down = colour.ramp(stops("#0b3d91 <->", { fg = { from = 0.88, to = 0.35 } }))
+	-- The pair is the recommended one, so the light pair draws the dark one's
+	-- colours and no others.
+	local up = colour.ramp(stops("#0b3d91 <->", { fg = REC }))
+	local down = colour.ramp(stops("#0b3d91 <->", { fg = { from = REC.to, to = REC.from } }))
 	eq(#up, #down)
 	for i = 1, #up do
 		eq(down[i], up[#up + 1 - i], "step " .. i .. " is the other ramp's mirror")
@@ -549,7 +550,7 @@ test("bands: the refusal carries the pair to paste and says nothing is defined",
 	-- asked for, and the fact that supaline is not withholding a better answer.
 	throws(
 		function() stops("#0b3d91 <->", {}) end,
-		"{ from = 0.35, to = 0.88 }",
+		"{ from = 0.40, to = 0.90 }",
 		"band = { fg = ",
 		"cannot see that ground",
 		"No band is defined yet"
@@ -636,7 +637,7 @@ test("bands: a band's own keys are not a band, nor a band's name", function()
 	throws(
 		function() paint.bands({ from = 0.35, to = 0.88 }, X) end,
 		"are a band's own keys",
-		"band = { fg = { from = 0.35, to = 0.88 } }"
+		"band = { fg = { from = 0.40, to = 0.90 } }"
 	)
 	throws(function() paint.bands({ from = 0.35 }, X) end, "are a band's own keys")
 	-- A table under `to` is not the flat pair, and is refused for its own

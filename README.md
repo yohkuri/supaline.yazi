@@ -667,7 +667,7 @@ lightness — two Oklab lightnesses you name in [`band`](#band):
 
 ```lua
 require("supaline"):setup {
-  band = { fg = { from = 0.35, to = 0.88 } },
+  band = { fg = { from = 0.40, to = 0.90 } },
   linemodes = {
     detail = { { "size", style = "#7fd4ff <->" } },
   },
@@ -688,7 +688,7 @@ on its own is the `fg` key spelled short. To ask for another, name it after the
 marker:
 
 ```lua
-band = { fg = { from = 0.35, to = 0.88 }, bg = { from = 0.15, to = 0.40 } },
+band = { fg = { from = 0.40, to = 0.90 }, bg = { from = 0.15, to = 0.40 } },
 ...
 { "size", style = { fg = "#7fd4ff <->", bg = "#7fd4ff <->" } }  -- two bands
 { "size", style = "#7fd4ff <-> bg" }                            -- the `bg` one under `fg`
@@ -739,7 +739,7 @@ one of them:
 ```lua
 require("supaline"):setup {
   band = {
-    fg  = { from = 0.35, to = 0.88 },
+    fg  = { from = 0.40, to = 0.90 },
     bg  = { from = 0.15, to = 0.40 },
     dim = { from = 0.30, to = 0.55 },
   },
@@ -762,7 +762,7 @@ saying so. Any other name is asked for after the marker, `"#7fd4ff <-> dim"`.
 the message carries a pair to paste:
 
 ```lua
-band = { fg = { from = 0.35, to = 0.88 } }
+band = { fg = { from = 0.40, to = 0.90 } }
 ```
 
 #### Why there is no default
@@ -774,19 +774,21 @@ either. Beyond the ground, the hue of it, the calibration of your display and
 how much contrast your eyes want at that size are all yours as well.
 
 The pair above is what supaline measured, and measuring it took a population
-rather than a person: 0.35 is where a step stops being lighter than the ground,
-across five common dark backgrounds, and 0.88 was chosen by looking at
-sixty-four steps over four base colours. That makes it a good place to start
-and a poor thing to apply to someone who never asked for it — a band would be
-drawn at a pair nobody chose, and nothing on screen would say it was a knob.
-So supaline recommends it, and you write it.
+rather than a person: 0.40 clears the lightest of five common dark backgrounds
+by a tenth of the lightness scale — merely lighter than the ground is not
+enough, and a navy step at 0.35 sinks into Solarized dark's blue — and 0.90 was
+chosen by looking at nine hues on those five: at 0.95 red, orange and yellow
+pale into one another. That makes it a good place to start and a poor thing to
+apply to someone who never asked for it — a band would be drawn at a pair
+nobody chose, and nothing on screen would say it was a knob. So supaline
+recommends it, and you write it.
 
 #### Adjusting it
 
 Look at a pair before you keep it. This needs no Yazi and no restart:
 
 ```sh
-lua test/ramp.lua --band 0.35,0.88 "#0b3d91 <->"
+lua test/ramp.lua --band 0.40,0.90 "#0b3d91 <->"
 ```
 
 The solid line is the band itself — a stretch where several steps read as one
@@ -800,14 +802,14 @@ light end glares. Both numbers are Oklab lightnesses, above 0 and at most 1.
 **On a light terminal, write the pair backwards:**
 
 ```lua
-band = { fg = { from = 0.90, to = 0.35 } }
+band = { fg = { from = 0.90, to = 0.40 } }
 ```
 
 Ratio 0 is then the pale end and ratio 1 the dark one, and nothing else
-changes. 0.90 is the mirror of the recommended pair's own margin — it clears
-the darkest light background of the five by the same amount 0.35 clears the
-lightest dark one. The other end of that pair is a guess; `ramp.lua` is how you
-stop it being one.
+changes: these are the dark pair's sixty-four colours in the other order. On
+white and on Solarized light, 0.90 reads, though narrowly — 0.85 reads easily,
+and is where to move `from` if 0.90 does not — and 0.35 at the dark end muddies
+red, orange and yellow together.
 
 A band under `bg` wants a different pair rather than a reversed one: it is
 drawn *beneath* the row's own text, so both of its ends have to keep that text

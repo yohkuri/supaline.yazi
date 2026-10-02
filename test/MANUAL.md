@@ -359,7 +359,7 @@ nothing here measures the terminal.
 
 ```sh
 lua test/ramp.lua "#0b3d91 -> #7fd4ff"    # any ramp you like, no Yazi needed
-lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"   # ... at other bounds
+lua test/ramp.lua --band 0.90,0.40 "#0b3d91 <->"   # ... at other bounds
 ```
 
 Any Lua will do — it reads `colour.lua` and never asks Yazi anything, so this
@@ -412,18 +412,18 @@ have to be indistinguishable, and `e2e.py` reads both with one check.
   from the one above it, the same way it knows for `c r`. What it cannot ask is
   whether a band this wide separates the rows enough to be read as a gradient,
   or whether the derivation merely produced 64 shades of one colour.
-- **The bottom row against your own terminal.** The fixture writes 0.35, the
+- **The bottom row against your own terminal.** The fixture writes 0.40, the
   pair supaline recommends, picked on the assumption of a dark background —
   and yours is the one it was picked for or it is not. If the first rows are
   sunk into the background, that assumption has just failed here — raise the
   `from` of `band.fg` and look again with
-  `lua test/ramp.lua --band 0.40,0.88 "#0b3d91 <->"`, which needs no Yazi.
+  `lua test/ramp.lua --band 0.45,0.90 "#0b3d91 <->"`, which needs no Yazi.
   Nothing supaline ships applies that pair to you; this screen is where you
   find out what to write instead.
 - **A light terminal instead.** Then the band is upside down rather than
   slightly wrong, and the pair goes backwards:
-  `band = { fg = { from = 0.90, to = 0.35 } }`. 0.90 is derived, 0.35 is a
-  guess inherited from the dark pair, and this is the screen that settles it.
+  `band = { fg = { from = 0.90, to = 0.40 } }`. On a light screen 0.90 reads
+  only narrowly, and 0.85 is where to move `from` if it does not.
 - **The top.** It climbs past where `c r` ends and gives up chroma to get
   there, so it is paler than the navy it came from and paler than `c r`'s own
   last row. Whether that reads as the same colour or as a different one is the

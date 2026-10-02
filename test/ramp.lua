@@ -2,12 +2,12 @@
 ---
 ---     lua test/ramp.lua "#0b3d91 -> #7fd4ff"
 ---     lua test/ramp.lua "#111 -> #222" "#0b3d91 -> #ffd400 -> #7fd4ff"
----     lua test/ramp.lua --band 0.90,0.35 "#0b3d91 <->"
+---     lua test/ramp.lua --band 0.90,0.40 "#0b3d91 <->"
 ---
 --- `--band` is one band of `setup`'s own option, `from` first, and it is here
 --- because the two numbers cannot be settled any other way: one end of the
 --- recommended pair was measured against five terminal backgrounds and the
---- other was chosen by looking at exactly this output. Every user has to do
+--- other was chosen by looking at bands drawn the way this draws them. Every user has to do
 --- the same, since supaline applies that pair to nobody, and the alternative
 --- is editing `init.lua` and restarting Yazi per guess.
 ---
@@ -98,7 +98,7 @@ while arg[i] do
 		local pair = arg[i + 1]
 		local from, to = (pair or ""):match("^%s*([^,%s]+)%s*,%s*([^,%s]+)%s*$")
 		if not from then
-			io.stderr:write("test/ramp.lua: --band takes two lightnesses, as `--band 0.35,0.88`\n")
+			io.stderr:write("test/ramp.lua: --band takes two lightnesses, as `--band 0.40,0.90`\n")
 			os.exit(2)
 		end
 		-- The unparsed string rather than the nil it becomes, so a `--band a,b`

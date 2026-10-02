@@ -181,7 +181,7 @@ end
 --- them on screen:
 ---
 --- * **A dark colour is not a dim band.** `#0b3d91` comes out spread over the
----   full 0.35 to 0.88 with every step of the ramp distinct, where the
+---   full 0.40 to 0.90 with every step of the ramp distinct, where the
 ---   exposure alone would have stopped at 0.59 and a floor alone at 0.39.
 --- * **The written colour supplies the hue and nothing else.** It is not put
 ---   on the band anywhere, and unless its own lightness happens to fall
