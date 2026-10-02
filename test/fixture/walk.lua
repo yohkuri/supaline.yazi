@@ -38,24 +38,39 @@ local M = {}
 --- changes, because a theme key pressed by hand changes it behind the walk's
 --- back. Both go through the `case` plugin, which is what knows how to show a
 --- case and where a theme's script is.
+---@param st table
 ---@param by integer
-local move = ya.sync(function(st, by)
+local function go(st, by)
 	st.i = math.max(1, math.min(#STEPS, (st.i or 0) + by))
 	local step = STEPS[st.i]
 	ya.emit("plugin", { "case", "theme " .. step.theme })
 	ya.emit("plugin", { "case", "show " .. step.case })
-end)
+end
 
---- The step a verdict is about, or `nil` before the walk has begun, and a
---- record of the verdict where the status bar reads it.
+local move = ya.sync(go)
+
+--- The step a verdict is about, or `nil` before the walk has begun, with the
+--- verdict recorded where the status bar reads it and the walk already on to
+--- the next step. Both in this one call rather than the move after the write,
+--- because entries run concurrently and the write yields: measured on 26.9.1,
+--- `W y W x` sent in one burst put both verdicts on one step, skipped the next,
+--- and wrote them in the reverse order. What is left is which of the two
+--- reaches this first, the order the entries happen to start in: the same
+--- burst swaps them about half the time, and keys 5ms apart did not. A write
+--- that then fails is told in a notification, with the walk moved on
+--- regardless.
 ---@param said string
 ---@return integer?
 local mark = ya.sync(function(st, said)
-	if st.i then
+	local i = st.i
+	if i then
 		st.said = st.said or {}
-		st.said[st.i] = said
+		st.said[i] = said
+		if i < #STEPS then
+			go(st, 1)
+		end
 	end
-	return st.i
+	return i
 end)
 
 --- The status bar's part: the step, its key and its question, and the verdict
@@ -122,9 +137,8 @@ function M:entry(job)
 		}
 	end
 	if i == #STEPS then
-		return ya.notify { title = "walk", content = "the last step; every verdict is in " .. VERDICTS, timeout = 10 }
+		ya.notify { title = "walk", content = "the last step; every verdict is in " .. VERDICTS, timeout = 10 }
 	end
-	move(1)
 end
 
 return M
