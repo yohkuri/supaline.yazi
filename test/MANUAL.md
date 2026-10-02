@@ -70,11 +70,13 @@ directory away. Until Ctrl-C, a second `test/gallery.py`, `--clean` included,
 refuses to start, since it would rebuild the directory the verdicts are written
 to.
 
-Only the ground on a tile is a terminal's. The default foreground is black or
-white, and the sixteen named colours are xterm's on every tile, which is why
-Yazi's own blue can read worse there than in your terminal. The font is the
-browser's too, so a step about a bold, a wide character, or what happens after
-a key stays on the walk alone.
+Each tile is drawn in the colour scheme it is named after: its ground, its
+foreground, and the sixteen named colours a `blue` or a `magenta` comes out in,
+since a terminal draws those from its own scheme rather than as one fixed
+colour. Black and white stand for a terminal nobody themed, in xterm's colours,
+which is why a `blue` all but vanishes on black. The font is the browser's, so
+a step about a bold, a wide character, or what happens after a key stays on the
+walk alone.
 
 ## The keys
 

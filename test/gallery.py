@@ -10,10 +10,13 @@ walk's steps that say `gallery = true`, captures each the way `e2e.py` does,
 and draws the current pane of every capture on each ground `init.lua` measures
 `GROUND` against, side by side, under the step's question.
 
-Only the ground is a terminal's. The default foreground is black on a light
-ground and white on a dark one, the sixteen named colours are xterm's on every
-tile, and the font, the bold and the width of a wide character are the
-browser's -- which is why a step about any of those is the walk's alone.
+Each tile is drawn in the colour scheme its ground is named after: the
+ground, the foreground text takes when nothing colours it, and the sixteen
+named colours a `blue` or a `magenta` is drawn in, since a terminal draws those
+from its own scheme. `black` and `white` stand for a terminal nobody themed,
+xterm's named colours under white or black text. The font, the bold and the
+width of a wide character are the browser's -- which is why a step about any
+of those is the walk's alone.
 
 The page is served by this process, on localhost, because a verdict given on it
 is written to `verdicts.txt` beside it, under the same header as the walk's.
@@ -33,7 +36,7 @@ import unicodedata
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import IO
+from typing import IO, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -48,10 +51,8 @@ DIR = Path(tempfile.gettempdir()) / "supaline-gallery"
 #: `DIR` itself.
 LOCK = DIR.with_suffix(".lock")
 
-#: xterm's sixteen named colours, which every tile draws `p0` to `p15` in. A
-#: palette per ground would be truer to each terminal, and would be seven
-#: palettes to get right for what on these screens is Yazi's colour rather
-#: than supaline's.
+#: xterm's sixteen named colours, `p0` to `p15`, for a ground `SCHEMES` has
+#: no scheme for.
 XTERM = (
     "#000000",
     "#cd0000",
@@ -70,7 +71,122 @@ XTERM = (
     "#00ffff",
     "#ffffff",
 )
-PALETTE = ";".join(f"--p{i}:{hex}" for i, hex in enumerate(XTERM))
+
+
+class Scheme(NamedTuple):
+    """A terminal's colours: its ground, the foreground text takes when
+    nothing colours it, and the sixteen named colours, `p0` to `p15`."""
+
+    ground: str
+    fg: str
+    named: tuple[str, ...]
+
+
+#: The sixteen Solarized draws in both modes, from the `16/8 TERMCOL` column
+#: of the table in altercation/solarized's README.
+SOLARIZED = (
+    "#073642",
+    "#dc322f",
+    "#859900",
+    "#b58900",
+    "#268bd2",
+    "#d33682",
+    "#2aa198",
+    "#eee8d5",
+    "#002b36",
+    "#cb4b16",
+    "#586e75",
+    "#657b83",
+    "#839496",
+    "#6c71c4",
+    "#93a1a1",
+    "#fdf6e3",
+)
+
+#: The schemes behind the grounds `init.lua` names, under the same names, so a
+#: named colour on a tile is the one that terminal draws: `blue` is `#89b4fa`
+#: in Catppuccin Mocha and `#268bd2` in Solarized. Each is copied from a
+#: published definition, never recalled, and from the scheme's own wherever
+#: its author publishes one, because the ports disagree -- Ghostty's One Dark
+#: is on another ground altogether:
+#:
+#: - Catppuccin Mocha: `ansiColors` in catppuccin/palette's `palette.json`.
+#: - One Dark: alacritty/alacritty-theme's `one_dark.toml`. One Dark is Atom's
+#:   editor theme, whose author publishes no terminal palette, and this is the
+#:   port drawn on the ground `init.lua` names.
+#: - Gruvbox dark: morhetz/gruvbox-contrib's `gruvbox-dark.xresources`.
+#: - Solarized: `SOLARIZED`, with the README's ground and body text for each
+#:   mode, `base03:base0` dark and `base3:base00` light.
+SCHEMES = {
+    "Catppuccin Mocha": Scheme(
+        "#1e1e2e",
+        "#cdd6f4",
+        (
+            "#45475a",
+            "#f38ba8",
+            "#a6e3a1",
+            "#f9e2af",
+            "#89b4fa",
+            "#f5c2e7",
+            "#94e2d5",
+            "#a6adc8",
+            "#585b70",
+            "#f37799",
+            "#89d88b",
+            "#ebd391",
+            "#74a8fc",
+            "#f2aede",
+            "#6bd7ca",
+            "#bac2de",
+        ),
+    ),
+    "One Dark": Scheme(
+        "#282c34",
+        "#abb2bf",
+        (
+            "#1e2127",
+            "#e06c75",
+            "#98c379",
+            "#d19a66",
+            "#61afef",
+            "#c678dd",
+            "#56b6c2",
+            "#abb2bf",
+            "#5c6370",
+            "#e06c75",
+            "#98c379",
+            "#d19a66",
+            "#61afef",
+            "#c678dd",
+            "#56b6c2",
+            "#ffffff",
+        ),
+    ),
+    "Gruvbox dark": Scheme(
+        "#282828",
+        "#ebdbb2",
+        (
+            "#282828",
+            "#cc241d",
+            "#98971a",
+            "#d79921",
+            "#458588",
+            "#b16286",
+            "#689d6a",
+            "#a89984",
+            "#928374",
+            "#fb4934",
+            "#b8bb26",
+            "#fabd2f",
+            "#83a598",
+            "#d3869b",
+            "#8ec07c",
+            "#ebdbb2",
+        ),
+    ),
+    "Solarized dark": Scheme("#002b36", "#839496", SOLARIZED),
+    "Solarized light": Scheme("#fdf6e3", "#657b83", SOLARIZED),
+}
 
 #: The gallery's steps by their number on the walk, which is what both files
 #: of verdicts call them by.
@@ -129,11 +245,23 @@ def foreground(ground: str) -> str:
     return "#000000" if light else "#ffffff"
 
 
+def scheme(name: str, ground: str) -> Scheme:
+    """The scheme a ground is drawn in: its own, or xterm's named colours
+    under black or white text."""
+    return SCHEMES.get(name) or Scheme(ground, foreground(ground), XTERM)
+
+
+def tile_rule(n: int, scheme: Scheme) -> str:
+    """The rule `.g<n>` puts a tile in its scheme with."""
+    named = ";".join(f"--p{i}:{hex}" for i, hex in enumerate(scheme.named))
+    return f".g{n} {{ --bg:{scheme.ground};--fg:{scheme.fg};{named} }}"
+
+
 def css(pen: sc.Pen) -> str:
     """A pen as an inline style, empty for the tile's own colours.
 
-    The tile carries the ground and its foreground as `--bg` and `--fg`, and
-    the named colours as `--p0` to `--p15`, so one rendering of a capture
+    The tile carries its scheme's ground and foreground as `--bg` and `--fg`,
+    and its named colours as `--p0` to `--p15`, so one rendering of a capture
     serves every ground.
     """
 
@@ -195,17 +323,17 @@ def page(
     step, its question and its buttons above a tile per ground.
 
     Each pane is written once, in a `<template>` the page's script copies into
-    every tile: the ground is the tile's and not the pane's, and seven copies
-    were six sevenths of the page.
+    every tile: the colour scheme is the tile's, one rule per ground, and not
+    the pane's, and seven copies were six sevenths of the page.
     """
     sections = []
     for n, step in shown.items():
         tiles = "".join(
-            f'<figure style="--bg:{hex};--fg:{foreground(hex)}">'
+            f'<figure class="g{i}">'
             f'<figcaption><label><input type="checkbox" value="{html.escape(name)}">'
             f" {html.escape(name)} <code>{hex}</code></label></figcaption>"
             "<pre></pre></figure>"
-            for name, hex in grounds
+            for i, (name, hex) in enumerate(grounds)
         )
         sections.append(
             f'<section id="step-{n}" data-step="{n}">'
@@ -219,7 +347,10 @@ def page(
             f'<div class="tiles">{tiles}</div></section>'
         )
     return PAGE.format(
-        palette=PALETTE,
+        schemes="\n".join(
+            tile_rule(i, scheme(name, hex))
+            for i, (name, hex) in enumerate(grounds)
+        ),
         header=html.escape("\n".join(header)),
         sections="\n".join(sections),
     )
@@ -232,7 +363,7 @@ PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>supaline gallery</title>
 <style>
-:root {{ {palette}; }}
+{schemes}
 body {{ margin: 16px; font: 15px/1.4 system-ui, sans-serif;
   background: #d8d8d8; color: #111; }}
 section {{ margin: 0 0 40px; }}
@@ -252,10 +383,11 @@ pre {{ margin: 0; padding: 4px; font: inherit; overflow-x: auto;
 </head>
 <body>
 <pre>{header}</pre>
-<p>Only the ground is a terminal's here. The default foreground is black or
-white, the sixteen named colours are xterm's on every tile, and the font is the
-browser's. Tick the grounds a step looks wrong on, then say so; answering a
-step again replaces the answer.</p>
+<p>Each tile is in the colour scheme it is named after: its ground, its
+foreground, and the sixteen named colours a <code>blue</code> is drawn in.
+<code>black</code> and <code>white</code> are a terminal nobody themed, in
+xterm's. The font is the browser's. Tick the grounds a step looks wrong on, then
+say so; answering a step again replaces the answer.</p>
 {sections}
 <script>
 for (const section of document.querySelectorAll("section[data-step]")) {{
