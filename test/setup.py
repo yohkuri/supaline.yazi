@@ -319,7 +319,7 @@ def copy_config(target: Path) -> None:
     # `default.toml` is what Yazi opens with, and `e2e.py` rewrites this copy
     # in place -- it greps for the values that file spells, so change them
     # there too.
-    shutil.copyfile(themes / "default.toml", config / "theme.toml")
+    put_theme(target, "default")
 
     (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
 
@@ -344,6 +344,17 @@ def copy_config(target: Path) -> None:
         f"#!{sys.executable}\n" + (FIXTURE / "theme-key.py").read_text()
     )
     key.chmod(0o755)
+
+
+def put_theme(target: Path, name: str) -> None:
+    """Put one of the scratch tree's themes where Yazi reads it.
+
+    `theme-key.py` makes the same copy from inside Yazi, where it cannot import
+    this; a Yazi started after this call opens on the theme instead.
+    """
+    shutil.copyfile(
+        target / "themes" / f"{name}.toml", target / "config" / "theme.toml"
+    )
 
 
 def write_ramps(target: Path) -> None:
@@ -628,27 +639,26 @@ KEY = re.compile(r'[^\s"\\]+( [^\s"\\]+)*')
 HOVER = re.compile(r'[^/"\\\x00-\x1f\x7f]+')
 
 
-#: The fields either file writes as a boolean rather than a string.
-FLAGS = {"broken", "gallery"}
-
-
-def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
+def fields(
+    kind: str, row: dict, want: dict[str, type], may: dict[str, type]
+) -> None:
     """A `[[kind]]` of `cases.toml` or `walk.toml`, refused unless it has every
-    field in `want`, no field outside `want` and `may`, and each a non-empty
-    string -- one of `FLAGS` a boolean -- so a value of the wrong type is a
+    field in `want`, no field outside `want` and `may`, and each of the type
+    either gives it -- a string non-empty -- so a value of the wrong type is a
     refusal rather than a traceback from wherever it is first used."""
     got = set(row)
-    if want - got or got - want - may:
+    if want.keys() - got or got - want.keys() - may.keys():
         raise ValueError(
             f"a [[{kind}]] with {sorted(got)}: it needs {sorted(want)}"
             + (f" and may have {sorted(may)}" if may else "")
         )
     for name, value in row.items():
-        if name in FLAGS:
-            if not isinstance(value, bool):
-                raise ValueError(f"[[{kind}]] `{name}` is not a boolean")
-        elif not isinstance(value, str) or not value:
-            raise ValueError(f"[[{kind}]] `{name}` is not a non-empty string")
+        wanted = {**want, **may}[name]
+        if not isinstance(value, wanted) or value == "":
+            raise ValueError(
+                f"[[{kind}]] `{name}` is not a "
+                + ("boolean" if wanted is bool else "non-empty string")
+            )
 
 
 def cases(text: str) -> Cases:
@@ -687,7 +697,12 @@ def cases(text: str) -> Cases:
 
     folders: dict[str, Folder] = {}
     for row in data.get("folder", []):
-        fields("folder", row, {"path", "key", "landmark", "desc"}, set())
+        fields(
+            "folder",
+            row,
+            dict.fromkeys(("path", "key", "landmark", "desc"), str),
+            {},
+        )
         path = spelled("folder", row["path"], FOLDER)
         if path in folders:
             raise ValueError(f"two [[folder]]s at `{path}`")
@@ -700,8 +715,8 @@ def cases(text: str) -> Cases:
         fields(
             "case",
             row,
-            {"id", "key", "folder", "linemode", "desc"},
-            {"hover", "broken"},
+            dict.fromkeys(("id", "key", "folder", "linemode", "desc"), str),
+            {"hover": str, "broken": bool},
         )
         id = spelled("case", row["id"], NAME)
         if id in listed:
@@ -723,7 +738,7 @@ def cases(text: str) -> Cases:
 
     themes: dict[str, Theme] = {}
     for row in data.get("theme", []):
-        fields("theme", row, {"name", "key", "desc"}, set())
+        fields("theme", row, dict.fromkeys(("name", "key", "desc"), str), {})
         name = spelled("theme", row["name"], NAME)
         if name in themes:
             raise ValueError(f"two [[theme]]s called `{name}`")
@@ -761,7 +776,7 @@ class Step:
     case: str
     theme: str
     ask: str
-    gallery: bool = False
+    gallery: bool
 
 
 #: What a question may be spelled with. It goes into the plugins' table as a Lua
@@ -798,7 +813,12 @@ def walk(text: str, listing: Cases) -> list[Step]:
     steps: list[Step] = []
     shown: set[str] = set()
     for row in data.get("step", []):
-        fields("step", row, {"case", "ask"}, {"theme", "gallery"})
+        fields(
+            "step",
+            row,
+            {"case": str, "ask": str},
+            {"theme": str, "gallery": bool},
+        )
         case, ask = row["case"], row["ask"]
         theme = row.get("theme", "default")
         if case not in listing.cases:
@@ -896,10 +916,11 @@ def terminal_grounds(init: str) -> list[tuple[str, str]]:
     comment rewritten into another shape answers nothing, and `gallery.py`
     refuses that rather than drawing on no ground.
     """
+    block = re.search(r"((?:^--.*\n)+)^local GROUND = ", init, re.MULTILINE)
+    if not block:
+        return []
     prose = " ".join(
-        line.removeprefix("--").strip()
-        for line in init.splitlines()
-        if line.startswith("--")
+        line.removeprefix("--").strip() for line in block.group(1).splitlines()
     )
     found = re.search(r"terminal grounds -- (.*?) -- ", prose)
     if not found:

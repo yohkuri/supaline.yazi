@@ -162,13 +162,14 @@ def yazi_data(dir: Path) -> Path:
     return dir / "fixture" / "data"
 
 
-def begin_verdicts(path: Path, title: str, *notes: str) -> None:
-    """Start a file of a reader's verdicts, for `manual.py` or `gallery.py`.
+def begin_verdicts(path: Path, title: str, *notes: str) -> tuple[str, ...]:
+    """Start a file of a reader's verdicts, for `manual.py` or `gallery.py`,
+    and answer the header it wrote.
 
-    Under a header of what a verdict is about besides the step: the code it
-    was given on, the Yazi that drew it, and whatever `notes` the caller can
-    add. Written by the harness rather than by what records a verdict, which
-    can ask none of it.
+    The header is what a verdict is about besides the step: the code it was
+    given on, the Yazi that drew it, and whatever `notes` the caller can add.
+    Written by the harness rather than by what records a verdict, which can ask
+    none of it.
     """
     commit = run(
         ["git", "-C", str(ROOT), "describe", "--always", "--dirty"], check=False
@@ -181,6 +182,7 @@ def begin_verdicts(path: Path, title: str, *notes: str) -> None:
         f"started  {time.strftime('%Y-%m-%d %H:%M:%S %z')}",
     )
     path.write_text("".join(f"# {line}\n" for line in header))
+    return header
 
 
 def print_verdicts(path: Path, who: str) -> None:

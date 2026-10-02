@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import re
 import unittest
 
 import screen as sc
@@ -730,6 +731,7 @@ class TheFixtureItReads(unittest.TestCase):
         init = (
             "-- the nearest of two terminal grounds -- black `#000000`, Gruvbox\n"
             "-- dark `#282828` -- and so on\n"
+            'local GROUND = "#8b0045"\n'
         )
         self.assertEqual(
             fixture.terminal_grounds(init),
@@ -737,7 +739,17 @@ class TheFixtureItReads(unittest.TestCase):
         )
 
     def test_a_comment_rewritten_into_another_shape_answers_nothing(self):
-        self.assertEqual(fixture.terminal_grounds("-- black `#000000`\n"), [])
+        init = '-- black `#000000`\nlocal GROUND = "#8b0045"\n'
+        self.assertEqual(fixture.terminal_grounds(init), [])
+
+    def test_grounds_in_a_comment_above_anything_else_are_not_read(self):
+        # The comment above `GROUND` is where they were measured; the same
+        # words over another binding are not that list.
+        init = (
+            "-- two terminal grounds -- black `#000000` -- here\n"
+            'local HUE = "#0b3d91"\n\nlocal GROUND = "#8b0045"\n'
+        )
+        self.assertEqual(fixture.terminal_grounds(init), [])
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.
@@ -772,7 +784,7 @@ class Cells(unittest.TestCase):
         )
 
     def test_a_reset_and_a_default_colour_put_the_terminal_back(self):
-        line = "\x1b[38;2;1;2;3ma\x1b[39mb\x1b[1mc\x1b[0md"
+        line = cell("#010203", "a") + "\x1b[39mb\x1b[1mc\x1b[0md"
         pens = [pen for _, pen in sc.pens(line)[0]]
         self.assertEqual(
             pens,
@@ -818,6 +830,25 @@ class Cells(unittest.TestCase):
             [["a", "b"], ["c", "d"]],
         )
         self.assertEqual(rows[0][0][1], sc.Pen(fg="p1"))
+
+    def test_the_cells_of_a_pane_spell_the_field_plain_text_finds(self):
+        # Two readings of one rule, `field_of` over plain text and this over
+        # cells, held to the same answer on a row with and without colour.
+        text = capture(
+            row("p", cell("#112233", "ab") + "\x1b[39m c", "x"), row("q", "de")
+        )
+        plain = sc.OPEN + r"[0-9;]*m"
+        self.assertEqual(
+            [
+                "".join(ch for ch, _ in cells)
+                for cells in sc.current_cells(text)
+            ],
+            [
+                field
+                for field in sc.current_fields(re.sub(plain, "", text))
+                if field
+            ],
+        )
 
 
 class Sizes(unittest.TestCase):

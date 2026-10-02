@@ -70,9 +70,10 @@ class Run:
     def __init__(self, keep: bool, dir: Path | None = None) -> None:
         # Both names carry the PID, so a run owns everything it touches: a
         # concurrent run leaves the marker `setup.py` guards removal with, so a
-        # fixed directory would pass the guard and lose its fixture. `dir` is
-        # for `gallery.py`, which serves its page out of a directory a person
-        # can find again, the way `manual.py` keeps one.
+        # fixed directory would pass the guard and lose its fixture. `dir`
+        # gives that up for `gallery.py`, which serves its page out of a
+        # directory a person can find again: one run at a time, as `manual.py`
+        # is.
         pid = os.getpid()
         self.dir = dir or Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
         self.session = Session(f"supaline-e2e-{pid}")
