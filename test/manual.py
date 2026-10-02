@@ -7,6 +7,9 @@
 The configuration and the fixture come from `test/setup.py`, which `e2e.py`
 also uses, so what you see here is what the headless run asserts on. Your own
 Yazi configuration is not read and not touched.
+
+What you answer on the walk is printed when Yazi quits, because the next run
+rebuilds the directory it was written in.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -24,9 +28,11 @@ import setup as fixture
 from harness import (
     ROOT,
     need,
+    run,
     yazi_data,
     yazi_env,
     yazi_log,
+    yazi_version,
 )
 
 DIR = Path(tempfile.gettempdir()) / "supaline-manual"
@@ -70,6 +76,51 @@ def print_ramps(target: Path) -> None:
         )
 
 
+def begin_verdicts(path: Path) -> None:
+    """The header the walk's verdicts are written under.
+
+    What a verdict is about besides the step: the code it was given on, the
+    Yazi that drew it, and the terminal, which is the one thing a headless run
+    never has and the reason the walk exists. Written here rather than by the
+    plugin, which can ask none of the three.
+    """
+    commit = run(
+        ["git", "-C", str(ROOT), "describe", "--always", "--dirty"], check=False
+    ).stdout.strip()
+    term = " ".join(
+        os.environ.get(name, "")
+        for name in ("TERM_PROGRAM", "TERM_PROGRAM_VERSION")
+    ).strip()
+    path.write_text(
+        "# supaline manual walk: step, case, theme, verdict\n"
+        f"# commit   {commit or 'unknown'}\n"
+        f"# yazi     {yazi_version()}\n"
+        f"# terminal {term or 'unknown'} (TERM={os.environ.get('TERM', '')})\n"
+        f"# started  {time.strftime('%Y-%m-%d %H:%M:%S %z')}\n"
+    )
+
+
+def print_verdicts(path: Path) -> None:
+    """What the walk was told, once Yazi has gone, latest answer per step."""
+    lines = path.read_text().splitlines() if path.exists() else []
+    said = {
+        line.split("\t")[0]: line for line in lines if not line.startswith("#")
+    }
+    if not said:
+        print("manual: no verdict was given on the walk")
+        return
+    print(f"manual: the walk's verdicts, also in {path}")
+    for line in (
+        *(line for line in lines if line.startswith("#")),
+        *said.values(),
+    ):
+        print(f"  {line}")
+    wrong = sum(line.endswith("\tno") for line in said.values())
+    print(
+        f"manual: {len(said)} step(s) answered, {wrong} of them looking wrong"
+    )
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["--clean"]:
         # `setup.py` owns the marker file and the "is this ours" guard, so it
@@ -80,6 +131,8 @@ def main(argv: list[str]) -> int:
 
     need("yazi")
     fixture.main([str(DIR)])
+    verdicts = DIR / fixture.VERDICTS
+    begin_verdicts(verdicts)
 
     print((fixture.FIXTURE / "banner.txt").read_text())
 
@@ -93,6 +146,8 @@ def main(argv: list[str]) -> int:
     print("  and the whole of what was thrown -- goes to the log rather than")
     print("  to the screen. This run keeps one:")
     print(f"  {yazi_log(DIR, 'state')}")
+    print("  And the walk's verdicts go to:")
+    print(f"  {verdicts}")
     print(rule)
 
     print_ramps(DIR)
@@ -106,17 +161,18 @@ def main(argv: list[str]) -> int:
 
     # The environment is `harness.yazi_env` and the folder is `yazi_data`,
     # which say why each is what it is. Here rather than written out, so what
-    # a person opens and what `e2e.py` asserts on are the same Yazi.
+    # a person opens and what `e2e.py` asserts on are the same Yazi. A child
+    # rather than an `execve`, so this is still here to print the verdicts once
+    # Yazi has gone; and with no deadline, because a person is driving it.
     yazi = shutil.which("yazi")
     assert yazi is not None  # `need` above has already said so
-    os.execve(
-        yazi,
+    done = subprocess.run(
         [yazi, str(yazi_data(DIR))],
-        {**os.environ, **yazi_env(DIR, "state")},
+        env={**os.environ, **yazi_env(DIR, "state")},
+        check=False,
     )
-    # `execve` replaces this process, so nothing below it ever runs. The
-    # `return` is here because a checker reading the function cannot know that.
-    return 0
+    print_verdicts(verdicts)
+    return done.returncode
 
 
 if __name__ == "__main__":

@@ -14,6 +14,39 @@ opens Yazi on them. Your own Yazi configuration is neither read nor touched.
 
 Quit with `q`. `test/manual.py --clean` throws the fixture away.
 
+## The walk
+
+Most of what follows `e2e.py` already reads off a capture. What it cannot read
+is what only a person in front of a real terminal can: how the terminal draws a
+wide character or a bold, whether a colour can be read against your own ground,
+and whether a report reads right against the cells it is about. The walk takes
+you through those cases in order and asks one question about each.
+
+| Key   | What it does                                          |
+| ----- | ----------------------------------------------------- |
+| `W n` | The next step, or the first                           |
+| `W p` | The step before                                       |
+| `W y` | Looks right — write that down, and go to the next     |
+| `W x` | Looks wrong — write that down, and go to the next     |
+
+The status bar shows where you are, the step's own key and the question:
+`walk 3/17 · c r · can you tell rows a few steps apart?`. The key is the
+section of this document that has the whole of what to look for, and pressing
+it by hand puts you back in the same state. A step puts its theme in place as
+well as its case, so it reads the same whether you came to it forwards,
+backwards or after pressing a theme key yourself. A verdict you have given is
+shown beside the question.
+
+Each verdict is a line in `verdicts.txt`, beside the fixture, under a header
+`manual.py` writes before Yazi opens: the commit, the Yazi and the terminal.
+Answer a step again and the later line is the one that counts. `manual.py`
+prints the file when Yazi quits, because the next run rebuilds the directory it
+is in.
+
+The steps are `test/fixture/walk.toml`. The broken cases come last and each is
+shown once: a report comes once a session, so going back to one of them shows
+the cells and no notification. See [Broken columns](#broken-columns).
+
 ## The keys
 
 Yazi's linemode leader is `m`, and it binds only letters, so the digits are

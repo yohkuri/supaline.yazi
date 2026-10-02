@@ -1,5 +1,12 @@
 supaline manual test
-────────────────────────────────────────────────────────────────────────────
+──── the walk ──────────────────────────────────────────────────────────────
+  The cases only a real terminal can judge, one question each, asked in the
+  status bar. What you answer is written down with the commit, the Yazi and
+  the terminal, and printed when you quit.
+
+  W n   the next step, or the first     W p   the step before
+  W y   looks right, and go on          W x   looks wrong, and go on
+──── layout ────────────────────────────────────────────────────────────────
   m 0   one column                      press against m s to compare
   m 1   size + mtime                    the everyday case
   m 2   every built-in column           widths and alignment at a glance

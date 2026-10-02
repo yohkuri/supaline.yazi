@@ -656,6 +656,66 @@ class TheFixtureItReads(unittest.TestCase):
             with self.subTest(reason), self.assertRaises(ValueError):
                 fixture.cases(text)
 
+    def test_the_walk_reads_and_the_plugin_writes_where_it_is_read(self):
+        # `manual.py` reads the verdicts back from the name `setup.py` spells,
+        # and `walk.lua` writes them under the one it spells itself.
+        listing = fixture.read_cases()
+        self.assertTrue(fixture.read_walk(listing))
+        self.assertIn(
+            f'"{fixture.DIR_TOKEN}/{fixture.VERDICTS}"',
+            (self.fixture / "walk.lua").read_text(),
+        )
+
+    #: A list of one folder, one theme, one working case and one broken one,
+    #: which the walk below is read against.
+    LISTED = (
+        '[[folder]]\npath = "a"\nkey = "g 1"\nlandmark = "x"\ndesc = "a"\n'
+        '[[theme]]\nname = "default"\nkey = "c 1"\ndesc = "t"\n'
+        '[[case]]\nid = "ok"\nkey = "m 0"\nfolder = "a"\n'
+        'linemode = "plain"\ndesc = "ok"\n'
+        '[[case]]\nid = "bad"\nkey = "b r"\nfolder = "a"\n'
+        'linemode = "b_render"\ndesc = "bad"\nbroken = true\n'
+    )
+
+    @staticmethod
+    def step(case="ok", ask="is it right?", extra="") -> str:
+        """A `walk.toml` step, with a part swapped."""
+        return f'[[step]]\ncase = "{case}"\nask = "{ask}"\n{extra}'
+
+    def test_a_walk_of_two_steps_is_read_whole(self):
+        # The premise under the refusals below.
+        listing = fixture.cases(self.LISTED)
+        steps = fixture.walk(self.step() + self.step("bad"), listing)
+        self.assertEqual(
+            steps,
+            [
+                fixture.Step("ok", "default", "is it right?"),
+                fixture.Step("bad", "default", "is it right?"),
+            ],
+        )
+
+    def test_a_walk_spoiled_in_one_place_is_refused(self):
+        listing = fixture.cases(self.LISTED)
+        spoiled = {
+            "a case the list does not hold": self.step("gone"),
+            "a theme the list does not hold": self.step(
+                extra='theme = "alt"\n'
+            ),
+            "a field the walk does not define": self.step(extra='them = "x"\n'),
+            # Drawn in the status bar, cut off at its edge.
+            "a question too long to draw": self.step(ask="x" * 51),
+            # Written into a Lua string, unescaped.
+            "a question that would need escaping": self.step(ask='a\\"b'),
+            # The character `e2e.py` splits a line on to find the panes.
+            "a question carrying a pane divider": self.step(ask="a │ b"),
+            "a broken case shown twice": self.step("bad") * 2,
+            "a working case after a broken one": self.step("bad") + self.step(),
+            "no step at all": "",
+        }
+        for reason, text in spoiled.items():
+            with self.subTest(reason), self.assertRaises(ValueError):
+                fixture.walk(text, listing)
+
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.
         self.assertEqual(fixture.band_width(self.init, "HUE"), 0)

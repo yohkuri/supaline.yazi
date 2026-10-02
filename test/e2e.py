@@ -36,15 +36,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import screen as sc
 import setup as fixture
 from harness import (
-    ROOT,
     Checks,
     Session,
     catch_term,
     need,
-    run,
     yazi_data,
     yazi_env,
     yazi_log,
+    yazi_version,
 )
 
 #: The window every capture is taken in. Wide enough that the three panes all
@@ -80,6 +79,7 @@ class Run:
         # Every key this presses is one `cases.toml` binds, found by what it
         # does rather than by how it is spelled.
         self.listing = fixture.read_cases()
+        self.steps = fixture.read_walk(self.listing)
 
     # --- the fixture -------------------------------------------------------
 
@@ -206,9 +206,31 @@ def clean_run(r: Run) -> None:
     r.session.press("T")
     r.shot("theme-after")
 
+    # The walk, three keys of it: the first step, a verdict that goes on to the
+    # second, and back to the first to find that verdict shown. After the
+    # theme's captures, because a step puts its own theme in place. Its working
+    # steps come first, so this run logs nothing for it.
+    n = len(r.steps)
+
+    def status(want: str) -> Callable[[str], bool]:
+        return lambda s: want in s.splitlines()[-1]
+
+    r.session.press("W", "n", until=status(f"walk 1/{n} "), what="the walk")
+    r.session.wait_for(
+        r.here(r.listing.cases[r.steps[0].case].folder), "step 1"
+    )
+    r.session.settle()
+    r.shot("walk-first")
+    r.session.press("W", "y", until=status(f"walk 2/{n} "), what="step 2")
+    r.session.press("W", "p", until=status("[yes]"), what="the verdict")
+    r.shot("walk-back")
+
     # Last, because it replaces `theme.toml` wholesale. A theme key runs a
     # script through a `shell` template, the one part of either harness that
     # leaves Yazi to do its work, so the file is compared as well as the screen.
+    # On `default` again, whose `mtime` ramp is what the check reads, since the
+    # walk left another case showing.
+    r.show(r.listing.cases["default"])
     r.theme("alt")
     r.shot("theme-swapped")
 
@@ -873,6 +895,45 @@ def check_edge(k: Checks, capture: str, init: str) -> None:
     )
 
 
+def check_walk(
+    k: Checks,
+    shots: dict[str, str],
+    dir: Path,
+    listing: fixture.Cases,
+    steps: list[fixture.Step],
+) -> None:
+    k.section("walk")
+    first = steps[0]
+    case = listing.cases[first.case]
+
+    # The status bar is the walk's only screen, so its line is read whole: the
+    # step, the key that is the section of `MANUAL.md` to read, the question.
+    line = f"walk 1/{len(steps)} · {case.key} · {first.ask}"
+    k.holds(shots["walk-first"].splitlines()[-1], line, line)
+    k.that(
+        any(
+            listing.folders[case.folder].landmark in f
+            for f in sc.current_fields(shots["walk-first"])
+        ),
+        f"the first step puts Yazi in {first.case}'s folder",
+    )
+
+    # What `manual.py` prints, written by `fs.write` from inside Yazi. One
+    # line, because one verdict was given.
+    verdicts = dir / fixture.VERDICTS
+    said = verdicts.read_text().splitlines() if verdicts.exists() else []
+    k.same(
+        said,
+        [f"1\t{first.case}\t{first.theme}\tyes"],
+        f"W y writes the verdict to {fixture.VERDICTS}",
+    )
+    back = shots["walk-back"].splitlines()[-1]
+    k.that(
+        f"walk 1/{len(steps)} " in back and "[yes]" in back,
+        "W p goes back, with the verdict shown beside the question",
+    )
+
+
 def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("theme")
 
@@ -926,26 +987,6 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
     )
 
 
-def yazi_version() -> str:
-    """Which Yazi this run actually proves anything about.
-
-    Yazi is on CalVer and changes the plugin API between releases, so a
-    version other than the one the plugin annotates is the signal to
-    re-verify the constraints, not a reason to stop.
-    """
-    said = run(["yazi", "--version"], timeout=30).stdout
-    found = re.search(r"^\s*Version:\s*(.+)$", said, re.MULTILINE)
-    version = found.group(1).strip() if found else said.replace("\n", " ")
-
-    pinned = re.match(r"--- @since (.+)", (ROOT / "main.lua").read_text())
-    if pinned and not version.startswith(pinned.group(1).strip()):
-        print(
-            f"e2e: note: Yazi is {version}, the plugin annotates "
-            f"{pinned.group(1).strip()}"
-        )
-    return version
-
-
 def main(argv: list[str]) -> int:
     need("tmux", "yazi")
     # Before there is anything to clean up, so the `finally` below runs on a
@@ -973,6 +1014,7 @@ def main(argv: list[str]) -> int:
         check_panes(k, r.shots)
         check_ramp(k, r.shots, init, r.dir)
         check_theme(k, r.shots, r.dir)
+        check_walk(k, r.shots, r.dir, r.listing, r.steps)
 
         print()
         for row in sc.rows(r.shots["pane_par"], 2, 7):

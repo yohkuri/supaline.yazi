@@ -159,12 +159,13 @@ sweep that read nothing looks like a sweep that found nothing wrong.
 
 The configuration Yazi is given sits under `test/fixture/` as the files Yazi
 reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, the `case`
-plugin in `case.lua`, and `banner.txt`, which is what `manual.py` prints.
-`test/setup.py` copies them into a scratch tree and replaces `@DIR@` with it.
-The one thing it writes rather than copies is what `cases.toml` becomes: a
-binding per folder, per case and per theme, appended to the keymap, and the
-table the plugin reads. `e2e.py` and `manual.py` both call it, so what a person
-looks at and what the headless run asserts on cannot drift apart.
+plugin in `case.lua`, the `walk` plugin in `walk.lua`, and `banner.txt`, which
+is what `manual.py` prints. `test/setup.py` copies them into a scratch tree and
+replaces `@DIR@` with it. The one thing it writes rather than copies is what
+`cases.toml` and `walk.toml` become: a binding per folder, per case and per
+theme, appended to the keymap, and the table both plugins read. `e2e.py` and
+`manual.py` both call it, so what a person looks at and what the headless run
+asserts on cannot drift apart.
 
 They are real files rather than heredocs, and that buys three readers the
 fixture did not have: `stylua` formats `init.lua`, `lua-language-server`
