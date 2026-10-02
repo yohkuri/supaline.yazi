@@ -14,6 +14,7 @@ parser here returning nothing.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 
 # The divider Yazi draws between its three panes, U+2502. Held in a name
@@ -599,6 +600,9 @@ class Pen:
     reverse: bool = False
 
 
+_DEFAULT_PEN = Pen()
+
+
 #: One cell of a capture: the character drawn, and what it was drawn in.
 Cell = tuple[str, Pen]
 
@@ -645,42 +649,44 @@ def _drawn_after(pen: Pen, body: str) -> Pen:
     if ":" in body:
         raise ValueError(f"an SGR with colons, `{body}m`, is not read here")
     params = [int(p) if p else 0 for p in body.split(";")]
+    changes = {}
     i = 0
     while i < len(params):
         p = params[i]
         layer = "fg" if p < 40 or 90 <= p < 100 else "bg"
         if p == 0:
-            pen = Pen()
+            pen = _DEFAULT_PEN
+            changes.clear()
         elif p in _SWITCHES:
             name, on = _SWITCHES[p]
-            pen = replace(pen, **{name: on})
+            changes[name] = on
         elif 30 <= p <= 37 or 40 <= p <= 47:
-            pen = replace(pen, **{layer: f"p{p % 10}"})
+            changes[layer] = f"p{p % 10}"
         elif 90 <= p <= 97 or 100 <= p <= 107:
-            pen = replace(pen, **{layer: f"p{p % 10 + 8}"})
+            changes[layer] = f"p{p % 10 + 8}"
         elif p in (39, 49):
-            pen = replace(pen, **{layer: ""})
+            changes[layer] = ""
         elif (
             p in (38, 48)
             and params[i + 1 : i + 2] == [5]
             and i + 2 < len(params)
         ):
-            pen = replace(pen, **{layer: _indexed(params[i + 2])})
+            changes[layer] = _indexed(params[i + 2])
             i += 2
         elif (
             p in (38, 48)
             and params[i + 1 : i + 2] == [2]
             and i + 4 < len(params)
         ):
-            pen = replace(pen, **{layer: _hex(*params[i + 2 : i + 5])})
+            changes[layer] = _hex(*params[i + 2 : i + 5])
             i += 4
         else:
             raise ValueError(f"SGR `{body}m` sets {p}, which is not read here")
         i += 1
-    return pen
+    return replace(pen, **changes) if changes else pen
 
 
-def pens(capture: str) -> list[list[Cell]]:
+def _cell_rows(capture: str) -> Iterator[list[Cell]]:
     """Every line of a colour capture, as each character and its pen.
 
     The pen carries from one line into the next, as it would in a terminal
@@ -691,8 +697,7 @@ def pens(capture: str) -> list[list[Cell]]:
     is an SGR this cannot read: either would put a cell on the page in a
     colour the terminal never showed.
     """
-    pen = Pen()
-    lines: list[list[Cell]] = []
+    pen = _DEFAULT_PEN
     for line in capture.split("\n"):
         cells: list[Cell] = []
         at = 0
@@ -705,8 +710,12 @@ def pens(capture: str) -> list[list[Cell]]:
             pen = _drawn_after(pen, found.group(1))
             at = found.end()
         cells.extend((ch, pen) for ch in line[at:])
-        lines.append(cells)
-    return lines
+        yield cells
+
+
+def pens(capture: str) -> list[list[Cell]]:
+    """Every line of a colour capture, as each character and its pen."""
+    return list(_cell_rows(capture))
 
 
 def current_cells(capture: str) -> list[list[Cell]]:
@@ -717,7 +726,7 @@ def current_cells(capture: str) -> list[list[Cell]]:
     header, the status bar -- is left out rather than answered empty.
     """
     rows: list[list[Cell]] = []
-    for cells in pens(capture):
+    for cells in _cell_rows(capture):
         bars = [i for i, (ch, _) in enumerate(cells) if ch == BAR]
         if bars:
             rows.append(cells[bars[0] + 1 : bars[1] if len(bars) > 1 else None])
