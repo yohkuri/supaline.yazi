@@ -10,9 +10,9 @@ CONTRIBUTING.md has the details, including what to run before pushing.
 
 ## Did you watch it run?
 
-CI never opens a real Yazi. `test/e2e.py` and `test/manual.py` are the only
-things that do, so a green pull request says nothing about whether the
-plugin actually draws anything.
+CI never opens a real Yazi. `test/e2e.py`, `test/manual.py` and
+`test/gallery.py` are the only things that do, so a green pull request says
+nothing about whether the plugin actually draws anything.
 
 - Yazi version:
 - `test/e2e.py`:

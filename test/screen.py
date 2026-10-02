@@ -14,7 +14,7 @@ parser here returning nothing.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 # The divider Yazi draws between its three panes, U+2502. Held in a name
 # because it is what every pane split here anchors on, and because a capture
@@ -577,3 +577,146 @@ def drawn(rows: list[str]) -> int:
     marked rows either, and `0 == 0` is a claim about nothing.
     """
     return sum(1 for row in rows if row.strip(" "))
+
+
+# --- every cell, for the gallery ---------------------------------------------
+
+
+@dataclass(frozen=True)
+class Pen:
+    """What a cell was drawn in, as far as tmux writes it down.
+
+    A colour is `""` for the terminal's own, `#rrggbb`, or `p0` to `p15` for
+    one of the sixteen named colours, whose value is the terminal's to choose.
+    An index past those is fixed by the 256-colour cube and comes back as a hex.
+    """
+
+    fg: str = ""
+    bg: str = ""
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    reverse: bool = False
+
+
+#: The attribute each SGR parameter turns on or off.
+_SWITCHES = {
+    1: ("bold", True),
+    22: ("bold", False),
+    3: ("italic", True),
+    23: ("italic", False),
+    4: ("underline", True),
+    24: ("underline", False),
+    7: ("reverse", True),
+    27: ("reverse", False),
+}
+
+#: An escape of any kind, and the parameters when it is an SGR.
+_SEQUENCE = re.compile(rf"{OPEN}([0-9;:]*)m|{re.escape(ESC)}")
+
+
+def _indexed(n: int) -> str:
+    """Colour `n` of 256: a named one, or a hex off the cube or the greys."""
+    if n < 16:
+        return f"p{n}"
+    if n < 232:
+        levels = (0, 95, 135, 175, 215, 255)
+        n -= 16
+        r, g, b = levels[n // 36], levels[n // 6 % 6], levels[n % 6]
+    else:
+        r = g = b = 8 + 10 * (n - 232)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _drawn_after(pen: Pen, body: str) -> Pen:
+    """`pen` once one SGR's parameters have been applied to it.
+
+    Refused rather than passed over when a parameter is one this does not
+    know, since a cell drawn without it is a cell the terminal never showed --
+    and so is a colon, the other spelling of a colour, which tmux does not
+    write today.
+    """
+    if ":" in body:
+        raise ValueError(f"an SGR with colons, `{body}m`, is not read here")
+    params = [int(p) if p else 0 for p in body.split(";")]
+    i = 0
+    while i < len(params):
+        p = params[i]
+        if p == 0:
+            pen = Pen()
+        elif p in _SWITCHES:
+            name, on = _SWITCHES[p]
+            pen = replace(pen, **{name: on})
+        elif 30 <= p <= 37 or 90 <= p <= 97:
+            pen = replace(pen, fg=f"p{p - 30 if p < 90 else p - 82}")
+        elif 40 <= p <= 47 or 100 <= p <= 107:
+            pen = replace(pen, bg=f"p{p - 40 if p < 100 else p - 92}")
+        elif p in (39, 49):
+            pen = replace(pen, **{"fg" if p == 39 else "bg": ""})
+        elif (
+            p in (38, 48)
+            and params[i + 1 : i + 2] == [5]
+            and i + 2 < len(params)
+        ):
+            pen = replace(
+                pen, **{"fg" if p == 38 else "bg": _indexed(params[i + 2])}
+            )
+            i += 2
+        elif (
+            p in (38, 48)
+            and params[i + 1 : i + 2] == [2]
+            and i + 4 < len(params)
+        ):
+            r, g, b = params[i + 2 : i + 5]
+            pen = replace(
+                pen, **{"fg" if p == 38 else "bg": f"#{r:02x}{g:02x}{b:02x}"}
+            )
+            i += 4
+        else:
+            raise ValueError(f"SGR `{body}m` sets {p}, which is not read here")
+        i += 1
+    return pen
+
+
+def pens(capture: str) -> list[list[tuple[str, Pen]]]:
+    """Every line of a colour capture, as each character and its pen.
+
+    The pen carries from one line into the next, as it would in a terminal
+    reading the same bytes. It decides nothing on 26.9.1: every line of
+    `e2e.py`'s 25 colour captures, 1025 of them, reads the same parsed alone.
+
+    An escape that is not an SGR is refused rather than drawn as text, and so
+    is an SGR this cannot read: either would put a cell on the page in a
+    colour the terminal never showed.
+    """
+    pen = Pen()
+    lines: list[list[tuple[str, Pen]]] = []
+    for line in capture.split("\n"):
+        cells: list[tuple[str, Pen]] = []
+        at = 0
+        for found in _SEQUENCE.finditer(line):
+            cells.extend((ch, pen) for ch in line[at : found.start()])
+            if found.group(1) is None:
+                raise ValueError(
+                    f"an escape that is not an SGR: {line[found.start() :][:8]!r}"
+                )
+            pen = _drawn_after(pen, found.group(1))
+            at = found.end()
+        cells.extend((ch, pen) for ch in line[at:])
+        lines.append(cells)
+    return lines
+
+
+def current_cells(capture: str) -> list[list[tuple[str, Pen]]]:
+    """The current pane of a colour capture, row by row, as `pens` reads it.
+
+    The cells after a row's first divider and before its next, which is the
+    field `field_of` takes out of plain text; a row with no divider -- the
+    header, the status bar -- is left out rather than answered empty.
+    """
+    rows: list[list[tuple[str, Pen]]] = []
+    for cells in pens(capture):
+        bars = [i for i, (ch, _) in enumerate(cells) if ch == BAR]
+        if bars:
+            rows.append(cells[bars[0] + 1 : bars[1] if len(bars) > 1 else None])
+    return rows

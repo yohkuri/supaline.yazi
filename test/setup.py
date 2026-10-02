@@ -4,9 +4,9 @@
     test/setup.py <dir>           build the fixture in <dir>
     test/setup.py --clean <dir>   throw it away again
 
-`e2e.py` and `manual.py` both call this, so what a human looks at and what the
-headless run asserts on cannot drift apart. Nothing outside <dir> is touched,
-and your own Yazi configuration is never read.
+`e2e.py`, `manual.py` and `gallery.py` all call this, so what a human looks at
+and what the headless run asserts on cannot drift apart. Nothing outside <dir>
+is touched, and your own Yazi configuration is never read.
 
 Both forms rewrite or remove <dir> wholesale, so both refuse it unless it is
 empty or carries the marker file this script leaves behind. That guard lives
@@ -628,11 +628,15 @@ KEY = re.compile(r'[^\s"\\]+( [^\s"\\]+)*')
 HOVER = re.compile(r'[^/"\\\x00-\x1f\x7f]+')
 
 
+#: The fields either file writes as a boolean rather than a string.
+FLAGS = {"broken", "gallery"}
+
+
 def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
     """A `[[kind]]` of `cases.toml` or `walk.toml`, refused unless it has every
     field in `want`, no field outside `want` and `may`, and each a non-empty
-    string -- `broken` a boolean -- so a value of the wrong type is a refusal
-    rather than a traceback from wherever it is first used."""
+    string -- one of `FLAGS` a boolean -- so a value of the wrong type is a
+    refusal rather than a traceback from wherever it is first used."""
     got = set(row)
     if want - got or got - want - may:
         raise ValueError(
@@ -640,9 +644,9 @@ def fields(kind: str, row: dict, want: set[str], may: set[str]) -> None:
             + (f" and may have {sorted(may)}" if may else "")
         )
     for name, value in row.items():
-        if name == "broken":
+        if name in FLAGS:
             if not isinstance(value, bool):
-                raise ValueError(f"[[{kind}]] `broken` is not a boolean")
+                raise ValueError(f"[[{kind}]] `{name}` is not a boolean")
         elif not isinstance(value, str) or not value:
             raise ValueError(f"[[{kind}]] `{name}` is not a non-empty string")
 
@@ -751,12 +755,13 @@ VERDICTS = "verdicts.txt"
 
 @dataclass(frozen=True)
 class Step:
-    """A `[[step]]` of `walk.toml`: a case, the theme it is shown under, and
-    the question asked about it."""
+    """A `[[step]]` of `walk.toml`: a case, the theme it is shown under, the
+    question asked about it, and whether `gallery.py` asks it too."""
 
     case: str
     theme: str
     ask: str
+    gallery: bool = False
 
 
 #: What a question may be spelled with. It goes into the plugins' table as a Lua
@@ -779,7 +784,9 @@ def walk(text: str, listing: Cases) -> list[Step]:
     coming. So is a step that works after one that is broken: a broken case's
     notification lands late and lingers, over whatever the next step draws,
     and the last of them has the reader arm a `refresh` that throws at every
-    `cd` after it.
+    `cd` after it. And a broken case is refused in the gallery, which shows a
+    capture: what a broken step asks about is the notification, which lands
+    after the capture rather than in it.
     """
     # Here rather than at the top, for the reason `theme_values` gives.
     import tomllib
@@ -791,7 +798,7 @@ def walk(text: str, listing: Cases) -> list[Step]:
     steps: list[Step] = []
     shown: set[str] = set()
     for row in data.get("step", []):
-        fields("step", row, {"case", "ask"}, {"theme"})
+        fields("step", row, {"case", "ask"}, {"theme", "gallery"})
         case, ask = row["case"], row["ask"]
         theme = row.get("theme", "default")
         if case not in listing.cases:
@@ -807,12 +814,15 @@ def walk(text: str, listing: Cases) -> list[Step]:
                 f"step `{case}` asks {len(ask)} characters, over {ASK_LONGEST}"
             )
         broken = listing.cases[case].broken
+        gallery = row.get("gallery", False)
         if broken and case in shown:
             raise ValueError(f"the broken case `{case}` is shown twice")
+        if broken and gallery:
+            raise ValueError(f"the broken case `{case}` is in the gallery")
         if not broken and steps and listing.cases[steps[-1].case].broken:
             raise ValueError(f"step `{case}` comes after a broken one")
         shown.add(case)
-        steps.append(Step(case, theme, ask))
+        steps.append(Step(case, theme, ask, gallery))
 
     if not steps:
         raise ValueError("no [[step]] at all")
@@ -874,6 +884,27 @@ def c_bg_grounds(init: str) -> list[str] | None:
     if not block:
         return None
     return re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0))
+
+
+def terminal_grounds(init: str) -> list[tuple[str, str]]:
+    """The terminal grounds `init.lua` measures `GROUND` against, as a name and
+    a hex each, in its order -- which `gallery.py` draws every capture on.
+
+    Read off the comment above `GROUND`, which is the one place they are
+    written: the distances there were taken against these, and a gallery drawn
+    on a list of its own would show the reader grounds nobody measured. A
+    comment rewritten into another shape answers nothing, and `gallery.py`
+    refuses that rather than drawing on no ground.
+    """
+    prose = " ".join(
+        line.removeprefix("--").strip()
+        for line in init.splitlines()
+        if line.startswith("--")
+    )
+    found = re.search(r"terminal grounds -- (.*?) -- ", prose)
+    if not found:
+        return []
+    return re.findall(rf"(?:^|, )([^,`]+) `({HEX})`", found.group(1))
 
 
 def theme_values(dir: Path, name: str) -> tuple[str, str]:

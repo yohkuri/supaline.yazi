@@ -675,12 +675,14 @@ class TheFixtureItReads(unittest.TestCase):
     def test_a_walk_of_two_steps_is_read_whole(self):
         # The premise under the refusals below.
         listing = fixture.cases(self.LISTED)
-        steps = fixture.walk(self.step() + self.step("bad"), listing)
+        steps = fixture.walk(
+            self.step(extra="gallery = true\n") + self.step("bad"), listing
+        )
         self.assertEqual(
             steps,
             [
-                fixture.Step("ok", "default", "is it right?"),
-                fixture.Step("bad", "default", "is it right?"),
+                fixture.Step("ok", "default", "is it right?", True),
+                fixture.Step("bad", "default", "is it right?", False),
             ],
         )
 
@@ -702,6 +704,13 @@ class TheFixtureItReads(unittest.TestCase):
             "a question that would need escaping": self.step(ask='a\\"b'),
             # The character `e2e.py` splits a line on to find the panes.
             "a question carrying a pane divider": self.step(ask="a │ b"),
+            "a flag that is not a boolean": self.step(
+                extra='gallery = "yes"\n'
+            ),
+            # Its report lands after the capture rather than in it.
+            "a broken case in the gallery": self.step(
+                "bad", extra="gallery = true\n"
+            ),
             "a broken case shown twice": self.step("bad") * 2,
             "a working case after a broken one": self.step("bad") + self.step(),
             "no step at all": "",
@@ -709,6 +718,26 @@ class TheFixtureItReads(unittest.TestCase):
         for reason, text in spoiled.items():
             with self.subTest(reason), self.assertRaises(ValueError):
                 fixture.walk(text, listing)
+
+    def test_the_terminal_grounds_are_read_off_the_comment_above_ground(self):
+        # The comment says seven, and the gallery draws a tile per ground.
+        grounds = fixture.terminal_grounds(self.init)
+        self.assertEqual(len(grounds), 7)
+        self.assertIn(("Catppuccin Mocha", "#1e1e2e"), grounds)
+        self.assertIn(("Solarized light", "#fdf6e3"), grounds)
+
+    def test_a_ground_wrapped_over_two_comment_lines_keeps_its_name(self):
+        init = (
+            "-- the nearest of two terminal grounds -- black `#000000`, Gruvbox\n"
+            "-- dark `#282828` -- and so on\n"
+        )
+        self.assertEqual(
+            fixture.terminal_grounds(init),
+            [("black", "#000000"), ("Gruvbox dark", "#282828")],
+        )
+
+    def test_a_comment_rewritten_into_another_shape_answers_nothing(self):
+        self.assertEqual(fixture.terminal_grounds("-- black `#000000`\n"), [])
 
     def test_a_name_no_column_writes_under_a_bg_answers_zero(self):
         # `HUE` is bound and drawn, and nothing writes it under a `bg`.
@@ -730,6 +759,65 @@ class TheFixtureItReads(unittest.TestCase):
         self.assertEqual(fixture.binding(init, "B"), ("#112233", "#445566"))
         self.assertEqual(fixture.binding(init, "C"), ())
         self.assertEqual(fixture.binding(init, "D"), ())
+
+
+class Cells(unittest.TestCase):
+    """`pens` and `current_cells`, which the gallery draws every tile from."""
+
+    def test_each_parameter_tmux_writes_sets_the_pen_it_names(self):
+        ((cell,),) = sc.pens("\x1b[1;3;4;7;31;48;2;17;34;51mx")
+        self.assertEqual(
+            cell,
+            ("x", sc.Pen("p1", "#112233", True, True, True, True)),
+        )
+
+    def test_a_reset_and_a_default_colour_put_the_terminal_back(self):
+        line = "\x1b[38;2;1;2;3ma\x1b[39mb\x1b[1mc\x1b[0md"
+        pens = [pen for _, pen in sc.pens(line)[0]]
+        self.assertEqual(
+            pens,
+            [sc.Pen(fg="#010203"), sc.Pen(), sc.Pen(bold=True), sc.Pen()],
+        )
+
+    def test_a_bright_colour_and_an_index_are_named_or_fixed(self):
+        line = "\x1b[90ma\x1b[103mb\x1b[38;5;16mc\x1b[38;5;231md\x1b[38;5;244me"
+        self.assertEqual(
+            [(pen.fg, pen.bg) for _, pen in sc.pens(line)[0]],
+            [
+                ("p8", ""),
+                ("p8", "p11"),
+                ("#000000", "p11"),
+                ("#ffffff", "p11"),
+                ("#808080", "p11"),
+            ],
+        )
+
+    def test_the_pen_carries_into_the_next_line(self):
+        _, second = sc.pens("\x1b[32ma\nb")
+        self.assertEqual(second, [("b", sc.Pen(fg="p2"))])
+
+    def test_what_this_cannot_draw_is_refused(self):
+        for line in (
+            "\x1b[9mx",
+            "\x1b[38;2;1;2mx",
+            "\x1b[4:3mx",
+            "\x1b]0;t\x07",
+        ):
+            with self.subTest(line=line), self.assertRaises(ValueError):
+                sc.pens(line)
+
+    def test_the_current_pane_is_the_cells_between_the_dividers(self):
+        text = capture(
+            row("p", "\x1b[31mab\x1b[0m", "x"),
+            row("q", "cd"),
+            "status bar",
+        )
+        rows = sc.current_cells(text)
+        self.assertEqual(
+            [[ch for ch, _ in cells] for cells in rows],
+            [["a", "b"], ["c", "d"]],
+        )
+        self.assertEqual(rows[0][0][1], sc.Pen(fg="p1"))
 
 
 class Sizes(unittest.TestCase):

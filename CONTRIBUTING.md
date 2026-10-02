@@ -25,6 +25,7 @@ versions themselves:
 | formatting and types | stylua 2.5.2, lua-language-server 3.19.1 |
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
+| `test/gallery.py` | tmux and a browser |
 
 Match the stylua version exactly. Another release can format the same
 file differently, and CI would refuse what yours passed.
@@ -81,10 +82,10 @@ Two things worth knowing:
 - `lua-language-server --check .` passes quietly even when it can't find
   Yazi's own type annotations, which makes it look like it checked more
   than it did. Install them with `ya pkg add yazi-rs/plugins:types`.
-- `test/e2e.py` and `test/manual.py` open a real Yazi, so they're not in
-  CI. Run them yourself if your change affects what's on screen — and
-  trust the exit status over how the screen looks, because a broken
-  fetcher still looks fine.
+- `test/e2e.py`, `test/manual.py` and `test/gallery.py` open a real Yazi,
+  so they're not in CI. Run them yourself if your change affects what's
+  on screen — and trust the exit status over how the screen looks,
+  because a broken fetcher still looks fine.
 
 ## Commit messages
 
