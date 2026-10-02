@@ -372,14 +372,14 @@ def write_ramps(target: Path) -> None:
     sources += sorted((target / "themes").glob("*.toml"))
     bodies = {path: path.read_text() for path in sources}
 
-    # Two alternatives, because a band is not a short ramp: it has one colour
-    # and the marker sits beside it rather than between two of them. The band
-    # first, so the arrow inside the marker cannot be matched as a ramp with an
-    # empty end.
+    # Two alternatives, because a spread is not a short ramp: it has one colour
+    # and the marker sits beside it rather than between two of them. The
+    # spread first, so the arrow inside the marker cannot be matched as a ramp
+    # with an empty end.
     #
-    # The band alternative takes an optional name after the marker, which is
-    # what a marked colour writes when it wants a band other than the one its
-    # key is called. The name is not resolved here and does not have to be:
+    # The spread alternative takes an optional name after the marker, which is
+    # what a marked colour writes when it wants a lightness range other than
+    # the one its key is called. The name is not resolved here and does not have to be:
     # `ramp.lua` answers every name with the pair it was given, because what it
     # is for is looking at a pair rather than at a `setup`.
     pattern = re.compile(
@@ -395,7 +395,7 @@ def write_ramps(target: Path) -> None:
     # pattern that started missing a ramp would show up as a quieter list and
     # nothing else.
     #
-    # The arrow is what a flat colour can never contain -- a band carries one
+    # The arrow is what a flat colour can never contain -- a spread carries one
     # inside its marker, which is why it is spelled that way -- and that makes
     # "a line with an arrow in it" a test that does not share the pattern
     # above's assumptions: a single-quoted TOML string, an unusual spacing, a
@@ -550,7 +550,7 @@ def binding(init: str, name: str) -> tuple[str, ...]:
     """The colours `init.lua` binds to `local <name>`, in order.
 
     One for a flat colour, two for a two-ended ramp, and none for anything
-    else -- anchored on both sides, so a name bound to a band, a style table
+    else -- anchored on both sides, so a name bound to a spread, a style table
     or a three-stop ramp answers nothing rather than half of itself.
     """
     found = re.search(

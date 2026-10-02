@@ -53,7 +53,7 @@ local STYLE_HELP = string.format(
 )
 
 --- A style as a user writes it: the keys `theme.toml` takes. `fg` and `bg`
---- hold a colour, a gradient, a band, or `false` for none; an attribute holds
+--- hold a colour, a gradient, a spread, or `false` for none; an attribute holds
 --- `true`, or `false` for the attribute taken off whatever is beneath.
 ---@class supaline.StyleTable
 ---@field fg string|false|nil
@@ -197,12 +197,12 @@ function M.layer(value, at, painter)
 	return layer
 end
 
---- How a column's style is read: a gradient resolved against the bands
---- `setup` defined, anything else a colour Yazi takes.
----@param bands supaline.Bands
+--- How a column's style is read: a gradient resolved against the lightness
+--- ranges `setup` defined, anything else a colour Yazi takes.
+---@param ranges supaline.LightnessRanges
 ---@return supaline.Reader
-function M.reader(bands)
-	local painter = paint.painter(bands)
+function M.reader(ranges)
+	local painter = paint.painter(ranges)
 	return function(value, at) return M.layer(value, at, painter) end
 end
 

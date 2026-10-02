@@ -106,7 +106,7 @@ end
 --- does -- and clamping each channel is enough where it is that rare.
 ---
 --- Channels rather than a `#rrggbb`, because both callers want them that way:
---- a ramp formats them, and a band hands them back as a stop, which is the
+--- a ramp formats them, and a spread hands them back as a stop, which is the
 --- shape a stop already has.
 ---@return integer r, integer g, integer b
 local function from_oklab(L, A, B)
@@ -126,7 +126,7 @@ end
 --- Searched rather than solved. The sRGB gamut in Oklab is the image of a cube
 --- under a cube root and two matrices, and the edge of it along one hue has no
 --- closed form worth carrying here -- where a bisection over `fits` is exact
---- to a ten-thousandth in fifteen steps and runs once per band, at setup.
+--- to a ten-thousandth in fifteen steps and runs once per spread, at setup.
 ---
 --- The bound is 0.5 because nothing in sRGB reaches it: the most chromatic
 --- colour it has is pure blue, a little over 0.31.
@@ -147,7 +147,7 @@ local function chroma_at(L, ua, ub)
 	return lo
 end
 
---- The two ends one colour stands for: the band's two lightnesses, drawn in
+--- The two ends one colour stands for: a lightness range's two ends, drawn in
 --- the base's own hue, in the order a ratio walks them.
 ---
 --- The **hue is held exactly** at both ends, and everything else here is in
@@ -177,19 +177,19 @@ end
 --- a grey is in gamut at every lightness, so **every lightness is reachable**
 --- and no pair of bounds is one a base cannot be drawn at.
 ---
---- Two consequences worth knowing before writing a band rather than finding
+--- Two consequences worth knowing before spreading a colour rather than finding
 --- them on screen:
 ---
---- * **A dark colour is not a dim band.** `#0b3d91` comes out spread over the
+--- * **A dark colour is not a dim spread.** `#0b3d91` comes out spread over the
 ---   full 0.40 to 0.90 with every step of the ramp distinct, where the
 ---   exposure alone would have stopped at 0.59 and a floor alone at 0.39.
 --- * **The written colour supplies the hue and nothing else.** It is not put
----   on the band anywhere, and unless its own lightness happens to fall
+---   on the spread anywhere, and unless its own lightness happens to fall
 ---   between the two bounds it is not on it at all.
 ---@param rgb integer[]
----@param band supaline.Band the two ends, which the caller resolved by name
+---@param range supaline.LightnessRange the two ends, which the caller resolved by name
 ---@return integer[][] two stops, ratio 0 first
-function M.band(rgb, band)
+function M.spread(rgb, range)
 	local L, A, B = to_oklab(rgb)
 	local chroma = math.sqrt(A * A + B * B)
 
@@ -212,7 +212,7 @@ function M.band(rgb, band)
 
 	--- The base drawn at one lightness, hue held. Both ends go through this,
 	--- which is what makes them the same kind of thing: which of the two is
-	--- lighter is `band`'s business and not this function's.
+	--- lighter is `range`'s business and not this function's.
 	---@param target number
 	---@return integer[]
 	local function at(target)
@@ -229,7 +229,7 @@ function M.band(rgb, band)
 		local c = math.min(chroma * s, chroma_at(target, ua, ub))
 		return { from_oklab(target, c * ua, c * ub) }
 	end
-	return { at(band.from), at(band.to) }
+	return { at(range.from), at(range.to) }
 end
 
 --- Quantise a set of endpoints into the colours a column draws.

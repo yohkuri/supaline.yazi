@@ -222,7 +222,7 @@ def show(r: Run, case: fixture.Case) -> None:
     """`Run.show`, held to the colours as well as the text.
 
     Steps in one folder can draw the same text in other colours -- `c_ramp`,
-    `c_band` and `c_hue` are the same two columns on three ramps -- and
+    `c_spread` and `c_hue` are the same two columns on three ramps -- and
     `Run.show` waits on plain captures, which hold still on the step before as
     readily as on this one. So the coloured screen has to move off the one
     before the press, and then hold still. A step that never moves it is

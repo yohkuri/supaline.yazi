@@ -28,7 +28,7 @@ local PANES = { "current", "parent", "preview" }
 ---@field separator string|supaline.SepSpec|nil
 ---@field order integer?
 ---@field scale "linear"|"log"|nil
----@field band supaline.Bands? the bands a `<->` may name, by name
+---@field lightness supaline.LightnessRanges? the lightness ranges a `<->` may name, by name
 
 --- One column in one pane, and what is drawn before it.
 ---@class supaline.Cell
@@ -48,7 +48,7 @@ local PANES = { "current", "parent", "preview" }
 ---@field outer boolean
 
 local SETUP_FIELDS = {
-	band = paint.bands,
+	lightness = paint.ranges,
 	linemodes = schema.any,
 	order = schema.whole,
 	scale = schema.enum { "linear", "log" },
@@ -143,7 +143,7 @@ function M.compile(opts, registry, is_yazis)
 		)
 	end
 	local o = SETUP(opts, root)
-	local columns = registry.open { scale = o.scale, band = o.band or {} }
+	local columns = registry.open { scale = o.scale, lightness = o.lightness or {} }
 	local wide = o.separator or { text = " " }
 
 	local linemodes, at = o.linemodes, root:key("linemodes")

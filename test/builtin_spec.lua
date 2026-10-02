@@ -16,7 +16,7 @@ end
 -- A `setup` that said nothing about scale, which is the only way a column
 -- definition's own is what decides. A local rather than written at the call,
 -- where a table constructor is checked for the fields its class requires.
-local NO_SCALE = { band = {} }
+local NO_SCALE = { lightness = {} }
 
 --- A built-in column's spec, with `opts` written at the use site.
 ---@param name string

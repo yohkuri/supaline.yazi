@@ -280,7 +280,7 @@ test("setup: a key `setup` itself does not take is refused", function()
 	-- And the five it does take still go through.
 	setup(
 		{ t = { { "size", width = 3 } } },
-		{ separator = "|", order = 1400, scale = "log", band = { fg = { from = 0.2, to = 0.9 } } }
+		{ separator = "|", order = 1400, scale = "log", lightness = { fg = { from = 0.2, to = 0.9 } } }
 	)
 end)
 
@@ -295,7 +295,7 @@ test("setup: a value under `setup`'s own keys is refused by `setup`'s name", fun
 	-- would take it for nothing written and hand back the default separator.
 	refuses({ linemodes = lm, separator = false }, "setup.separator: ")
 	refuses(only { "size", separator = false }, "setup.linemodes.t.separator: ")
-	refuses({ linemodes = lm, band = { fg = { from = 0.35 } } }, "setup.band.fg.to: ")
+	refuses({ linemodes = lm, lightness = { fg = { from = 0.35 } } }, "setup.lightness.fg.to: ")
 
 	setup({ t = { "size" } }, { scale = "linear" })
 	setup({ t = { "size" } }, { scale = "log" })
@@ -349,8 +349,8 @@ test("setup: a refused configuration leaves the running one alone", function()
 	local before = draw("good")
 	for _, case in ipairs {
 		{ { linemodes = { good = { "size" }, bad = { "size", parnet = { "mark" } } } }, "`parnet`" },
-		{ { linemodes = { good = { "size" } }, band = { fg = { from = 0.35 } } }, "setup.band.fg.to" },
-		-- The front door: a `<->` with no band behind it is the refusal rather
+		{ { linemodes = { good = { "size" } }, lightness = { fg = { from = 0.35 } } }, "setup.lightness.fg.to" },
+		-- The front door: a `<->` with no range behind it is the refusal rather
 		-- than a column drawn at a pair nobody chose.
 		{ { linemodes = { good = { { "size", style = "#0b3d91 <->" } } } }, "nothing defines `fg`" },
 	} do
@@ -562,22 +562,22 @@ test("theme: a ramp in the `[supaline]` section colours the whole range", functi
 	eq(style_in("detail", 2).fg, "#7fd4ff", "the largest")
 end)
 
-test("theme: a themed `<->` is drawn at the `fg` band `setup` defines, through a reload", function()
+test("theme: a themed `<->` is drawn at the `fg` range `setup` defines, through a reload", function()
 	-- A theme field is a bare string and a bare string is the `fg` key, so the
 	-- name is the whole of how the two files meet: a flavor writes the hue, a
 	-- reader's `setup` the two lightnesses. A reload resolves the styles again,
-	-- and has to find the bands still there. Written backwards, the way a light
+	-- and has to find the ranges still there. Written backwards, the way a light
 	-- terminal asks for it: `from` is what ratio 0 draws, so the pair carries
 	-- its own direction and `setup` takes it as written.
 	stub.th.supaline = { size = "#0b3d91 <->" }
-	setup({ detail = { { "size", width = 4 } } }, { band = { fg = { from = 0.90, to = 0.40 } } })
+	setup({ detail = { { "size", width = 4 } } }, { lightness = { fg = { from = 0.90, to = 0.40 } } })
 	eq(style_in("detail", 2).fg, "#0c4098", "the largest file is dark")
 	eq(style_in("detail", 1).fg, "#ccdfff", "and the smallest pale")
 	stub.fire("theme")
 	eq(style_in("detail", 2).fg, "#0c4098", "and again after a reload")
 end)
 
-test("setup: a `style` function's band name is read on the pass that draws", function()
+test("setup: a `style` function's range name is read on the pass that draws", function()
 	-- The name inside what a function returned is resolved on each build, not
 	-- kept from the first.
 	local asked = 0
@@ -585,7 +585,7 @@ test("setup: a `style` function's band name is read on the pass that draws", fun
 		asked = asked + 1
 		return "#0b3d91 <-> dim"
 	end
-	setup({ detail = { { "size", width = 4, style = style } } }, { band = { dim = { from = 0.50, to = 0.70 } } })
+	setup({ detail = { { "size", width = 4, style = style } } }, { lightness = { dim = { from = 0.50, to = 0.70 } } })
 	eq(style_in("detail", 2).fg, "#649cff", "`dim`, not `fg`")
 	stub.fire("theme")
 	eq(asked, 2, "called again on the rebuild")
@@ -713,18 +713,18 @@ test("plan: a theme reload cannot change what `setup` was handed", function()
 	eq(type(Linemode.extra), "function")
 end)
 
-test("plan: pane lists, mode separators and named bands are owned by the plan", function()
-	local band = { fg = { from = 0.35, to = 0.88 } }
+test("plan: pane lists, mode separators and named ranges are owned by the plan", function()
+	local lightness = { fg = { from = 0.35, to = 0.88 } }
 	local sep = { ":", style = { fg = "cyan" } }
 	---@type supaline.ColumnSpec[]
 	local current = { { "size", style = "#0b3d91 <->" }, "mtime" }
 	local spec = { current = current, separator = sep }
-	main.setup { band = band, linemodes = { snap = spec } }
-	local at = one_file("/bands", 20)
+	main.setup { lightness = lightness, linemodes = { snap = spec } }
+	local at = one_file("/ranges", 20)
 	cx.active.current = at
 	local before = styles_of("snap", at.files[1])
 
-	band.fg.from, band.fg.to = 0.1, 0.2
+	lightness.fg.from, lightness.fg.to = 0.1, 0.2
 	sep[1], sep.style.fg = "/", "red"
 	spec.current = { "count" }
 	current[1] = "permissions"
