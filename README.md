@@ -75,7 +75,7 @@ desc = "Linemode: size and mtime"
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
 | `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](#a-coloured-separator). |
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
-| `band`      | —           | The bands a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no band behind it is refused; see [`band`](#band). |
+| `lightness` | —           | The lightness ranges a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no range behind it is refused; see [`lightness`](#lightness). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children, as a whole number. |
 
 Those five are the whole of it: a key that is none of them — `scal`, `bnad`,
@@ -285,12 +285,12 @@ is padded inside the style, the way a string is, so a `bg` reaches the cells
 the padding added and not only the ones the text filled.
 
 `setup` snapshots the configuration structures it interprets: column lists,
-layout options, style tables, separators and named bands. Editing those inputs
-or re-registering a column takes effect on the next successful `setup`, not on
-a theme reload. Style functions are still called again on each theme event,
-so functions that read `th` continue to follow the theme. Functions and opaque
-values under a column's declared options are retained by reference; supaline
-does not recursively copy arbitrary user state.
+layout options, style tables, separators and named lightness ranges. Editing
+those inputs or re-registering a column takes effect on the next successful
+`setup`, not on a theme reload. Style functions are still called again on each
+theme event, so functions that read `th` continue to follow the theme. Functions
+and opaque values under a column's declared options are retained by reference;
+supaline does not recursively copy arbitrary user state.
 
 ## Built-in columns
 
@@ -660,14 +660,14 @@ flat colours. **And a gradient is one string**, in the spec as in the theme:
 `{ "#0b3d91", "#7fd4ff" }` is a table of keys nobody claims, and is refused as
 one.
 
-### A band around one colour
+### One colour across a lightness range
 
-One colour is a gradient too. `<->` spreads it across a fixed band of
-lightness — two Oklab lightnesses you name in [`band`](#band):
+One colour is a gradient too. `<->` spreads it across a fixed lightness range
+— two Oklab lightnesses you name in [`lightness`](#lightness):
 
 ```lua
 require("supaline"):setup {
-  band = { fg = { from = 0.40, to = 0.90 } },
+  lightness = { fg = { from = 0.40, to = 0.90 } },
   linemodes = {
     detail = { { "size", style = "#7fd4ff <->" } },
   },
@@ -682,20 +682,20 @@ size = "#7fd4ff <->"
 The marker is always there. `"#7fd4ff"` on its own is a flat colour, in a spec
 and in a theme alike, and the marker is what says otherwise.
 
-**Which band it asks for is the key it was written under.** A `<->` under `fg`
-takes the band called `fg`, one under `bg` the band called `bg`, and a string
+**Which range it asks for is the key it was written under.** A `<->` under `fg`
+takes the range called `fg`, one under `bg` the range called `bg`, and a string
 on its own is the `fg` key spelled short. To ask for another, name it after the
 marker:
 
 ```lua
-band = { fg = { from = 0.40, to = 0.90 }, bg = { from = 0.15, to = 0.40 } },
+lightness = { fg = { from = 0.40, to = 0.90 }, bg = { from = 0.15, to = 0.40 } },
 ...
-{ "size", style = { fg = "#7fd4ff <->", bg = "#7fd4ff <->" } }  -- two bands
+{ "size", style = { fg = "#7fd4ff <->", bg = "#7fd4ff <->" } }  -- two ranges
 { "size", style = "#7fd4ff <-> bg" }                            -- the `bg` one under `fg`
 ```
 
-**A `<->` with no band behind it is refused**, and the message carries a pair
-to paste. Nothing is filled in for you — see [`band`](#band) for why.
+**A `<->` with no range behind it is refused**, and the message carries a pair
+to paste. Nothing is filled in for you — see [`lightness`](#lightness) for why.
 
 **The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
 axis as the colour you wrote, so every step between them does too. As far as
@@ -708,37 +708,37 @@ Everything after that is the ramp above: interpolated in Oklab, quantised into
 
 Two things follow, and they are easier read here than found on screen:
 
-- **A dark colour is not a dim band.** Holding the hue caps how far an exposure
-  can lighten: `#0b3d91` stops at a lightness of 0.59, well short of the
-  `#7fd4ff` a two-ended ramp would have reached. Above that it keeps climbing
-  and gives up chroma to do it, so the band arrives at `#c2d9ff` with all 64
-  steps distinct.
+- **A dark colour is not a dim spread.** Holding the hue caps how far an
+  exposure can lighten: `#0b3d91` stops at a lightness of 0.59, well short of
+  the `#7fd4ff` a two-ended ramp would have reached. Above that it keeps
+  climbing and gives up chroma to do it, so the spread arrives at `#ccdfff`
+  with all 64 steps distinct.
 - **The colour you wrote supplies the hue and nothing else.** It is not put on
-  the band anywhere, and unless its own lightness happens to fall between the
-  two bounds it is not on the band at all. `#7fd4ff` sits at 0.83 and is drawn
-  from `#223f4d` up to `#a8e1ff`; `#000000` and `#ffffff` are both greys with
-  no hue to hold, and both give the same `#3a3a3a` to `#d7d7d7`.
+  the spread anywhere, and unless its own lightness happens to fall between the
+  two ends it is not on the spread at all. `#7fd4ff` sits at 0.83 and is drawn
+  from `#2a4c5e` up to `#b7e6ff`; `#000000` and `#ffffff` are both greys with
+  no hue to hold, and both give the same `#484848` to `#dedede`.
 
 Fixed is the point. Two columns spread from different colours put the same
-ratio at the same lightness, so a row reads across them — where a band widened
+ratio at the same lightness, so a row reads across them — where a range widened
 to take in whatever colour was written would leave the darkest cell of one
 column and the darkest cell of the next meaning different things.
 
-Two columns on *different* bands are two columns you can no longer read across,
-and naming a second band is how you say you meant that. `bg` is the clearest
-case: it is drawn beneath the row's own text rather than on the ground, so it
-is not the same question and not the same pair. Naming a band says a second
-place is being drawn to — not that your terminal changed between one column and
-the next.
+Two columns on *different* ranges are two columns you can no longer read across,
+and naming a second range is how you say you meant that. `bg` is the clearest
+case: it is drawn beneath the row's own text rather than on the ground, so it is
+not the same question and not the same pair. Naming a range says a second place
+is being drawn to — not that your terminal changed between one column and the
+next.
 
-### `band`
+### `lightness`
 
-Where those two lightnesses are. Bands live here by name, and a `<->` asks for
-one of them:
+Where those two lightnesses are. Lightness ranges live here by name, and a
+`<->` asks for one of them:
 
 ```lua
 require("supaline"):setup {
-  band = {
+  lightness = {
     fg  = { from = 0.40, to = 0.90 },
     bg  = { from = 0.15, to = 0.40 },
     dim = { from = 0.30, to = 0.55 },
@@ -751,18 +751,18 @@ require("supaline"):setup {
 its own direction. Names hold lowercase letters, digits and `_` — the same
 characters a column's name holds, so there is one shape to learn rather than
 two. The length limit on a column's name is not here, because that one is
-Yazi's field parser and nothing parses a band name. `from` and `to` are a
-band's own keys and cannot be a band's name.
+Yazi's field parser and nothing parses a range name. `from` and `to` are a
+range's own keys and cannot be a range's name.
 
 `fg` and `bg` are ordinary names with one convenience: they are what the two
 style keys are called, so a `<->` written under `fg` asks for `fg` without
 saying so. Any other name is asked for after the marker, `"#7fd4ff <-> dim"`.
 
-**Nothing is defined for you.** A `<->` with no band behind it is refused, and
-the message carries a pair to paste:
+**Nothing is defined for you.** A `<->` with no range behind it is refused,
+and the message carries a pair to paste:
 
 ```lua
-band = { fg = { from = 0.40, to = 0.90 } }
+lightness = { fg = { from = 0.40, to = 0.90 } }
 ```
 
 #### Why there is no default
@@ -779,7 +779,7 @@ by a tenth of the lightness scale — merely lighter than the ground is not
 enough, and a navy step at 0.35 sinks into Solarized dark's blue — and 0.90 was
 chosen by looking at nine hues on those five: at 0.95 red, orange and yellow
 pale into one another. That makes it a good place to start and a poor thing to
-apply to someone who never asked for it — a band would be drawn at a pair
+apply to someone who never asked for it — a column would be drawn at a pair
 nobody chose, and nothing on screen would say it was a knob. So supaline
 recommends it, and you write it.
 
@@ -788,10 +788,10 @@ recommends it, and you write it.
 Look at a pair before you keep it. This needs no Yazi and no restart:
 
 ```sh
-lua test/ramp.lua --band 0.40,0.90 "#0b3d91 <->"
+lua test/ramp.lua --lightness 0.40,0.90 "#0b3d91 <->"
 ```
 
-The solid line is the band itself — a stretch where several steps read as one
+The solid line is the spread itself — a stretch where several steps read as one
 colour shows up here and nowhere else. The digits under it are the same steps
 carrying text, which is the question a column actually asks: the low end has to
 be legible against your ground, not merely different from it.
@@ -802,7 +802,7 @@ light end glares. Both numbers are Oklab lightnesses, above 0 and at most 1.
 **On a light terminal, write the pair backwards:**
 
 ```lua
-band = { fg = { from = 0.90, to = 0.40 } }
+lightness = { fg = { from = 0.90, to = 0.40 } }
 ```
 
 Ratio 0 is then the pale end and ratio 1 the dark one, and nothing else
@@ -811,7 +811,7 @@ white and on Solarized light, 0.90 reads, though narrowly — 0.85 reads easily,
 and is where to move `from` if 0.90 does not — and 0.35 at the dark end muddies
 red, orange and yellow together.
 
-A band under `bg` wants a different pair rather than a reversed one: it is
+A range under `bg` wants a different pair rather than a reversed one: it is
 drawn *beneath* the row's own text, so both of its ends have to keep that text
 readable, and supaline can see neither the text nor the ground. There is no
 recommendation for that one at all — `ramp.lua` and your own screen are the
@@ -860,11 +860,11 @@ mtime = "#a6e3a1 <->"
 owner = { fg = "green", bold = true }
 ```
 
-A **band** in a theme asks for the band called `fg`, because a field holds one
-value and a bare string is the `fg` key: `mtime` above is drawn at whatever
-`band.fg` in your `setup` says, and is refused if you defined none. That is the
-division the two files are for — a flavour knows its own hues, and only you
-know the ground they will be drawn on.
+A **spread** in a theme asks for the lightness range called `fg`, because a
+field holds one value and a bare string is the `fg` key: `mtime` above is drawn
+at whatever `lightness.fg` in your `setup` says, and is refused if you defined
+none. That is the division the two files are for — a flavour knows its own hues,
+and only you know the ground they will be drawn on.
 
 A string is a colour or a gradient; a table is a style, with the keys
 [`style`](#style) takes, and it says what the same table says in a spec:
@@ -1031,12 +1031,12 @@ again on each theme event.
 | `config.lua` | Read `setup` and each linemode's panes into the plan, with the separator before every column. |
 | `column.lua` | Explicit registries; read a definition and a use of it, and merge the two into a column's plan. |
 | `style.lua` | Read one writer's style into a layer, gather a column's or a separator's writers into a slot, merge the layers, build `ui.Style`s; read a separator. |
-| `paint.lua` | What a colour key holds: a colour Yazi takes, a gradient, a band, and the bands by name. |
+| `paint.lua` | What a colour key holds: a colour Yazi takes, a gradient, a spread, and the lightness ranges by name. |
 | `appearance.lua` | Resolve every slot of a plan against one theme. |
 | `session.lua` | One `setup`'s lifetime: the appearance and prepared folders a theme event replaces, and drawing a row. |
 | `listing.lua` | Folder statistics, effective widths, contexts and the eight-folder cache. |
 | `layout.lua` | Measure, truncate, pad and style cells. |
-| `colour.lua` | Yazi-independent RGB, Oklab, bands and 64-step interpolation. |
+| `colour.lua` | Yazi-independent RGB, Oklab, spreads and 64-step interpolation. |
 | `schema.lua` | Paths, refusals and the parsers every table a user writes is read with. |
 | `report.lua` | Setup-scoped notification gates for a column misbehaving while drawing, and the one place a column's `render`, `width`, `stats` and `refresh` are called, under `pcall`. |
 | `builtin.lua` | Create built-in definitions for the ordinary registry, and `extremes`, which they share with user columns. |

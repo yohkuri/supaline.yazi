@@ -214,10 +214,10 @@ linemode = "c_hue"
 desc     = "supaline: a ramp that turns in hue"
 
 [[case]]
-id       = "c_band"
+id       = "c_spread"
 key      = "c b"
 folder   = "colour/ramp"
-linemode = "c_band"
+linemode = "c_spread"
 desc     = "supaline: a ramp derived from one colour"
 
 [[case]]

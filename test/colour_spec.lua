@@ -20,11 +20,11 @@ local X = schema.path("x")
 ---@return string
 local function hex(stop) return string.format("#%02x%02x%02x", stop[1], stop[2], stop[3]) end
 
---- Both ends of two bands, against each other.
+--- Both ends of two spreads, against each other.
 ---@param a integer[][]
 ---@param b integer[][]
 ---@param why string?
-local function same_band(a, b, why)
+local function same_spread(a, b, why)
 	for i = 1, 2 do
 		eq(hex(a[i]), hex(b[i]), why)
 	end
@@ -59,25 +59,25 @@ local ATTRS = {
 }
 
 --- The pair `paint.recommended` hands a reader to paste, which is what every
---- band measured below was measured at. Written out rather than taken from
+--- spread measured below was measured at. Written out rather than taken from
 --- that function, so a change to the recommendation fails these tests rather
 --- than moving them along with it.
----@type supaline.Band
+---@type supaline.LightnessRange
 local REC = { from = 0.40, to = 0.90 }
 
----@type supaline.Bands
-local BANDS = { fg = REC, bg = REC }
+---@type supaline.LightnessRanges
+local RANGES = { fg = REC, bg = REC }
 
---- `#0b3d91` as `colour.band` takes it.
+--- `#0b3d91` as `colour.spread` takes it.
 ---@type integer[]
 local NAVY = { 0x0b, 0x3d, 0x91 }
 
---- `paint.stops` for `value` against `bands` -- `REC` as `fg` unless given --
+--- `paint.stops` for `value` against `ranges` -- `REC` as `fg` unless given --
 --- under the `fg` key.
 ---@param value any
----@param bands supaline.Bands?
+---@param ranges supaline.LightnessRanges?
 ---@return integer[][]
-local function stops(value, bands) return paint.stops(value, X, bands or { fg = REC }, "fg") end
+local function stops(value, ranges) return paint.stops(value, X, ranges or { fg = REC }, "fg") end
 
 -- --- one colour ------------------------------------------------------------
 
@@ -113,9 +113,9 @@ test("colour: the arithmetic needs no Yazi at all", function()
 	-- arithmetic can come to depend on Yazi's parser.
 	_G.ui = nil
 	local pure = dofile(ROOT .. "/colour.lua")
-	local ramp = pure.ramp(pure.band(assert(pure.rgb("#0b3d91")), REC))
+	local ramp = pure.ramp(pure.spread(assert(pure.rgb("#0b3d91")), REC))
 	eq(#ramp, pure.STEPS)
-	eq(table.concat(ramp), table.concat(colour.ramp(colour.band(NAVY, REC))))
+	eq(table.concat(ramp), table.concat(colour.ramp(colour.spread(NAVY, REC))))
 end)
 
 -- --- one writer's layer ----------------------------------------------------
@@ -124,10 +124,10 @@ end)
 --- Never `false` here: that is the one input `style.layer` answers with itself,
 --- and the test that plants it asserts on the value directly.
 ---@param value any
----@param bands supaline.Bands? `BANDS` when omitted
+---@param ranges supaline.LightnessRanges? `RANGES` when omitted
 ---@return supaline.Layer
-local function layer(value, bands)
-	local got = style.layer(value, X, paint.painter(bands or BANDS))
+local function layer(value, ranges)
+	local got = style.layer(value, X, paint.painter(ranges or RANGES))
 	if not got then
 		error("a layer rather than `false`")
 	end
@@ -139,7 +139,7 @@ test("layer: nothing written is an empty layer, and `false` is the layer itself"
 	-- Not a layer of eleven `false`s. An attribute's `false` is the attribute
 	-- taken off, where `style = false` asks for a cell drawn in whatever the row
 	-- already carries. `merge` is what reads it, so it is handed on as it is.
-	eq(style.layer(false, X, paint.painter(BANDS)), false)
+	eq(style.layer(false, X, paint.painter(RANGES)), false)
 end)
 
 test("layer: a string is the `fg`, flat or a gradient", function()
@@ -149,7 +149,7 @@ test("layer: a string is the `fg`, flat or a gradient", function()
 	-- A gradient is kept as its stops, parsed on the way in so that a bad
 	-- endpoint is refused while the layer is read rather than while it draws.
 	eq(#layer("#0b3d91 -> #7fd4ff").fg, 2)
-	eq(#layer("#7fd4ff <->").fg, 2, "a band derives both of its ends")
+	eq(#layer("#7fd4ff <->").fg, 2, "a spread derives both of its ends")
 
 	throws(function() layer("#gg0000") end, "is not a colour Yazi accepts")
 	throws(function() layer("cyan -> #7fd4ff") end, "cannot be a gradient endpoint")
@@ -231,7 +231,7 @@ test("layer: what is not a style at all is refused", function()
 	-- mlua gives all of Yazi's userdata `__metatable = false`, measured on
 	-- 26.9.1, so `getmetatable` cannot tell a Span from a Style.
 	throws(
-		function() style.layer(ui.Span("x"), schema.path("setup.linemodes.detail[1].style"), paint.painter(BANDS)) end,
+		function() style.layer(ui.Span("x"), schema.path("setup.linemodes.detail[1].style"), paint.painter(RANGES)) end,
 		"setup.linemodes.detail[1].style: "
 	)
 	-- The harness's renderable is a Lua table where Yazi's is userdata, so it
@@ -439,10 +439,10 @@ test("stops: a name cannot anchor a ramp", function()
 	throws(function() stops("129 -> #7fd4ff") end, "cannot be a gradient endpoint")
 end)
 
-test("stops: one colour is a band with the marker, and a refusal without it", function()
+test("stops: one colour is a spread with the marker, and a refusal without it", function()
 	-- Under `fg` a bare colour is a flat colour and has to go on meaning one,
-	-- so the marker is the only spelling of a band.
-	same_band(stops("#7fd4ff <->"), colour.band({ 0x7f, 0xd4, 0xff }, REC))
+	-- so the marker is the only spelling of a spread.
+	same_spread(stops("#7fd4ff <->"), colour.spread({ 0x7f, 0xd4, 0xff }, REC))
 	throws(
 		function() stops("#7fd4ff") end,
 		"is one colour, and a gradient needs two ends",
@@ -452,19 +452,19 @@ test("stops: one colour is a band with the marker, and a refusal without it", fu
 end)
 
 test("stops: `<->` spreads one colour and says so when handed two", function()
-	throws(function() stops("#0b3d91 <-> #7fd4ff") end, "is not a band")
-	throws(function() stops("<->") end, "is not a band")
+	throws(function() stops("#0b3d91 <-> #7fd4ff") end, "is not a range name")
+	throws(function() stops("<->") end, "does not spread a colour")
 	-- Only the marker is removed, so what is left gets the message a bad
 	-- colour gets.
 	throws(function() stops("cyan <->") end, "cannot be a gradient endpoint")
 end)
 
--- --- a band ----------------------------------------------------------------
+-- --- a spread --------------------------------------------------------------
 
-test("band: both ends are fixed, whatever the colour's own lightness", function()
+test("spread: both ends are fixed, whatever the colour's own lightness", function()
 	-- Every value below is from the arithmetic in `colour.lua`; the same
 	-- numbers come out of the derivation by hand. `#e8f4ff` sits at 0.96 and
-	-- `#0b1a2f` at 0.22, outside the band either way, and neither appears on
+	-- `#0b1a2f` at 0.22, outside the range either way, and neither appears on
 	-- it: what the colour supplies is the hue.
 	local light = stops("#e8f4ff <->")
 	eq(hex(light[1]) .. " " .. hex(light[2]), "#44484c #d5e0ea")
@@ -472,7 +472,7 @@ test("band: both ends are fixed, whatever the colour's own lightness", function(
 	eq(hex(dark[1]) .. " " .. hex(dark[2]), "#284875 #cae0ff")
 end)
 
-test("band: past the exposure's reach, lightness is bought with chroma", function()
+test("spread: past the exposure's reach, lightness is bought with chroma", function()
 	-- The exposure alone stops where the strongest channel hits 255: `#0b3d91`
 	-- reaches 0.59 and no further. Above it the hue is held and the chroma
 	-- spent, which is the only thing that can be given up without turning the
@@ -487,8 +487,8 @@ test("band: past the exposure's reach, lightness is bought with chroma", functio
 	eq(grey[2], grey[3])
 end)
 
-test("band: a dark colour spreads upwards, every step a colour of its own", function()
-	-- `#0b3d91` sits at 0.39, below the floor of 0.40, so a band anchored at the
+test("spread: a dark colour spreads upwards, every step a colour of its own", function()
+	-- `#0b3d91` sits at 0.39, below the floor of 0.40, so a spread anchored at the
 	-- colour would have no room below it at all and would have to start above
 	-- the colour itself. Taking the room above it spreads it floor to ceiling.
 	local r = colour.ramp(stops("#0b3d91 <->"))
@@ -503,17 +503,17 @@ test("band: a dark colour spreads upwards, every step a colour of its own", func
 	eq(r[#r], "#ccdfff")
 end)
 
-test("band: black is a grey band rather than a refusal", function()
-	-- A grey has no hue to hold at any lightness, and the band is drawn at the
+test("spread: black is a grey spread rather than a refusal", function()
+	-- A grey has no hue to hold at any lightness, and the spread is drawn at the
 	-- two the user asked for regardless, so the three greys furthest apart in
-	-- sRGB come out as the same band and none of them is a special case.
+	-- sRGB come out as the same spread and none of them is a special case.
 	local black = stops("#000000 <->")
-	same_band(black, stops("#767676 <->"), "black against a mid grey")
-	same_band(black, stops("#ffffff <->"), "black against white")
+	same_spread(black, stops("#767676 <->"), "black against a mid grey")
+	same_spread(black, stops("#ffffff <->"), "black against white")
 	eq(hex(black[1]) .. " " .. hex(black[2]), "#484848 #dedede")
 end)
 
-test("band: the pair is directed, so writing it backwards inverts the ramp", function()
+test("spread: the pair is directed, so writing it backwards inverts the ramp", function()
 	-- What a light terminal needs, and the reason the two numbers are `from`
 	-- and `to` rather than a floor and a ceiling with a boolean beside them.
 	-- The pair is the recommended one, so the light pair draws the dark one's
@@ -526,7 +526,7 @@ test("band: the pair is directed, so writing it backwards inverts the ramp", fun
 	end
 end)
 
-test("recommended: a fresh table, so two callers cannot write to one band", function()
+test("recommended: a fresh table, so two callers cannot write to one range", function()
 	local a, b = paint.recommended(), paint.recommended()
 	eq(a.from .. " " .. a.to, REC.from .. " " .. REC.to)
 	a.from = 0.1
@@ -534,148 +534,151 @@ test("recommended: a fresh table, so two callers cannot write to one band", func
 	eq(paint.recommended().from, REC.from, "and neither did the next one")
 end)
 
--- --- bands by name ---------------------------------------------------------
+-- --- ranges by name ---------------------------------------------------------
 
-test("bands: a `setup` that named no band defines none", function()
-	-- There is no name a band can be asked for by that answers without the
+test("ranges: a `setup` that named no range defines none", function()
+	-- There is no name a range can be asked for by that answers without the
 	-- user having said so, which is the whole of what "no default" means.
-	local none = paint.bands(nil, X)
+	local none = paint.ranges(nil, X)
 	eq(next(none), nil)
 	throws(function() stops("#0b3d91 <->", none) end, "nothing defines `fg`")
 end)
 
-test("bands: the refusal carries the pair to paste and says nothing is defined", function()
+test("ranges: the refusal carries the pair to paste and says nothing is defined", function()
 	-- This message is the feature's front door: what a reader meets the first
 	-- time they write `<->`. So it carries the two numbers, the name the key
 	-- asked for, and the fact that supaline is not withholding a better answer.
 	throws(
 		function() stops("#0b3d91 <->", {}) end,
 		"{ from = 0.40, to = 0.90 }",
-		"band = { fg = ",
+		"lightness = { fg = ",
 		"cannot see that ground",
-		"No band is defined yet"
+		"No lightness range is defined yet"
 	)
 end)
 
-test("bands: the refusal lists what is defined, which is where a typo shows up", function()
+test("ranges: the refusal lists what is defined, which is where a typo shows up", function()
 	-- No sweep can refuse `bgg`, because every name is a name somebody may have
 	-- meant; this list, read at the use site, stands in for one.
-	local defined = paint.bands({ fg = REC, bgg = REC }, X)
+	local defined = paint.ranges({ fg = REC, bgg = REC }, X)
 	throws(function() paint.stops("#0b3d91 <->", X, defined, "bg") end, "Defined: `bgg`, `fg`")
 end)
 
-test("bands: a band is asked for by its key, or by the name after the marker", function()
+test("ranges: a range is asked for by its key, or by the name after the marker", function()
 	local dark, dim = { from = 0.1, to = 0.3 }, { from = 0.2, to = 0.45 }
-	local bands = paint.bands({ fg = REC, bg = dark, dim = dim }, X)
+	local ranges = paint.ranges({ fg = REC, bg = dark, dim = dim }, X)
 	-- A `supaline.Paint` is a flat colour or a ramp's stops; the key it was read
-	-- off is what narrows it to a band here.
-	local both = layer({ fg = "#0b3d91 <->", bg = "#0b3d91 <->" }, bands)
-	same_band(both.fg --[[@as integer[][] ]], colour.band(NAVY, REC))
-	same_band(both.bg --[[@as integer[][] ]], colour.band(NAVY, dark))
-	same_band(layer("#0b3d91 <->", bands).fg --[[@as integer[][] ]], colour.band(NAVY, REC), "a bare string is `fg`")
-	same_band(
-		layer({ bg = "#0b3d91 <-> dim" }, bands).bg --[[@as integer[][] ]],
-		colour.band(NAVY, dim),
+	-- off is what narrows it to a spread here.
+	local both = layer({ fg = "#0b3d91 <->", bg = "#0b3d91 <->" }, ranges)
+	same_spread(both.fg --[[@as integer[][] ]], colour.spread(NAVY, REC))
+	same_spread(both.bg --[[@as integer[][] ]], colour.spread(NAVY, dark))
+	same_spread(layer("#0b3d91 <->", ranges).fg --[[@as integer[][] ]], colour.spread(NAVY, REC), "a bare string is `fg`")
+	same_spread(
+		layer({ bg = "#0b3d91 <-> dim" }, ranges).bg --[[@as integer[][] ]],
+		colour.spread(NAVY, dim),
 		"and a name after the marker wins over the key"
 	)
 end)
 
-test("bands: what follows the marker is a name, and a colour there says so", function()
+test("ranges: what follows the marker is a name, and a colour there says so", function()
 	local one = { fg = REC }
-	throws(function() stops("#0b3d91 <-> #7fd4ff", one) end, "is not a band name", "write them with `->`")
-	throws(function() stops("#0b3d91 <-> 0.4", one) end, "is not a band name")
-	throws(function() stops("#0b3d91 <-> My_Band", one) end, "is not a band name")
-	-- `from` and `to` pass the name shape and `bands` refuses to define them,
-	-- so the undefined-band refusal would tell the reader to write what
+	throws(function() stops("#0b3d91 <-> #7fd4ff", one) end, "is not a range name", "write them with `->`")
+	throws(function() stops("#0b3d91 <-> 0.4", one) end, "is not a range name")
+	throws(function() stops("#0b3d91 <-> My_Range", one) end, "is not a range name")
+	-- `from` and `to` pass the name shape and `ranges` refuses to define them,
+	-- so the undefined-range refusal would tell the reader to write what
 	-- `setup` turns away. Caught first, in the words `setup` uses.
-	throws(function() stops("#0b3d91 <-> from", one) end, "one of a band's own two keys")
-	throws(function() stops("#0b3d91 <-> to", one) end, "Call the band something else", "`to`")
+	throws(function() stops("#0b3d91 <-> from", one) end, "one of a range's own two keys")
+	throws(function() stops("#0b3d91 <-> to", one) end, "Call the range something else", "`to`")
 end)
 
-test("bands: a name Lua will not take bare is quoted where the refusal says to write it", function()
+test("ranges: a name Lua will not take bare is quoted where the refusal says to write it", function()
 	-- `end` and `2x` are names `setup` defines when bracketed, and a refusal a
-	-- reader pastes has to be a setting: `band = { end = ... }` is a syntax
+	-- reader pastes has to be a setting: `lightness = { end = ... }` is a syntax
 	-- error. An ordinary name stays bare, so the common message does not read
 	-- as the awkward case.
 	for _, name in ipairs { "end", "2x" } do
-		local defined = paint.bands({ [name] = REC }, X)
+		local defined = paint.ranges({ [name] = REC }, X)
 		eq(next(defined), name, "`setup` takes " .. name)
-		same_band(stops("#0b3d91 <-> " .. name, defined), colour.band(NAVY, REC), name .. " draws")
-		throws(function() stops("#0b3d91 <-> " .. name, {}) end, 'band = { ["' .. name .. '"] = ')
+		same_spread(stops("#0b3d91 <-> " .. name, defined), colour.spread(NAVY, REC), name .. " draws")
+		throws(function() stops("#0b3d91 <-> " .. name, {}) end, 'lightness = { ["' .. name .. '"] = ')
 	end
-	throws(function() stops("#0b3d91 <-> dim", {}) end, "band = { dim = ")
-	throws(function() stops("#0b3d91 <-> _x", {}) end, "band = { _x = ")
+	throws(function() stops("#0b3d91 <-> dim", {}) end, "lightness = { dim = ")
+	throws(function() stops("#0b3d91 <-> _x", {}) end, "lightness = { _x = ")
 end)
 
-test("bands: a band's name is a column's rule, without the cap that is Yazi's", function()
+test("ranges: a range's name is a column's rule, without the cap that is Yazi's", function()
 	-- The two `NAME` literals live apart on purpose -- a column's is Yazi's
-	-- theme rule and a band's is this plugin's own -- and nothing but this says
+	-- theme rule and a range's is this plugin's own -- and nothing but this says
 	-- they have come apart.
 	local registry = require(".column").new_registry()
-	for _, name in ipairs { "2x", "_x", "x_", "my_band2" } do
+	for _, name in ipairs { "2x", "_x", "x_", "my_range2" } do
 		registry.register(name, { render = function() return "x" end })
-		eq(next(paint.bands({ [name] = REC }, X)), name, name .. " names both a column and a band")
+		eq(next(paint.ranges({ [name] = REC }, X)), name, name .. " names both a column and a range")
 	end
-	for _, name in ipairs { "my-band", "MyBand" } do
-		throws(function() paint.bands({ [name] = REC }, X) end, "is not a band name")
+	for _, name in ipairs { "my-range", "MyRange" } do
+		throws(function() paint.ranges({ [name] = REC }, X) end, "is not a range name")
 	end
-	throws(function() paint.bands({ [1] = REC }, X) end, "is not a band name")
+	throws(function() paint.ranges({ [1] = REC }, X) end, "is not a range name")
 
 	-- A column name is capped at 20 because a `[supaline]` field is; nothing
-	-- parses a band name, so nothing caps it.
+	-- parses a range name, so nothing caps it.
 	local long = string.rep("b", 21)
 	throws(function()
 		registry.register(long, { render = function() return "x" end })
 	end, "cannot be a column name")
-	eq(next(paint.bands({ [long] = REC }, X)), long, "a band of 21 characters is defined")
+	eq(next(paint.ranges({ [long] = REC }, X)), long, "a range name of 21 characters is defined")
 end)
 
-test("bands: a band's own keys are not a band, nor a band's name", function()
-	-- The flat pair written where a table of bands goes is what a reader writes
-	-- who takes `band` for one band. Refused rather than read as `fg`, and the
+test("ranges: a range's own keys are not a range, nor a range's name", function()
+	-- The flat pair written where a table of ranges goes is what a reader writes
+	-- who takes `lightness` for one range. Refused rather than read as `fg`, and the
 	-- message names the replacement.
 	throws(
-		function() paint.bands({ from = 0.35, to = 0.88 }, X) end,
-		"are a band's own keys",
-		"band = { fg = { from = 0.40, to = 0.90 } }"
+		function() paint.ranges({ from = 0.35, to = 0.88 }, X) end,
+		"are a range's own keys",
+		"lightness = { fg = { from = 0.40, to = 0.90 } }"
 	)
-	throws(function() paint.bands({ from = 0.35 }, X) end, "are a band's own keys")
+	throws(function() paint.ranges({ from = 0.35 }, X) end, "are a range's own keys")
 	-- A table under `to` is not the flat pair, and is refused for its own
 	-- reason.
-	throws(function() paint.bands({ to = REC }, X) end, "cannot also be a band's name")
-	throws(function() paint.bands({ from = REC }, X) end, "cannot also be a band's name")
+	throws(function() paint.ranges({ to = REC }, X) end, "cannot also be a range's name")
+	throws(function() paint.ranges({ from = REC }, X) end, "cannot also be a range's name")
 end)
 
-test("bands: each band is checked, named, and in the same order every run", function()
+test("ranges: each range is checked, named, and in the same order every run", function()
 	throws(
-		function() paint.bands({ fg = { from = 0, to = 0.88 } }, schema.path("setup.band")) end,
-		"setup.band.fg.from: ",
+		function() paint.ranges({ fg = { from = 0, to = 0.88 } }, schema.path("setup.lightness")) end,
+		"setup.lightness.fg.from: ",
 		"must be above 0"
 	)
-	throws(function() paint.bands({ dim = "dark" }, X) end, "x.dim: must be a table")
+	throws(function() paint.ranges({ dim = "dark" }, X) end, "x.dim: must be a table")
 	-- Read in the order of their names, so fixing the one named does not reveal
 	-- a different one first on the next run.
 	for _ = 1, 8 do
-		throws(function() paint.bands({ fg = { from = 0 }, bg = "dark" }, X) end, "x.bg: must be a table")
+		throws(function() paint.ranges({ fg = { from = 0 }, bg = "dark" }, X) end, "x.bg: must be a table")
 	end
 end)
 
 test("bounds: an end outside `(0, 1]` is refused, NaN included", function()
-	-- 0 is black at every hue, so a band with an end there has one no colour
+	-- 0 is black at every hue, so a range with an end there has one no colour
 	-- reaches; above 1 is off the end of the space. A NaN answers false to both
 	-- comparisons, which is why the check is written `not (v > 0 and v <= 1)`.
-	for _, band in ipairs {
+	for _, range in ipairs {
 		{ from = 0, to = 0.88 },
 		{ from = 0.35, to = 1.2 },
 		{ from = -0.1, to = 0.88 },
 		{ from = 0 / 0, to = 0.88 },
 	} do
-		throws(function() paint.bounds(band, X) end, "must be above 0")
+		throws(function() paint.bounds(range, X) end, "must be above 0")
 	end
-	throws(function() paint.bounds({ from = 2, to = 0.5 }, schema.path("setup.band.fg")) end, "setup.band.fg.from: ")
+	throws(
+		function() paint.bounds({ from = 2, to = 0.5 }, schema.path("setup.lightness.fg")) end,
+		"setup.lightness.fg.from: "
+	)
 end)
 
-test("bounds: a band that is not two numbers is refused", function()
+test("bounds: a range that is not two numbers is refused", function()
 	throws(function() paint.bounds({ to = 0.88 }, X) end, "x.from: must be an Oklab lightness")
 	throws(function() paint.bounds({ from = 0.35 }, X) end, "x.to: must be an Oklab lightness")
 	throws(function() paint.bounds({ from = "dark", to = 0.88 }, X) end, "x.from: must be an Oklab lightness")
@@ -686,8 +689,8 @@ test("bounds: a band that is not two numbers is refused", function()
 end)
 
 test("bounds: two ends at one lightness are taken rather than refused", function()
-	local band = paint.bounds({ from = 0.6, to = 0.6 }, X)
-	eq(band.from .. " " .. band.to, "0.6 0.6")
+	local range = paint.bounds({ from = 0.6, to = 0.6 }, X)
+	eq(range.from .. " " .. range.to, "0.6 0.6")
 	-- An equality test reads like the right refusal and would catch this
 	-- spelling and not the one beside it, which draws the identical column.
 	-- Where flat stops being flat is the writer's judgement.

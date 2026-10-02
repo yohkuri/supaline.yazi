@@ -347,7 +347,7 @@ and takes you to the folder that case is read in.
 | Key   | Draws                               | Goes to    |
 | ----- | ----------------------------------- | ---------- |
 | `c r` | a ramp climbing in every channel     | `g 3`      |
-| `c b` | a band derived from one colour       | `g 3`      |
+| `c b` | one colour spread over a range       | `g 3`      |
 | `c h` | a ramp that turns in hue             | `g 3`      |
 | `c g` | a ramp over a background, and as one | `g 3`      |
 | `c a` | a bold over a colour it did not pick | `g 3`      |
@@ -377,7 +377,7 @@ where a colour written wins over `[supaline]`'s, so they hold still while
 `manual.py` prints every ramp the fixture can draw, whole, before it hands over
 the screen: two lines each, one cell per step.
 
-The **solid** line is the gradient by itself. A band, a reversal, or a stretch
+The **solid** line is the gradient by itself. Banding, a reversal, or a stretch
 where several steps read as one colour shows up there and nowhere else — a
 linemode can only draw the steps some folder's values happen to land on, and
 even `colour/ramp` needs scrolling to reach all of them.
@@ -390,7 +390,7 @@ nothing here measures the terminal.
 
 ```sh
 lua test/ramp.lua "#0b3d91 -> #7fd4ff"    # any ramp you like, no Yazi needed
-lua test/ramp.lua --band 0.90,0.40 "#0b3d91 <->"   # ... at other bounds
+lua test/ramp.lua --lightness 0.90,0.40 "#0b3d91 <->"   # ... at other bounds
 ```
 
 Any Lua will do — it reads `colour.lua` and never asks Yazi anything, so this
@@ -430,32 +430,32 @@ row whose two cells disagree. So what is left here is only ever how the climb
 looks: it already knows the steps are all different and in order, and cannot
 know whether they read as an even climb.
 
-### `c b` — a band nobody wrote the ends of
+### `c b` — a gradient nobody wrote the ends of
 
 In `g 3`, the same rows on `#0b3d91 <->`. One colour, spread across the two
-fixed lightnesses the fixture's `band.fg` gives it. Press `c r` and `c b` one
+fixed lightnesses the fixture's `lightness.fg` gives it. Press `c r` and `c b` one
 after the other — the same rows, the same navy, endpoints chosen by hand and
 endpoints derived.
 
-The two columns are the same band asked for two ways: the first takes the name
+The two columns are the same spread asked for two ways: the first takes the name
 off the key it is written under, the second writes `<-> both` and names it. They
 have to be indistinguishable, and `e2e.py` reads both with one check.
 
 - **Is the spread worth drawing?** `e2e.py` already knows every step differs
   from the one above it, the same way it knows for `c r`. What it cannot ask is
-  whether a band this wide separates the rows enough to be read as a gradient,
+  whether a range this wide separates the rows enough to be read as a gradient,
   or whether the derivation merely produced 64 shades of one colour.
 - **The bottom row against your own terminal.** The fixture writes 0.40, the
   pair supaline recommends, picked on the assumption of a dark background —
   and yours is the one it was picked for or it is not. If the first rows are
   sunk into the background, that assumption has just failed here — raise the
-  `from` of `band.fg` and look again with
-  `lua test/ramp.lua --band 0.45,0.90 "#0b3d91 <->"`, which needs no Yazi.
+  `from` of `lightness.fg` and look again with
+  `lua test/ramp.lua --lightness 0.45,0.90 "#0b3d91 <->"`, which needs no Yazi.
   Nothing supaline ships applies that pair to you; this screen is where you
   find out what to write instead.
-- **A light terminal instead.** Then the band is upside down rather than
+- **A light terminal instead.** Then the spread is upside down rather than
   slightly wrong, and the pair goes backwards:
-  `band = { fg = { from = 0.90, to = 0.40 } }`. On a light screen 0.90 reads
+  `lightness = { fg = { from = 0.90, to = 0.40 } }`. On a light screen 0.90 reads
   only narrowly, and 0.85 is where to move `from` if it does not.
 - **The top.** It climbs past where `c r` ends and gives up chroma to get
   there, so it is paler than the navy it came from and paler than `c r`'s own

@@ -2,16 +2,16 @@
 ---
 ---     lua test/ramp.lua "#0b3d91 -> #7fd4ff"
 ---     lua test/ramp.lua "#111 -> #222" "#0b3d91 -> #ffd400 -> #7fd4ff"
----     lua test/ramp.lua --band 0.90,0.40 "#0b3d91 <->"
+---     lua test/ramp.lua --lightness 0.90,0.40 "#0b3d91 <->"
 ---
---- `--band` is one band of `setup`'s own option, `from` first, and it is here
---- because the two numbers cannot be settled any other way: one end of the
---- recommended pair was measured against five terminal backgrounds and the
---- other was chosen by looking at bands drawn the way this draws them. Every user has to do
---- the same, since supaline applies that pair to nobody, and the alternative
---- is editing `init.lua` and restarting Yazi per guess.
+--- `--lightness` is one range of `setup`'s own option, `from` first, and it is
+--- here because the two numbers cannot be settled any other way: one end of
+--- the recommended pair was measured against five terminal backgrounds and the
+--- other was chosen by looking at spreads drawn the way this draws them. Every
+--- user has to do the same, since supaline applies that pair to nobody, and
+--- the alternative is editing `init.lua` and restarting Yazi per guess.
 ---
---- Omitting it draws the recommended pair, which is what the refusal a band
+--- Omitting it draws the recommended pair, which is what the refusal a range
 --- with no definition earns tells the reader to paste -- so what they see here
 --- first is what they were just told to write.
 ---
@@ -21,8 +21,8 @@
 ---
 --- A linemode can only ever show the steps some folder's values happen to land
 --- on -- `colour/ramp` is built to land on all of them, and even there you
---- scroll. This shows every step side by side, which is how a band, or a
---- stretch where several steps read as one colour, becomes obvious rather than
+--- scroll. This shows every step side by side, which is how visible banding,
+--- or a stretch where several steps read as one colour, becomes obvious rather than
 --- suspected.
 ---
 --- What it cannot say is whether supaline puts a row on the right step: it
@@ -68,42 +68,42 @@ end
 
 --- Two lines per ramp, because they answer different questions.
 ---
---- The solid one is about the gradient: a band, a reversal, a stretch of steps
+--- The solid one is about the gradient: banding, a reversal, a stretch of steps
 --- that read as one colour. The digits are about the column -- every step has
 --- to carry *text* legibly against the terminal's own background, and a ramp
 --- whose low end is as dark as the terminal is a correct gradient and an
 --- unreadable column. Counting in tens is what lets a reader say which step
 --- stopped being readable rather than "somewhere near the bottom".
 ---@param value string
----@param bands supaline.Bands
-local function show(value, bands)
-	local ramp = colour.ramp(paint.stops(value, HERE_AT, bands, "fg"))
+---@param ranges supaline.LightnessRanges
+local function show(value, ranges)
+	local ramp = colour.ramp(paint.stops(value, HERE_AT, ranges, "fg"))
 	print("")
 	print(string.format("  %s    %d steps, %s to %s", value, #ramp, ramp[1], ramp[#ramp]))
 	print("  " .. strip(ramp, function() return "█" end))
 	print("  " .. strip(ramp, function(i) return tostring((i - 1) % 10) end))
 end
 
--- `--band` taken out of the list first, so the loop below stays a loop over
+-- `--lightness` taken out of the list first, so the loop below stays a loop over
 -- ramps, and taken wherever it appears: a reader iterating on the bounds is as
 -- likely to append the flag as to lead with it, and a positional rule would
 -- answer that by refusing the ramp as a colour. The pair goes through
 -- `paint.bounds` rather than being checked here, which is the point of that
--- function living in `paint.lua`: what this prints for `--band 0,1` is what a
+-- function living in `paint.lua`: what this prints for `--lightness 0,1` is what a
 -- user's `init.lua` would have said.
-local values, band = {}, paint.recommended()
+local values, range = {}, paint.recommended()
 local i = 1
 while arg[i] do
-	if arg[i] == "--band" then
+	if arg[i] == "--lightness" then
 		local pair = arg[i + 1]
 		local from, to = (pair or ""):match("^%s*([^,%s]+)%s*,%s*([^,%s]+)%s*$")
 		if not from then
-			io.stderr:write("test/ramp.lua: --band takes two lightnesses, as `--band 0.40,0.90`\n")
+			io.stderr:write("test/ramp.lua: --lightness takes two lightnesses, as `--lightness 0.40,0.90`\n")
 			os.exit(2)
 		end
-		-- The unparsed string rather than the nil it becomes, so a `--band a,b`
+		-- The unparsed string rather than the nil it becomes, so a `--lightness a,b`
 		-- is refused in the words the user typed.
-		band = paint.bounds({ from = tonumber(from) or from, to = tonumber(to) or to }, schema.path("--band"))
+		range = paint.bounds({ from = tonumber(from) or from, to = tonumber(to) or to }, schema.path("--lightness"))
 		i = i + 2
 	else
 		values[#values + 1] = arg[i]
@@ -112,24 +112,24 @@ while arg[i] do
 end
 
 if not values[1] then
-	io.stderr:write('usage: lua test/ramp.lua [--band FROM,TO] "#0b3d91 -> #7fd4ff" [...]\n')
+	io.stderr:write('usage: lua test/ramp.lua [--lightness FROM,TO] "#0b3d91 -> #7fd4ff" [...]\n')
 	os.exit(2)
 end
 
--- One band under every name a `<->` here could ask for, built once the pair is
+-- One range under every name a `<->` here could ask for, built once the pair is
 -- known. This tool draws the pair it was given, so which name a string happens
 -- to write is not a question it has any business asking -- where a user's
 -- `setup` has exactly the names they wrote and a `<->` naming another is the
 -- refusal they want.
----@type supaline.Bands
-local bands = setmetatable({}, { __index = function() return band end })
+---@type supaline.LightnessRanges
+local ranges = setmetatable({}, { __index = function() return range end })
 
 local failed = false
 for n = 1, #values do
 	-- Each ramp on its own, so one that cannot resolve does not take the rest
 	-- of the screen with it. The message is the plugin's, and it is the same
 	-- one a user gets from a `theme.toml` that says the same thing.
-	local ok, err = pcall(show, values[n], bands)
+	local ok, err = pcall(show, values[n], ranges)
 	if not ok then
 		io.stderr:write(tostring(err) .. "\n")
 		failed = true

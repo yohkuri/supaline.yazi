@@ -16,7 +16,7 @@ local AT = schema.path("spec")
 
 --- The `setup` a case is compiled under unless it names another.
 ---@type supaline.Cfg
-local CFG = { scale = "linear", band = {} }
+local CFG = { scale = "linear", lightness = {} }
 
 ---@class supaline.ColumnCases
 local M = {}

@@ -669,7 +669,7 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
         )
 
     # One file per step, so consecutive rows are consecutive steps and this is
-    # the only place the quantisation itself is read. A band is asked to climb
+    # the only place the quantisation itself is read. A spread is asked to climb
     # monotonically as well -- every step is one colour at another exposure,
     # measured to move all three channels together -- and a ramp that turns in
     # hue only half the question.
@@ -679,8 +679,8 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
         True,
     )
     rows_hold(
-        "a band climbs too, on endpoints nobody wrote",
-        sc.ramp_rows(shots["colour-c_band"]),
+        "a spread climbs too, on endpoints nobody wrote",
+        sc.ramp_rows(shots["colour-c_spread"]),
         True,
     )
     rows_hold(

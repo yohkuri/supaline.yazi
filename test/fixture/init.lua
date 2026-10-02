@@ -10,7 +10,7 @@ local COOL = "#0b3d91 -> #7fd4ff"
 -- cells against each other, and two literals can drift where one cannot.
 local HUE = "#0b3d91 -> #ffd400"
 
--- The band `c_band` draws, written with the marker even though a spec does not
+-- The spread `c_spread` draws, written with the marker even though a spec does not
 -- need it: what the marker spreads is the same either way, and a reader
 -- comparing this against `c_ramp` should see the spelling that put it there.
 --
@@ -20,20 +20,20 @@ local HUE = "#0b3d91 -> #ffd400"
 -- quoted one would stop the fixture building.
 --
 -- The same navy `COOL` starts from, which is the comparison worth having on
--- two keys. It is also the case the band exists for: `#0b3d91` has almost no
--- room below it and half again above, so a band anchored at the colour and
--- falling to the floor would be nearly flat, and this one is not.
-local BAND = "#0b3d91 <->"
+-- two keys. It is also the case a lightness range exists for: `#0b3d91` has
+-- almost no room below it and half again above, so a spread anchored at the
+-- colour and falling to the floor would be nearly flat, and this one is not.
+local SPREAD = "#0b3d91 <->"
 
--- The same band, asked for by name rather than by the key it is written under.
--- `c_band`'s two columns then take one path each -- the name off the key, and
--- the name off the string -- and draw the identical ramp, so `e2e.py` reads
--- both of them with the check it already had, and a name that failed to
--- resolve is a refusal rather than a column that looks right.
+-- The same spread, asked for by name rather than by the key it is written
+-- under. `c_spread`'s two columns then take one path each -- the name off the
+-- key, and the name off the string -- and draw the identical ramp, so
+-- `e2e.py` reads both of them with the check it already had, and a name that
+-- failed to resolve is a refusal rather than a column that looks right.
 --
 -- `both` is defined below to the same pair as `fg` for exactly that reason. A
 -- second pair here would test the name and lose the comparison.
-local BAND_BY_NAME = "#0b3d91 <-> both"
+local SPREAD_BY_NAME = "#0b3d91 <-> both"
 
 -- The background `c_bg` puts under that ramp. Picked by measurement rather
 -- than taste, because it has to answer to two things at once: the terminal
@@ -315,16 +315,16 @@ supaline.column("whole_tick", {
 local EDGE = { "mark" }
 
 supaline:setup {
-	-- Every band this fixture draws, because supaline defines none: a marked
-	-- colour with no band behind it is refused, so a fixture that said nothing
-	-- here would not build. Both names are the pair `colour.lua` recommends,
-	-- which is what every number `e2e.py` and `MANUAL.md` assert was measured
-	-- at.
+	-- Every lightness range this fixture draws, because supaline defines none:
+	-- a marked colour with no range behind it is refused, so a fixture that
+	-- said nothing here would not build. Both names are the pair `paint.lua`
+	-- recommends, which is what every number `e2e.py` and `MANUAL.md` assert
+	-- was measured at.
 	--
 	-- The marker is spelled out rather than quoted, for the reason the comment
-	-- above `BAND` gives: the second search at the end of this file reads a
+	-- above `SPREAD` gives: the second search at the end of this file reads a
 	-- line with an arrow in it as a ramp, and the marker has one inside it.
-	band = {
+	lightness = {
 		fg = { from = 0.40, to = 0.90 },
 		both = { from = 0.40, to = 0.90 },
 	},
@@ -430,12 +430,12 @@ supaline:setup {
 
 		-- c b, in `colour/ramp`: the same rows again, on a ramp with no endpoints
 		-- written anywhere -- both of them derived from the one colour in
-		-- `BAND`. Beside `c r` it is the pair worth looking at: the same navy,
+		-- `SPREAD`. Beside `c r` it is the pair worth looking at: the same navy,
 		-- spread by supaline rather than by hand, and the question a reader is
 		-- the only instrument for is whether what it chose is worth drawing.
-		c_band = {
-			{ "ratio", style = BAND },
-			{ "mtime", style = BAND_BY_NAME },
+		c_spread = {
+			{ "ratio", style = SPREAD },
+			{ "mtime", style = SPREAD_BY_NAME },
 		},
 
 		-- c g, in `colour/ramp`: a ramp over a ground carrying a background,

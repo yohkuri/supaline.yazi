@@ -74,7 +74,7 @@ local M = {}
 --- What compiling one column needs from `setup`.
 ---@class supaline.Cfg
 ---@field scale "linear"|"log"|nil
----@field band supaline.Bands
+---@field lightness supaline.LightnessRanges
 
 ---@class supaline.Registry
 ---@field register fun(name: string, def: supaline.ColumnDef)
@@ -113,8 +113,8 @@ local function separator(value, at)
 end
 
 -- The keys every column takes. `style` is read by `compile` rather than here,
--- because a gradient in it resolves against the bands `setup` defines, which
--- a definition registered before `setup` cannot know.
+-- because a gradient in it resolves against the lightness ranges `setup`
+-- defines, which a definition registered before `setup` cannot know.
 local COMMON = {
 	align = schema.enum { "left", "right" },
 	max_width = schema.cells,
@@ -303,7 +303,7 @@ end
 ---@param use table? nil for an inline definition
 ---@param at supaline.Path where the use was written
 ---@param cfg supaline.Cfg
----@param read supaline.Reader what a style written for a column means under this `setup`'s bands
+---@param read supaline.Reader what a style written for a column means under this `setup`'s ranges
 ---@return supaline.ColumnPlan
 local function merge(def, use, at, cfg, read)
 	local fields = def.fields
@@ -385,7 +385,7 @@ function M.new_registry()
 		-- By registration rather than by name, so a column registered again
 		-- after this was opened is not answered from here.
 		local read = {} ---@type table<table, { def: supaline.Definition, use: fun(t: table, at: supaline.Path): table }>
-		local reader = style.reader(cfg.band)
+		local reader = style.reader(cfg.lightness)
 
 		---@param registered { t: table, at: supaline.Path }
 		---@param name string

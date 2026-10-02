@@ -44,7 +44,7 @@ gallery = true
 ask     = "does it climb evenly, with no flat run or jump?"
 
 [[step]]
-case    = "c_band"
+case    = "c_spread"
 gallery = true
 ask     = "are the first rows readable on your ground?"
 

@@ -1,6 +1,7 @@
 --- @since 26.9.1
 --- What one colour key may hold: a colour Yazi's parser takes, a gradient
---- written `a -> b`, or a band written `x <->`, and the bands `setup` names.
+--- written `a -> b`, or one colour spread over a lightness range, written
+--- `x <->`, and the ranges `setup` names.
 ---
 --- Both spellings are strings because a `theme.toml` custom section takes a
 --- string or a style table and nothing else: measured on 26.9.1, an array
@@ -12,15 +13,15 @@ local schema = require(".schema")
 local M = {}
 
 local ARROW = "->"
--- It contains `ARROW`, so `M.is_ramp` answers a band without being told of one.
+-- It contains `ARROW`, so `M.is_ramp` answers a spread without being told of one.
 local BOTH = "<->"
 
---- The two lightnesses a band runs between, as Oklab lightnesses: `from` is
---- what ratio 0 draws and `to` what ratio 1 draws.
----@alias supaline.Band { from: number, to: number }
+--- A lightness range: the two Oklab lightnesses a spread colour runs between.
+--- `from` is what ratio 0 draws and `to` what ratio 1 draws.
+---@alias supaline.LightnessRange { from: number, to: number }
 
---- Bands by name, as `setup` was given them. Nothing is behind it.
----@alias supaline.Bands table<string, supaline.Band>
+--- Lightness ranges by name, as `setup` was given them. Nothing is behind it.
+---@alias supaline.LightnessRanges table<string, supaline.LightnessRange>
 
 --- What one colour key holds once read: a flat colour as written, a gradient
 --- as its stops, or `false` for no colour.
@@ -29,7 +30,7 @@ local BOTH = "<->"
 --- What a style is read with, so that what a gradient means is the caller's.
 ---@alias supaline.Painter fun(value: any, at: supaline.Path, key: string): supaline.Paint
 
--- The pair every refusal of an undefined band quotes, and applies to nobody.
+-- The pair every refusal of an undefined range quotes, and applies to nobody.
 --
 -- 0.40 clears the lightest of five common dark grounds, One Dark at 0.293, by
 -- a tenth of the scale. Merely lighter than the ground is not enough: 0.35 is,
@@ -38,24 +39,24 @@ local BOTH = "<->"
 -- 0.95 over nine hues on those five grounds: 0.95 still parts from white text,
 -- but red, orange and yellow pale into one another there. A light terminal
 -- wants this pair backwards, `{ from = 0.90, to = 0.40 }` -- the same 64
--- colours in the other order. supaline cannot see the ground a band is drawn
+-- colours in the other order. supaline cannot see the ground a range is drawn
 -- on, so this is a recommendation to paste and move rather than a default.
----@type supaline.Band
+---@type supaline.LightnessRange
 local RECOMMENDED = { from = 0.40, to = 0.90 }
 
 --- The recommended pair, as a fresh table the caller may write to.
----@return supaline.Band
+---@return supaline.LightnessRange
 function M.recommended() return { from = RECOMMENDED.from, to = RECOMMENDED.to } end
 
 -- Two places, as every document writes the pair: `%s` would print 0.4.
 local RECOMMENDED_AS_WRITTEN = string.format("{ from = %.2f, to = %.2f }", RECOMMENDED.from, RECOMMENDED.to)
 
--- A band's name holds what a column's does. Nothing parses a band name, so the
+-- A range's name holds what a column's does. Nothing parses a range name, so the
 -- 20-character cap Yazi puts on a column's is not taken; `colour_spec.lua`
 -- reads the two rules against each other.
 local NAME = "^[a-z0-9_]+$"
 
--- A band's own two keys, which no band can be called.
+-- A range's own two keys, which no range can be called.
 local RESERVED = { from = true, to = true }
 
 --- Whether Yazi's own parser takes `value`. Asked rather than reimplemented,
@@ -96,12 +97,12 @@ end
 ---@return boolean
 function M.is_ramp(value) return type(value) == "string" and value:find(ARROW, 1, true) ~= nil end
 
---- One band. `(0, 1]` is the range with anything in it -- 0 is black at every
+--- One lightness range. `(0, 1]` is where anything is -- 0 is black at every
 --- hue -- and the test is negated so that a NaN lands on the refusing side.
 --- Equal ends are taken: where flat stops being flat is a judgement.
 ---@param value any
 ---@param at supaline.Path
----@return supaline.Band
+---@return supaline.LightnessRange
 function M.bounds(value, at)
 	if type(value) ~= "table" then
 		at:refuse(
@@ -126,41 +127,41 @@ function M.bounds(value, at)
 	return out
 end
 
---- Every band `setup` was given, by name. A namespace rather than a fixed set,
---- so no sweep refuses a misspelled one; the refusal of an undefined band
---- lists what is defined instead. No name is built in: `fg` and `bg` are what
---- the two keys ask for, not bands that exist without being written.
+--- Every lightness range `setup` was given, by name. A namespace rather than a
+--- fixed set, so no sweep refuses a misspelled one; the refusal of an undefined
+--- range lists what is defined instead. No name is built in: `fg` and `bg` are
+--- what the two keys ask for, not ranges that exist without being written.
 ---@param value any
 ---@param at supaline.Path
----@return supaline.Bands
-function M.bands(value, at)
+---@return supaline.LightnessRanges
+function M.ranges(value, at)
 	if value == nil then
 		return {}
 	elseif type(value) ~= "table" then
 		at:refuse(
-			"must be a table of bands by name, as `{ fg = %s }`, and a name is then what a `<->` asks for",
+			"must be a table of lightness ranges by name, as `{ fg = %s }`, and a name is then what a `<->` asks for",
 			RECOMMENDED_AS_WRITTEN
 		)
 	end
 	-- The pair written where a table of them goes, told apart by what the key
-	-- holds, so a band genuinely named `to` is refused for its name instead.
+	-- holds, so a range genuinely named `to` is refused for its name instead.
 	if (value.from ~= nil and type(value.from) ~= "table") or (value.to ~= nil and type(value.to) ~= "table") then
 		at:refuse(
-			"`from` and `to` are a band's own keys, and `band` holds bands by name. Write "
-				.. "`band = { fg = %s }`, and name a second band to reach it from a `<->`",
+			"`from` and `to` are a range's own keys, and `lightness` holds ranges by name. Write "
+				.. "`lightness = { fg = %s }`, and name a second range to reach it from a `<->`",
 			RECOMMENDED_AS_WRITTEN
 		)
 	end
-	-- In the order of their names, so two bands wrong at once are named in the
+	-- In the order of their names, so two ranges wrong at once are named in the
 	-- same order on every run.
 	local out = {}
 	for _, name in ipairs(schema.sorted_keys(value)) do
 		local one = value[name]
 		if type(name) ~= "string" or not name:find(NAME) then
-			at:refuse("`%s` is not a band name. A name holds lowercase letters, digits and `_`", tostring(name))
+			at:refuse("`%s` is not a range name. A name holds lowercase letters, digits and `_`", tostring(name))
 		elseif RESERVED[name] then
 			at:refuse(
-				"`%s` is one of a band's own two keys and cannot also be a band's name. Call the band something else",
+				"`%s` is one of a range's own two keys and cannot also be a range's name. Call the range something else",
 				name
 			)
 		end
@@ -173,7 +174,7 @@ end
 ---@return string
 local function trim(s) return (s:match("^%s*(.-)%s*$")) end
 
---- The colour before a `<->` and the band's name after it; nil when there is
+--- The colour before a `<->` and the range's name after it; nil when there is
 --- no marker.
 ---@param s string
 ---@return string? colour, string? name
@@ -186,11 +187,11 @@ local function unmark(s)
 	return trim(s:sub(1, a - 1)), name ~= "" and name or nil
 end
 
----@param bands supaline.Bands
+---@param ranges supaline.LightnessRanges
 ---@return string
-local function defined_in(bands)
-	local names = schema.sorted_keys(bands)
-	return #names > 0 and "Defined: " .. schema.quoted(names) or "No band is defined yet"
+local function defined_in(ranges)
+	local names = schema.sorted_keys(ranges)
+	return #names > 0 and "Defined: " .. schema.quoted(names) or "No lightness range is defined yet"
 end
 
 ---@param s string
@@ -226,14 +227,14 @@ local function endpoint(one, at)
 end
 
 --- The stops of a gradient, in order, as RGB. `#a -> #b` writes them; `#x <->`
---- derives both from one colour at the band the key asks for -- `fallback`,
+--- derives both from one colour at the range the key asks for -- `fallback`,
 --- the key it was written under, unless a name follows the marker.
 ---@param value any
 ---@param at supaline.Path
----@param bands supaline.Bands
+---@param ranges supaline.LightnessRanges
 ---@param fallback string
 ---@return integer[][]
-function M.stops(value, at, bands, fallback)
+function M.stops(value, at, ranges, fallback)
 	if type(value) ~= "string" then
 		at:refuse("must be a string like `#0b3d91 -> #7fd4ff`, got a %s", type(value))
 	end
@@ -241,40 +242,41 @@ function M.stops(value, at, bands, fallback)
 	if body then
 		if body == "" or body:find("%s") then
 			at:refuse(
-				"`%s` is not a band. `<->` spreads one colour both ways, as `#ff8800 <->`; to choose "
+				"`%s` does not spread a colour. `<->` spreads one over a lightness range, as `#ff8800 <->`; to choose "
 					.. "the ends yourself, write them with `->`",
 				value
 			)
 		elseif name and not name:find(NAME) then
 			at:refuse(
-				"`%s` is not a band name. What follows `<->` names a band `setup` defined, in lowercase "
+				"`%s` is not a range name. What follows `<->` names a lightness range `setup` defined, in lowercase "
 					.. "letters, digits and `_`; to choose the two ends of a ramp yourself, write them with `->`",
 				name
 			)
 		elseif name and RESERVED[name] then
 			at:refuse(
-				"`%s` is one of a band's own two keys, so there is no band by that name to ask for -- "
-					.. "`setup` refuses one that tries. Call the band something else and name it that",
+				"`%s` is one of a range's own two keys, so there is no range by that name to ask for -- "
+					.. "`setup` refuses one that tries. Call the range something else and name it that",
 				name
 			)
 		end
 		local wanted = name or fallback
-		local band = bands[wanted]
-		if not band then
+		local range = ranges[wanted]
+		if not range then
 			at:refuse(
-				"`%s` is a band and nothing defines `%s`. Both ends of a band are lightnesses the ground "
-					.. "it is drawn on decides, and supaline cannot see that ground -- so there is no pair to "
-					.. "fall back to. Put `band = { %s = %s }` in `setup` and move it to suit your terminal; "
+				"`%s` asks for a lightness range and nothing defines `%s`. Both ends of a range are "
+					.. "lightnesses the ground it is drawn on decides, and supaline cannot see that ground -- so "
+					.. "there is no pair to fall back to. Put `lightness = { %s = %s }` in `setup` and move it to "
+					.. "suit your terminal; "
 					.. "`lua test/ramp.lua` draws a pair before you keep it. %s",
 				value,
 				wanted,
 				schema.as_key(wanted),
 				RECOMMENDED_AS_WRITTEN,
-				defined_in(bands)
+				defined_in(ranges)
 			)
 		end
 		-- The colour last, so a `<->` naming nothing is told that first.
-		return colour.band(endpoint(body, at), band)
+		return colour.spread(endpoint(body, at), range)
 	end
 
 	-- Each end is named by its place along the ramp, since one colour may be
@@ -286,7 +288,7 @@ function M.stops(value, at, bands, fallback)
 	if #stops < 2 then
 		at:refuse(
 			"`%s` is one colour, and a gradient needs two ends. Write `#0b3d91 -> #7fd4ff`, or `%s <->` "
-				.. "to spread the one colour into a band",
+				.. "to spread the one colour over a lightness range",
 			value,
 			value
 		)
@@ -295,13 +297,13 @@ function M.stops(value, at, bands, fallback)
 end
 
 --- The painter a column's style is read with: a gradient resolved against the
---- bands `setup` defined, anything else a colour Yazi takes.
----@param bands supaline.Bands
+--- lightness ranges `setup` defined, anything else a colour Yazi takes.
+---@param ranges supaline.LightnessRanges
 ---@return supaline.Painter
-function M.painter(bands)
+function M.painter(ranges)
 	return function(value, at, key)
 		if M.is_ramp(value) then
-			return M.stops(value, at, bands, key)
+			return M.stops(value, at, ranges, key)
 		end
 		M.colour(value, at)
 		return value
