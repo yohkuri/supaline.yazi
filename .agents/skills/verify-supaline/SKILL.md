@@ -158,14 +158,13 @@ sweep that read nothing looks like a sweep that found nothing wrong.
 ## The fixture, shared by both harnesses
 
 The configuration Yazi is given sits under `test/fixture/` as the files Yazi
-reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, the `case`
-plugin in `case.lua`, the `walk` plugin in `walk.lua`, and `banner.txt`, which
-is what `manual.py` prints. `test/setup.py` copies them into a scratch tree and
-replaces `@DIR@` with it. The one thing it writes rather than copies is what
-`cases.toml` and `walk.toml` become: a binding per folder, per case and per
-theme, appended to the keymap, and the table both plugins read. `e2e.py` and
-`manual.py` both call it, so what a person looks at and what the headless run
-asserts on cannot drift apart.
+reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, the `case` plugin
+in `case.lua`, and the `walk` plugin in `walk.lua`. `test/setup.py` copies them
+into a scratch tree and replaces `@DIR@` with it. The one thing it writes rather
+than copies is what `cases.toml` and `walk.toml` become: a binding per folder,
+per case and per theme, appended to the keymap, and the table both plugins read.
+`e2e.py` and `manual.py` both call it, so what a person looks at and what the
+headless run asserts on cannot drift apart.
 
 They are real files rather than heredocs, and that buys three readers the
 fixture did not have: `stylua` formats `init.lua`, `lua-language-server`
@@ -193,12 +192,11 @@ still work, which is what makes them worth comparing against. `e2e.py` names a
 case only by its `id`, and presses the ones marked `broken` in a second Yazi.
 
 The same spec holds the fixture's **key set** together. `cases.toml` and
-`keymap.toml` bind it and are the authority; `banner.txt` and `MANUAL.md` name
-it, and the banner, read only by a person, is the one that can fall behind with
-everything still green. The spec names no key of its own: it reads the binding
-files' key lines and asks whether the banner offers each and `MANUAL.md`
-spells each — and holds every case's linemode against the ones `init.lua`
-declares, both ways.
+`keymap.toml` bind it and are the authority; `MANUAL.md` names it, and is read
+only by a person, so it is the one that can fall behind with everything still
+green. The spec names no key of its own: it reads the binding files' key lines
+and asks whether `MANUAL.md` spells each — and holds every case's linemode
+against the ones `init.lua` declares, both ways.
 
 `references/editing-the-fixture.md` is what to open before changing either
 half: what that comparison is shaped against, why the broken columns need a
