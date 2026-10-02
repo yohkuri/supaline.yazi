@@ -83,12 +83,43 @@ class Drawing(unittest.TestCase):
             {3: "three", 11: "eleven"},
             [("black", "#000000"), ("Solarized light", "#fdf6e3")],
         )
-        self.assertEqual(body.count('<figure style="--bg:#000000'), 2)
-        self.assertEqual(body.count('<figure style="--bg:#fdf6e3'), 2)
+        # A tile per ground per step, each in its ground's scheme.
+        self.assertEqual(body.count('<figure class="g0">'), 2)
+        self.assertEqual(body.count('<figure class="g1">'), 2)
+        self.assertIn(".g0 { --bg:#000000;--fg:#ffffff;--p0:#000000;", body)
+        self.assertIn("--p4:#0000ee;", body)
+        self.assertIn(".g1 { --bg:#fdf6e3;--fg:#657b83;--p0:#073642;", body)
+        self.assertIn("--p4:#268bd2;", body)
         # Each pane once, for the page to copy into every tile.
         self.assertEqual(body.count("three"), 1)
         self.assertIn("size &amp; owner on &lt;grounds&gt;?", body)
         self.assertIn('<section id="step-11" data-step="11">', body)
+
+
+class Schemes(unittest.TestCase):
+    def test_every_scheme_is_a_ground_init_lua_names_on_the_same_hex(self):
+        # Keyed by name, so a ground renamed in the comment would otherwise
+        # fall back to xterm's colours without a word.
+        grounds = dict(
+            fixture.terminal_grounds((fixture.FIXTURE / "init.lua").read_text())
+        )
+        for name, scheme in gallery.SCHEMES.items():
+            with self.subTest(name):
+                self.assertEqual(grounds.get(name), scheme.ground)
+
+    def test_every_scheme_names_sixteen_colours(self):
+        for name, scheme in gallery.SCHEMES.items():
+            with self.subTest(name):
+                self.assertEqual(len(scheme.named), 16)
+                for hex in (scheme.ground, scheme.fg, *scheme.named):
+                    self.assertRegex(hex, r"^#[0-9a-f]{6}$")
+
+    def test_a_ground_with_no_scheme_is_xterm_s_in_black_or_white(self):
+        self.assertEqual(
+            gallery.scheme("black", "#000000"),
+            gallery.Scheme("#000000", "#ffffff", gallery.XTERM),
+        )
+        self.assertEqual(gallery.scheme("white", "#ffffff").fg, "#000000")
 
 
 class Posted(unittest.TestCase):
