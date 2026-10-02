@@ -262,8 +262,14 @@ for (const section of document.querySelectorAll("section[data-step]")) {{
   const pane = section.querySelector("template").innerHTML;
   for (const tile of section.querySelectorAll("figure pre")) tile.innerHTML = pane;
   const said = section.querySelector(".said");
-  for (const button of section.querySelectorAll("button")) {{
+  const buttons = section.querySelectorAll("button");
+  // One answer in flight per step: the server writes each on its own thread,
+  // so a second sent before the first returned could land before it, and the
+  // line that counts would be the earlier answer.
+  const busy = (on) => {{ for (const b of buttons) b.disabled = on; }};
+  for (const button of buttons) {{
     button.addEventListener("click", async () => {{
+      busy(true);
       const verdict = button.dataset.said;
       const grounds = verdict === "no"
         ? [...section.querySelectorAll("input:checked")].map((i) => i.value)
@@ -281,6 +287,8 @@ for (const section of document.querySelectorAll("section[data-step]")) {{
           ? `[no: ${{grounds.join(", ")}}]` : `[${{verdict}}]`;
       }} catch (error) {{
         said.textContent = `not recorded: ${{error.message}}`;
+      }} finally {{
+        busy(false);
       }}
     }});
   }}
