@@ -63,8 +63,8 @@ def print_ramps(target: Path) -> None:
         return
     # Flushed first, because `ramp.lua` writes straight to the same descriptor
     # and this script's own `print` is block-buffered whenever stdout is not a
-    # terminal. Without it the ramps come out above the banner they are meant
-    # to follow, which only shows up when somebody pipes this to a pager.
+    # terminal. Without it the ramps come out above the text they are meant to
+    # follow, which only shows up when somebody pipes this to a pager.
     sys.stdout.flush()
     done = subprocess.run(
         ["lua", str(ROOT / "test" / "ramp.lua"), *ramps], check=False
@@ -134,13 +134,17 @@ def main(argv: list[str]) -> int:
     verdicts = DIR / fixture.VERDICTS
     begin_verdicts(verdicts)
 
-    print((fixture.FIXTURE / "banner.txt").read_text())
-
-    # The log's path has to be filled in, so it cannot sit in the banner -- and
-    # it is worth printing rather than describing, because the half of a report
-    # that never reaches the screen is the half a reader has to be told where
-    # to find.
+    # Where to start and where the rest is written down, and no list of keys:
+    # `MANUAL.md` is the one place that names them, and a second list printed
+    # here would be the copy that falls behind. The log's path is printed rather
+    # than described, because the half of a report that never reaches the
+    # screen is the half a reader has to be told where to find.
     rule = "─" * 76
+    print("supaline manual test")
+    print(rule)
+    print("  W n starts the walk through the cases only a real terminal can")
+    print("  judge, one question each, asked in the status bar. Every key, and")
+    print("  what to look for under each, is in test/MANUAL.md.")
     print()
     print("  What a report says past its one sentence -- what the fault cost,")
     print("  and the whole of what was thrown -- goes to the log rather than")

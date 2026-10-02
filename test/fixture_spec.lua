@@ -11,12 +11,11 @@
 --- the configuration produces the screen `test/MANUAL.md` describes.
 ---
 --- The key set is bound in two files -- `test/fixture/cases.toml`, a key per
---- folder, per case and per theme, and `test/fixture/keymap.toml`, the one
---- that is none of those -- and named again in two more, `test/fixture/banner.txt` and
---- `test/MANUAL.md`. `e2e.py` presses a case by what it is rather than by its
---- key. The banner's only reader is a person, so it is the one that can fall
---- behind with everything green. The two binding files are the authority, and
---- nothing here names a key of its own.
+--- folder, per case and per theme, and `test/fixture/keymap.toml`, the ones
+--- that are none of those -- and named again in `test/MANUAL.md`, whose only
+--- reader is a person, so it is the one that can fall behind with everything
+--- green. `e2e.py` presses a case by what it is rather than by its key. The two
+--- binding files are the authority, and nothing here names a key of its own.
 
 ---@type supaline.Main
 local main = require(".main")
@@ -26,7 +25,6 @@ local main = require(".main")
 local INIT = ROOT .. "/test/fixture/init.lua"
 local CASES = ROOT .. "/test/fixture/cases.toml"
 local KEYMAP = ROOT .. "/test/fixture/keymap.toml"
-local BANNER = ROOT .. "/test/fixture/banner.txt"
 local MANUAL_MD = ROOT .. "/test/MANUAL.md"
 
 --- The whole of a file in the repository, by absolute path.
@@ -115,17 +113,10 @@ local function case_field(field, blocks)
 end
 
 -- `e2e.py` is deliberately not compared against the keys either file binds.
--- It presses every folder and case by what it is, `T`, and of the themes `alt`
--- alone, because a theme key replaces `theme.toml` wholesale and a run can
--- afford one swap, so a check there would need a list of exempt keys --
--- another place naming the set.
-
---- Keys the banner offers that the fixture does not bind, and why each is not a
---- fault. An entry the banner no longer offers is refused, so this cannot
---- become a list of keys the banner stopped mentioning.
-local NOT_BOUND = {
-	["m s"] = "Yazi's own size linemode, which `m 0` is the baseline for",
-}
+-- It presses every folder and case by what it is, `T`, three of the walk's
+-- keys, and of the themes `alt` alone, because a theme key replaces
+-- `theme.toml` wholesale and a run can afford one swap, so a check there would
+-- need a list of exempt keys -- another place naming the set.
 
 --- Every key the fixture binds, spelled the way a reader presses it: the ones
 --- `test/fixture/keymap.toml` writes, and the ones `test/fixture/cases.toml`
@@ -162,34 +153,6 @@ local function bound_keys()
 	return keys, lines + there, blocks + blocks_there
 end
 
---- Every key the manual banner **offers**, which is not every key it names.
----
---- An offer is a column: the key stands alone, with two or more spaces either
---- side of it and its description beside it. A mention runs on into the
---- sentence around it with one space, so the banner can talk about a key
---- without that counting as a place to find it.
----@return table<string, true> # the keys, as a set
-local function offered_keys()
-	local banner = read(BANNER)
-	assert(banner:find("%S"), "test/fixture/banner.txt is empty; this spec is reading nothing")
-
-	local keys = {}
-	for line in banner:gmatch("[^\n]+") do
-		local fields = {}
-		for field in line:gsub("  +", "\1"):gmatch("[^\1]+") do
-			fields[#fields + 1] = field
-		end
-		-- Never the last field: a key with nothing beside it offers nothing, and
-		-- the last field is where a stray one-letter word lands.
-		for i = 1, #fields - 1 do
-			if fields[i]:match("^%a %w$") or fields[i]:match("^%a$") then
-				keys[fields[i]] = true
-			end
-		end
-	end
-	return keys
-end
-
 --- The keys of `set` that `other` has not got, sorted, as one string.
 ---@param set table<string, any>
 ---@param other table<string, any>
@@ -206,9 +169,9 @@ local function missing_from(set, other)
 end
 
 test("fixture: this spec reads every key the fixture binds", function()
-	-- The guard the tests below inherit: each asks whether another file carries
+	-- The guard the test below inherits: it asks whether `MANUAL.md` carries
 	-- the keys found here, so an extraction that came back empty *here* would
-	-- let all of them pass over nothing. Proved against the file's own shape
+	-- let it pass over nothing. Proved against the file's own shape
 	-- rather than a count written here, which would go stale with the next key.
 	local keys, lines, blocks = bound_keys()
 	assert(lines > 0, "no key read from test/fixture/keymap.toml or cases.toml; this spec is reading nothing")
@@ -219,21 +182,6 @@ test("fixture: this spec reads every key the fixture binds", function()
 		distinct = distinct + 1
 	end
 	eq(distinct, lines, "no two blocks bind the same key")
-end)
-
-test("fixture: the manual banner offers every key the fixture binds, and no other", function()
-	local keys, offered = bound_keys(), offered_keys()
-	eq(missing_from(keys, offered), "", "bound by the fixture and not offered by test/fixture/banner.txt")
-
-	for key, why in pairs(NOT_BOUND) do
-		assert(offered[key], string.format("`%s` is exempted as %s, and the banner no longer offers it", key, why))
-		keys[key] = true
-	end
-	eq(
-		missing_from(offered, keys),
-		"",
-		"offered by test/fixture/banner.txt and bound nowhere; bind it, or say in `NOT_BOUND` whose key it is"
-	)
 end)
 
 test("fixture: `MANUAL.md` spells every key the fixture binds", function()

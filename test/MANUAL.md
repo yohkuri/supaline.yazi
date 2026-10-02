@@ -630,12 +630,12 @@ folder is three edits, and a fourth treatment of an existing folder is two:
 
 Then give it a row in the table above. `e2e.py` presses every case the list
 holds and keeps a capture under its id, and the unit suite refuses a case whose
-linemode `init.lua` never declared, a linemode no case names, a key the banner
-or this document never spells, a `c` or `b` case with no row in its table, and
-a row whose `g` key is not where the case's own key goes. That does not judge
-it — judging is what this document is for — but an unregistered linemode name
-is drawn as literal text and one that threw takes the rows with it, and
-`e2e.py` finds either before whoever next runs `manual.py` does.
+linemode `init.lua` never declared, a linemode no case names, a key this
+document never spells, a `c` or `b` case with no row in its table, and a row
+whose `g` key is not where the case's own key goes. That does not judge it —
+judging is what this document is for — but an unregistered linemode name is
+drawn as literal text and one that threw takes the rows with it, and `e2e.py`
+finds either before whoever next runs `manual.py` does.
 
 A case under `b` takes a different line, and takes it in the second Yazi
 `e2e.py` starts for exactly these — the run that is meant to be clean fails for
