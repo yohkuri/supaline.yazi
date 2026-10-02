@@ -30,7 +30,7 @@ you through those cases in order and asks one question about each.
 | `W x` | Looks wrong — write that down, and go to the next     |
 
 The status bar shows where you are, the step's own key and the question:
-`walk 3/17 · c r · can you tell rows a few steps apart?`. The key is the
+`walk 3/17 · c r · does it climb evenly, with no flat run or jump?`. The key is the
 section of this document that has the whole of what to look for, and pressing
 it by hand puts you back in the same state. A step puts its theme in place as
 well as its case, so it reads the same whether you came to it forwards,
@@ -410,10 +410,12 @@ consecutive steps.
 - Every row carries the **same text**. The mtimes sit in a past year, which
   `mtime` draws as `MM/DD  YYYY`, so the only thing that differs down the
   column is the colour. The step number is in the name instead.
-- Adjacent rows are exactly one step apart, and this is the question no machine
-  can ask. `e2e.py` can measure one step in 64 and an eye cannot see it, so
-  what you are judging is how far apart two rows have to be before they read as
-  two colours rather than one.
+- Adjacent rows are exactly one step apart, and no eye tells two of them apart
+  — nor is it meant to. Sixty-four steps are how finely a row's place in the
+  folder becomes a colour, so two files close together come out close and two
+  far apart come out far. What you are judging is the climb as a whole: one
+  steady run from dark to light, or a stretch that holds one colour far longer
+  than the rest, or a jump where a few rows move further than all the rest.
 - The number is `ctx.ratio` and both columns carry the same ramp, so the two
   cells on a row are always the same colour. Two that are not mean the ratio
   and the step it chose disagree.
@@ -424,9 +426,9 @@ consecutive steps.
 `e2e.py` reads exactly these rows, top to bottom, and takes every step from the
 first to wherever the window cuts off — about 38 of the 64. It refuses a step
 that goes backwards in any channel, one that repeats the row above it, and a
-row whose two cells disagree. So what is left here is only ever visibility: it
-already knows the steps are all different, and cannot know whether you can see
-that they are.
+row whose two cells disagree. So what is left here is only ever how the climb
+looks: it already knows the steps are all different and in order, and cannot
+know whether they read as an even climb.
 
 ### `c b` — a band nobody wrote the ends of
 

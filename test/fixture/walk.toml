@@ -41,7 +41,7 @@ ask  = "do the CJK and emoji rows line up with the rest?"
 [[step]]
 case    = "c_ramp"
 gallery = true
-ask     = "can you tell rows a few steps apart?"
+ask     = "does it climb evenly, with no flat run or jump?"
 
 [[step]]
 case    = "c_band"

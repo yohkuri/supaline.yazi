@@ -207,7 +207,8 @@ def build_colour(root: Path) -> None:
     instrument for looking at colour: its mtimes land on five of the ramp's
     steps, four of them in the top third, and a dozen rows share the highest.
     Nothing there is adjacent, so the question `MANUAL.md` puts to a reader --
-    can you tell one step from the next -- cannot be asked in it at all.
+    does the column climb evenly, with no flat run and no jump -- cannot be
+    asked in it at all.
 
     Each folder here is one distribution that question needs, and nothing else
     is in them. A fourth is three edits: a folder here, a linemode in
