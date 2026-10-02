@@ -1,0 +1,94 @@
+# The walk `manual.py` offers: the cases only a person in a real terminal can
+# judge, in order, each with the one question to answer about it.
+#
+# `e2e.py` already holds every case to what a capture can show. What is left is
+# what no capture can: how a terminal draws a wide character or a bold, whether
+# a colour can be read against the reader's own ground, whether a report reads
+# right against the cells it is about. `MANUAL.md` has the whole of each; a
+# step is the question that section ends on, short enough for the status bar.
+#
+# `W n` goes to the next step and `W p` back, putting Yazi in the step's case
+# under the step's theme. `W y` and `W x` record a verdict on it and go on.
+#
+# `case` is a `[[case]]` id in `cases.toml`, and `theme` a `[[theme]]` name,
+# `default` when it is left out: the walk puts the theme in place at every
+# step, so a step reads the same whether it was reached forwards, backwards, or
+# after a theme key pressed by hand. `ask` is drawn in the status bar beside
+# the step's number and key, which is why `setup.py` holds it to a length.
+#
+# A broken case is shown once and no more, and `setup.py` refuses a walk that
+# shows one twice: `told` reports a column once per session, so a second step
+# on it would ask about a notification that is not coming. They come last, and
+# `setup.py` refuses a working case after them, since a report lands late over
+# whatever is drawn next and `b f`'s step arms a `refresh` that throws at every
+# `cd` after it.
+
+[[step]]
+case = "plain"
+ask  = "hover never-opened: does its - turn to 1?"
+
+[[step]]
+case = "overflow"
+ask  = "do the CJK and emoji rows line up with the rest?"
+
+[[step]]
+case = "c_ramp"
+ask  = "can you tell rows a few steps apart?"
+
+[[step]]
+case = "c_band"
+ask  = "are the first rows readable on your ground?"
+
+[[step]]
+case = "c_hue"
+ask  = "does the grey-green middle read as a colour?"
+
+[[step]]
+case = "c_bg"
+ask  = "is the text readable on every ground?"
+
+[[step]]
+case = "c_bold"
+ask  = "is the bold pair one colour, one heavier?"
+
+[[step]]
+case = "c_scale"
+ask  = "does the left column read as a gradient?"
+
+[[step]]
+case = "c_theme"
+ask  = "do all four columns carry the theme's colours?"
+
+[[step]]
+case  = "c_theme"
+theme = "alt"
+ask   = "did every column take the new colours at once?"
+
+[[step]]
+case  = "c_theme"
+theme = "bg"
+ask   = "size and owner on grounds, and mtime not?"
+
+[[step]]
+case = "b_render"
+ask  = "does the box name the column the !s are in?"
+
+[[step]]
+case = "b_stats"
+ask  = "nothing on the row: does the box say what threw?"
+
+[[step]]
+case = "b_width"
+ask  = "does the box say the width function threw?"
+
+[[step]]
+case = "b_zero"
+ask  = "same cells: does this box read unlike b w's?"
+
+[[step]]
+case = "b_range"
+ask  = "does the box say what stats has to return?"
+
+[[step]]
+case = "b_tick"
+ask  = "press g 6: does the left counter alone stop?"

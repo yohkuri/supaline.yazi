@@ -20,9 +20,10 @@ plugin, and TOML that is TOML rather than a heredoc, and a `theme-key.py` that
 ruff reads along with this file. `@DIR@` in any of them is replaced with the
 scratch directory as it is copied, and the script is given a shebang.
 
-The one thing written rather than copied is what `cases.toml` becomes: a
-binding per folder and per case, appended to the keymap, and the table the
-`case` plugin reads. `write_cases` says why that is generated.
+The one thing written rather than copied is what `cases.toml` and
+`walk.toml` become: a binding per folder, per case and per theme, appended to
+the keymap, and the table the `case` and `walk` plugins read. `write_cases`
+says why that is generated.
 """
 
 from __future__ import annotations
@@ -312,6 +313,8 @@ def copy_config(target: Path) -> None:
     # folders it names exist.
     (config / "plugins" / "case.yazi").mkdir()
     place(FIXTURE / "case.lua", config / "plugins" / "case.yazi" / "main.lua")
+    (config / "plugins" / "walk.yazi").mkdir()
+    place(FIXTURE / "walk.lua", config / "plugins" / "walk.yazi" / "main.lua")
 
     # `default.toml` is what Yazi opens with, and `e2e.py` rewrites this copy
     # in place -- it greps for the values that file spells, so change them
@@ -451,8 +454,9 @@ def toml_string(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
-def write_cases(target: Path, listing: Cases) -> None:
-    """The keymap bindings and the plugin's table, out of `cases.toml`.
+def write_cases(target: Path, listing: Cases, steps: list[Step]) -> None:
+    """The keymap bindings and the plugins' table, out of `cases.toml` and
+    `walk.toml`.
 
     Generated rather than written by hand beside it, because a case is a key,
     a folder and a linemode together, and two files each holding half of that
@@ -500,6 +504,15 @@ def write_cases(target: Path, listing: Cases) -> None:
     for theme in listing.themes.values():
         bind(theme.key, f"plugin case -- theme {theme.name}", theme.desc)
         table.append(f'\t\t["{theme.name}"] = true,')
+    table.extend(["\t},", "\tsteps = {"])
+    for step in steps:
+        fields = [
+            f'case = "{step.case}"',
+            f'key = "{listing.cases[step.case].key}"',
+            f'theme = "{step.theme}"',
+            f'ask = "{step.ask}"',
+        ]
+        table.append(f"\t\t{{ {', '.join(fields)} }},")
     table.extend(["\t},", "}"])
 
     keymap = target / "config" / "keymap.toml"
@@ -724,6 +737,97 @@ def read_cases() -> Cases:
         refuse(f"setup: test/fixture/cases.toml: {error}")
 
 
+#: The walk `manual.py` offers, which `walk` reads.
+WALK = FIXTURE / "walk.toml"
+
+#: Where the `walk` plugin writes a verdict, under the scratch directory: the
+#: name `walk.lua` spells after its `@DIR@`, which `test_screen.py` holds it to.
+VERDICTS = "verdicts.txt"
+
+
+@dataclass(frozen=True)
+class Step:
+    """A `[[step]]` of `walk.toml`: a case, the theme it is shown under, and
+    the question asked about it."""
+
+    case: str
+    theme: str
+    ask: str
+
+
+#: What a question may be spelled with. It goes into the plugins' table as a Lua
+#: string, so nothing that string escapes; and it is drawn in the status bar,
+#: where `e2e.py` splits a line on `│` to find the panes, so not that either.
+ASK = re.compile(r'[^"\\│\x00-\x1f\x7f]+')
+
+#: The longest question, in characters. The status bar holds Yazi's own parts
+#: either side of it, and a question cut off at the edge is a question unasked.
+ASK_LONGEST = 50
+
+
+def walk(text: str, listing: Cases) -> list[Step]:
+    """The steps `walk.toml` lists, in order, refused if any is malformed.
+
+    Refused with `ValueError`, as `cases` refuses, and for the same reason: a
+    step naming a case the list does not hold is a key that shows nothing. A
+    broken case shown twice is refused as well. `told` reports a column once
+    a session, so the second step would ask about a notification that is not
+    coming. So is a step that works after one that is broken: a broken case's
+    notification lands late and lingers, over whatever the next step draws,
+    and the last of them has the reader arm a `refresh` that throws at every
+    `cd` after it.
+    """
+    # Here rather than at the top, for the reason `theme_values` gives.
+    import tomllib
+
+    data = tomllib.loads(text)
+    if set(data) - {"step"}:
+        raise ValueError(f"unknown table(s): {sorted(set(data) - {'step'})}")
+
+    steps: list[Step] = []
+    shown: set[str] = set()
+    for row in data.get("step", []):
+        got = set(row)
+        if {"case", "ask"} - got or got - {"case", "ask", "theme"}:
+            raise ValueError(
+                f"a [[step]] with {sorted(got)}: it needs ['ask', 'case'] "
+                "and may have ['theme']"
+            )
+        case, ask = row["case"], row["ask"]
+        theme = row.get("theme", "default")
+        if case not in listing.cases:
+            raise ValueError(f"a step shows `{case}`, which no [[case]] is")
+        if theme not in listing.themes:
+            raise ValueError(f"a step puts `{theme}` in, which no [[theme]] is")
+        if not isinstance(ask, str) or not ASK.fullmatch(ask):
+            raise ValueError(
+                f"step `{case}` asks {ask!r}, which `{ASK.pattern}` refuses"
+            )
+        if len(ask) > ASK_LONGEST:
+            raise ValueError(
+                f"step `{case}` asks {len(ask)} characters, over {ASK_LONGEST}"
+            )
+        broken = listing.cases[case].broken
+        if broken and case in shown:
+            raise ValueError(f"the broken case `{case}` is shown twice")
+        if not broken and steps and listing.cases[steps[-1].case].broken:
+            raise ValueError(f"step `{case}` comes after a broken one")
+        shown.add(case)
+        steps.append(Step(case, theme, ask))
+
+    if not steps:
+        raise ValueError("no [[step]] at all")
+    return steps
+
+
+def read_walk(listing: Cases) -> list[Step]:
+    """`walk.toml` itself, or a refusal that says what is wrong with it."""
+    try:
+        return walk(WALK.read_text(), listing)
+    except ValueError as error:
+        refuse(f"setup: test/fixture/walk.toml: {error}")
+
+
 #: What a person reads beside the screen, which `goes_to` reads.
 MANUAL = ROOT / "test" / "MANUAL.md"
 
@@ -797,6 +901,7 @@ def build(target: Path) -> None:
     # Read before anything is built, so a malformed list stops the build with
     # its own sentence rather than half a fixture.
     listing = read_cases()
+    steps = read_walk(listing)
 
     # Stated, so the fixture carries the same modes whoever builds it. `e2e.py`
     # greps the permissions column for `drwxr-xr-x`, and under `umask 077` the
@@ -813,7 +918,7 @@ def build(target: Path) -> None:
         build_broken(target / "fixture")
         write_ramps(target)
         check_cases(target, listing)
-        write_cases(target, listing)
+        write_cases(target, listing, steps)
     finally:
         os.umask(was)
 

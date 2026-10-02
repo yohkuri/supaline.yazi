@@ -69,9 +69,18 @@ local function configure()
 	}, { __index = main })
 	local before = package.preload["supaline"]
 	package.preload["supaline"] = function() return seen end
+	-- The walk is the fixture's own plugin rather than supaline, and draws only
+	-- in Yazi, so it is stood in for: a `setup` that takes the call and does
+	-- nothing, which is the whole of what `init.lua` asks of it.
+	local walk_before = package.preload["walk"]
+	package.preload["walk"] = function()
+		return { setup = function(_st) end }
+	end
 	local ok, err = pcall(chunk)
 	package.preload["supaline"] = before
+	package.preload["walk"] = walk_before
 	package.loaded["supaline"] = nil
+	package.loaded["walk"] = nil
 	return ok, err, given
 end
 

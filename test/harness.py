@@ -10,6 +10,7 @@ milliseconds after `init.lua` and without being asked, which the first half of
 
 from __future__ import annotations
 
+import re
 import shlex
 import shutil
 import signal
@@ -111,6 +112,26 @@ def run(
             f"{done.stderr.strip()}"
         )
     return done
+
+
+def yazi_version() -> str:
+    """Which Yazi a run actually proves anything about, or a person looked at.
+
+    Yazi is on CalVer and changes the plugin API between releases, so a
+    version other than the one the plugin annotates is the signal to
+    re-verify the constraints, not a reason to stop.
+    """
+    said = run(["yazi", "--version"], timeout=30).stdout
+    found = re.search(r"^\s*Version:\s*(.+)$", said, re.MULTILINE)
+    version = found.group(1).strip() if found else said.replace("\n", " ")
+
+    pinned = re.match(r"--- @since (.+)", (ROOT / "main.lua").read_text())
+    if pinned and not version.startswith(pinned.group(1).strip()):
+        print(
+            f"note: Yazi is {version}, the plugin annotates "
+            f"{pinned.group(1).strip()}"
+        )
+    return version
 
 
 def yazi_env(dir: Path, state: str) -> dict[str, str]:

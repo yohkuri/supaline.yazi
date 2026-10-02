@@ -560,3 +560,10 @@ supaline:setup {
 		b_tick = { "size", "torn_tick", "whole_tick", "mtime" },
 	},
 }
+
+-- The walk `manual.py` offers, which draws its step in the status bar. It adds
+-- that part here, at load, because a `require` from inside a status bar child
+-- raises until the plugin has been loaded -- on every frame, measured on
+-- 26.9.1 -- and one that raises there takes the whole screen with it. Before
+-- `W n` the part is empty, so `e2e.py` reads the status bar Yazi would draw.
+require("walk"):setup()
