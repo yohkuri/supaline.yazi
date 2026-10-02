@@ -160,12 +160,13 @@ lua test/run.lua                  # unit tests, over the plugin
 lua test/run.lua column           # ... just the specs matching "column"
 test/e2e.py                       # render in a real Yazi, headless
 test/manual.py                    # ... interactively, for a human to look at
+test/gallery.py                   # ... on seven grounds, in a browser
 stylua --check .                  # Lua formatting
 lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
 uv run .github/scripts/skills.py  # Agent Skills, and this file's budget
 
-python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers
+python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers, and the gallery
 
 uvx ruff@0.16.7 check test .github/scripts           # the Python lint
 uvx ruff@0.16.7 format --check test .github/scripts  # ... and its shape
@@ -182,10 +183,10 @@ installs. Without that directory the check still runs and still finds nothing,
 having quietly stopped comparing the plugin against anything but this
 repository.
 
-`test/e2e.py` and `test/manual.py` need a real Yazi and a real terminal and are
-deliberately not in CI. Run them yourself before claiming anything about the
-screen — and a green exit is worth more than the screen looking right, because
-a broken fetcher shows up nowhere on it.
+`test/e2e.py`, `test/manual.py` and `test/gallery.py` need a real Yazi and a
+real terminal and are deliberately not in CI. Run them yourself before claiming
+anything about the screen — and a green exit is worth more than the screen
+looking right, because a broken fetcher shows up nowhere on it.
 
 Anything else about these is in `annotate-supaline`, `verify-supaline`, or the
 comment beside the step in `.github/workflows/check.yml`.

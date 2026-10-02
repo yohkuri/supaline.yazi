@@ -16,6 +16,13 @@
 # after a theme key pressed by hand. `ask` is drawn in the status bar beside
 # the step's number and key, which is why `setup.py` holds it to a length.
 #
+# `gallery = true` puts a step in `gallery.py` as well, which draws its capture
+# on seven terminal grounds at once and asks the same question. Only a step a
+# capture can answer: one about colour against a ground, and not one about how
+# a terminal draws a bold or a wide character, what happens after a key, or a
+# report, which lands after the capture rather than in it -- `setup.py`
+# refuses a broken case there.
+#
 # A broken case is shown once and no more, and `setup.py` refuses a walk that
 # shows one twice: `told` reports a column once per session, so a second step
 # on it would ask about a notification that is not coming. They come last, and
@@ -32,32 +39,38 @@ case = "overflow"
 ask  = "do the CJK and emoji rows line up with the rest?"
 
 [[step]]
-case = "c_ramp"
-ask  = "can you tell rows a few steps apart?"
+case    = "c_ramp"
+gallery = true
+ask     = "can you tell rows a few steps apart?"
 
 [[step]]
-case = "c_band"
-ask  = "are the first rows readable on your ground?"
+case    = "c_band"
+gallery = true
+ask     = "are the first rows readable on your ground?"
 
 [[step]]
-case = "c_hue"
-ask  = "does the grey-green middle read as a colour?"
+case    = "c_hue"
+gallery = true
+ask     = "does the grey-green middle read as a colour?"
 
 [[step]]
-case = "c_bg"
-ask  = "is the text readable on every ground?"
+case    = "c_bg"
+gallery = true
+ask     = "is the text readable on every ground?"
 
 [[step]]
 case = "c_bold"
 ask  = "is the bold pair one colour, one heavier?"
 
 [[step]]
-case = "c_scale"
-ask  = "does the left column read as a gradient?"
+case    = "c_scale"
+gallery = true
+ask     = "does the left column read as a gradient?"
 
 [[step]]
-case = "c_theme"
-ask  = "do all four columns carry the theme's colours?"
+case    = "c_theme"
+gallery = true
+ask     = "do all four columns carry the theme's colours?"
 
 [[step]]
 case  = "c_theme"
@@ -65,9 +78,10 @@ theme = "alt"
 ask   = "did every column take the new colours at once?"
 
 [[step]]
-case  = "c_theme"
-theme = "bg"
-ask   = "size and owner on grounds, and mtime not?"
+case    = "c_theme"
+theme   = "bg"
+gallery = true
+ask     = "size and owner on grounds, and mtime not?"
 
 [[step]]
 case = "b_render"

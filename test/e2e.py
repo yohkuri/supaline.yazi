@@ -67,12 +67,14 @@ TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
 class Run:
     """The scratch directory, the session, and the captures taken from it."""
 
-    def __init__(self, keep: bool) -> None:
+    def __init__(self, keep: bool, dir: Path | None = None) -> None:
         # Both names carry the PID, so a run owns everything it touches: a
         # concurrent run leaves the marker `setup.py` guards removal with, so a
-        # fixed directory would pass the guard and lose its fixture.
+        # fixed directory would pass the guard and lose its fixture. `dir` is
+        # for `gallery.py`, which serves its page out of a directory a person
+        # can find again, the way `manual.py` keeps one.
         pid = os.getpid()
-        self.dir = Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
+        self.dir = dir or Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
         self.session = Session(f"supaline-e2e-{pid}")
         self.keep = keep
         self.shots: dict[str, str] = {}

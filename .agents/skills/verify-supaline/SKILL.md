@@ -140,11 +140,11 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   written by hand can state exactly.
 - A fact about **what the fixture spells** belongs in a reader in `setup.py`
   beside the copy it reads — `binding`, `broken_columns`, `band_width`,
-  `c_bg_grounds`, `theme_values`, `theme_ends`, `cases`, `goes_to` — which
-  `TheFixtureItReads` calls rather than re-spelling their patterns. A copy of a
+  `c_bg_grounds`, `terminal_grounds`, `theme_values`, `theme_ends`, `cases`,
+  `goes_to` — which `TheFixtureItReads` calls rather than re-spelling. A copied
   pattern passes on after its reader has quietly stopped matching, and `e2e.py`
-  is not in CI to say so: a pattern anchored on stylua's indentation most of
-  all, since re-nesting a table leaves the sweep passing over nothing.
+  is not in CI to say so: one anchored on stylua's indentation most of all,
+  since re-nesting a table leaves the sweep passing over nothing.
 - What is left for `e2e.py` is driving Yazi and holding the parsed answer
   against what this machine says: `pwd`, `grp`, a file on disk, a colour read
   out of the fixture.
@@ -155,7 +155,7 @@ handful of checks, and the shape of that handful says where to look. And guard
 any check an empty list or an unmatched pattern would let pass over nothing — a
 sweep that read nothing looks like a sweep that found nothing wrong.
 
-## The fixture, shared by both harnesses
+## The fixture, shared by every harness
 
 The configuration Yazi is given sits under `test/fixture/` as the files Yazi
 reads — `init.lua`, `keymap.toml`, `yazi.toml`, three themes, the `case` plugin
@@ -163,8 +163,8 @@ in `case.lua`, and the `walk` plugin in `walk.lua`. `test/setup.py` copies them
 into a scratch tree and replaces `@DIR@` with it. The one thing it writes rather
 than copies is what `cases.toml` and `walk.toml` become: a binding per folder,
 per case and per theme, appended to the keymap, and the table both plugins read.
-`e2e.py` and `manual.py` both call it, so what a person looks at and what the
-headless run asserts on cannot drift apart.
+`e2e.py`, `manual.py` and `gallery.py` all call it, so what a person looks at
+and what the headless run asserts on cannot drift apart.
 
 They are real files rather than heredocs, and that buys three readers the
 fixture did not have: `stylua` formats `init.lua`, `lua-language-server`
@@ -212,6 +212,7 @@ stands behind the family.
 ```sh
 test/e2e.py --keep          # leave the scratch directory behind
 test/manual.py --clean      # discard the manual fixture
+test/gallery.py --clean     # ... and the gallery's
 ```
 
 ## A headless run is not a terminal

@@ -47,6 +47,33 @@ The steps are `test/fixture/walk.toml`. The broken cases come last and each is
 shown once: a report comes once a session, so going back to one of them shows
 the cells and no notification. See [Broken columns](#broken-columns).
 
+## The gallery
+
+```sh
+test/gallery.py
+```
+
+The walk asks about colour on one ground, yours. The gallery asks the same
+questions on seven at once. It captures each step of the walk that says
+`gallery = true`, in a headless Yazi the way `e2e.py` does, and opens a page in
+your browser with the current pane drawn on every terminal ground `init.lua`
+measures `GROUND` against — black, Catppuccin Mocha, One Dark, Gruvbox dark,
+Solarized dark, white and Solarized light — side by side, under the step's
+question.
+
+Tick the grounds a step looks wrong on and press *looks wrong on the ticked*,
+or press *looks right*. Each verdict is a line in `verdicts.txt` beside the
+page, under the same header the walk writes, with the grounds after the walk's
+four fields; answer a step again and the later line is the one that counts.
+Ctrl-C stops the page and prints them. `test/gallery.py --clean` throws the
+directory away.
+
+Only the ground on a tile is a terminal's. The default foreground is black or
+white, and the sixteen named colours are xterm's on every tile, which is why
+Yazi's own blue can read worse there than in your terminal. The font is the
+browser's too, so a step about a bold, a wide character, or what happens after
+a key stays on the walk alone.
+
 ## The keys
 
 Yazi's linemode leader is `m`, and it binds only letters, so the digits are

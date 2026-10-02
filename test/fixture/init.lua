@@ -46,7 +46,9 @@ local BAND_BY_NAME = "#0b3d91 <-> both"
 -- `#fdf6e3` -- 0.242 from the nearest of the sixty-four steps above, and 0.113
 -- from the nearest colour this fixture draws elsewhere. The hexes are spelled
 -- out because a distance taken against a list of names cannot be re-taken from
--- one: whoever checks this needs the colours, not the flavors.
+-- one: whoever checks this needs the colours, not the flavors. `gallery.py`
+-- draws every capture on these seven, read off this comment by
+-- `setup.terminal_grounds`, so each stays a name and a backticked hex.
 --
 -- The value that was here before, `#241a33`, was 0.02 from Mocha's `#1e1e2e`:
 -- a correct background, drawn on every row, and invisible to anyone reading on
