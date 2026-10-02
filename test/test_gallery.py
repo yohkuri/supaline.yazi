@@ -1,7 +1,8 @@
 """The gallery's page, against cells and verdicts written here.
 
-`gallery.py` needs a real Yazi to take its captures, and none to draw them or
-to read back what the page posts, so those halves are checked here, in CI.
+`gallery.py` needs a real Yazi to take its captures, and none to draw them, to
+read back what the page posts or to keep a second run off the first one's
+directory, so those are checked here, in CI.
 Whether the page looks like the terminal it stands in for is a person's call,
 which is the point of it.
 
@@ -10,8 +11,13 @@ which is the point of it.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import gallery
 import screen as sc
@@ -127,6 +133,30 @@ class Posted(unittest.TestCase):
         for reason, body in spoiled.items():
             with self.subTest(reason), self.assertRaises(ValueError):
                 gallery.verdict_line(body, SHOWN, NAMES)
+
+
+class Lock(unittest.TestCase):
+    def setUp(self):
+        dir = tempfile.TemporaryDirectory()
+        self.addCleanup(dir.cleanup)
+        patched = mock.patch.object(gallery, "LOCK", Path(dir.name) / "lock")
+        patched.start()
+        self.addCleanup(patched.stop)
+
+    def test_a_second_run_is_refused_while_the_first_holds_it(self):
+        with gallery.hold_lock():
+            with (
+                self.assertRaises(SystemExit),
+                contextlib.redirect_stderr(io.StringIO()) as said,
+            ):
+                gallery.hold_lock()
+            self.assertIn("another gallery is running", said.getvalue())
+
+    def test_a_run_that_has_ended_holds_nothing(self):
+        with gallery.hold_lock():
+            pass
+        with gallery.hold_lock():
+            pass
 
 
 if __name__ == "__main__":

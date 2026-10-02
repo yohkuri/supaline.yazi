@@ -383,6 +383,7 @@ class Session:
         what: str,
         *,
         timeout: float = 15,
+        colour: bool = False,
     ) -> str:
         """Poll the screen until it satisfies `predicate`.
 
@@ -391,9 +392,12 @@ class Session:
         past any sleep if the screen is slow. A deadline it reaches is not a
         failure of its own -- the check that wanted the screen is still ahead,
         and fails naming what it wanted.
+
+        `colour` hands `predicate` the screen with its escapes, for a change
+        that recolours and rewrites nothing.
         """
         deadline = time.monotonic() + timeout
-        screen = self.capture()
+        screen = self.capture(colour=colour)
         while not predicate(screen):
             if time.monotonic() > deadline:
                 print(
@@ -402,7 +406,7 @@ class Session:
                 )
                 return screen
             time.sleep(self.POLL)
-            screen = self.capture()
+            screen = self.capture(colour=colour)
         return screen
 
     def gather(
@@ -442,7 +446,9 @@ class Session:
             time.sleep(wait)
         return "\n".join(seen)
 
-    def settle(self, *, stable: float = 0.4, timeout: float = 15) -> str:
+    def settle(
+        self, *, stable: float = 0.4, timeout: float = 15, colour: bool = False
+    ) -> str:
         """Poll until the screen has held still for `stable` seconds.
 
         The fallback for a press whose effect has no name worth waiting on. It
@@ -453,13 +459,16 @@ class Session:
         A screen that never holds still is returned anyway, with a note: the
         broken run draws notifications over the preview pane, and a check that
         aborted there would take the others with it.
+
+        `colour` compares the screens with their escapes, so a repaint that
+        recolours alone resets the window too.
         """
         deadline = time.monotonic() + timeout
-        was = self.capture()
+        was = self.capture(colour=colour)
         quiet = 0.0
         while quiet < stable:
             time.sleep(self.POLL)
-            now = self.capture()
+            now = self.capture(colour=colour)
             if now == was:
                 quiet += self.POLL
             else:

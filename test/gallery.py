@@ -23,6 +23,7 @@ are in.
 
 from __future__ import annotations
 
+import fcntl
 import html
 import itertools
 import json
@@ -32,6 +33,7 @@ import unicodedata
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import IO
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -41,6 +43,10 @@ from e2e import Run
 from harness import begin_verdicts, catch_term, need, print_verdicts, refuse
 
 DIR = Path(tempfile.gettempdir()) / "supaline-gallery"
+
+#: Beside `DIR` rather than in it, since what it guards is the rebuilding of
+#: `DIR` itself.
+LOCK = DIR.with_suffix(".lock")
 
 #: xterm's sixteen named colours, which every tile draws `p0` to `p15` in. A
 #: palette per ground would be truer to each terminal, and would be seven
@@ -86,9 +92,33 @@ def capture(r: Run, shown: Shown) -> None:
         r.open_yazi("state")
         for n, step in shown.items():
             if step.theme == theme:
-                r.show(r.listing.cases[step.case])
+                show(r, r.listing.cases[step.case])
                 r.shot(f"step-{n}")
         r.session.kill()
+
+
+def show(r: Run, case: fixture.Case) -> None:
+    """`Run.show`, held to the colours as well as the text.
+
+    Steps in one folder can draw the same text in other colours -- `c_ramp`,
+    `c_band` and `c_hue` are the same two columns on three ramps -- and
+    `Run.show` waits on plain captures, which hold still on the step before as
+    readily as on this one. So the coloured screen has to move off the one
+    before the press, and then hold still. A step that never moves it is
+    refused rather than drawn, because its tiles would be the step before's
+    under this one's question.
+    """
+    was = r.session.capture(colour=True)
+    r.show(case)
+    now = r.session.wait_for(
+        lambda s: s != was, f"{case.id} drawn", colour=True
+    )
+    if now == was:
+        refuse(
+            f"gallery: {case.key} drew what the step before it drew -- a "
+            "gallery step has to differ from the one before it"
+        )
+    r.session.settle(colour=True)
 
 
 def foreground(ground: str) -> str:
@@ -338,56 +368,80 @@ def serve(page: str, shown: Shown, names: set[str], verdicts: Path) -> None:
         server.server_close()
 
 
+def hold_lock() -> IO[str]:
+    """Take the gallery for this run, or refuse if another run has it.
+
+    Every run rebuilds the one `DIR`, and a run still serving appends to the
+    `verdicts.txt` in it: a second run would delete the first one's verdicts
+    and then take its late ones under its own header. Held until the file
+    closes, which is what lets go of an `flock`, so `main` holds it across
+    the whole run, `--clean` included.
+    """
+    file = LOCK.open("w")
+    try:
+        fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        file.close()
+        refuse(
+            "gallery: another gallery is running -- Ctrl-C it first, since "
+            "this one would rebuild the directory it writes verdicts to"
+        )
+    return file
+
+
 def main(argv: list[str]) -> int:
-    if argv[:1] == ["--clean"]:
-        # `setup.py` owns the marker file and the "is this ours" guard, so it
-        # owns the removal too.
-        fixture.main(["--clean", str(DIR)])
-        print(f"gallery: removed {DIR}")
+    with hold_lock():
+        if argv[:1] == ["--clean"]:
+            # `setup.py` owns the marker file and the "is this ours" guard, so
+            # it owns the removal too.
+            fixture.main(["--clean", str(DIR)])
+            print(f"gallery: removed {DIR}")
+            return 0
+
+        need("tmux", "yazi")
+        catch_term()
+        grounds = fixture.terminal_grounds(
+            (fixture.FIXTURE / "init.lua").read_text()
+        )
+        if not grounds:
+            refuse(
+                "gallery: no ground in the comment above `GROUND` in "
+                "test/fixture/init.lua -- a name and a backticked hex each"
+            )
+
+        r = Run(keep=True, dir=DIR)
+        shown = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
+        if not shown:
+            refuse(
+                "gallery: no step in test/fixture/walk.toml says "
+                "`gallery = true`"
+            )
+        try:
+            r.setup()
+            capture(r, shown)
+        finally:
+            # Kept, since the verdicts are written beside the captures.
+            r.teardown()
+
+        verdicts = DIR / fixture.VERDICTS
+        header = begin_verdicts(
+            verdicts,
+            "supaline gallery: step, case, theme, verdict, grounds",
+            "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
+        )
+        keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
+        panes = {
+            n: drawn(sc.current_cells(r.shots[f"colour-step-{n}"]))
+            for n in shown
+        }
+        body = page(header, shown, keys, panes, grounds)
+
+        try:
+            serve(body, shown, {name for name, _ in grounds}, verdicts)
+        finally:
+            # On a SIGTERM as well, which `catch_term` turns into an exit.
+            print_verdicts(verdicts, "gallery")
         return 0
-
-    need("tmux", "yazi")
-    catch_term()
-    grounds = fixture.terminal_grounds(
-        (fixture.FIXTURE / "init.lua").read_text()
-    )
-    if not grounds:
-        refuse(
-            "gallery: no ground in the comment above `GROUND` in "
-            "test/fixture/init.lua -- a name and a backticked hex each"
-        )
-
-    r = Run(keep=True, dir=DIR)
-    shown = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
-    if not shown:
-        refuse(
-            "gallery: no step in test/fixture/walk.toml says `gallery = true`"
-        )
-    try:
-        r.setup()
-        capture(r, shown)
-    finally:
-        # Kept, since the verdicts are written beside the captures.
-        r.teardown()
-
-    verdicts = DIR / fixture.VERDICTS
-    header = begin_verdicts(
-        verdicts,
-        "supaline gallery: step, case, theme, verdict, grounds",
-        "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
-    )
-    keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
-    panes = {
-        n: drawn(sc.current_cells(r.shots[f"colour-step-{n}"])) for n in shown
-    }
-    body = page(header, shown, keys, panes, grounds)
-
-    try:
-        serve(body, shown, {name for name, _ in grounds}, verdicts)
-    finally:
-        # On a SIGTERM as well, which `catch_term` turns into an exit.
-        print_verdicts(verdicts, "gallery")
-    return 0
 
 
 if __name__ == "__main__":
