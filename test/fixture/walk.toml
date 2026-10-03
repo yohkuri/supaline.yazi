@@ -67,10 +67,12 @@ case    = "c_scale"
 gallery = true
 ask     = "does the left column read as a gradient?"
 
+# Not in the gallery: `e2e.py` holds these colours to the theme, and the ramp
+# is `c_ramp`'s, already drawn on every ground. What a reader needs it for is
+# the step after, which asks whether all of it changed.
 [[step]]
-case    = "c_theme"
-gallery = true
-ask     = "do all three columns carry the theme's colours?"
+case = "c_theme"
+ask  = "size orange, mtime a blue ramp, ext magenta?"
 
 [[step]]
 case  = "c_theme"
