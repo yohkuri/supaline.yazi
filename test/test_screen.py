@@ -550,16 +550,18 @@ class TheFixtureItReads(unittest.TestCase):
 
     def test_e2e_presses_every_case_the_list_holds(self):
         # `e2e.py` presses what this answers, so an empty one would press
-        # nothing and pass; both runs have cases to press; and `b_tick` comes
-        # last, right before the `cd` to `broken/` throws its `refresh`.
+        # nothing and pass; both runs have cases to press; and the case that
+        # draws `b_tick` is read in `broken/`, whose `cd` throws its `refresh`
+        # -- in the broken run alone, since nothing else goes there.
         listing = fixture.read_cases()
         self.assertTrue(listing.clean)
         self.assertTrue(listing.broken)
-        self.assertEqual(listing.broken[-1].linemode, "b_tick")
-        # The folders and the case `e2e.py` names outright.
-        self.assertLessEqual(
-            {"data", "data/nested", "broken"}, listing.folders.keys()
+        ticks = [c for c in listing.cases.values() if c.linemode == "b_tick"]
+        self.assertEqual(
+            [(c.folder, c.broken) for c in ticks], [("broken", True)]
         )
+        # The folders and the case `e2e.py` names outright.
+        self.assertLessEqual({"data", "data/nested"}, listing.folders.keys())
         self.assertEqual(listing.cases["default"].folder, "data")
         self.assertIn("alt", listing.themes)
 

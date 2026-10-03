@@ -726,10 +726,10 @@ not.
 | `b w` | a `width` function that throws              | `g 1`      |
 | `b u` | a `width` function that returns `0`         | `g 1`      |
 | `b g` | a `stats` that finds no extremes, on a ramp | `g 3`      |
-| `b f` | two columns counting their own refreshes    | `g 1`      |
+| `b f` | two columns counting their own refreshes    | `g 6`      |
 
 `g 6` is a seventh key on the `g` leader: it goes to `broken/`, the folder
-that breaks the `refresh` of the column `b f` draws.
+whose `cd` breaks the `refresh` of the column `b f` draws there.
 
 The notification is drawn over the top of the preview pane, a second or two
 after the key, and times out after twenty seconds. Read one before pressing
@@ -877,18 +877,14 @@ step of the same ramp.
 
 The fourth function a column may write, and the only one supaline calls from
 outside Yazi's redraw: it runs at `setup` and again on every `cd`, whichever
-linemode is showing. So no linemode key can break it. `b f` only draws it.
+linemode is showing. So no linemode can break it; `b f` breaks it by where it
+goes, `broken/`, whose `cd` throws the left column's `refresh`.
 
-Both columns count their own refreshes, and they agree:
-
-```text
- exactly-1k.bin           1024B   5   5 01/02 03:04
-```
-
-Press `g 6`, and the folder it takes you to breaks the left one:
+Both columns count their own refreshes, and the `cd` that brought you here is
+the first the left one missed:
 
 ```text
- one.txt                     1B   5   6 09/17 17:14
+ one.txt                     1B   3   4 09/17 17:14
 ```
 
 - The left column is frozen where it stood and the right one carried on. That
@@ -897,7 +893,7 @@ Press `g 6`, and the folder it takes you to breaks the left one:
 - Walk about with `g 1` and `g 2` and the gap widens. The notification does not
   come back, which is `told` doing its job: a hook that throws throws again at
   every folder you walk into, and one sentence is the right number.
-- `g 6` is the only thing that arms it and nothing else in the fixture goes
+- `broken/` is the only thing that arms it, and only `b f` and `g 6` go
   there. A hook that threw unconditionally would throw during `e2e.py` too.
 
 ## The fixture

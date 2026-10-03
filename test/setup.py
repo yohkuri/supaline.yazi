@@ -305,8 +305,8 @@ def build_broken(root: Path) -> None:
     """The folder that arms the broken `refresh`.
 
     Walking in here arms the `refresh` of `torn_tick`, and nothing else does.
-    Why that is a folder rather than a key is beside the column, with the code
-    that reads the cwd.
+    Why that is a folder rather than a linemode is beside the column, with the
+    code that reads the cwd.
 
     Three entries, so the counter that stops climbing is read down a column
     rather than off a single row.

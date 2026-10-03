@@ -261,7 +261,7 @@ supaline.column("torn_range", {
 	end,
 })
 
--- `b f`, armed by `g 6`. The fourth function a column may write, and the only
+-- `b f`, in `broken/`. The fourth function a column may write, and the only
 -- one supaline calls from outside the redraw.
 --
 -- Two columns, because the sentence that report carries has two halves and
@@ -275,11 +275,11 @@ supaline.column("torn_range", {
 -- its count has to go on climbing.
 local whole_ticks, torn_ticks = 0, 0
 
--- Armed by walking into `broken/`, and by nothing else. No linemode key can
--- reach this hook -- it runs at `setup` and again on every `cd`, whichever
--- linemode is showing -- so a hook that threw unconditionally would throw
--- during `e2e.py` as well, and that run fails on a Yazi that logged an error
--- at all. Nothing in it enters this folder.
+-- Armed by walking into `broken/`, and by nothing else. No linemode can reach
+-- this hook -- it runs at `setup` and again on every `cd`, whichever linemode
+-- is showing -- so a hook that threw unconditionally would throw during
+-- `e2e.py`'s clean run as well, and that run fails on a Yazi that logged an
+-- error at all. Nothing in it enters this folder; `b f` and `g 6` do.
 --
 -- `cx` is guarded rather than read outright because this hook also runs from
 -- `install`, reached from `init.lua` before there is a manager to ask, and
