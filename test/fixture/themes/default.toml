@@ -2,7 +2,7 @@
 # and `test/e2e.py` then rewrites that copy in place -- reading these values
 # from here to know what to replace, so recolouring this file is enough.
 #
-# One field is a style table and the other three are strings, because the
+# One field is a style table and the other two are strings, because the
 # custom theme section accepts either shape and both have to resolve. Add a
 # `[flavor]` here if you want to see the columns against a real flavour.
 #
@@ -14,5 +14,4 @@
 [supaline]
 size  = { fg = "#ff8800" }
 mtime = "#0b3d91 -> #7fd4ff"
-owner = "blue"
 ext   = "magenta"

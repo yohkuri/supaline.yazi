@@ -534,7 +534,7 @@ supaline:setup {
 			{ "mtime", style = COOL },
 		},
 
-		-- c t, in `data/`: nothing coloured in the spec, so all four take
+		-- c t, in `data/`: nothing coloured in the spec, so all three take
 		-- whatever `[supaline]` says. This is the mode `T` and `c 1` to `c 3`
 		-- act on, and the only one that does.
 		--
@@ -542,7 +542,14 @@ supaline:setup {
 		-- theme's ramp and the weight is the spec's, on the same cell, which is
 		-- the case the layers exist for. The ramp moves under `c 1` to `c 3`;
 		-- the bold stays.
-		c_theme = { "size", { "mtime", style = { bold = true } }, "owner", "ext" },
+		--
+		-- No `owner`: `gallery.py` approves this pane by its cells, and an owner
+		-- is the name of whoever runs it, so the step would come back
+		-- unapproved on every machine but one. Nor `permissions` in its place:
+		-- a colour the theme writes for a column reaches it in every linemode,
+		-- and one written for `permissions` replaces the per-character colours
+		-- `m 2` and `c b` are there to show.
+		c_theme = { "size", { "mtime", style = { bold = true } }, "ext" },
 
 		-- The broken columns, `b r` to `b f`. Each carries one column that is
 		-- wrong on purpose between two that are not, because what has never been
