@@ -171,23 +171,32 @@ def broken_run(r: Run, init: str) -> None:
     """
     r.open_yazi("state-broken")
 
-    # In the case list's order, which ends on `b_tick`: it draws the counting
-    # pair and breaks nothing by itself, and `broken/` is what throws its
-    # `refresh`. Last, because every `cd` after it throws again.
-    for case in r.listing.broken:
-        r.show(case)
-    r.goto("broken")
-
     # A union of many captures rather than one: measured on 26.9.1, Yazi draws
     # three notifications at a time and queues the rest, each for the twenty
     # seconds `tell` asks for. The claim is that each report reached the
     # screen, not that they were ever there together. A quarter-second between
     # captures, because that interval is also the lag on the answer.
+    #
+    # Collected while the cases are pressed rather than after them. Read off
+    # `notify:tick`, a new notification restarts the countdown of the ones
+    # drawn, so they last until twenty seconds after the last report -- and a
+    # single press slower than that drains the ones before it unread. Measured:
+    # twenty-five seconds held after `b_stats`, and screens read from the last
+    # press on never saw `torn_render` or `torn_stats`. A capture after each
+    # press is not enough either: the slow press drains its own report before
+    # it returns, and that capture never saw `torn_stats`.
     wanted = [f"`{column}`" for column in fixture.broken_columns(init)]
     began = time.monotonic()
-    union = r.session.gather(
+    with r.session.gather(
         wanted, "every report on the screen", every=0.25, timeout=60
-    )
+    ) as screens:
+        # In the case list's order, which ends on `b_tick`: it draws the
+        # counting pair and breaks nothing by itself, and `broken/` is what
+        # throws its `refresh`. Last, because every `cd` after it throws again.
+        for case in r.listing.broken:
+            r.show(case)
+        r.goto("broken")
+    union = "\n".join(screens)
     waited = time.monotonic() - began
     if all(report in union for report in wanted):
         print(f"e2e: the reports drained to the screen in {waited:.0f}s")
