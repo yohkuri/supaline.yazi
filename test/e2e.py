@@ -115,7 +115,16 @@ def clean_run(r: Run) -> None:
     for old, new in zip(fixture.theme_values(r.dir, "default"), THEME_NEW):
         body = body.replace(old, new)
     theme.write_text(body)
-    r.session.press("T")
+    # Every colour the rewrite put in place, since the reload changes no text
+    # and the plain settle would return before it as readily as after.
+    flat_new, ramp_new = THEME_NEW
+    redrawn = [sc.sgr(38, h) for h in (flat_new, *ramp_new.split(" -> "))]
+    r.session.press(
+        "T",
+        until=lambda s: all(c in s for c in redrawn),
+        what="the rewritten theme",
+        colour=True,
+    )
     r.shot("theme-after")
 
     # The walk, three keys of it: the first step, a verdict that goes on to the
@@ -143,7 +152,7 @@ def clean_run(r: Run) -> None:
     # On `default` again, whose `mtime` ramp is what the check reads, since the
     # walk left another case showing.
     r.show(r.listing.cases["default"])
-    r.theme("alt")
+    r.theme("alt", sc.sgr(38, fixture.theme_ends(r.dir, "alt")[0]))
     r.shot("theme-swapped")
 
     # Explicit rather than left to the teardown: the checks read what Yazi
