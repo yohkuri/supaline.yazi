@@ -95,18 +95,23 @@ def clear(path: Path) -> None:
         refuse(f"setup: {path} would not go away: {error}")
 
 
-def stamp(path: Path, when: str) -> None:
-    """Set an mtime, spelled the way `touch -t` spells one: CCYYMMDDhhmm.
+def epoch(when: str) -> float:
+    """A local timestamp, spelled the way `touch -t` spells one: CCYYMMDDhhmm.
 
     Local time, because that is what `touch -t` reads and what the fixture was
     built with -- `mktime` over a naive `struct_time` is the same arithmetic.
     A timezone-aware reading would move every stamped mtime by the offset, and
     `colour/ramp` places one file per ramp step by exactly these minutes.
+    """
+    return time.mktime(time.strptime(when, "%Y%m%d%H%M"))
+
+
+def stamp(path: Path, at: float) -> None:
+    """Set an mtime without following a symlink.
 
     A symlink is stamped itself rather than through to its target: `link-broken`
     has no target to stamp, and `link-ok`'s would move `medium.bin`'s date.
     """
-    at = time.mktime(time.strptime(when, "%Y%m%d%H%M"))
     os.utime(path, (at, at), follow_symlinks=False)
 
 
@@ -192,8 +197,8 @@ def build_fixture(root: Path) -> None:
     # as a time of day: both of its forms have to be on screen, and a date in
     # a fixed past year would leave only the other. The time of day is
     # `large.bin`'s, so the two forms sit one above the other on the same
-    # `01/02` and can be compared cell for cell. Deepest first, because
-    # stamping a directory's contents does not move it but creating them did.
+    # `01/02` and can be compared cell for cell. Stamp after all entries have
+    # been created, because creating contents moves a directory's mtime.
     older = {
         "large.bin": "202001020304",
         "medium.bin": "202312250000",
@@ -201,8 +206,11 @@ def build_fixture(root: Path) -> None:
         "nested/inner-a.txt": "202312250000",
     }
     this_year = f"{time.localtime().tm_year}01020304"
-    for path in sorted(data.rglob("*"), key=lambda p: -len(p.parts)):
-        stamp(path, older.get(path.relative_to(data).as_posix(), this_year))
+    times = {when: epoch(when) for when in {this_year, *older.values()}}
+    for path in data.rglob("*"):
+        stamp(
+            path, times[older.get(path.relative_to(data).as_posix(), this_year)]
+        )
 
     (root / "sibling-one").mkdir()
     (root / "sibling-two").mkdir()
@@ -248,7 +256,7 @@ def build_colour(root: Path) -> None:
     for i in range(steps()):
         f = ramp / f"step-{i:02d}.txt"
         f.write_bytes(b"")
-        stamp(f, f"20200101{i // 60:02d}{i % 60:02d}")
+        stamp(f, epoch(f"20200101{i // 60:02d}{i % 60:02d}"))
 
     # Sizes doubling from 1B, which is what makes `scale` visible: under `log`
     # the steps come out evenly spaced, and under `linear` everything but the
@@ -290,7 +298,7 @@ def build_colour(root: Path) -> None:
         for n in ("one", "two", "three"):
             (d / f"{n}.txt").write_bytes(b"x")
     for f in same + unlisted:
-        stamp(f, "202312250000")
+        stamp(f, epoch("202312250000"))
 
 
 def build_broken(root: Path) -> None:
