@@ -7,3 +7,10 @@
 # the page: it says a person looked at that pane, and nothing else can say so.
 # Taking one out claims nothing, so a line whose step has left the gallery is
 # deleted by hand.
+
+c_bg.default = "2c90d4456827386eefac448ba2cb2ea4341a4295fd54235f13b4b409ecda8b49"
+c_hue.default = "b9d432e80a0926762dfaa5aaf35cd57ee69c24b4d4e3b2ee43167bd6187f05ac"
+c_ramp.default = "82654692e22f42b617c3346ce30a9e65899ee1d80a7f25862562f32e7990c924"
+c_scale.default = "c0f6c5d60f48414aaa6b9bf442d774ba5ae5d169d96c54ab3f76eed45de14a69"
+c_spread.default = "0d065021034bf3ad799ded52c94d66e8e71624f202c9ff1f191ab11645902bfa"
+c_theme.bg = "48b6bd8f31d9b99480a81978b812f3886c0391375534ee7ee5fb3bf59b551cfb"
