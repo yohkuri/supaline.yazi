@@ -518,11 +518,13 @@ sets, both sets of numbers, and that last distance.
   what has to cover that span is the style applied to the Line around both,
   after the text was measured. The two widths differ so that a glance can tell
   which band is which; nothing in `e2e.py` needs them to.
-- Legibility is a different question here than anywhere else: the text is being
-  read against that ground rather than against the terminal's, so a step that
-  was fine in the strip before Yazi opened can be wrong here. The name is drawn
-  in the row's own colour rather than the ramp's, so it is the one place to ask
-  whether a ground disturbs a foreground nobody chose for it.
+- Legibility is a different question here than anywhere else: the date is
+  being read against that ground rather than against the terminal's, so a step
+  that was fine in the strip before Yazi opened can be wrong here. It is asked
+  of the date alone, the one column whose text and ground supaline both chose.
+  The name is drawn in the row's own colour, which is the terminal's, so how
+  well it reads on `#007a00` says something about the terminal and nothing
+  about supaline: Solarized light's `#657b83` is 1.2:1 there.
 
 - The fourth column is the same question the other way up: the ramp is the
   ground, and the text over it is the row's own — supaline sets no foreground
@@ -534,14 +536,16 @@ sets, both sets of numbers, and that last distance.
   by less — `0.00` is 2.09:1. Neither is a fault: a `bg` gradient takes the
   two endpoints you write, and this pair spans more lightness than one
   unchosen foreground can cross. The endpoints are yours to move, and what
-  you are choosing between is which end you can read.
+  you are choosing between is which end you can read. So what is asked of
+  this column is that its background fills it, and not that its text reads.
 
 `e2e.py` reads both bands off the capture — that each is there, that it is its
 own stated width rather than the width of its text, and that no second column
 picked that ground up — and that `ratio`'s background climbs a step per row. It
 also refuses a grounded column added here that nothing asks it about, so the
-pair above cannot quietly become a list of two out of three. Legibility is a
-reader's, twice over, and is why this is a manual case at all.
+pair above cannot quietly become a list of two out of three. Whether the
+date reads on its ground is a reader's, and is why this is a manual case at
+all.
 
 ### `c a` — a bold over someone else's colour
 
