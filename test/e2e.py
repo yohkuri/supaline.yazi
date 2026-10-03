@@ -202,6 +202,14 @@ def broken_run(r: Run, init: str) -> None:
     r.session.press("T")
     r.session.press("T")
 
+    # Then every case again, because a gate let go reports nothing until its
+    # column is called, and these presses are made with `b_tick` showing: they
+    # reach `torn_tick` alone. With the gate rebuilt at each `cd` or each
+    # rebuild instead of held, measured on 26.9.1, the five columns `b_tick`
+    # does not draw stayed at 1 without this.
+    for case in r.listing.broken:
+        r.show(case)
+
     r.session.quit("q")
 
 
