@@ -107,4 +107,4 @@ ask  = "does the box say what stats has to return?"
 
 [[step]]
 case = "b_tick"
-ask  = "press g 6: does the left counter alone stop?"
+ask  = "press g 1: does the right counter alone climb?"
