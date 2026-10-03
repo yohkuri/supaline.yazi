@@ -278,6 +278,15 @@ class Approved(unittest.TestCase):
             path = Path(dir) / "approved.toml"
             self.assertEqual(gallery.read_approvals(path), {})
 
+    def test_the_file_tracked_opens_with_the_header_written_today(self):
+        # The header is rewritten only when a verdict changes the file, so a
+        # reworded one would otherwise stand beside the old one until then.
+        self.assertTrue(
+            gallery.APPROVED.read_text().startswith(gallery.APPROVED_HEADER),
+            "test/approved.toml's header is not APPROVED_HEADER: write it "
+            "again with gallery.approvals_text(gallery.read_approvals())",
+        )
+
     def test_every_approval_tracked_names_a_gallery_step(self):
         # A step taken out of the gallery, or moved to another case or theme,
         # would leave a line nothing reads, approving a pane nobody draws.
