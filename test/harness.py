@@ -619,11 +619,12 @@ class Driver:
         """
         was = self.session.capture(colour=True)
         self.session.keys(*case.key.split(" "))
-        self.session.wait_for(
+        arrived = self.session.wait_for(
             self.here(case.folder),
             f"{case.folder}/ in the current pane after {case.key}",
+            colour=True,
         )
-        if not case.broken:
+        if not case.broken and arrived == was:
             self.session.wait_for(
                 lambda s: s != was, f"{case.id} drawn", colour=True
             )
