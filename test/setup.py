@@ -102,9 +102,12 @@ def stamp(path: Path, when: str) -> None:
     built with -- `mktime` over a naive `struct_time` is the same arithmetic.
     A timezone-aware reading would move every stamped mtime by the offset, and
     `colour/ramp` places one file per ramp step by exactly these minutes.
+
+    A symlink is stamped itself rather than through to its target: `link-broken`
+    has no target to stamp, and `link-ok`'s would move `medium.bin`'s date.
     """
     at = time.mktime(time.strptime(when, "%Y%m%d%H%M"))
-    os.utime(path, (at, at))
+    os.utime(path, (at, at), follow_symlinks=False)
 
 
 def sized(path: Path, length: int) -> None:
@@ -147,8 +150,9 @@ def build_fixture(root: Path) -> None:
     current pane is the one that matters. `fixture/` holds a few siblings so
     the parent pane has rows of its own, and `nested/` gives the preview one.
 
-    Sizes span five orders of magnitude, times span six years, and the names
-    are the ones that break width arithmetic: CJK, emoji, and one far too long.
+    Sizes span five orders of magnitude, times run from 2020 to this year, and
+    the names are the ones that break width arithmetic: CJK, emoji, and one far
+    too long.
     """
     data = root / "data"
     (data / "nested").mkdir(parents=True)
@@ -178,15 +182,27 @@ def build_fixture(root: Path) -> None:
     read_only.write_bytes(b"x")
     read_only.chmod(0o400)
 
-    stamp(data / "large.bin", "202001020304")
-    stamp(data / "medium.bin", "202312250000")
-    stamp(data / "huge.bin", "202405060708")
-    stamp(data / "under-1k.bin", "202601010000")
-
     (data / "nested" / "inner-a.txt").write_bytes(b"x")
     sized(data / "nested" / "inner-b.bin", 300 * 1024)
-    stamp(data / "nested" / "inner-a.txt", "202312250000")
     (data / "never-opened" / "hidden-away.txt").write_bytes(b"x")
+
+    # Every entry carries a date chosen here, so the pane reads the same on any
+    # machine and on any day of a year -- what `gallery.py` compares against an
+    # approval is that pane. Most of them are this year's, which `mtime` draws
+    # as a time of day: both of its forms have to be on screen, and a date in
+    # a fixed past year would leave only the other. The time of day is
+    # `large.bin`'s, so the two forms sit one above the other on the same
+    # `01/02` and can be compared cell for cell. Deepest first, because
+    # stamping a directory's contents does not move it but creating them did.
+    older = {
+        "large.bin": "202001020304",
+        "medium.bin": "202312250000",
+        "huge.bin": "202405060708",
+        "nested/inner-a.txt": "202312250000",
+    }
+    this_year = f"{time.localtime().tm_year}01020304"
+    for path in sorted(data.rglob("*"), key=lambda p: -len(p.parts)):
+        stamp(path, older.get(path.relative_to(data).as_posix(), this_year))
 
     (root / "sibling-one").mkdir()
     (root / "sibling-two").mkdir()
@@ -204,8 +220,8 @@ def build_colour(root: Path) -> None:
     is to choose the folder.
 
     `data/` holds whatever the width cases needed, which makes it a poor
-    instrument for looking at colour: its mtimes land on five of the ramp's
-    steps, four of them in the top third, and a dozen rows share the highest.
+    instrument for looking at colour: its mtimes land on four of the ramp's
+    steps, and a dozen rows share the highest.
     Nothing there is adjacent, so the question `MANUAL.md` puts to a reader --
     does the column climb evenly, with no flat run and no jump -- cannot be
     asked in it at all.

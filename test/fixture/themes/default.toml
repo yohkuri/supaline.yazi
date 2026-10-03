@@ -8,8 +8,8 @@
 #
 # `mtime` is a ramp rather than a colour, which a theme can only say as a
 # string: Yazi refuses an array in a custom section and takes the whole file
-# down with it. The fixture's mtimes span 2020 to today, so both ends of that
-# ramp are on screen, which is what `e2e.py` checks for.
+# down with it. The fixture's mtimes span 2020 to this year, so both ends of
+# that ramp are on screen, which is what `e2e.py` checks for.
 
 [supaline]
 size  = { fg = "#ff8800" }
