@@ -141,8 +141,8 @@ Every row ends with a size, right-aligned in seven cells.
 ### `m 1` — size and mtime
 
 ```text
- empty.txt                    0B 08/28 01:10
- exactly-1k.bin            1024B 08/28 01:10
+ empty.txt                    0B 01/02 03:04
+ exactly-1k.bin            1024B 01/02 03:04
  huge.bin                  87.9M 05/06  2024
 ```
 
@@ -150,13 +150,15 @@ Every row ends with a size, right-aligned in seven cells.
 - A file from this year shows the time; an older one shows the year. **Both
   forms are eleven cells**, so the column below stays straight. If the dates
   jitter left and right, the widths are wrong.
-- `large.bin` is from 2020 and `huge.bin` from 2024; `empty.txt` is from today.
+- `large.bin` is from 2020 and `huge.bin` from 2024. `empty.txt` and most of
+  the rest are from `01/02 03:04` this year, `large.bin`'s day and time, so
+  one date is on screen in both forms.
 
 ### `m 2` — every built-in column
 
 ```text
- link-broke… lrwxr-xr-x octocat:sta… octocat  staff        14B 08/28 01:06
- nested      drwxr-xr-x octocat:sta… octocat  staff          2 08/28 01:06     2
+ link-broke… lrwxr-xr-x octocat:sta… octocat  staff        14B 01/02 03:04
+ nested      drwxr-xr-x octocat:sta… octocat  staff          2 01/02 03:04     2
 ```
 
 - `link-broken` is `lrwxr-xr-x`, directories are `drwxr-xr-x`, and
@@ -241,7 +243,7 @@ The same name, four ways, against a column of twelve.
 ### `m 5` — separators
 
 ```text
- exactly-1k.bin      bin    1024B│08/28 01:10
+ exactly-1k.bin      bin    1024B│01/02 03:04
 ```
 
 - `bin` is the extension column, five cells, left-aligned.
@@ -795,7 +797,7 @@ is nothing to delete between runs. A report missed is a report gone, though —
 ### `b r` — a `render` that throws
 
 ```text
- exactly-1k.bin           1024B !!!!!! 09/17 17:14
+ exactly-1k.bin           1024B !!!!!! 01/02 03:04
  huge.bin                 87.9M !!!!!! 05/06  2024
 ```
 
@@ -808,7 +810,7 @@ is nothing to delete between runs. A report missed is a report gone, though —
 ### `b s` — a `stats` that throws
 
 ```text
- exactly-1k.bin           1024B     ok 09/17 17:14
+ exactly-1k.bin           1024B     ok 01/02 03:04
 ```
 
 - **Nothing on the line says so.** The column's `render` works, so every cell
@@ -819,8 +821,8 @@ is nothing to delete between runs. A report missed is a report gone, though —
 ### `b w` — a `width` function that throws
 
 ```text
- nested                        2 dir 09/17 17:14
- exactly-1k.bin           1024B file 09/17 17:14
+ nested                        2 dir 01/02 03:04
+ exactly-1k.bin           1024B file 01/02 03:04
 ```
 
 - The column is left with **no width at all** rather than a guessed one, so it
@@ -864,7 +866,7 @@ linemode is showing. So no linemode key can break it. `b f` only draws it.
 Both columns count their own refreshes, and they agree:
 
 ```text
- exactly-1k.bin           1024B   5   5 09/17 17:14
+ exactly-1k.bin           1024B   5   5 01/02 03:04
 ```
 
 Press `g 6`, and the folder it takes you to breaks the left one:

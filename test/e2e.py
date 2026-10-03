@@ -645,8 +645,8 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
     k.section("the ramp")
 
     # The ends are read off `m 1` in `data/`, where the ramp is the themed one:
-    # the fixture's mtimes run from 2020 to today, so the oldest row draws the
-    # low end and a file just created the high one. A column that drew the ramp
+    # the fixture's mtimes run from 2020 to this year, so the oldest row draws
+    # the low end and the newest the high one. A column that drew the ramp
     # as a flat colour can only put one of them on screen. `colour/ramp` cannot
     # do it: its high end is below the window.
     low, high = fixture.theme_ends(dir, "default")
