@@ -455,32 +455,35 @@ class Session:
         missing = set(needles)
         seen: list[str] = []
         # Unbounded while the block runs, `timeout` past its end once it has
-        # finished, and 0 when it raised, which stops the thread unannounced.
-        until = [float("inf")]
+        # finished.
+        deadline = float("inf")
+        stopped = threading.Event()
 
         def collect() -> None:
-            while True:
+            while not stopped.is_set():
                 screen = self.capture()
-                seen.append(screen)
-                missing.difference_update({n for n in missing if n in screen})
+                if not seen or screen != seen[-1]:
+                    seen.append(screen)
+                    missing.difference_update(
+                        {n for n in missing if n in screen}
+                    )
                 if not missing:
                     return
-                if time.monotonic() > until[0]:
-                    if until[0]:
-                        print(
-                            f"  note: waited {timeout}s and never saw {what}",
-                            file=sys.stderr,
-                        )
+                if time.monotonic() > deadline:
+                    print(
+                        f"  note: waited {timeout}s and never saw {what}",
+                        file=sys.stderr,
+                    )
                     return
-                time.sleep(wait)
+                stopped.wait(wait)
 
         thread = threading.Thread(target=collect, daemon=True)
         thread.start()
         try:
             yield seen
-            until[0] = time.monotonic() + timeout
+            deadline = time.monotonic() + timeout
         except BaseException:
-            until[0] = 0
+            stopped.set()
             raise
         finally:
             thread.join()
