@@ -456,12 +456,32 @@ for (const section of document.querySelectorAll("section[data-step]")) {{
 """
 
 
-def verdict_line(body: bytes, shown: Shown, names: set[str]) -> str:
-    """The line a verdict the page posted is written as, or `ValueError`.
+class Verdict(NamedTuple):
+    """A validated answer to one of the steps shown on the page."""
 
-    The walk's four fields, then the grounds a `no` was given on. Refused
-    rather than written when it is anything the page does not send, since
-    `print_verdicts` trusts the file it reads.
+    n: int
+    step: fixture.Step
+    said: str
+    grounds: list[str]
+
+    def line(self) -> str:
+        """The walk's four fields, then the grounds a no was given on."""
+        return "\t".join(
+            [
+                str(self.n),
+                self.step.case,
+                self.step.theme,
+                self.said,
+                ", ".join(self.grounds),
+            ]
+        )
+
+
+def verdict(body: bytes, shown: Shown, names: set[str]) -> Verdict:
+    """The verdict the page posted, validated, or `ValueError`.
+
+    Refused rather than written when it is anything the page does not send,
+    since `print_verdicts` trusts the file it reads.
     """
     said = json.loads(body)
     n = said.get("step") if isinstance(said, dict) else None
@@ -475,9 +495,7 @@ def verdict_line(body: bytes, shown: Shown, names: set[str]) -> str:
         raise ValueError("not a list of the gallery's grounds")
     if verdict == "yes" and grounds:
         raise ValueError("a yes names no ground")
-    return "\t".join(
-        [str(n), step.case, step.theme, verdict, ", ".join(grounds)]
-    )
+    return Verdict(n, step, verdict, grounds)
 
 
 #: A step as `approved.toml` keys it: its case, and the theme it is shown
@@ -487,7 +505,7 @@ Key = tuple[str, str]
 #: A digest as `approved.toml` holds it.
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
-#: What `approved.toml` opens with, since it is written whole at each verdict.
+#: What `approved.toml` opens with, since it is written whole when it changes.
 APPROVED_HEADER = """\
 # The gallery steps a reader said yes to, by case and theme, each with the
 # digest of what they were shown: the current pane, cell by cell and pen by
@@ -547,7 +565,9 @@ def read_approvals(path: Path = APPROVED) -> dict[Key, str]:
     """`approved.toml` itself -- nothing approved when there is none -- or a
     refusal that says what is wrong with it."""
     try:
-        return approvals(path.read_text()) if path.exists() else {}
+        return approvals(path.read_text())
+    except FileNotFoundError:
+        return {}
     except ValueError as error:
         refuse(f"gallery: {path.relative_to(fixture.ROOT)}: {error}")
 
@@ -565,7 +585,7 @@ def pending(
 
 
 class Approvals:
-    """`approved.toml` as this run holds it, written whole at each verdict.
+    """`approved.toml` as this run holds it, written whole when it changes.
 
     Held rather than read again at each one, since nothing but this run writes
     it while `hold_lock` is held.
@@ -578,13 +598,16 @@ class Approvals:
         self.found = dict(found)
         self.digests = digests
 
-    def record(self, line: str) -> None:
-        """A yes or a no, as `verdict_line` wrote it."""
-        n, case, theme, said, _ = line.split("\t")
-        if said == "yes":
-            self.found[case, theme] = self.digests[int(n)]
+    def record(self, verdict: Verdict) -> None:
+        """Update the approval when a verdict changes it."""
+        key = verdict.step.case, verdict.step.theme
+        digest = self.digests[verdict.n] if verdict.said == "yes" else None
+        if self.found.get(key) == digest:
+            return
+        if digest is not None:
+            self.found[key] = digest
         else:
-            self.found.pop((case, theme), None)
+            del self.found[key]
         self.path.write_text(approvals_text(self.found))
 
 
@@ -625,14 +648,14 @@ def serve(
                 return
             length = int(self.headers.get("Content-Length", 0))
             try:
-                line = verdict_line(self.rfile.read(length), shown, names)
+                said = verdict(self.rfile.read(length), shown, names)
             except ValueError as error:
                 self.reply(400, str(error).encode())
                 return
             with writing:
                 with verdicts.open("a") as file:
-                    file.write(line + "\n")
-                approved.record(line)
+                    file.write(said.line() + "\n")
+                approved.record(said)
             self.reply(200, b"recorded")
 
         def log_message(self, format: str, *args: object) -> None:
