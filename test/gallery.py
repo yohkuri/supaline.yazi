@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The colour steps of the walk, drawn on seven terminal grounds at once.
 
-    test/gallery.py          capture them, and serve the page to judge them on
+    test/gallery.py          capture them, and serve the ones not yet approved
+    test/gallery.py --all    ... every one of them, approved or not
     test/gallery.py --clean  throw the gallery away
 
 The walk in `manual.py` asks its questions on one ground, the reader's own, and
@@ -22,19 +23,29 @@ The page is served by this process, on localhost, because a verdict given on it
 is written to `verdicts.txt` beside it, under the same header as the walk's.
 Ctrl-C stops it and prints them, since the next run rebuilds the directory they
 are in.
+
+A yes is also written to `test/approved.toml`, as a digest of what was shown,
+and a no takes it out again. A step whose digest is there is left off the page,
+so a run asks only about the steps that moved since someone looked, and opens
+no browser at all when none did.
 """
 
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import html
 import itertools
 import json
+import re
 import sys
 import tempfile
+import threading
 import unicodedata
 import webbrowser
 from collections import defaultdict
+from collections.abc import Container
+from dataclasses import astuple
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import IO, NamedTuple
@@ -53,6 +64,10 @@ VERDICTS = DIR / fixture.VERDICTS
 #: Beside `DIR` rather than in it, since what it guards is the rebuilding of
 #: `DIR` itself.
 LOCK = DIR.with_suffix(".lock")
+
+#: The steps a reader said yes to, tracked, so that a change which moves a
+#: pane carries the approval of the pane it moved to, or shows it has none.
+APPROVED = fixture.ROOT / "test" / "approved.toml"
 
 #: xterm's sixteen named colours, `p0` to `p15`, for a ground `SCHEMES` has
 #: no scheme for.
@@ -323,9 +338,11 @@ def page(
     keys: dict[int, str],
     panes: dict[int, str],
     grounds: list[tuple[str, str]],
+    approved: Container[int] = frozenset(),
 ) -> str:
     """The whole page: the header the verdicts are under, then a section per
-    step, its question and its buttons above a tile per ground.
+    step, its question and its buttons above a tile per ground. A step in
+    `approved`, which only `--all` shows, says so in its heading.
 
     Each pane is written once, in a `<template>` the page's script copies into
     every tile: the colour scheme is the tile's, one rule per ground, and not
@@ -343,7 +360,8 @@ def page(
         sections.append(
             f'<section id="step-{n}" data-step="{n}">'
             f"<h2>step {n} · <code>{keys[n]}</code> · "
-            f"{step.case} under {step.theme}</h2>"
+            f"{step.case} under {step.theme}"
+            f"{' · approved' if n in approved else ''}</h2>"
             f'<p class="ask">{html.escape(step.ask)}</p>'
             '<p><button data-said="yes">looks right</button> '
             '<button data-said="no">looks wrong on the ticked</button> '
@@ -462,12 +480,128 @@ def verdict_line(body: bytes, shown: Shown, names: set[str]) -> str:
     )
 
 
-def serve(body: bytes, shown: Shown, names: set[str], verdicts: Path) -> None:
+#: A step as `approved.toml` keys it: its case, and the theme it is shown
+#: under. Not its number, which every step inserted above it would move.
+Key = tuple[str, str]
+
+#: A digest as `approved.toml` holds it.
+DIGEST = re.compile(r"[0-9a-f]{64}")
+
+#: What `approved.toml` opens with, since it is written whole at each verdict.
+APPROVED_HEADER = """\
+# The gallery steps a reader said yes to, by case and theme, each with the
+# digest of what they were shown: the current pane, cell by cell and pen by
+# pen, the grounds and colour schemes it was drawn on, and the question.
+#
+# `test/gallery.py` writes this file -- a yes adds a step, a no takes it out --
+# and shows only the steps whose digest is not here. Never written by hand: a
+# line here says a person looked at that pane, and nothing else can say so.
+"""
+
+
+def digest(
+    cells: list[list[sc.Cell]], grounds: list[tuple[str, str]], ask: str
+) -> str:
+    """What a yes is a yes to, as a SHA-256.
+
+    The current pane alone, because the header row carries the scratch
+    directory, which is under `$TMPDIR` and so differs from one machine to the
+    next. The grounds with their schemes, because a named colour on a tile is
+    the scheme's. And the question, so a step asked differently is asked again.
+    """
+    seen = {
+        "pane": [[[ch, *astuple(pen)] for ch, pen in row] for row in cells],
+        "grounds": [[name, *scheme(name, hex)] for name, hex in grounds],
+        "ask": ask,
+    }
+    return hashlib.sha256(json.dumps(seen).encode()).hexdigest()
+
+
+def approvals(text: str) -> dict[Key, str]:
+    """The digests an `approved.toml` holds, by key, or `ValueError`."""
+    # Here rather than at the top, for the reason `setup.theme_values` gives.
+    import tomllib
+
+    found: dict[Key, str] = {}
+    for case, themes in tomllib.loads(text).items():
+        if not isinstance(themes, dict) or not themes:
+            raise ValueError(f"`{case}` is not a table of digests by theme")
+        for theme, said in themes.items():
+            if not isinstance(said, str) or not DIGEST.fullmatch(said):
+                raise ValueError(f"`{case}.{theme}` is not a digest")
+            found[case, theme] = said
+    return found
+
+
+def approvals_text(found: dict[Key, str]) -> str:
+    """`approved.toml` as it is written: a line per step, sorted, so a diff of
+    it names the steps a change moved and nothing else."""
+    lines = "".join(
+        f'{case}.{theme} = "{said}"\n'
+        for (case, theme), said in sorted(found.items())
+    )
+    return APPROVED_HEADER + (f"\n{lines}" if lines else "")
+
+
+def read_approvals(path: Path = APPROVED) -> dict[Key, str]:
+    """`approved.toml` itself -- nothing approved when there is none -- or a
+    refusal that says what is wrong with it."""
+    try:
+        return approvals(path.read_text()) if path.exists() else {}
+    except ValueError as error:
+        refuse(f"gallery: {path.relative_to(fixture.ROOT)}: {error}")
+
+
+def pending(
+    steps: Shown, digests: dict[int, str], found: dict[Key, str]
+) -> Shown:
+    """The steps whose pane, grounds or question moved since the yes recorded
+    for them, or that have none."""
+    return {
+        n: step
+        for n, step in steps.items()
+        if found.get((step.case, step.theme)) != digests[n]
+    }
+
+
+class Approvals:
+    """`approved.toml` as this run holds it, written whole at each verdict.
+
+    Held rather than read again at each one, since nothing but this run writes
+    it while `hold_lock` is held.
+    """
+
+    def __init__(
+        self, path: Path, found: dict[Key, str], digests: dict[int, str]
+    ) -> None:
+        self.path = path
+        self.found = dict(found)
+        self.digests = digests
+
+    def record(self, line: str) -> None:
+        """A yes or a no, as `verdict_line` wrote it."""
+        n, case, theme, said, _ = line.split("\t")
+        if said == "yes":
+            self.found[case, theme] = self.digests[int(n)]
+        else:
+            self.found.pop((case, theme), None)
+        self.path.write_text(approvals_text(self.found))
+
+
+def serve(
+    body: bytes,
+    shown: Shown,
+    names: set[str],
+    verdicts: Path,
+    approved: Approvals,
+) -> None:
     """Serve the page, and write each verdict posted to it, until Ctrl-C.
 
     Threaded, so a connection a browser opens ahead and never uses holds up no
-    request behind it.
+    request behind it. The writes are taken one at a time, since `approved`
+    is rewritten whole and two at once would keep whichever finished last.
     """
+    writing = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def reply(
@@ -495,8 +629,10 @@ def serve(body: bytes, shown: Shown, names: set[str], verdicts: Path) -> None:
             except ValueError as error:
                 self.reply(400, str(error).encode())
                 return
-            with verdicts.open("a") as file:
-                file.write(line + "\n")
+            with writing:
+                with verdicts.open("a") as file:
+                    file.write(line + "\n")
+                approved.record(line)
             self.reply(200, b"recorded")
 
         def log_message(self, format: str, *args: object) -> None:
@@ -535,20 +671,42 @@ def hold_lock() -> IO[str]:
     return file
 
 
-def prepare(grounds: list[tuple[str, str]]) -> tuple[bytes, Shown]:
-    """Capture and draw the page, keeping only its bytes and verdict steps."""
+class Prepared(NamedTuple):
+    """A page to serve, the steps on it, and the digest of every gallery step
+    captured, shown or not."""
+
+    body: bytes
+    shown: Shown
+    digests: dict[int, str]
+
+
+def prepare(
+    grounds: list[tuple[str, str]], found: dict[Key, str], everything: bool
+) -> Prepared:
+    """Capture every gallery step and draw the page, of the ones not in
+    `found` unless `everything` is asked for.
+
+    Every step is captured either way, since a digest is of the capture.
+    """
     r = Run(keep=True, dir=DIR)
-    shown = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
-    if not shown:
+    steps = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
+    if not steps:
         refuse(
             "gallery: no step in test/fixture/walk.toml says `gallery = true`"
         )
     try:
         r.setup()
-        capture(r, shown)
+        capture(r, steps)
     finally:
         # Kept, since the verdicts are written beside the captures.
         r.teardown()
+
+    cells = {n: sc.current_cells(r.shots[f"colour-step-{n}"]) for n in steps}
+    digests = {n: digest(cells[n], grounds, steps[n].ask) for n in steps}
+    moved = pending(steps, digests, found)
+    shown = steps if everything else moved
+    if not shown:
+        return Prepared(b"", {}, digests)
 
     header = begin_verdicts(
         VERDICTS,
@@ -556,15 +714,20 @@ def prepare(grounds: list[tuple[str, str]]) -> tuple[bytes, Shown]:
         "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
     )
     keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
-    panes = {
-        n: drawn(sc.current_cells(r.shots[f"colour-step-{n}"])) for n in shown
-    }
-    return page(header, shown, keys, panes, grounds).encode(), shown
+    panes = {n: drawn(cells[n]) for n in shown}
+    body = page(header, shown, keys, panes, grounds, set(steps) - set(moved))
+    return Prepared(body.encode(), shown, digests)
+
+
+#: What `main` takes, each alone.
+USAGE = "test/gallery.py [--all | --clean]"
 
 
 def main(argv: list[str]) -> int:
+    if argv not in ([], ["--all"], ["--clean"]):
+        refuse(f"usage: {USAGE}")
     with hold_lock():
-        if argv[:1] == ["--clean"]:
+        if argv == ["--clean"]:
             # `setup.py` owns the marker file and the "is this ours" guard, so
             # it owns the removal too.
             fixture.main(["--clean", str(DIR)])
@@ -582,9 +745,25 @@ def main(argv: list[str]) -> int:
                 "test/fixture/init.lua -- a name and a backticked hex each"
             )
 
-        body, shown = prepare(grounds)
+        found = read_approvals()
+        ready = prepare(grounds, found, everything=argv == ["--all"])
+        if not ready.shown:
+            print(
+                f"gallery: all {len(ready.digests)} steps are approved as "
+                "drawn, so there is nothing to judge -- --all shows them anyway"
+            )
+            return 0
+        print(
+            f"gallery: {len(ready.shown)} of {len(ready.digests)} steps shown"
+        )
         try:
-            serve(body, shown, {name for name, _ in grounds}, VERDICTS)
+            serve(
+                ready.body,
+                ready.shown,
+                {name for name, _ in grounds},
+                VERDICTS,
+                Approvals(APPROVED, found, ready.digests),
+            )
         finally:
             # On a SIGTERM as well, which `catch_term` turns into an exit.
             print_verdicts(VERDICTS, "gallery")

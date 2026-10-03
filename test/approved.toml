@@ -1,0 +1,7 @@
+# The gallery steps a reader said yes to, by case and theme, each with the
+# digest of what they were shown: the current pane, cell by cell and pen by
+# pen, the grounds and colour schemes it was drawn on, and the question.
+#
+# `test/gallery.py` writes this file -- a yes adds a step, a no takes it out --
+# and shows only the steps whose digest is not here. Never written by hand: a
+# line here says a person looked at that pane, and nothing else can say so.

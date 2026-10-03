@@ -17,6 +17,9 @@ nothing about whether the plugin actually draws anything.
 - Yazi version:
 - `test/e2e.py`:
 
+If this moves a colour, `test/gallery.py` asks about the steps it moved,
+and `test/approved.toml` in the diff says which ones you looked at.
+
 If you're adding or changing a claim about how Yazi behaves, it helps a lot
 to say what you ran to find out — and where you stopped looking.
 

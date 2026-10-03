@@ -70,6 +70,20 @@ directory away. Until Ctrl-C, a second `test/gallery.py`, `--clean` included,
 refuses to start, since it would rebuild the directory the verdicts are written
 to.
 
+A *looks right* is also kept, in `test/approved.toml`: the step's case and
+theme, and a digest of what you were shown — the current pane, cell by cell and
+colour by colour, the grounds and their schemes, and the question. A *looks
+wrong* takes the step out again. The page shows only the steps whose digest is
+not there, so a run asks about what moved since someone last looked, and opens
+no browser at all when nothing did; `test/gallery.py --all` shows every step,
+and says which are approved. Commit the file with the change that moved the
+panes, and write it only from the page: a line in it says a person looked.
+
+A digest is of what this machine drew, so another Yazi or another tmux can move
+a pen and bring a step back. So does a new year: `data/`'s newest files are
+dated this year, so `mtime` shows a time of day, and the step that draws them
+comes back each January.
+
 Each tile is drawn in the colour scheme it is named after: its ground, its
 foreground, and the sixteen named colours a `blue` or a `magenta` comes out in,
 since a terminal draws those from its own scheme rather than as one fixed

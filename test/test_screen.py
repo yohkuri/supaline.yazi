@@ -713,6 +713,11 @@ class TheFixtureItReads(unittest.TestCase):
                 "bad", extra="gallery = true\n"
             ),
             "a broken case shown twice": self.step("bad") * 2,
+            # `gallery.py` keeps a yes by the two.
+            "two gallery steps on one case and theme": self.step(
+                extra="gallery = true\n"
+            )
+            * 2,
             "a working case after a broken one": self.step("bad") + self.step(),
             "no step at all": "",
         }

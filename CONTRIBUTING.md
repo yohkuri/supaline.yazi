@@ -86,6 +86,10 @@ Two things worth knowing:
   so they're not in CI. Run them yourself if your change affects what's
   on screen — and trust the exit status over how the screen looks,
   because a broken fetcher still looks fine.
+- If your change moves a colour, `test/gallery.py` shows you the steps it
+  moved, and a *looks right* there updates `test/approved.toml`. Commit
+  that file with your change; the diff tells a reviewer which steps you
+  looked at. `test/MANUAL.md` has the rest.
 
 ## Commit messages
 

@@ -47,7 +47,8 @@ jobs:
         # around it needs a real Yazi and a real terminal and is not here.
         # `test/test_gallery.py` is found by the same pattern: the half of
         # `gallery.py` that draws a page out of those cells needs no Yazi
-        # either.
+        # either, and neither does holding `test/approved.toml` to the steps
+        # the walk puts in the gallery.
         #
         # Before that split those parsers were `awk` inside the shell harness
         # and nothing tested them, which is the quietest hole a test harness
