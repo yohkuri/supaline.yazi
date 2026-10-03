@@ -512,8 +512,10 @@ APPROVED_HEADER = """\
 # pen, the grounds and colour schemes it was drawn on, and the question.
 #
 # `test/gallery.py` writes this file -- a yes adds a step, a no takes it out --
-# and shows only the steps whose digest is not here. Never written by hand: a
-# line here says a person looked at that pane, and nothing else can say so.
+# and shows only the steps whose digest is not here. A line is added only from
+# the page: it says a person looked at that pane, and nothing else can say so.
+# Taking one out claims nothing, so a line whose step has left the gallery is
+# deleted by hand.
 """
 
 
@@ -599,16 +601,21 @@ class Approvals:
         self.digests = digests
 
     def record(self, verdict: Verdict) -> None:
-        """Update the approval when a verdict changes it."""
+        """Write the approval a verdict changes, and hold it once written.
+
+        Not before: a write that fails leaves this as the file still is, so
+        the same verdict sent again writes it rather than finding nothing to
+        change.
+        """
         key = verdict.step.case, verdict.step.theme
-        digest = self.digests[verdict.n] if verdict.said == "yes" else None
-        if self.found.get(key) == digest:
-            return
-        if digest is not None:
-            self.found[key] = digest
+        found = dict(self.found)
+        if verdict.said == "yes":
+            found[key] = self.digests[verdict.n]
         else:
-            del self.found[key]
-        self.path.write_text(approvals_text(self.found))
+            found.pop(key, None)
+        if found != self.found:
+            self.path.write_text(approvals_text(found))
+            self.found = found
 
 
 def serve(

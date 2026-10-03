@@ -225,9 +225,13 @@ digest is missing. `test_gallery.py` holds every key to a gallery step in CI.
 
 What nothing can hold is who wrote a line. The file is the one record here of a
 person having looked, so an agent never posts a verdict to the page and never
-writes the file, by hand or through `gallery.py`. A change that moves a pane
-leaves its step unapproved, and that is the state to hand over: say which steps
-the change moves, and leave the gallery to the maintainer.
+adds a line to the file, by hand or through `gallery.py`. A change that moves a
+pane leaves its step unapproved, and that is the state to hand over: say which
+steps the change moves, and leave the gallery to the maintainer.
+
+Taking a line out claims nothing — the step is only asked again — so a line
+whose step has left the gallery, which `test_gallery.py` refuses, is deleted by
+hand by whoever moved the step, agent or not.
 
 ## A headless run is not a terminal
 

@@ -77,7 +77,9 @@ wrong* takes the step out again. The page shows only the steps whose digest is
 not there, so a run asks about what moved since someone last looked, and opens
 no browser at all when nothing did; `test/gallery.py --all` shows every step,
 and says which are approved. Commit the file with the change that moved the
-panes, and write it only from the page: a line in it says a person looked.
+panes, and add to it only from the page: a line in it says a person looked.
+Taking one out claims nothing, so a line for a step that has left the gallery,
+which the unit tests refuse, is deleted by hand.
 
 A digest is of what this machine drew, so another Yazi or another tmux can move
 a pen and bring a step back. So does a new year: `data/`'s newest files are

@@ -3,5 +3,7 @@
 # pen, the grounds and colour schemes it was drawn on, and the question.
 #
 # `test/gallery.py` writes this file -- a yes adds a step, a no takes it out --
-# and shows only the steps whose digest is not here. Never written by hand: a
-# line here says a person looked at that pane, and nothing else can say so.
+# and shows only the steps whose digest is not here. A line is added only from
+# the page: it says a person looked at that pane, and nothing else can say so.
+# Taking one out claims nothing, so a line whose step has left the gallery is
+# deleted by hand.

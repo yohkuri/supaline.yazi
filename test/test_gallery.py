@@ -252,6 +252,27 @@ class Approved(unittest.TestCase):
         # What the run was handed is left as it was.
         self.assertEqual(found, {("c_theme", "bg"): "a" * 64})
 
+    def test_a_verdict_whose_write_failed_is_written_when_sent_again(self):
+        dir = tempfile.TemporaryDirectory()
+        self.addCleanup(dir.cleanup)
+        path = Path(dir.name) / "approved.toml"
+        path.write_text(
+            gallery.approvals_text({("c_ramp", "default"): "3" * 64})
+        )
+        approved = gallery.Approvals(
+            path, gallery.read_approvals(path), DIGESTS
+        )
+        no = gallery.verdict(
+            posted(step=3, said="no", grounds=["black"]), SHOWN, NAMES
+        )
+        with (
+            mock.patch.object(Path, "write_text", side_effect=PermissionError),
+            self.assertRaises(PermissionError),
+        ):
+            approved.record(no)
+        approved.record(no)
+        self.assertEqual(gallery.read_approvals(path), {})
+
     def test_with_none_written_nothing_is_approved(self):
         with tempfile.TemporaryDirectory() as dir:
             path = Path(dir) / "approved.toml"
@@ -264,7 +285,12 @@ class Approved(unittest.TestCase):
         keys = {(step.case, step.theme) for step in steps if step.gallery}
         for key in gallery.read_approvals():
             with self.subTest(key):
-                self.assertIn(key, keys)
+                self.assertIn(
+                    key,
+                    keys,
+                    "names no gallery step: delete its line from "
+                    "test/approved.toml -- taking one out claims nothing",
+                )
 
     def test_an_approved_step_says_so_on_the_page(self):
         body = gallery.page(
