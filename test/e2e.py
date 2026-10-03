@@ -190,12 +190,10 @@ def broken_run(r: Run, init: str) -> None:
     with r.session.gather(
         wanted, "every report on the screen", every=0.25, timeout=60
     ) as screens:
-        # In the case list's order, which ends on `b_tick`: it draws the
-        # counting pair and breaks nothing by itself, and `broken/` is what
-        # throws its `refresh`. Last, because every `cd` after it throws again.
+        # In the case list's order. `b_tick` is read in `broken/`, and
+        # arriving there throws its `refresh`, as every `cd` after it does.
         for case in r.listing.broken:
             r.show(case)
-        r.goto("broken")
     union = "\n".join(screens)
     waited = time.monotonic() - began
     if all(report in union for report in wanted):

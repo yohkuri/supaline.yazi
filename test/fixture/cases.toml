@@ -77,8 +77,9 @@ desc     = "supaline: go to the degenerate distributions"
 # sound one beside it goes on, which is the two halves of what that report
 # claims, on screen.
 #
-# A folder rather than a case, because `refresh` is not reached by choosing a
-# linemode. The comment beside `torn_tick` has the rest of it.
+# The folder arms it rather than the linemode, because `refresh` is not reached
+# by choosing a linemode: `b_tick` is read here, and its key's `cd` is what
+# throws. The comment beside `torn_tick` has the rest of it.
 [[folder]]
 path     = "broken"
 key      = "g 6"
@@ -336,12 +337,11 @@ linemode = "b_range"
 broken   = true
 desc     = "supaline: a ramp whose `stats` found no extremes"
 
-# Last: `e2e.py` goes to `broken/` straight after it, and that `cd` has to land
-# while this one is drawn.
+# In `broken/`, whose `cd` breaks the left of the two.
 [[case]]
 id       = "b_tick"
 key      = "b f"
-folder   = "data"
+folder   = "broken"
 linemode = "b_tick"
 broken   = true
 desc     = "supaline: two columns counting their own refreshes"
