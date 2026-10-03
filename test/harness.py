@@ -458,24 +458,33 @@ class Session:
         # finished.
         deadline = float("inf")
         stopped = threading.Event()
+        # What ended the thread early, raised again once the block has left:
+        # `run` refuses with `SystemExit`, which a thread drops without a word,
+        # and the screens it leaves would read as reports that never came.
+        failed: BaseException | None = None
 
         def collect() -> None:
-            while not stopped.is_set():
-                screen = self.capture()
-                if not seen or screen != seen[-1]:
-                    seen.append(screen)
-                    missing.difference_update(
-                        {n for n in missing if n in screen}
-                    )
-                if not missing:
-                    return
-                if time.monotonic() > deadline:
-                    print(
-                        f"  note: waited {timeout}s and never saw {what}",
-                        file=sys.stderr,
-                    )
-                    return
-                stopped.wait(wait)
+            nonlocal failed
+            try:
+                while not stopped.is_set():
+                    screen = self.capture()
+                    if not seen or screen != seen[-1]:
+                        seen.append(screen)
+                        missing.difference_update(
+                            {n for n in missing if n in screen}
+                        )
+                    if not missing:
+                        return
+                    if time.monotonic() > deadline:
+                        print(
+                            f"  note: waited {timeout}s and never saw {what}",
+                            file=sys.stderr,
+                        )
+                        return
+                    stopped.wait(wait)
+            # Every kind, since it is raised again rather than handled here.
+            except BaseException as error:  # noqa: BLE001
+                failed = error
 
         thread = threading.Thread(target=collect, daemon=True)
         thread.start()
@@ -487,6 +496,8 @@ class Session:
             raise
         finally:
             thread.join()
+        if failed is not None:
+            raise failed
 
     def settle(
         self, *, stable: float = 0.4, timeout: float = 15, colour: bool = False
