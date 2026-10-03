@@ -244,27 +244,13 @@ def capture(r: Driver, shown: Shown) -> None:
 
 
 def show(r: Driver, case: fixture.Case) -> None:
-    """`Driver.show`, held to the colours as well as the text.
-
-    Steps in one folder can draw the same text in other colours -- `c_ramp`,
-    `c_spread` and `c_hue` are the same two columns on three ramps -- and
-    `Driver.show` waits on plain captures, which hold still on the step before
-    as readily as on this one. So the coloured screen has to move off the one
-    before the press, and then hold still. A step that never moves it is
-    refused rather than drawn, because its tiles would be the step before's
-    under this one's question.
-    """
-    was = r.session.capture(colour=True)
-    r.show(case)
-    now = r.session.wait_for(
-        lambda s: s != was, f"{case.id} drawn", colour=True
-    )
-    if now == was:
+    """`Driver.show`, refusing a step that never moved the screen, because
+    its tiles would be the step before's under this one's question."""
+    if not r.show(case):
         refuse(
             f"gallery: {case.key} drew what the step before it drew -- a "
             "gallery step has to differ from the one before it"
         )
-    r.session.settle(colour=True)
 
 
 def foreground(ground: str) -> str:

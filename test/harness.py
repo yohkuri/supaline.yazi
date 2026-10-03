@@ -600,21 +600,34 @@ class Driver:
             what=f"{path}/ in the current pane",
         )
 
-    def show(self, case: Case) -> None:
-        """Press a case's key, and wait for the state it names.
+    def show(self, case: Case) -> bool:
+        """Press a case's key, wait for the state it names, and say whether
+        the screen moved off the one before the press.
 
         Its folder's landmark first, which a case pressed in the folder it is
-        already in has on screen at once. What follows is the whole settle
-        rather than the short one after a `goto`, because the same press
-        switched the linemode and forced a peek, and either can repaint after
-        the listing lands.
+        already in has on screen at once, so the coloured screen has to move
+        as well: `c_ramp`, `c_spread` and `c_hue` draw the same text in other
+        colours, and a plain capture holds still on the case before as readily
+        as on this one. What follows is the whole settle rather than the short
+        one after a `goto`, because the same press switched the linemode and
+        forced a peek, and either can repaint after the listing lands.
+
+        Not for a `broken` case, which is pressed for its report rather than
+        its screen, and whose screen can be the one before it: measured on
+        26.9.1 with Yazi slowed, `b_zero` drew what `b_width` had drawn in
+        nine presses of twelve, and each wait for it to move ran out.
         """
+        was = self.session.capture(colour=True)
         self.session.keys(*case.key.split(" "))
         self.session.wait_for(
             self.here(case.folder),
             f"{case.folder}/ in the current pane after {case.key}",
         )
-        self.session.settle()
+        if not case.broken:
+            self.session.wait_for(
+                lambda s: s != was, f"{case.id} drawn", colour=True
+            )
+        return self.session.settle(colour=True) != was
 
     def theme(self, name: str, drawn: str) -> None:
         """Put a theme `cases.toml` lists in place, by its key, and wait for
