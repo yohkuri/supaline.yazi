@@ -502,19 +502,25 @@ class Session:
         *keys: str,
         until: Callable[[str], bool] | None = None,
         what: str = "",
+        colour: bool = False,
     ) -> None:
         """Send keys and wait for the screen to answer.
 
         `until` where the run knows what the press should produce, and the
         settle otherwise. After an `until` the settle is the short one: the
         screen has said what was waited for, and what is left is the repaint.
+
+        `colour` waits on the screen with its escapes, both for `until` and
+        for the settle. A press that recolours and rewrites nothing needs it
+        and an `until` besides: the plain settle cannot see that repaint, so
+        it returns one window after the key whether the repaint landed or not.
         """
         self.keys(*keys)
         if until is not None:
-            self.wait_for(until, what or "the screen to answer")
-            self.settle(stable=0.2)
+            self.wait_for(until, what or "the screen to answer", colour=colour)
+            self.settle(stable=0.2, colour=colour)
         else:
-            self.settle()
+            self.settle(colour=colour)
 
 
 class Driver:
@@ -610,6 +616,18 @@ class Driver:
         )
         self.session.settle()
 
-    def theme(self, name: str) -> None:
-        """Put a theme `cases.toml` lists in place, by its key."""
-        self.session.press(*self.listing.themes[name].key.split(" "))
+    def theme(self, name: str, drawn: str) -> None:
+        """Put a theme `cases.toml` lists in place, by its key, and wait for
+        `drawn` -- an SGR body only that theme puts on the screen.
+
+        A colour rather than a settle, because a theme rewrites no text. The
+        key runs a script, and measured on 26.9.1 the first run of it from a
+        fresh fixture lands its reload 0.23-0.74s after the key, against a
+        plain settle that returns at about 0.57s whatever happened.
+        """
+        self.session.press(
+            *self.listing.themes[name].key.split(" "),
+            until=lambda s: drawn in s,
+            what=f"{name}'s colours",
+            colour=True,
+        )
