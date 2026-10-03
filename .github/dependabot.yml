@@ -3,12 +3,23 @@
 #
 # `prefix: ci` is not optional. Left to itself Dependabot titles a commit
 # "Bump actions/checkout from 7 to 8", which `Commit messages` refuses for
-# having no type. With the prefix it writes "ci: bump ...", in lower case --
-# read off dependabot-core's `pr_name_prefixer.rb`, where a lower-case prefix
-# and a history of lower-case conventional subjects each decide it that way.
-# A real Dependabot message with that header, run through `.commitlintrc.yml`
-# and the ASCII and Gitmoji steps, passes all three: the body's lines over 100
-# characters each carry a URL, and commitlint's line limit skips those.
+# having no type. The prefix does not decide the case of the word after it,
+# though, and here that word arrives as "Bump", which `subject-case`
+# refuses: lower it by hand before the pull request lands.
+#
+# Read off dependabot-core's `pr_name_prefixer.rb`: the case follows the last
+# commit Dependabot authored among the latest hundred on main, and with none
+# there it is capitalised when every conventional message in that hundred
+# has a capital after a colon anywhere in it. A `Co-Authored-By:` trailer is
+# one, so a history of lower-case subjects counts as capitalised -- measured
+# on main, where removing that trailer turns 99 of 100 messages lower-case.
+# A lowered "ci: bump ..." that lands would decide the next one, but only
+# from inside that hundred, and on main a hundred commits span under two
+# weeks against a monthly schedule -- so expect every one to need lowering.
+#
+# The rest of a real Dependabot message passes `.commitlintrc.yml` and the
+# ASCII and Gitmoji steps: the body's lines over 100 characters each carry a
+# URL, and commitlint's line limit skips those.
 #
 # No `groups`, on purpose. A group holding one update titles it "... in the
 # actions group", and `astral-sh/setup-uv` from 10.1.0 to 10.10.0 comes to 71
