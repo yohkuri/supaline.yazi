@@ -20,7 +20,12 @@ import time
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from types import FrameType
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
+
+if TYPE_CHECKING:
+    # For the annotations alone: `setup.py` imports this module, so it cannot
+    # import that one back, and `Driver` is handed what it reads instead.
+    from setup import Case, Cases
 
 #: The oldest Python these harnesses are written for. A version older than this
 #: is refused rather than left to fail somewhere further in, the way
@@ -28,6 +33,11 @@ from typing import NoReturn
 MINIMUM = (3, 11)
 
 ROOT = Path(__file__).resolve().parent.parent
+
+#: The window every capture is taken in. Wide enough that the three panes all
+#: have room, and 40 rows so about 37 of `colour/ramp`'s 64 steps reach a
+#: capture.
+WIDTH, HEIGHT = 170, 40
 
 #: What a harness exits with when it refused to start, as against 1 for a check
 #: that failed: "there is no tmux here" and "the columns came out wrong" are
@@ -65,6 +75,11 @@ def _require_python() -> None:
 
 
 _require_python()
+
+# Below the check rather than with the imports above it, because importing this
+# module is what refuses too old a Python, and `screen.py` cannot be read by
+# one: its `tuple[str, Pen]` is a `TypeError` before 3.9, measured on 3.8.20.
+import screen as sc
 
 
 def _terminated(number: int, frame: FrameType | None) -> NoReturn:
@@ -500,3 +515,101 @@ class Session:
             self.settle(stable=0.2)
         else:
             self.settle()
+
+
+class Driver:
+    """A Yazi on the fixture `setup.py` built, pressed by the keys `cases.toml`
+    binds, and the captures taken from it.
+
+    Where the fixture lives and how long it outlives the run is the caller's,
+    and so is building it: `e2e.py` gives each run a directory of its own and
+    `gallery.py` one a person can find again.
+    """
+
+    def __init__(self, dir: Path, session: str, listing: Cases) -> None:
+        self.dir = dir
+        self.session = Session(session)
+        # Every key this presses is one `cases.toml` binds, found by what it
+        # does rather than by how it is spelled.
+        self.listing = listing
+        self.shots: dict[str, str] = {}
+
+    def open_yazi(self, state: str) -> None:
+        """Start Yazi on `data/`, with a state directory of its own."""
+        self.session.start(
+            ["yazi", str(yazi_data(self.dir))],
+            env=yazi_env(self.dir, state),
+            width=WIDTH,
+            height=HEIGHT,
+        )
+        # A name out of the fixture rather than a fixed wait: it says Yazi got
+        # as far as listing the folder, where a sleep says only that time
+        # passed.
+        landmark = self.listing.folders["data"].landmark
+        self.session.wait_for(
+            lambda s: landmark in s,
+            "the fixture listed",
+            timeout=30,
+        )
+
+    def store(self, label: str, plain: str, colour: str = "") -> None:
+        """Hold a capture under `label`, in memory and on disk.
+
+        On disk because a kept directory is for reading them afterwards, and a
+        check that failed is answered by the capture it failed on. Apart from
+        `shot` for the one capture that is not a single tmux call: the broken
+        run's union of screens.
+        """
+        self.shots[label] = plain
+        (self.dir / f"screen-{label}.txt").write_text(plain)
+        if colour:
+            self.shots[f"colour-{label}"] = colour
+            (self.dir / f"color-{label}.txt").write_text(colour)
+
+    def shot(self, label: str) -> None:
+        """Keep both captures of the screen as it stands."""
+        self.store(
+            label,
+            self.session.capture(),
+            self.session.capture(colour=True),
+        )
+
+    def here(self, path: str) -> Callable[[str], bool]:
+        """Whether a screen's current pane is the folder `path`.
+
+        Read off the folder's landmark in `cases.toml`, a name only that
+        folder holds, in the **current pane**: the panes either side draw the
+        neighbouring folders, so a name they hold is on screen before the `cd`
+        that makes it current. Measured on 26.9.1, `inner-a.txt` is in the
+        preview pane throughout `data/`.
+        """
+        expect = self.listing.folders[path].landmark
+        return lambda s: any(expect in f for f in sc.current_fields(s))
+
+    def goto(self, path: str) -> None:
+        """Go to a folder `cases.toml` lists, by its key."""
+        self.session.press(
+            *self.listing.folders[path].key.split(" "),
+            until=self.here(path),
+            what=f"{path}/ in the current pane",
+        )
+
+    def show(self, case: Case) -> None:
+        """Press a case's key, and wait for the state it names.
+
+        Its folder's landmark first, which a case pressed in the folder it is
+        already in has on screen at once. What follows is the whole settle
+        rather than the short one after a `goto`, because the same press
+        switched the linemode and forced a peek, and either can repaint after
+        the listing lands.
+        """
+        self.session.keys(*case.key.split(" "))
+        self.session.wait_for(
+            self.here(case.folder),
+            f"{case.folder}/ in the current pane after {case.key}",
+        )
+        self.session.settle()
+
+    def theme(self, name: str) -> None:
+        """Put a theme `cases.toml` lists in place, by its key."""
+        self.session.press(*self.listing.themes[name].key.split(" "))

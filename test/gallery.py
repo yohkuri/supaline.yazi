@@ -37,6 +37,7 @@ import hashlib
 import html
 import itertools
 import json
+import os
 import re
 import sys
 import tempfile
@@ -54,8 +55,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import screen as sc
 import setup as fixture
-from e2e import Run
-from harness import begin_verdicts, catch_term, need, print_verdicts, refuse
+from harness import (
+    Driver,
+    begin_verdicts,
+    catch_term,
+    need,
+    print_verdicts,
+    refuse,
+)
 
 DIR = Path(tempfile.gettempdir()) / "supaline-gallery"
 
@@ -211,8 +218,8 @@ SCHEMES = {
 Shown = dict[int, fixture.Step]
 
 
-def capture(r: Run, shown: Shown) -> None:
-    """Each step's capture, kept by `Run.shot` as `step-<n>`, out of a Yazi
+def capture(r: Driver, shown: Shown) -> None:
+    """Each step's capture, kept by `Driver.shot` as `step-<n>`, out of a Yazi
     per theme.
 
     A Yazi per theme rather than the theme's key, because a theme changes the
@@ -233,13 +240,13 @@ def capture(r: Run, shown: Shown) -> None:
         r.session.kill()
 
 
-def show(r: Run, case: fixture.Case) -> None:
-    """`Run.show`, held to the colours as well as the text.
+def show(r: Driver, case: fixture.Case) -> None:
+    """`Driver.show`, held to the colours as well as the text.
 
     Steps in one folder can draw the same text in other colours -- `c_ramp`,
     `c_spread` and `c_hue` are the same two columns on three ramps -- and
-    `Run.show` waits on plain captures, which hold still on the step before as
-    readily as on this one. So the coloured screen has to move off the one
+    `Driver.show` waits on plain captures, which hold still on the step before
+    as readily as on this one. So the coloured screen has to move off the one
     before the press, and then hold still. A step that never moves it is
     refused rather than drawn, because its tiles would be the step before's
     under this one's question.
@@ -718,18 +725,22 @@ def prepare(
 
     Every step is captured either way, since a digest is of the capture.
     """
-    r = Run(keep=True, dir=DIR)
-    steps = {n: step for n, step in enumerate(r.steps, 1) if step.gallery}
+    listing = fixture.read_cases()
+    walk = fixture.read_walk(listing)
+    steps = {n: step for n, step in enumerate(walk, 1) if step.gallery}
     if not steps:
         refuse(
             "gallery: no step in test/fixture/walk.toml says `gallery = true`"
         )
+    # The directory is fixed, and the lock is what makes it this run's alone;
+    # the session carries the PID, as every session does.
+    r = Driver(DIR, f"supaline-gallery-{os.getpid()}", listing)
     try:
-        r.setup()
+        fixture.main([str(DIR)])
         capture(r, steps)
     finally:
         # Kept, since the verdicts are written beside the captures.
-        r.teardown()
+        r.session.kill()
 
     cells = {n: sc.current_cells(r.shots[f"colour-step-{n}"]) for n in steps}
     digests = {n: digest(cells[n], grounds, steps[n].ask) for n in steps}
@@ -743,7 +754,7 @@ def prepare(
         "supaline gallery: step, case, theme, verdict, grounds",
         "grounds  " + ", ".join(f"{name} {hex}" for name, hex in grounds),
     )
-    keys = {n: r.listing.cases[step.case].key for n, step in shown.items()}
+    keys = {n: listing.cases[step.case].key for n, step in shown.items()}
     panes = {n: drawn(cells[n]) for n in shown}
     body = page(header, shown, keys, panes, grounds, set(steps) - set(moved))
     return Prepared(body.encode(), shown, digests)

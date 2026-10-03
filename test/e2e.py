@@ -37,19 +37,12 @@ import screen as sc
 import setup as fixture
 from harness import (
     Checks,
-    Session,
+    Driver,
     catch_term,
     need,
-    yazi_data,
-    yazi_env,
     yazi_log,
     yazi_version,
 )
-
-#: The window every capture is taken in. Wide enough that the three panes all
-#: have room, and 40 rows so about 37 of `colour/ramp`'s 64 steps reach a
-#: capture.
-WIDTH, HEIGHT = 170, 40
 
 #: The floor under every ramp check, well under the 37 steps a capture holds:
 #: what would drop it is a ramp that stopped drawing, and no terminal this runs
@@ -64,27 +57,22 @@ SCALE_FLOOR = 16
 TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
 
 
-class Run:
-    """The scratch directory, the session, and the captures taken from it."""
+class Run(Driver):
+    """The scratch directory, the Yazi on it, and the captures taken from it."""
 
-    def __init__(self, keep: bool, dir: Path | None = None) -> None:
+    def __init__(self, keep: bool) -> None:
         # Both names carry the PID, so a run owns everything it touches: a
         # concurrent run leaves the marker `setup.py` guards removal with, so a
-        # fixed directory would pass the guard and lose its fixture. `dir`
-        # gives that up for `gallery.py`, which serves its page out of a
-        # directory a person can find again, and holds a lock so that one run
-        # at a time uses it.
+        # fixed directory would pass the guard and lose its fixture.
         pid = os.getpid()
-        self.dir = dir or Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}"
-        self.session = Session(f"supaline-e2e-{pid}")
+        listing = fixture.read_cases()
+        super().__init__(
+            Path(tempfile.gettempdir()) / f"supaline-e2e.{pid}",
+            f"supaline-e2e-{pid}",
+            listing,
+        )
         self.keep = keep
-        self.shots: dict[str, str] = {}
-        # Every key this presses is one `cases.toml` binds, found by what it
-        # does rather than by how it is spelled.
-        self.listing = fixture.read_cases()
-        self.steps = fixture.read_walk(self.listing)
-
-    # --- the fixture -------------------------------------------------------
+        self.steps = fixture.read_walk(listing)
 
     def setup(self) -> None:
         """Imported and called rather than run, so its own refusal is the one
@@ -99,88 +87,6 @@ class Run:
             print(f"kept: {self.dir}")
             return
         fixture.main(["--clean", str(self.dir)])
-
-    # --- driving -----------------------------------------------------------
-
-    def open_yazi(self, state: str) -> None:
-        """Start Yazi on `data/`, with a state directory of its own."""
-        self.session.start(
-            ["yazi", str(yazi_data(self.dir))],
-            env=yazi_env(self.dir, state),
-            width=WIDTH,
-            height=HEIGHT,
-        )
-        # A name out of the fixture rather than a fixed wait: it says Yazi got
-        # as far as listing the folder, where a sleep says only that time
-        # passed.
-        landmark = self.listing.folders["data"].landmark
-        self.session.wait_for(
-            lambda s: landmark in s,
-            "the fixture listed",
-            timeout=30,
-        )
-
-    def store(self, label: str, plain: str, colour: str = "") -> None:
-        """Hold a capture under `label`, in memory and on disk.
-
-        On disk because `--keep` is for reading them afterwards, and a check
-        that failed is answered by the capture it failed on. Apart from `shot`
-        for the one capture that is not a single tmux call: the broken run's
-        union of screens.
-        """
-        self.shots[label] = plain
-        (self.dir / f"screen-{label}.txt").write_text(plain)
-        if colour:
-            self.shots[f"colour-{label}"] = colour
-            (self.dir / f"color-{label}.txt").write_text(colour)
-
-    def shot(self, label: str) -> None:
-        """Keep both captures of the screen as it stands."""
-        self.store(
-            label,
-            self.session.capture(),
-            self.session.capture(colour=True),
-        )
-
-    def here(self, path: str) -> Callable[[str], bool]:
-        """Whether a screen's current pane is the folder `path`.
-
-        Read off the folder's landmark in `cases.toml`, a name only that
-        folder holds, in the **current pane**: the panes either side draw the
-        neighbouring folders, so a name they hold is on screen before the `cd`
-        that makes it current. Measured on 26.9.1, `inner-a.txt` is in the
-        preview pane throughout `data/`.
-        """
-        expect = self.listing.folders[path].landmark
-        return lambda s: any(expect in f for f in sc.current_fields(s))
-
-    def goto(self, path: str) -> None:
-        """Go to a folder `cases.toml` lists, by its key."""
-        self.session.press(
-            *self.listing.folders[path].key.split(" "),
-            until=self.here(path),
-            what=f"{path}/ in the current pane",
-        )
-
-    def show(self, case: fixture.Case) -> None:
-        """Press a case's key, and wait for the state it names.
-
-        Its folder's landmark first, which a case pressed in the folder it is
-        already in has on screen at once. What follows is the whole settle
-        rather than the short one after a `goto`, because the same press
-        switched the linemode and forced a peek, and either can repaint after
-        the listing lands.
-        """
-        self.session.keys(*case.key.split(" "))
-        self.session.wait_for(
-            self.here(case.folder),
-            f"{case.folder}/ in the current pane after {case.key}",
-        )
-        self.session.settle()
-
-    def theme(self, name: str) -> None:
-        """Put a theme `cases.toml` lists in place, by its key."""
-        self.session.press(*self.listing.themes[name].key.split(" "))
 
 
 def clean_run(r: Run) -> None:
