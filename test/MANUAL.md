@@ -634,11 +634,11 @@ the other two would both still pass with a step drawn between them.
 
 ### `c t` — the theme
 
-In `g 1`. Nothing is coloured in the spec, so `size`, `mtime`, `owner` and
-`ext` all take whatever `[supaline]` says. This is the only mode the theme keys
-move. `mtime` alone carries `style = { bold = true }`: the colour is the
-theme's ramp and the weight is the spec's, on the same cell, which is the case
-the layers exist for.
+In `g 1`. Nothing is coloured in the spec, so `size`, `mtime` and `ext` all
+take whatever `[supaline]` says. This is the only mode the theme keys move.
+`mtime` alone carries `style = { bold = true }`: the colour is the theme's ramp
+and the weight is the spec's, on the same cell, which is the case the layers
+exist for.
 
 Those colours should be on screen the moment Yazi opens, without pressing
 anything: 26.9.1 applies the user's theme before any plugin code runs.
@@ -649,11 +649,11 @@ anything: 26.9.1 applies the user's theme before any plugin code runs.
   that stays put is the failure this is looking for. `mtime` keeps its bold
   through every one of them.
 - `c 3` is where the theme grammar runs out, and it is worth seeing rather than
-  reading about: `size` and `owner` arrive with backgrounds and `mtime` does
-  not. A ramp has to be written as a string — Yazi refuses an array in a custom
-  section and takes the whole file with it — and a string has no room for a
-  second colour. A ramp *can* have a background; it has to be asked for in the
-  spec, which is `c g`.
+  reading about: `size` and `ext` arrive with backgrounds and `mtime` does
+  not. A ramp has to be written as a string — Yazi refuses an array in a
+  custom section and takes the whole file with it — and a string has no room
+  for a second colour. A ramp *can* have a background; it has to be asked for
+  in the spec, which is `c g`.
 
 ### Adding a case
 

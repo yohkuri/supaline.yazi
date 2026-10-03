@@ -70,7 +70,7 @@ ask     = "does the left column read as a gradient?"
 [[step]]
 case    = "c_theme"
 gallery = true
-ask     = "do all four columns carry the theme's colours?"
+ask     = "do all three columns carry the theme's colours?"
 
 [[step]]
 case  = "c_theme"
@@ -81,7 +81,7 @@ ask   = "did every column take the new colours at once?"
 case    = "c_theme"
 theme   = "bg"
 gallery = true
-ask     = "size and owner on grounds, and mtime not?"
+ask     = "size and ext on grounds, and mtime not?"
 
 [[step]]
 case = "b_render"
