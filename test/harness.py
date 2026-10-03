@@ -16,8 +16,10 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from types import FrameType
 from typing import TYPE_CHECKING, NoReturn
@@ -424,6 +426,7 @@ class Session:
             screen = self.capture(colour=colour)
         return screen
 
+    @contextmanager
     def gather(
         self,
         needles: Iterable[str],
@@ -431,35 +434,56 @@ class Session:
         *,
         every: float | None = None,
         timeout: float = 15,
-    ) -> str:
-        """Collect screens until each of `needles` has been on one of them.
+    ) -> Iterator[list[str]]:
+        """Collect screens, from the block's first key on, until each of
+        `needles` has been on one of them.
 
         For what the screen cannot hold at once: Yazi draws three notifications
         at a time and queues the rest, so what says six arrived is the union of
         the screens taken while they drained. A needle is looked for once, on
         the capture it could first appear in, so the work stays linear.
 
-        A deadline it reaches returns what it has, with a note -- the one thing
+        From a thread, beside the keys the block presses rather than after
+        them, because what it looks for can come and go while they are made.
+        The deadline counts from the end of the block, and the list it yields
+        is whole once the block has left.
+
+        A deadline it reaches leaves what it has, with a note -- the one thing
         that tells a report that never came from a wait that ran out.
         """
         wait = self.POLL if every is None else every
         missing = set(needles)
         seen: list[str] = []
-        deadline = time.monotonic() + timeout
-        while True:
-            screen = self.capture()
-            seen.append(screen)
-            missing -= {n for n in missing if n in screen}
-            if not missing:
-                break
-            if time.monotonic() > deadline:
-                print(
-                    f"  note: waited {timeout}s and never saw {what}",
-                    file=sys.stderr,
-                )
-                break
-            time.sleep(wait)
-        return "\n".join(seen)
+        # Unbounded while the block runs, `timeout` past its end once it has
+        # finished, and 0 when it raised, which stops the thread unannounced.
+        until = [float("inf")]
+
+        def collect() -> None:
+            while True:
+                screen = self.capture()
+                seen.append(screen)
+                missing.difference_update({n for n in missing if n in screen})
+                if not missing:
+                    return
+                if time.monotonic() > until[0]:
+                    if until[0]:
+                        print(
+                            f"  note: waited {timeout}s and never saw {what}",
+                            file=sys.stderr,
+                        )
+                    return
+                time.sleep(wait)
+
+        thread = threading.Thread(target=collect, daemon=True)
+        thread.start()
+        try:
+            yield seen
+            until[0] = time.monotonic() + timeout
+        except BaseException:
+            until[0] = 0
+            raise
+        finally:
+            thread.join()
 
     def settle(
         self, *, stable: float = 0.4, timeout: float = 15, colour: bool = False
