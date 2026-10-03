@@ -56,7 +56,7 @@ ask     = "does the grey-green middle read as a colour?"
 [[step]]
 case    = "c_bg"
 gallery = true
-ask     = "is the text readable on every ground?"
+ask     = "columns 2-4 full width, column 2's date readable?"
 
 [[step]]
 case = "c_bold"
