@@ -16,6 +16,9 @@ import io
 import re
 import unittest
 
+# First, because importing it is what refuses too old a Python, and `screen`
+# cannot be read by one.
+import harness  # noqa: F401
 import screen as sc
 import setup as fixture
 from harness import Checks
