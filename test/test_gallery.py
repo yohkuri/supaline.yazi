@@ -31,9 +31,19 @@ SHOWN = {
 }
 NAMES = {"black", "Solarized light"}
 
+#: The two grounds `NAMES` names, on their hexes.
+GROUNDS = [("black", "#000000"), ("Solarized light", "#fdf6e3")]
+
+#: A digest for each step of `SHOWN`.
+DIGESTS = {3: "3" * 64, 11: "b" * 64}
+
 
 def posted(**said: object) -> bytes:
     return json.dumps(said).encode()
+
+
+def cells(current: str) -> list[list[sc.Cell]]:
+    return sc.current_cells(capture(row(current=current)))
 
 
 class Styles(unittest.TestCase):
@@ -70,7 +80,7 @@ class Drawing(unittest.TestCase):
         self.assertEqual(gallery.glyph(""), '<span class="w1"></span>')
 
     def test_a_run_of_one_pen_is_one_span(self):
-        rows = sc.current_cells(capture(row(current="\x1b[31mab\x1b[0mc")))
+        rows = cells("\x1b[31mab\x1b[0mc")
         self.assertEqual(
             gallery.drawn(rows), '<span style="color:var(--p1)">ab</span>c'
         )
@@ -81,7 +91,7 @@ class Drawing(unittest.TestCase):
             SHOWN,
             {3: "c r", 11: "c t"},
             {3: "three", 11: "eleven"},
-            [("black", "#000000"), ("Solarized light", "#fdf6e3")],
+            GROUNDS,
         )
         # A tile per ground per step, each in its ground's scheme.
         self.assertEqual(body.count('<figure class="g0">'), 2)
@@ -125,19 +135,19 @@ class Schemes(unittest.TestCase):
 class Posted(unittest.TestCase):
     def test_a_yes_and_a_no_are_the_walk_s_fields_then_the_grounds(self):
         self.assertEqual(
-            gallery.verdict_line(
+            gallery.verdict(
                 posted(step=3, said="yes", grounds=[]), SHOWN, NAMES
-            ),
+            ).line(),
             "3\tc_ramp\tdefault\tyes\t",
         )
         self.assertEqual(
-            gallery.verdict_line(
+            gallery.verdict(
                 posted(
                     step=11, said="no", grounds=["black", "Solarized light"]
                 ),
                 SHOWN,
                 NAMES,
-            ),
+            ).line(),
             "11\tc_theme\tbg\tno\tblack, Solarized light",
         )
 
@@ -163,18 +173,7 @@ class Posted(unittest.TestCase):
         }
         for reason, body in spoiled.items():
             with self.subTest(reason), self.assertRaises(ValueError):
-                gallery.verdict_line(body, SHOWN, NAMES)
-
-
-#: The two grounds `NAMES` names, on their hexes.
-GROUNDS = [("black", "#000000"), ("Solarized light", "#fdf6e3")]
-
-#: A digest for each step of `SHOWN`.
-DIGESTS = {3: "3" * 64, 11: "b" * 64}
-
-
-def cells(current: str) -> list[list[sc.Cell]]:
-    return sc.current_cells(capture(row(current=current)))
+                gallery.verdict(body, SHOWN, NAMES)
 
 
 class Approved(unittest.TestCase):
@@ -182,6 +181,12 @@ class Approved(unittest.TestCase):
         drawn = cells("\x1b[31mab\x1b[0mc")
         said = gallery.digest(drawn, GROUNDS, "right?")
         self.assertRegex(said, gallery.DIGEST)
+        # Pinned: a digest spelled any other way, of the same pane, takes back
+        # every approval in `approved.toml` without a word.
+        self.assertEqual(
+            said,
+            "210fb157b23e0890dc3e0fb2b2dc27180655aa370a0aeb83f8c264b42d073ec8",
+        )
         self.assertEqual(gallery.digest(drawn, GROUNDS, "right?"), said)
         moved = {
             "a cell": (cells("\x1b[31mab\x1b[0md"), GROUNDS, "right?"),
@@ -231,8 +236,16 @@ class Approved(unittest.TestCase):
         path = Path(dir.name) / "approved.toml"
         found = {("c_theme", "bg"): "a" * 64}
         approved = gallery.Approvals(path, found, DIGESTS)
-        approved.record("3\tc_ramp\tdefault\tyes\t")
-        approved.record("11\tc_theme\tbg\tno\tblack")
+        approved.record(
+            gallery.verdict(
+                posted(step=3, said="yes", grounds=[]), SHOWN, NAMES
+            )
+        )
+        approved.record(
+            gallery.verdict(
+                posted(step=11, said="no", grounds=["black"]), SHOWN, NAMES
+            )
+        )
         self.assertEqual(
             gallery.read_approvals(path), {("c_ramp", "default"): "3" * 64}
         )
