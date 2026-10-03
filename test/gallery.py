@@ -225,11 +225,13 @@ def capture(r: Driver, shown: Shown) -> None:
     """Each step's capture, kept by `Driver.shot` as `step-<n>`, out of a Yazi
     per theme.
 
-    A Yazi per theme rather than the theme's key, because a theme changes the
-    colours alone and `settle` reads plain text, so it would return before the
-    repaint as readily as after it. A Yazi opened on a theme draws in it from
-    its first frame, which the first half of `e2e.py`'s theme check holds every
-    run. Killed rather than quit, since nothing here reads its log.
+    A Yazi per theme rather than the theme's key, because a Yazi opened on a
+    theme draws in it from its first frame, which the first half of `e2e.py`'s
+    theme check holds every run, and so has nothing to wait for. The key
+    reloads 0.23-0.74s after the press, measured on 26.9.1, so `Driver.theme`
+    needs a colour only that theme draws -- one per theme, to be chosen and
+    kept in step with the files, against the half-second the second Yazi
+    costs. Killed rather than quit, since nothing here reads its log.
     """
     by_theme: dict[str, list[tuple[int, fixture.Step]]] = defaultdict(list)
     for n, step in shown.items():
