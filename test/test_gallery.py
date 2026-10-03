@@ -166,6 +166,106 @@ class Posted(unittest.TestCase):
                 gallery.verdict_line(body, SHOWN, NAMES)
 
 
+#: The two grounds `NAMES` names, on their hexes.
+GROUNDS = [("black", "#000000"), ("Solarized light", "#fdf6e3")]
+
+#: A digest for each step of `SHOWN`.
+DIGESTS = {3: "3" * 64, 11: "b" * 64}
+
+
+def cells(current: str) -> list[list[sc.Cell]]:
+    return sc.current_cells(capture(row(current=current)))
+
+
+class Approved(unittest.TestCase):
+    def test_a_digest_moves_with_a_cell_a_pen_a_ground_or_the_question(self):
+        drawn = cells("\x1b[31mab\x1b[0mc")
+        said = gallery.digest(drawn, GROUNDS, "right?")
+        self.assertRegex(said, gallery.DIGEST)
+        self.assertEqual(gallery.digest(drawn, GROUNDS, "right?"), said)
+        moved = {
+            "a cell": (cells("\x1b[31mab\x1b[0md"), GROUNDS, "right?"),
+            "a pen": (cells("\x1b[32mab\x1b[0mc"), GROUNDS, "right?"),
+            "a ground": (drawn, GROUNDS[:1], "right?"),
+            "the question": (drawn, GROUNDS, "wrong?"),
+        }
+        for reason, seen in moved.items():
+            with self.subTest(reason):
+                self.assertNotEqual(gallery.digest(*seen), said)
+
+    def test_the_file_is_read_back_as_it_was_written(self):
+        found = {("c_theme", "bg"): "b" * 64, ("c_ramp", "default"): "3" * 64}
+        text = gallery.approvals_text(found)
+        self.assertEqual(gallery.approvals(text), found)
+        # A line per step, sorted, under the header.
+        self.assertTrue(
+            text.endswith(
+                f'\nc_ramp.default = "{"3" * 64}"\nc_theme.bg = "{"b" * 64}"\n'
+            )
+        )
+        self.assertEqual(gallery.approvals(gallery.approvals_text({})), {})
+
+    def test_a_file_that_is_not_digests_by_case_and_theme_is_refused(self):
+        spoiled = {
+            "not toml": "c_ramp.default =",
+            "a case with no theme": f'c_ramp = "{"3" * 64}"',
+            "an empty case": "[c_ramp]",
+            "a digest cut short": 'c_ramp.default = "333"',
+            "a digest in capitals": f'c_ramp.default = "{"B" * 64}"',
+            "a digest that is not a string": "c_ramp.default = 3",
+        }
+        for reason, text in spoiled.items():
+            with self.subTest(reason), self.assertRaises(ValueError):
+                gallery.approvals(text)
+
+    def test_only_a_step_with_no_yes_on_its_digest_is_pending(self):
+        found = {("c_ramp", "default"): "3" * 64, ("c_theme", "bg"): "a" * 64}
+        self.assertEqual(
+            gallery.pending(SHOWN, DIGESTS, found), {11: SHOWN[11]}
+        )
+        self.assertEqual(gallery.pending(SHOWN, DIGESTS, {}), SHOWN)
+
+    def test_a_yes_writes_the_step_s_digest_and_a_no_takes_it_out(self):
+        dir = tempfile.TemporaryDirectory()
+        self.addCleanup(dir.cleanup)
+        path = Path(dir.name) / "approved.toml"
+        found = {("c_theme", "bg"): "a" * 64}
+        approved = gallery.Approvals(path, found, DIGESTS)
+        approved.record("3\tc_ramp\tdefault\tyes\t")
+        approved.record("11\tc_theme\tbg\tno\tblack")
+        self.assertEqual(
+            gallery.read_approvals(path), {("c_ramp", "default"): "3" * 64}
+        )
+        # What the run was handed is left as it was.
+        self.assertEqual(found, {("c_theme", "bg"): "a" * 64})
+
+    def test_with_none_written_nothing_is_approved(self):
+        with tempfile.TemporaryDirectory() as dir:
+            path = Path(dir) / "approved.toml"
+            self.assertEqual(gallery.read_approvals(path), {})
+
+    def test_every_approval_tracked_names_a_gallery_step(self):
+        # A step taken out of the gallery, or moved to another case or theme,
+        # would leave a line nothing reads, approving a pane nobody draws.
+        steps = fixture.read_walk(fixture.read_cases())
+        keys = {(step.case, step.theme) for step in steps if step.gallery}
+        for key in gallery.read_approvals():
+            with self.subTest(key):
+                self.assertIn(key, keys)
+
+    def test_an_approved_step_says_so_on_the_page(self):
+        body = gallery.page(
+            ("commit x",),
+            SHOWN,
+            {3: "c r", 11: "c t"},
+            {3: "three", 11: "eleven"},
+            GROUNDS,
+            {3},
+        )
+        self.assertEqual(body.count(" · approved</h2>"), 1)
+        self.assertIn("c_ramp under default · approved</h2>", body)
+
+
 class Lock(unittest.TestCase):
     def setUp(self):
         dir = tempfile.TemporaryDirectory()

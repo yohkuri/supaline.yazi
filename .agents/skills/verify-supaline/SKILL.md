@@ -9,8 +9,8 @@ description: >-
   spec's calls into the plugin are actually checked against, how to plant a
   value that is wrong on purpose without the probe being what gets refused,
   what the unit suite can and cannot prove, the fixture the e2e and manual
-  runs share, and the three ways a headless tmux behaves unlike a real
-  terminal.
+  runs share, who may approve a gallery step, and the three ways a headless
+  tmux behaves unlike a real terminal.
 ---
 
 # Working on the test harness
@@ -213,7 +213,21 @@ stands behind the family.
 test/e2e.py --keep          # leave the scratch directory behind
 test/manual.py --clean      # discard the manual fixture
 test/gallery.py --clean     # ... and the gallery's
+test/gallery.py --all       # every gallery step, approved or not
 ```
+
+### Who approves a gallery step
+
+`test/approved.toml` holds a digest for each gallery step a person said *looks
+right* to, keyed by case and theme — which is why `setup.walk` refuses two
+gallery steps on one of each — and `gallery.py` shows only the steps whose
+digest is missing. `test_gallery.py` holds every key to a gallery step in CI.
+
+What nothing can hold is who wrote a line. The file is the one record here of a
+person having looked, so an agent never posts a verdict to the page and never
+writes the file, by hand or through `gallery.py`. A change that moves a pane
+leaves its step unapproved, and that is the state to hand over: say which steps
+the change moves, and leave the gallery to the maintainer.
 
 ## A headless run is not a terminal
 

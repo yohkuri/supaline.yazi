@@ -827,7 +827,8 @@ def walk(text: str, listing: Cases) -> list[Step]:
     and the last of them has the reader arm a `refresh` that throws at every
     `cd` after it. And a broken case is refused in the gallery, which shows a
     capture: what a broken step asks about is the notification, which lands
-    after the capture rather than in it.
+    after the capture rather than in it. Nor are two gallery steps on one case
+    under one theme, since `gallery.py` keeps a yes by the two.
     """
     # Here rather than at the top, for the reason `theme_values` gives.
     import tomllib
@@ -838,6 +839,7 @@ def walk(text: str, listing: Cases) -> list[Step]:
 
     steps: list[Step] = []
     shown: set[str] = set()
+    judged: set[tuple[str, str]] = set()
     for row in data.get("step", []):
         fields(
             "step",
@@ -865,9 +867,16 @@ def walk(text: str, listing: Cases) -> list[Step]:
             raise ValueError(f"the broken case `{case}` is shown twice")
         if broken and gallery:
             raise ValueError(f"the broken case `{case}` is in the gallery")
+        if gallery and (case, theme) in judged:
+            raise ValueError(
+                f"two gallery steps show `{case}` under `{theme}`, and "
+                "`gallery.py` keeps a yes by case and theme"
+            )
         if not broken and steps and listing.cases[steps[-1].case].broken:
             raise ValueError(f"step `{case}` comes after a broken one")
         shown.add(case)
+        if gallery:
+            judged.add((case, theme))
         steps.append(Step(case, theme, ask, gallery))
 
     if not steps:
