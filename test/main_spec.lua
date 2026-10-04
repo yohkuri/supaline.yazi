@@ -847,35 +847,23 @@ test("stats: each pane is measured against its own folder", function()
 	eq(seen[2], #PARENT.files, "the parent row was measured against the parent folder")
 end)
 
-test("stats: a folder revisited after a write is measured again", function()
+test("stats: a write that keeps the count is measured again on `load` and on `cd`", function()
 	-- The cached pass is keyed by the linemode, the folder and its file count,
-	-- so a write that leaves the count alone looks like the visit before it.
-	-- `cd` is the event that says the listing may have moved on.
-	local grown = 1
-	local file = stub.file { name = "a.bin" }
-	file.size = function() return grown end
+	-- so a write that leaves the count alone looks like the listing before it.
+	-- `load` is Yazi saying the folder changed, and it has drawn the change by
+	-- the time a handler runs, so the folder dropped asks for another frame or
+	-- the stale one stays up. `cd` says the listing may have moved on.
+	local written = { name = "a.bin", size = 1 }
+	local here = stub.folder("/here", { stub.file(written) })
 	setup { detail = { { "size", width = "auto" } } }
-	cx.active.current = stub.folder("/elsewhere", { file })
-	eq(draw("detail", file), "1B")
-	grown = 999999
-	stub.fire("cd")
-	eq(draw("detail", file), "976.6K", "the width and the value both follow the folder")
-end)
-
-test("stats: a write that keeps the count is measured again on `load`", function()
-	-- Yazi has drawn the change by the time `load` reaches a handler, so the
-	-- folder dropped has to ask for another frame or the stale one stays up.
-	local grown = 1
-	local file = stub.file { name = "a.bin" }
-	file.size = function() return grown end
-	setup { detail = { { "size", width = "auto" } } }
-	local here = stub.folder("/here", { file })
-	cx.active.current = here
-	eq(draw("detail", file), "1B")
-	grown = 999999
+	eq(draw_in("detail", here), "1B")
+	written.size = 999999
 	stub.fire("load", { url = here.cwd })
 	eq(stub.renders, 1, "a frame is asked for")
-	eq(draw("detail", file), "976.6K", "the width and the value both follow the folder")
+	eq(draw_in("detail", here), "976.6K", "the width and the value both follow the folder")
+	written.size = 1
+	stub.fire("cd")
+	eq(draw_in("detail", here), "1B", "and follow it again after a `cd`")
 end)
 
 test("listing: `load` forgets the folder it names and no other", function()
