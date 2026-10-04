@@ -175,6 +175,27 @@ for _, kind in ipairs { "rename", "bulk-rename", "move", "delete", "trash" } do
 		end
 	end)
 end
+-- A folder is prepared once per file count, and a listing can change without
+-- its count changing: a file written from outside, or a directory's size
+-- arriving after the listing under `sort_by = "size"`. Measured on 26.9.1,
+-- neither is a `cd` or a file operation, and each publishes `load` for that
+-- folder.
+--
+-- Only the folder it names is forgotten. Yazi publishes it for every folder
+-- the cursor previews too, and forgetting all of them was measured to cost a
+-- stats pass over the current folder for each step down a list of
+-- directories -- eleven for ten steps, 2.4ms a column over 10000 files.
+--
+-- The frame is asked for here because Yazi draws the change before it calls
+-- this: measured, the row showed a directory's new size under the extremes
+-- taken without it, and nothing drew again until the next key.
+ps.sub("load", function(body)
+	-- Cast at the boundary: `load` always carries the folder's URL.
+	local url = (body --[[@as { url: any }]]).url
+	if active and active.forget(url) then
+		ui.render()
+	end
+end)
 
 --- Register a reusable column, before `setup`, to be named from a linemode.
 --- Takes `.column(name, def)` and `:column(name, def)` alike.

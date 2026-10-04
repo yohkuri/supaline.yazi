@@ -35,6 +35,7 @@ local M = {}
 ---@field refresh fun()
 ---@field moved fun()
 ---@field invalidate fun()
+---@field forget fun(url: any): boolean
 
 --- A session drawing `plan` under `theme`. Resolving the theme is the one
 --- thing here that can fail, and it raises, so a `setup` that could not draw
@@ -50,6 +51,12 @@ function M.new(plan, theme, sink)
 
 	--- Forget every folder prepared, keeping the appearance.
 	local function invalidate() prepared = listing.new(resolved, reporter) end
+
+	--- Forget the folders prepared at `url`, keeping every other, and say
+	--- whether one was.
+	---@param url any
+	---@return boolean
+	local function forget(url) return prepared.forget(url) end
 
 	--- Every column's `refresh`. One that throws is told off and the rest go
 	--- on refreshing.
@@ -85,7 +92,7 @@ function M.new(plan, theme, sink)
 	---@return unknown
 	local function draw(mode, pane, file, folder)
 		local out = {}
-		for _, one in ipairs(prepared(mode, pane, folder)) do
+		for _, one in ipairs(prepared.get(mode, pane, folder)) do
 			local cell, ctx = one.cell, one.ctx
 			local sep = cell.sep
 			if sep then
@@ -115,6 +122,7 @@ function M.new(plan, theme, sink)
 		refresh = refresh,
 		moved = moved,
 		invalidate = invalidate,
+		forget = forget,
 	}
 end
 

@@ -860,11 +860,13 @@ function M.file(t)
 	return file
 end
 
---- Fire every handler subscribed to a DDS event, in subscription order.
+--- Fire every handler subscribed to a DDS event, in subscription order,
+--- with the body Yazi would send: `load`'s is `{ tab, url, stage }`.
 ---@param kind string
-function M.fire(kind)
+---@param body table?
+function M.fire(kind, body)
 	for _, fn in ipairs(M.subs[kind] or {}) do
-		fn()
+		fn(body)
 	end
 end
 
@@ -895,9 +897,14 @@ end
 --- Not `ps`, `Linemode` or the modules: `main.lua` subscribes and registers
 --- when it loads and holds on to all three, so those last for a spec file.
 function M.reset()
+	M.renders = 0
 	_G.ui = {
 		Line = M.Line,
 		Span = M.Span,
+		-- Counted, because a frame asked for is the whole of what it does: Yazi
+		-- sets a flag and draws on its next tick, and a spec has nothing else to
+		-- read the request by.
+		render = function() M.renders = M.renders + 1 end,
 		-- A callable table rather than a function, because that is what Yazi
 		-- has: measured on 26.9.1, `type(ui.Style)` is `table` and only
 		-- `ui.Style()` is userdata. `style.layer` branches on `type`, so a

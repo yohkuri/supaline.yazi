@@ -1064,9 +1064,10 @@ again on each theme event.
 - The cut lands on a grapheme cluster and counts what the terminal draws, so a
   composed emoji is kept whole or dropped whole and a cell never comes back
   wider than its column. It can come back a cell short, and is padded back.
-- Statistics and derived widths are cached per folder, keyed partly on the file
-  count. A write that changes a file's size without changing the count keeps
-  the previous extremes until the next file operation or `cd`.
+- Statistics and derived widths are cached per folder, and measured again
+  whenever Yazi reports that folder's listing changed — which it does for a
+  file written in place, and for a directory's size arriving under
+  `sort_by = "size"`.
 
 ## Contributing
 
