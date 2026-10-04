@@ -2,9 +2,10 @@
 --- Folders prepared for drawing: each column's statistics, its effective
 --- width, the context its rows are drawn with and the style of the separator
 --- before it, for one folder in one pane of one linemode. A cache belongs to
---- the appearance it prepares under, and is replaced rather than cleared --
---- by a theme event, and by anything that makes a folder's stale -- so a
---- context handed out is never rebound.
+--- the appearance it prepares under. A theme event, a `cd` or a file
+--- operation replaces it whole, and a folder whose listing Yazi reports
+--- changed is dropped from it; neither writes to what was handed out, so a
+--- context is never rebound.
 local schema = require(".schema")
 
 -- The function itself, for the reason `session.lua` gives: an `auto` width
@@ -29,8 +30,12 @@ local M = {}
 ---@field ctx supaline.Ctx
 ---@field sep_style unknown? the style the separator before the cell is drawn in, nil for none
 
+---@class supaline.Listings
 --- One pane of one linemode, prepared in a folder.
----@alias supaline.Listings fun(mode: supaline.ModePlan, pane: string, folder: supaline.Folder?): supaline.Prepared[]
+---@field get fun(mode: supaline.ModePlan, pane: string, folder: supaline.Folder?): supaline.Prepared[]
+--- Drop every folder prepared at a URL, as `load` names it, and say whether
+--- there was one.
+---@field forget fun(url: any): boolean
 
 --- The style a separator is drawn in: none where its slot wrote nothing, so
 --- that it draws as bare text rather than a span per row.
@@ -152,6 +157,8 @@ end
 ---@return supaline.Listings
 function M.new(appearance, reporter)
 	local cache, cache_n = {}, 0 ---@type table<string, supaline.Prepared[]>, integer
+	-- Each key's folder, as `tostring` spells its URL, for `forget` to match.
+	local where = {} ---@type table<string, string>
 	local last_mode, last_pane, last_cwd, last_n, last_prepared
 
 	---@param cells supaline.Cell[]
@@ -202,23 +209,41 @@ function M.new(appearance, reporter)
 		if last_mode == mode and last_pane == pane and last_cwd == cwd and last_n == n then
 			return last_prepared
 		end
-		local key = mode.name .. "\0" .. pane
-		if cwd then
-			key = key .. "\0" .. tostring(cwd) .. "\0" .. n
+		local key, at = mode.name .. "\0" .. pane, cwd and tostring(cwd)
+		if at then
+			key = key .. "\0" .. at .. "\0" .. n
 		end
 		local prepared = cache[key]
 		if not prepared then
 			prepared = prepare(mode.panes[pane], files)
 			if cache_n >= 8 then
-				cache, cache_n = {}, 0
+				cache, where, cache_n = {}, {}, 0
 			end
-			cache[key], cache_n = prepared, cache_n + 1
+			cache[key], where[key], cache_n = prepared, at, cache_n + 1
 		end
 		last_mode, last_pane, last_cwd, last_n, last_prepared = mode, pane, cwd, n, prepared
 		return prepared
 	end
 
-	return get
+	--- What the key cannot see: a listing that changed and kept its count.
+	--- Only the folder named goes, so a folder the cursor merely previews
+	--- leaves the one it is moving through prepared.
+	---@param url any
+	---@return boolean dropped whether anything prepared there went
+	local function forget(url)
+		local at, dropped = tostring(url), false
+		for key, of in pairs(where) do
+			if of == at then
+				cache[key], where[key], cache_n, dropped = nil, nil, cache_n - 1, true
+			end
+		end
+		if last_cwd and tostring(last_cwd) == at then
+			last_mode = nil
+		end
+		return dropped
+	end
+
+	return { get = get, forget = forget }
 end
 
 return M

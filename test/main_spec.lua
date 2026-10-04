@@ -456,7 +456,7 @@ test("setup: a second call replaces what the first installed", function()
 		eq(#handlers, 1, kind .. " is subscribed once")
 	end
 	table.sort(kinds)
-	eq(table.concat(kinds, " "), "bulk-rename cd delete move rename theme trash")
+	eq(table.concat(kinds, " "), "bulk-rename cd delete load move rename theme trash")
 end)
 
 test("setup: a linemode a later setup drops is unregistered, and Yazi's own handed back", function()
@@ -860,6 +860,45 @@ test("stats: a folder revisited after a write is measured again", function()
 	grown = 999999
 	stub.fire("cd")
 	eq(draw("detail", file), "976.6K", "the width and the value both follow the folder")
+end)
+
+test("stats: a write that keeps the count is measured again on `load`", function()
+	-- Yazi has drawn the change by the time `load` reaches a handler, so the
+	-- folder dropped has to ask for another frame or the stale one stays up.
+	local grown = 1
+	local file = stub.file { name = "a.bin" }
+	file.size = function() return grown end
+	setup { detail = { { "size", width = "auto" } } }
+	local here = stub.folder("/here", { file })
+	cx.active.current = here
+	eq(draw("detail", file), "1B")
+	grown = 999999
+	stub.fire("load", { url = here.cwd })
+	eq(stub.renders, 1, "a frame is asked for")
+	eq(draw("detail", file), "976.6K", "the width and the value both follow the folder")
+end)
+
+test("listing: `load` forgets the folder it names and no other", function()
+	-- Yazi publishes it for every folder the cursor previews, so forgetting
+	-- more would measure the current folder again on every step.
+	local passes = {}
+	main.column("counted", {
+		width = 1,
+		stats = function(files) passes[files[1]] = (passes[files[1]] or 0) + 1 end,
+		render = function() return "x" end,
+	})
+	setup { detail = { "counted" } }
+	local a, b = one_file("/a", 1), one_file("/b", 2)
+	draw_in("detail", a)
+	draw_in("detail", b)
+	stub.fire("load", { url = a.cwd })
+	draw_in("detail", a)
+	draw_in("detail", b)
+	eq(passes[a.files[1]], 2, "the folder named is measured again")
+	eq(passes[b.files[1]], 1, "the other is not")
+	eq(stub.renders, 1)
+	stub.fire("load", { url = one_file("/never", 3).cwd })
+	eq(stub.renders, 1, "a folder nothing prepared asks for no frame")
 end)
 
 test("listing: panes never share a context, and a cached folder keeps its own", function()
