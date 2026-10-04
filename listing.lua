@@ -156,9 +156,9 @@ end
 ---@param reporter supaline.Reporter survives a theme replacement, not a setup
 ---@return supaline.Listings
 function M.new(appearance, reporter)
-	local cache, cache_n = {}, 0 ---@type table<string, supaline.Prepared[]>, integer
-	-- Each key's folder, as `tostring` spells its URL, for `forget` to match.
-	local where = {} ---@type table<string, string>
+	-- Each entry carries its folder's URL as `tostring` spells it, which is
+	-- what `forget` matches; nil for a missing folder.
+	local cache, cache_n = {}, 0 ---@type table<string, { at: string?, prepared: supaline.Prepared[] }>, integer
 	local last_mode, last_pane, last_cwd, last_n, last_prepared
 
 	---@param cells supaline.Cell[]
@@ -213,14 +213,15 @@ function M.new(appearance, reporter)
 		if at then
 			key = key .. "\0" .. at .. "\0" .. n
 		end
-		local prepared = cache[key]
-		if not prepared then
-			prepared = prepare(mode.panes[pane], files)
+		local entry = cache[key]
+		if not entry then
+			entry = { at = at, prepared = prepare(mode.panes[pane], files) }
 			if cache_n >= 8 then
-				cache, where, cache_n = {}, {}, 0
+				cache, cache_n = {}, 0
 			end
-			cache[key], where[key], cache_n = prepared, at, cache_n + 1
+			cache[key], cache_n = entry, cache_n + 1
 		end
+		local prepared = entry.prepared
 		last_mode, last_pane, last_cwd, last_n, last_prepared = mode, pane, cwd, n, prepared
 		return prepared
 	end
@@ -232,9 +233,9 @@ function M.new(appearance, reporter)
 	---@return boolean dropped whether anything prepared there went
 	local function forget(url)
 		local at, dropped = tostring(url), false
-		for key, of in pairs(where) do
-			if of == at then
-				cache[key], where[key], cache_n, dropped = nil, nil, cache_n - 1, true
+		for key, entry in pairs(cache) do
+			if entry.at == at then
+				cache[key], cache_n, dropped = nil, cache_n - 1, true
 			end
 		end
 		if last_cwd and tostring(last_cwd) == at then
