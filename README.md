@@ -507,24 +507,16 @@ What `options` lets through is the value as written, and `render` is the first
 thing to read it. A value it cannot use reaches you at the first row, as this
 column throwing, with `!` down its length. `validate` moves that to `setup`: a
 check per declared option, handed the value and returning `nil` to take it or a
-string saying what is wrong with it:
+string saying what is wrong with it. Added to `initials` above:
 
 ```lua
-supaline.column("initials", {
-  width = 3,
-  options = { "between" },
-  between = ".",
-  validate = {
-    between = function(value)
-      if type(value) ~= "string" then
-        return "must be the string drawn after the initial"
-      end
-    end,
-  },
-  render = function(file, ctx)
-    return file.name:sub(1, 1) .. ctx.opts.between, ctx.style
+validate = {
+  between = function(value)
+    if type(value) ~= "string" then
+      return "must be the string drawn after the initial"
+    end
   end,
-})
+},
 ```
 
 `{ "initials", between = false }` is then refused where it was written, the
@@ -536,12 +528,11 @@ supaline: setup.linemodes.detail[1].between: must be the string drawn after the 
 
 A check is asked about a value somebody wrote and nothing else — each use's
 own, and the definition's default whenever the definition is read — so a value
-left out never reaches it, and the refusal names whichever of the two was
-wrong. A check that raises is refused at the same path, and so is one that
-answers anything but `nil` or a string: `return type(value) == "string"` reads
-like a check, and would refuse every value it means to take. The built-in
-timestamp columns check `format` this way, so `format = "%Q"` is refused by
-`setup` rather than drawn as `!`.
+left out never reaches it. A check that raises is refused at the same path, and
+so is one that answers anything but `nil` or a string:
+`return type(value) == "string"` reads like a check, and would refuse every
+value it means to take. The built-in timestamp columns check `format` this
+way, so `format = "%Q"` is refused by `setup` rather than drawn as `!`.
 
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from

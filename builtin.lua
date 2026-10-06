@@ -151,10 +151,9 @@ function M.definitions()
 		end
 		local ok, out = pcall(os.date, value, 0)
 		if not ok then
-			-- Lua's own wording names the argument, as `date` or `os.date` by how
-			-- it was reached; what is wrong is in the brackets.
+			-- What is wrong is in the brackets after Lua's `bad argument`.
 			local why = tostring(out)
-			return string.format("is not an `os.date` format: %s", why:match("^bad argument #1 to '[%w.]+' %((.*)%)$") or why)
+			return string.format("is not an `os.date` format: %s", why:match("%((.*)%)$") or why)
 		elseif type(out) ~= "string" then
 			return "asks `os.date` for a table rather than text, which a column cannot draw"
 		end

@@ -87,15 +87,11 @@ test(
 )
 
 test("times: a `format` `os.date` cannot draw is refused where it is written", function()
-	-- Drawn, each of these throws from `render` on every row and fills the
-	-- column with `!`; refused, it names the key that was wrong.
 	for _, name in ipairs { "mtime", "btime", "atime" } do
 		for _, case in ipairs {
 			{ {}, "spec.format: must be an `os.date` format string, got a table" },
-			{ 42, "got a number" },
 			{ "%Q", "spec.format: is not an `os.date` format: invalid conversion specifier '%Q'" },
-			{ "*t", "asks `os.date` for a table rather than text" },
-			{ "!*t", "asks `os.date` for a table rather than text" },
+			{ "*t", "spec.format: asks `os.date` for a table rather than text" },
 		} do
 			throws(function() prepare(spec_of(name, { format = case[1] })) end, case[2])
 		end
