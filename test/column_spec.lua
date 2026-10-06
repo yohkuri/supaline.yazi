@@ -279,6 +279,78 @@ test("normalize: a definition may default an option it declares", function()
 	eq(prepare({ "timed", pad = true }).ctx.opts.pad, true)
 end)
 
+--- A check that takes a number and refuses anything else, and fails loudly
+--- if it is ever asked about a value nobody wrote.
+---@param value any
+---@return string?
+local function a_number(value)
+	assert(value ~= nil, "asked about nil")
+	if type(value) ~= "number" then
+		return "must be a number of cells to pad by"
+	end
+end
+
+test("normalize: a column's check refuses a value at the path it was written at", function()
+	-- At the use when the use wrote it, and at the definition when the
+	-- default is what is wrong: a use that wrote nothing is not the place.
+	timed { options = { "format", "pad" }, validate = { pad = a_number }, pad = 1 }
+	eq(prepare({ "timed", pad = 2 }).ctx.opts.pad, 2, "a value the check takes reaches `ctx.opts` as written")
+	eq(prepare("timed").ctx.opts.pad, 1, "and so does the definition's own")
+	refused {
+		{ { "timed", pad = "wide" }, "supaline: spec.pad: must be a number of cells to pad by" },
+	}
+	throws(
+		function() timed { options = { "pad" }, validate = { pad = a_number }, pad = "wide" } end,
+		'supaline: column("timed").pad: must be a number of cells to pad by'
+	)
+
+	-- An inline definition is its own use, and is checked the same way.
+	local x = function() return "ab" end
+	refused {
+		{ { render = x, options = { "pad" }, validate = { pad = a_number }, pad = "wide" }, "spec.pad: must be a number" },
+	}
+
+	-- Asked only about a value somebody wrote: `a_number` raises on nil.
+	timed { options = { "pad" }, validate = { pad = a_number } }
+	eq(prepare("timed").ctx.opts.pad, nil)
+end)
+
+test("normalize: a check that raises, or answers neither nil nor a string, is refused at the value", function()
+	-- Refused rather than contained: a check runs while `setup` can still say
+	-- so, which is what a `style` function's throw gets too.
+	local function raises() error("no such pad", 0) end
+	local function predicate(value) return type(value) == "number" end
+	timed { options = { "pad", "trim" }, validate = { pad = raises, trim = predicate } }
+	refused {
+		{ { "timed", pad = 2 }, "spec.pad: the column's check on it raised: no such pad" },
+		-- The one shape a check is most likely written in by mistake, and the
+		-- one that would otherwise refuse every value it means to take.
+		{ { "timed", trim = 2 }, "spec.trim: the column's check on it returned a boolean", "nil for a value it takes" },
+	}
+end)
+
+test("register: `validate` is the definition's, and checks only what it declares", function()
+	local x = function() return "ab" end
+	refused({
+		{ "format", 'column("odd").validate: must be a table of checks', "got `format`" },
+		{ {}, "got an empty table" },
+		{ { fromat = a_number }, "checks `fromat`, which this column does not declare", "(it declares `format`)" },
+		{ { a_number }, "checks `1`" },
+		{ { format = 42 }, 'column("odd").validate.format: must be a function', "got `42`" },
+	}, function(validate) register("odd", { render = x, options = { "format" }, validate = validate }) end)
+	throws(
+		function() register("odd", { render = x, validate = { format = a_number } }) end,
+		"does not declare in `options` --"
+	)
+
+	-- At a use it is a key nobody reads, and `options` cannot claim it.
+	timed { options = { "pad" }, validate = { pad = a_number } }
+	refused {
+		{ { "timed", validate = { pad = a_number } }, "`validate` goes on the definition" },
+		{ { render = x, options = { "validate" } }, "a list naming `validate`" },
+	}
+end)
+
 test("normalize: a `render` at `[1]` is refused, and says where it goes", function()
 	-- A reasonable thing to write, so the refusal carries the spelling that
 	-- works.

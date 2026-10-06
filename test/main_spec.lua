@@ -296,6 +296,8 @@ test("setup: a value under `setup`'s own keys is refused by `setup`'s name", fun
 	refuses({ linemodes = lm, separator = false }, "setup.separator: ")
 	refuses(only { "size", separator = false }, "setup.linemodes.t.separator: ")
 	refuses({ linemodes = lm, lightness = { fg = { from = 0.35 } } }, "setup.lightness.fg.to: ")
+	-- A column's own option is the column's to check, and `setup` says so.
+	refuses(only { { "mtime", format = {} } }, "setup.linemodes.t[1].format: must be an `os.date` format")
 
 	setup({ t = { "size" } }, { scale = "linear" })
 	setup({ t = { "size" } }, { scale = "log" })

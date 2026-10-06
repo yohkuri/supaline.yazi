@@ -138,6 +138,28 @@ function M.definitions()
 		return os.date("%m/%d  %Y", time) --[[@as string]]
 	end
 
+	--- A `format` is asked of `os.date` once, against the epoch, while `setup`
+	--- can still refuse it. Left to `render`, the same mistake throws on every
+	--- row -- 5.5's `os.date` raises on a conversion it does not know -- and
+	--- the column draws `!` down its length. `*t` is refused too: it is a
+	--- format `os.date` takes, and answers with a table rather than text.
+	---@param value any
+	---@return string?
+	local function date_format(value)
+		if type(value) ~= "string" then
+			return string.format("must be an `os.date` format string, got a %s", type(value))
+		end
+		local ok, out = pcall(os.date, value, 0)
+		if not ok then
+			-- Lua's own wording names the argument, as `date` or `os.date` by how
+			-- it was reached; what is wrong is in the brackets.
+			local why = tostring(out)
+			return string.format("is not an `os.date` format: %s", why:match("^bad argument #1 to '[%w.]+' %((.*)%)$") or why)
+		elseif type(out) ~= "string" then
+			return "asks `os.date` for a table rather than text, which a column cannot draw"
+		end
+	end
+
 	---@param field "mtime"|"btime"|"atime"
 	local function register_time(field)
 		---@param file supaline.File
@@ -152,6 +174,7 @@ function M.definitions()
 			-- The one option any built-in reads off `ctx.opts`, and declaring it is
 			-- what lets `fromat` be refused on a column that takes a `format`.
 			options = { "format" },
+			validate = { format = date_format },
 			stats = extremes(get),
 			refresh = refresh_year,
 			---@type supaline.Render

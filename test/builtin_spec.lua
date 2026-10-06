@@ -86,6 +86,25 @@ test(
 	function() eq(render("mtime", stub.file { mtime = OLD }, { format = "%Y-%m-%d", width = 10 }), "2020-12-25") end
 )
 
+test("times: a `format` `os.date` cannot draw is refused where it is written", function()
+	-- Drawn, each of these throws from `render` on every row and fills the
+	-- column with `!`; refused, it names the key that was wrong.
+	for _, name in ipairs { "mtime", "btime", "atime" } do
+		for _, case in ipairs {
+			{ {}, "spec.format: must be an `os.date` format string, got a table" },
+			{ 42, "got a number" },
+			{ "%Q", "spec.format: is not an `os.date` format: invalid conversion specifier '%Q'" },
+			{ "*t", "asks `os.date` for a table rather than text" },
+			{ "!*t", "asks `os.date` for a table rather than text" },
+		} do
+			throws(function() prepare(spec_of(name, { format = case[1] })) end, case[2])
+		end
+		-- What `os.date` takes, it takes, whatever it draws.
+		eq(prepare(spec_of(name, { format = "%Y-%m-%d" })).ctx.opts.format, "%Y-%m-%d")
+		eq(prepare(spec_of(name, { format = "plain" })).ctx.opts.format, "plain")
+	end
+end)
+
 test("btime and atime read their own fields", function()
 	eq(render("btime", stub.file { btime = OLD, mtime = RECENT }), "12/25  2020")
 	eq(render("atime", stub.file { atime = OLD, mtime = RECENT }), "12/25  2020")
