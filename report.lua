@@ -73,6 +73,10 @@ M.BROKEN = BROKEN
 ---@return supaline.Reporter
 function M.new(sink)
 	local gates = {} ---@type table<supaline.ColumnPlan, table<string, true>>
+	-- Asked before the message is built, rather than through a `once` helper
+	-- handed the message: a throwing `render` throws on every row of every
+	-- frame, and a helper would build the message first or take a closure per
+	-- call.
 	local function told(col, kind)
 		local gate = gates[col]
 		if not gate then

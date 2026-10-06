@@ -138,6 +138,11 @@ end
 --- A `ui.Style` is read through `raw()`, which answers with the same keys a
 --- table has -- so a themed field, a spec's `ui.Style()` and a table written
 --- out are one shape here, and merge key by key.
+---
+--- A spec may write a `ui.Style`, though a table says the same. A `style`
+--- function borrowing a flavor's colour returns one, so the value is taken
+--- anyway, and refusing the literal alone would mean telling a spec's from a
+--- function's.
 ---@param value any
 ---@param at supaline.Path
 ---@param painter supaline.Painter what a colour, and a gradient, mean here

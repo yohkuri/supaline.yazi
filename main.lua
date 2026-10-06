@@ -142,6 +142,10 @@ local function install(current)
 	local plan = current.plan
 	for name, mode in pairs(plan.modes) do
 		installed.prev[#installed.prev + 1] = { name = name, was = Linemode[name] }
+		-- Handed no width. Read off 26.9.1's source, only Current, Parent and
+		-- the folder previewer hold an `_area`, so dropping columns by priority
+		-- as a pane narrows would mean replacing their `redraw`; a list per pane
+		-- is the answer to a narrow one.
 		Linemode[name] = function(self)
 			if not mode.panes.current then
 				return ""
@@ -189,6 +193,13 @@ end
 -- The frame is asked for here because Yazi draws the change before it calls
 -- this: measured, the row showed a directory's new size under the extremes
 -- taken without it, and nothing drew again until the next key.
+--
+-- No key recomputes everything, because this already reaches every listing
+-- one could fix: read off 26.9.1's source, `yazi-core/src/tab/folder.rs`
+-- publishes `load` whenever a folder's entries or stage change. What else
+-- goes stale is a `refresh`'s until the next `cd` -- the year in a session
+-- that never moves, the permission styles after a theme supaline refused --
+-- and `builtin.lua` says both.
 ps.sub("load", function(body)
 	-- Cast at the boundary: `load` always carries the folder's URL.
 	local url = (body --[[@as { url: any }]]).url
@@ -224,7 +235,9 @@ function M.extremes(get) return builtin.extremes(get) end
 ---@overload fun(opts: supaline.Opts)
 function M.setup(_st, opts)
 	-- The dot call: what arrived first is the options, or something that
-	-- was meant to be and is refused as them.
+	-- was meant to be and is refused as them. Not a helper shared with
+	-- `column`, which tells its two calls apart by another test: a shared one
+	-- would take the test as an argument.
 	if opts == nil and (type(_st) ~= "table" or _st.linemodes ~= nil) then
 		opts = _st --[[@as supaline.Opts]]
 	end
