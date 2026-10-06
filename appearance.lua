@@ -77,6 +77,9 @@ function M.slot(slot, theme)
 		style = steps and steps[1] or ground,
 		steps = steps,
 		fg_written = from.fg ~= nil,
+		-- On every slot though only a separator reads it: whether a layer wrote
+		-- anything is a fact about any slot, and setting it on separators alone
+		-- would make the resolver tell a separator from a column.
 		written = next(resolved) ~= nil,
 	}
 end

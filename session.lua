@@ -80,6 +80,8 @@ function M.new(plan, theme, sink)
 			return sink(got, report.one_line(got))
 		end
 		resolved = got
+		-- Every folder goes rather than keeping its stats and widths across the
+		-- event, which would save a prepare per pane on an event this rare.
 		invalidate()
 		refresh()
 	end

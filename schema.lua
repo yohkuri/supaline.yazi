@@ -265,6 +265,10 @@ end
 --- run from 1 without a gap, and how many there are. `#t` alone cannot say: a
 --- table with a gap has whichever border Lua finds, and `ipairs` stops at the
 --- first one.
+---
+--- The whole of what the three dense-list checks share. A `list` that did the
+--- rest would take as arguments the two ways they differ: what each allows
+--- beside the list, and every word of its refusal.
 ---@param t table
 ---@return string[] others
 ---@return boolean dense

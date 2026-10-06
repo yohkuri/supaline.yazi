@@ -115,6 +115,10 @@ function M.definitions()
 	--
 	-- `os.time` reads its table as local time, so the bounds follow the same
 	-- offset -- and the same DST -- that `os.date` would have applied.
+	--
+	-- Held by the module rather than per use of a column, as the permission
+	-- styles below are too: the year, like `th.status`, is one value for every
+	-- use.
 	local YEAR_FROM, YEAR_TO = 0, 0
 
 	--- Re-read the year. Declared as the `refresh` hook of every time column, so

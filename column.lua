@@ -242,6 +242,11 @@ end
 --- rather than one function over every option, so a value that fails is
 --- refused at the path it was written at -- the use's, or the definition's own
 --- default -- rather than at a use that may never have written it.
+---
+--- A key of its own rather than checks written inside `options`, as
+--- `options = { "pad", format = check }`. What that spelling gains, no check
+--- on an undeclared option, `record` below already gives; what it costs is
+--- README's promise that `options` is a plain list, checked as one.
 ---@param own any
 ---@param options string[]?
 ---@param at supaline.Path
