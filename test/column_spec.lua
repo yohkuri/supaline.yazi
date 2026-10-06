@@ -620,6 +620,28 @@ test("cell: a renderable's padding is inside the column's style", function()
 	end
 end)
 
+test("cell: what comes back without a style draws bare, whatever the column's", function()
+	-- Rather than in `ctx.style`: `return text` and `return text, nil` are one
+	-- call, so a column could not then ask for bare, and a gradient column that
+	-- forgot `style_at` would draw flat at its low end rather than plainly
+	-- uncoloured. What it leaves out is a `[supaline]` colour reaching a column
+	-- that returns its text alone.
+	local renders = { string = function() return "ab" end, Line = function() return ui.Line("ab") end }
+	for colour, fg in pairs { flat = "#112233", gradient = "#112233 -> #ffffff" } do
+		for kind, render in pairs(renders) do
+			local col = prepare {
+				render = render,
+				stats = function() return { min = 0, max = 1 } end,
+				width = 2,
+				style = { fg = fg },
+			}
+			local parts = stub.drawn_styles(cases.cell(col))
+			eq(#parts, 1, colour .. " " .. kind)
+			eq(parts[1], false, colour .. " " .. kind .. ": drawn with no style")
+		end
+	end
+end)
+
 -- --- the ratio contract ----------------------------------------------------
 
 --- A column bound to one set of extremes, ready to be asked for ratios.

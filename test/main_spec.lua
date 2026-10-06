@@ -770,6 +770,11 @@ test("rendering: what a frame does through wrappers does not grow with the folde
 	-- An `auto` column in every pane, so the per-file width pass runs as well
 	-- as the per-row draw, and a computed one, whose once-per-folder read is
 	-- what this allows.
+	--
+	-- Two frames compared, rather than a count at the stub's `Linemode` that
+	-- would make every spec's draw a guard: the stub cannot tell a first draw,
+	-- which prepares a folder and may read once per folder, from a later one,
+	-- so it would need a steady-state rule no spec's draw keeps.
 	main.column("measured", { width = "auto", render = function(file) return file.name end })
 	main.column("computed", { width = function() return 3 end, render = function() return "x" end })
 	local cols = { "size", "measured", "computed" }
@@ -816,6 +821,9 @@ test("rendering: what a frame does through wrappers does not grow with the folde
 end)
 
 test("stats: a column with a stated width still receives them", function()
+	-- Flat, too: `ctx.stats` is the column's to read whatever it is coloured
+	-- with. Skipping the pass for a flat colour would save one per folder
+	-- prepared rather than per frame, which `main.lua` prices beside `load`.
 	local seen = "not called"
 	main.column("stated", {
 		width = 6,
