@@ -213,7 +213,12 @@ end)
 test("layer: a colour is a colour and an attribute a boolean", function()
 	throws(function() layer { fg = "#gg0000" } end, "x.fg: `#gg0000` is not a colour Yazi accepts")
 	throws(function() layer { bg = 42 } end, "x.bg: must be a colour string, got a number")
-	throws(function() layer { fg = { "#aabbcc", "#ff8800" } } end, "x.fg: must be a colour string, got a table")
+	-- Nor is a list under `fg` pointed at the arrow string: a gradient written
+	-- as a list is guessed nowhere, as the list spelling above is not.
+	lacks(
+		throws(function() layer { fg = { "#aabbcc", "#ff8800" } } end, "x.fg: must be a colour string, got a table"),
+		"->"
+	)
 	throws(function() layer { bold = "yes" } end, "must be true or false")
 end)
 
