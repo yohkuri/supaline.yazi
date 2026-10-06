@@ -166,14 +166,14 @@ blank screen with no part of this plugin involved.
 
 ### Where the containment goes
 
-supaline calls four functions a column may write. Three of them — `stats`, a
-`width` that is one, and `render` — are called inside that redraw, and all
-three go through `report.lua`'s `call`, which contains a throw and reports it
-once per column, so the line goes on drawing. `report.lua` carries the
-reasoning; `main_spec.lua`'s `throwing:` specs pin it. **A new call into a
-column's code belongs under the same containment**, and that is the part no
-check will tell you: the suite stays green either way, because a spec only
-ever reaches code that already exists.
+supaline calls four functions a column may write once `setup` has committed.
+Three of them — `stats`, a `width` that is one, and `render` — are called
+inside that redraw, and all three go through `report.lua`'s `call`, which
+contains a throw and reports it once per column, so the line goes on drawing.
+`report.lua` carries the reasoning; `main_spec.lua`'s `throwing:` specs pin
+it. **A new call into a column's code belongs under the same containment**,
+and that is the part no check will tell you: the suite stays green either way,
+because a spec only ever reaches code that already exists.
 
 The fourth is `refresh`, and it is the one that shows the rule is about the
 caller rather than the render. It is not called under a render at all, so a
@@ -203,7 +203,8 @@ A `style` written as a function is on this side of the line, though a column
 may write one, and it never goes through `call`. `appearance.lua` calls it
 where the theme is resolved, so a throw refuses the `setup` it came with, and
 from a `theme` event `session.lua` keeps the last appearance drawing and says
-why.
+why. A `validate` is on this side too: `column.lua` asks it while `column` and
+`setup` read the value it checks, and a throw refuses at that value's path.
 
 The containment has one more consequence, and it is easy to walk into:
 **supaline's own refusals inside a contained call must not be raised.** A
