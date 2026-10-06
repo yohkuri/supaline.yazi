@@ -39,12 +39,15 @@ function M.as_key(name)
 end
 
 --- What was written, for the end of a message that names it back: a string or
---- a number as written, anything else by its type.
+--- a number as written, anything else by its type. An empty string is named,
+--- since quoted it is a pair of backticks that read as nothing.
 ---@param value any
 ---@return string
 function M.as_written(value)
 	local t = type(value)
-	if t == "string" or t == "number" then
+	if value == "" then
+		return "an empty string"
+	elseif t == "string" or t == "number" then
 		return string.format("`%s`", tostring(value))
 	end
 	return "a " .. t

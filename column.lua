@@ -288,9 +288,7 @@ local function option(own)
 		elseif type(reason) == "string" and reason ~= "" then
 			at:refuse("%s", reason)
 		elseif reason ~= nil or more ~= nil then
-			local said = reason == nil and "nil and then " .. schema.as_written(more)
-				or reason == "" and "an empty string"
-				or schema.as_written(reason)
+			local said = reason == nil and "nil and then " .. schema.as_written(more) or schema.as_written(reason)
 			at:refuse(
 				"the column's check on it returned %s; a check returns nil alone for a value it takes, or "
 					.. "a string saying what is wrong with one",
