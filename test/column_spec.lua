@@ -244,15 +244,16 @@ test("normalize: a column's own options are claimed, and only that column's", fu
 	}
 end)
 
-test("normalize: `options` and `name` are the definition's to write", function()
-	-- Both are read off the definition alone, so at a use site each is a key
+test("normalize: `options`, `validate` and `name` are the definition's to write", function()
+	-- Each is read off the definition alone, so at a use site each is a key
 	-- nobody reads.
 	refused {
 		{ { "fixed", options = { "pad" } }, "`options` goes on the definition" },
+		{ { "fixed", validate = { pad = function() end } }, "`validate` goes on the definition" },
 		{ { "fixed", name = "other" }, "read by nobody" },
 	}
 
-	-- The same two keys on the table that *is* the definition are its own.
+	-- The same keys on the table that *is* the definition are its own.
 	local col = prepare { name = "inline", options = { "pad" }, pad = 2, render = function() return "ab" end }
 	eq(col.plan.name, "inline", "the name the theme is looked up under")
 	eq(col.ctx.opts.pad, 2)
@@ -316,8 +317,8 @@ test("normalize: a column's check refuses a value at the path it was written at"
 end)
 
 test("normalize: a check that raises, or answers neither nil nor a string, is refused at the value", function()
-	-- Refused rather than contained: a check runs while `setup` can still say
-	-- so, which is what a `style` function's throw gets too.
+	-- The refusal names the value the check was asked about, wherever the
+	-- fault lies, so the reader is sent to the line that set it off.
 	local function raises() error("no such pad", 0) end
 	local function predicate(value) return type(value) == "number" end
 	timed { options = { "pad", "trim" }, validate = { pad = raises, trim = predicate } }
@@ -329,26 +330,24 @@ test("normalize: a check that raises, or answers neither nil nor a string, is re
 	}
 end)
 
-test("register: `validate` is the definition's, and checks only what it declares", function()
+test("register: `validate` is a table of checks, for the options the definition declares", function()
 	local x = function() return "ab" end
 	refused({
 		{ "format", 'column("odd").validate: must be a table of checks', "got `format`" },
 		{ {}, "got an empty table" },
-		{ { fromat = a_number }, "checks `fromat`, which this column does not declare", "(it declares `format`)" },
-		{ { a_number }, "checks `1`" },
+		-- Every key it does not check at once, the way any other table's are.
+		{
+			{ fromat = a_number, pda = a_number },
+			"`fromat`, `pda` are not `validate` keys",
+			"declares in `options`: `format`",
+		},
+		{ { a_number }, "`1` is not a `validate` key" },
 		{ { format = 42 }, 'column("odd").validate.format: must be a function', "got `42`" },
 	}, function(validate) register("odd", { render = x, options = { "format" }, validate = validate }) end)
 	throws(
 		function() register("odd", { render = x, validate = { format = a_number } }) end,
-		"does not declare in `options` --"
+		"declares no `options`, so there is nothing for it to check"
 	)
-
-	-- At a use it is a key nobody reads, and `options` cannot claim it.
-	timed { options = { "pad" }, validate = { pad = a_number } }
-	refused {
-		{ { "timed", validate = { pad = a_number } }, "`validate` goes on the definition" },
-		{ { render = x, options = { "validate" } }, "a list naming `validate`" },
-	}
 end)
 
 test("normalize: a `render` at `[1]` is refused, and says where it goes", function()
@@ -402,6 +401,7 @@ test("register: a definition is swept the same way, and `options` is checked", f
 	refused {
 		{ { render = x, options = "format" }, "spec.options: must be the list of names this column reads off `ctx.opts`" },
 		{ { render = x, options = { "width" } }, "which every column takes" },
+		{ { render = x, options = { "validate" } }, "a list naming `validate`" },
 		{ { render = x, options = { "fetch" } }, "which supaline answers for itself" },
 	}
 

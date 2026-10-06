@@ -1,9 +1,7 @@
 --- @since 26.9.1
 --- Column definitions, the registry that holds them, and the plan one use of a
---- column compiles to. The one function a column wrote that is called here is
---- a `validate`, which is configuration rather than drawing: it is asked while
---- `register` and `setup` read what was written, so what it refuses they
---- refuse, with the path of the value it was asked about.
+--- column compiles to. Nothing here calls a function a column wrote but a
+--- `validate`, which is configuration: what it refuses, `setup` refuses.
 ---
 --- There are two tables a column is written as. A **definition** says what a
 --- column draws: the table `column(name, def)` registers, or one written
@@ -226,6 +224,20 @@ local function options_of(own, at)
 	return out
 end
 
+--- One check: handed a value, and saying what is wrong with it. Not
+--- `schema.fn`, whose message is about a function called while drawing.
+---@type supaline.Parser
+local function check(value, at)
+	if type(value) ~= "function" then
+		at:refuse(
+			"must be a function, handed a value and returning nil for one it takes or a string saying "
+				.. "what is wrong with it, got %s",
+			schema.as_written(value)
+		)
+	end
+	return value
+end
+
 --- The checks a definition writes, by the option each one checks. Keyed
 --- rather than one function over every option, so a value that fails is
 --- refused at the path it was written at -- the use's, or the definition's own
@@ -244,28 +256,14 @@ local function validators_of(own, options, at)
 			type(own) == "table" and "an empty table" or schema.as_written(own)
 		)
 	end
-	local declared = {}
+	local fields = {}
 	for _, key in ipairs(options or {}) do
-		declared[key] = true
+		fields[key] = check
 	end
-	for _, key in ipairs(schema.sorted_keys(own)) do
-		if not declared[key] then
-			at:refuse(
-				"checks `%s`, which this column does not declare in `options`%s -- a check on a key "
-					.. "nobody may write would never be asked",
-				tostring(key),
-				options and string.format(" (it declares %s)", schema.quoted(options)) or ""
-			)
-		elseif type(own[key]) ~= "function" then
-			at:key(key):refuse(
-				"must be a function, handed a value of `%s` and returning nil for one it takes or a string "
-					.. "saying what is wrong with it, got %s",
-				key,
-				schema.as_written(own[key])
-			)
-		end
-	end
-	return own
+	local help = options
+			and string.format("It checks only the options this column declares in `options`: %s", schema.quoted(options))
+		or "This column declares no `options`, so there is nothing for it to check"
+	return schema.record(fields, "`validate`", help)(own, at)
 end
 
 --- The parser for one declared option: the value as written, asked of the
