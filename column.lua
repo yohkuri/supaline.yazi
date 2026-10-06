@@ -270,23 +270,31 @@ end
 --- definition's check on it first when there is one. A check that throws is
 --- refused rather than contained, the way a `style` function's throw is,
 --- because `setup` can still say so and nothing has drawn yet.
----@param check function?
+---
+--- The second value is read too, because `nil, reason` is how Lua says no:
+--- taken by its first value alone, it would let through every value it means
+--- to refuse. An empty string is a refusal that says nothing, and is refused
+--- as one.
+---@param own function?
 ---@return supaline.Parser
-local function option(check)
-	if not check then
+local function option(own)
+	if not own then
 		return schema.any
 	end
 	return function(value, at)
-		local ok, reason = pcall(check, value)
+		local ok, reason, more = pcall(own, value)
 		if not ok then
 			at:refuse("the column's check on it raised: %s", tostring(reason))
-		elseif type(reason) == "string" then
+		elseif type(reason) == "string" and reason ~= "" then
 			at:refuse("%s", reason)
-		elseif reason ~= nil then
+		elseif reason ~= nil or more ~= nil then
+			local said = reason == nil and "nil and then " .. schema.as_written(more)
+				or reason == "" and "an empty string"
+				or schema.as_written(reason)
 			at:refuse(
-				"the column's check on it returned %s; a check returns nil for a value it takes, or a "
-					.. "string saying what is wrong with one",
-				schema.as_written(reason)
+				"the column's check on it returned %s; a check returns nil alone for a value it takes, or "
+					.. "a string saying what is wrong with one",
+				said
 			)
 		end
 		return value

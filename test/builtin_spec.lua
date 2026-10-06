@@ -92,6 +92,7 @@ test("times: a `format` `os.date` cannot draw is refused where it is written", f
 			{ {}, "spec.format: must be an `os.date` format string, got a table" },
 			{ "%Q", "spec.format: is not an `os.date` format: invalid conversion specifier '%Q'" },
 			{ "*t", "spec.format: asks `os.date` for a table rather than text" },
+			{ "!*t", "spec.format: asks `os.date` for a table rather than text" },
 		} do
 			throws(function() prepare(spec_of(name, { format = case[1] })) end, case[2])
 		end
