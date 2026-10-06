@@ -69,6 +69,10 @@ def _require_python() -> None:
     module's imports: `e2e.py` reads the themes with `tomllib`, which is 3.11's.
     Importing this module is the one moment every entry here has in common,
     `test_screen.py` included, which has no `main` and is the one CI runs.
+
+    A refusal rather than a `unittest.SkipTest`, though `unittest discover`
+    prints an `ImportError` traceback under the sentence: a suite that skips
+    itself on an old Python is a green run over nothing.
     """
     if sys.version_info < MINIMUM:
         want = ".".join(str(n) for n in MINIMUM)
@@ -376,7 +380,9 @@ class Session:
         measured -- which is a timeout, not a guarantee to lean on.
 
         `grace` is what the program gets to finish writing the log the checks
-        read; a session that goes sooner ends the wait at once.
+        read; a session that goes sooner ends the wait at once. Waiting the
+        five seconds out instead would add about eight to an `e2e.py` run,
+        which quits twice, for no claim the checks make.
         """
         self.keys(*keys)
         deadline = time.monotonic() + grace
@@ -385,6 +391,8 @@ class Session:
         self.kill()
 
     def capture(self, *, colour: bool = False) -> str:
+        """The screen, by a `tmux` process per read: `settle` says what a
+        persistent `tmux -C` client would cost it."""
         args = ["capture-pane", "-t", self.name, "-p"]
         if colour:
             args.append("-e")
@@ -515,6 +523,12 @@ class Session:
 
         `colour` compares the screens with their escapes, so a repaint that
         recolours alone resets the window too.
+
+        The window is counted in `POLL`s rather than by the clock, and each
+        iteration also costs a capture and whatever the sleep overshoots, so
+        0.4s is about 0.45s of wall clock -- a margin every wait here relies
+        on. A cheaper capture, such as a persistent `tmux -C` client,
+        would shrink it without a word: write the margin into `stable` first.
         """
         deadline = time.monotonic() + timeout
         was = self.capture(colour=colour)

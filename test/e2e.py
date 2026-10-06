@@ -214,6 +214,11 @@ def broken_run(r: Run, init: str) -> None:
     # reach `torn_tick` alone. With the gate rebuilt at each `cd` or each
     # rebuild instead of held, measured on 26.9.1, the five columns `b_tick`
     # does not draw stayed at 1 without this.
+    #
+    # Each case pressed and waited on, rather than one wait for the screen
+    # answering at all: `b_zero` has no answer to wait on, for the reason
+    # `Driver.show` gives. The presses stay either way; what merging the waits
+    # would save, measured idle, is 4-5s of this pass's and the two `goto`s'.
     for case in r.listing.broken:
         r.show(case)
 

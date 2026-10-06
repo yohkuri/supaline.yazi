@@ -90,6 +90,11 @@ end)
 --- Every value `cases.toml` writes under `field`, one per line and spelled as
 --- a string, as a set -- beside how many lines it was read from, and how many
 --- blocks the file holds of the kinds that should each carry one.
+---
+--- By pattern rather than by `tomllib` in `test_screen.py`: the linemode check
+--- needs `setup` run, so it keeps this reader of `cases.toml` whichever side
+--- the key checks are on. Moving them would move the reader of `MANUAL.md`'s
+--- spans to Python and take no reader of `cases.toml` away.
 ---@param field string
 ---@param blocks string[] # the kinds of block that carry it: `case`, `folder`, `theme`
 ---@return table<string, true>
@@ -203,6 +208,13 @@ test("fixture: every case names a linemode `init.lua` declares, and every one it
 	-- which `e2e.py` would find, minutes later and outside CI. A linemode no case
 	-- names is configuration nothing can reach -- no key presses it and no run
 	-- captures it -- and nothing at all would find that.
+	--
+	-- What this does not ask is whether `broken = true` marks exactly the cases
+	-- whose linemode names a `torn_*` column: that needs each block's fields
+	-- read together, and `case_field` reads one field across the file.
+	-- `e2e.py` holds one direction, since a torn column an unmarked case draws
+	-- is an error in a log held to none. Nothing holds the other: a case
+	-- marked `broken` that draws no torn column loses its capture silently.
 	local named, lines, blocks = case_field("linemode", { "case" })
 	assert(lines > 0, "no `linemode` line in test/fixture/cases.toml; this spec is reading nothing")
 	eq(lines, blocks, "every [[case]] in test/fixture/cases.toml has a `linemode` line this spec could read")
