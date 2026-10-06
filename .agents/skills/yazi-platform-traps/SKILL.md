@@ -166,10 +166,10 @@ blank screen with no part of this plugin involved.
 
 ### Where the containment goes
 
-supaline calls four functions a column may write once `setup` has committed.
-Three of them — `stats`, a `width` that is one, and `render` — are called
-inside that redraw, and all three go through `report.lua`'s `call`, which
-contains a throw and reports it once per column, so the line goes on drawing.
+supaline contains a throw from four functions a column may write. Three of
+them — `stats`, a `width` that is one, and `render` — are called inside that
+redraw, and all three go through `report.lua`'s `call`, which contains a throw
+and reports it once per column, so the line goes on drawing.
 `report.lua` carries the reasoning; `main_spec.lua`'s `throwing:` specs pin
 it. **A new call into a column's code belongs under the same containment**,
 and that is the part no check will tell you: the suite stays green either way,
