@@ -223,7 +223,7 @@ and a definition that names itself alike.
 | Option      | Default      | Meaning                                                  |
 | ----------- | ------------ | -------------------------------------------------------- |
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
-| `stats`     | `nil`        | `function(files)`, run once per folder; result reaches `ctx.stats`. |
+| `stats`     | `nil`        | `function(files)`, run over the whole listing rather than per row, and cached; result reaches `ctx.stats`. See [Writing a column](#writing-a-column) for when it runs again. |
 | `refresh`   | `nil`        | `function()`, run at `setup`, after every theme reload supaline resolves, and on every `cd`. |
 | `width`     | `nil`        | A whole number of cells, 1 or more; `"auto"`; or `function(stats) -> number`, which is held to the same. |
 | `max_width` | `nil`        | Caps the column's width, however it was derived. A whole number of cells, 1 or more. |
@@ -248,10 +248,10 @@ still say so. Left to itself a `stats = 42` reaches you at the first row as this
 column throwing from its `stats` — about a function you never wrote — and a
 `refresh = 42` reaches you as every linemode drawn on screen as its own name.
 
-`width = "auto"` measures every file in the folder once per `cd` and takes the
-widest result. It is exact, and it costs a pass over the listing; a stated
-number costs nothing. `function(stats)` sits in between, for a column whose
-width follows from the extremes.
+`width = "auto"` measures every file in the folder and takes the widest result,
+as often as a `stats` would run over it. It is exact, and it costs a pass over
+the listing; a stated number costs nothing. `function(stats)` sits in between,
+for a column whose width follows from the extremes.
 
 `refresh` is for a column that caches something across rows which is not a
 property of any file — the built-in timestamp columns hold the current year, so
@@ -381,7 +381,21 @@ supaline:setup {
 
 `render` runs for every visible row on every frame, so keep it O(1) and let it
 allocate as little as possible. Anything that has to look at the whole folder
-belongs in `stats`, which runs once per folder and is cached.
+belongs in `stats`, which is handed the whole listing and whose result every
+row drawn from it shares.
+
+That is once per listing rather than once per folder, and how often a folder
+is measured is not something to count on. What `stats` returned is kept for a
+linemode, a pane, and a folder holding so many files, so a folder is measured
+once for each linemode and each pane that draws it, and again when its file
+count changes. All of it is thrown away on every `cd`, on every rename, move,
+delete or trash, on every `setup`, and on every theme reload supaline
+resolves, and one folder's is thrown away when Yazi reports that its listing
+changed — as it does for a file written in place. Eight are kept at a time,
+and a ninth clears all eight, so a folder can be measured again without
+anything about it having changed. Write `stats` as a function of the files it
+is handed: one that counts its calls, or keeps something from the last of
+them, is counting supaline's cache rather than your folder.
 
 A column that wants a gradient needs a `stats` returning
 `{ min = ..., max = ... }`, which is almost always the extremes of one value
@@ -1097,10 +1111,9 @@ again on each theme event.
 - The cut lands on a grapheme cluster and counts what the terminal draws, so a
   composed emoji is kept whole or dropped whole and a cell never comes back
   wider than its column. It can come back a cell short, and is padded back.
-- Statistics and derived widths are cached per folder, and measured again
-  whenever Yazi reports that folder's listing changed — which it does for a
-  file written in place, and for a directory's size arriving under
-  `sort_by = "size"`.
+- Statistics and derived widths are cached, and measured again whenever Yazi
+  reports that a folder's listing changed — which it does for a file written
+  in place, and for a directory's size arriving under `sort_by = "size"`.
 
 ## Contributing
 
