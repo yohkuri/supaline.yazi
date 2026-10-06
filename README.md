@@ -223,7 +223,7 @@ and a definition that names itself alike.
 | Option      | Default      | Meaning                                                  |
 | ----------- | ------------ | -------------------------------------------------------- |
 | `render`    | —            | Required. `function(file, ctx)`, run for every visible row. |
-| `stats`     | `nil`        | `function(files)`, run over the whole listing rather than per row, and cached; result reaches `ctx.stats`. See [Writing a column](#writing-a-column) for when it runs again. |
+| `stats`     | `nil`        | `function(files)`, run over the listing and cached; result reaches `ctx.stats`. See [Writing a column](#writing-a-column) for when it runs again. |
 | `refresh`   | `nil`        | `function()`, run at `setup`, after every theme reload supaline resolves, and on every `cd`. |
 | `width`     | `nil`        | A whole number of cells, 1 or more; `"auto"`; or `function(stats) -> number`, which is held to the same. |
 | `max_width` | `nil`        | Caps the column's width, however it was derived. A whole number of cells, 1 or more. |
@@ -248,9 +248,9 @@ still say so. Left to itself a `stats = 42` reaches you at the first row as this
 column throwing from its `stats` — about a function you never wrote — and a
 `refresh = 42` reaches you as every linemode drawn on screen as its own name.
 
-`width = "auto"` measures every file in the folder and takes the widest result,
-as often as a [`stats` would run](#writing-a-column) over it. It is exact, and
-it costs a pass over the listing; a stated number costs nothing.
+`width = "auto"` measures every file in the folder, as often as a
+[`stats` would run](#writing-a-column), and takes the widest result. It is
+exact, and it costs a pass over the listing; a stated number costs nothing.
 `function(stats)` sits in between, for a column whose width follows from the
 extremes.
 
@@ -265,8 +265,9 @@ about the folder is what changed.
 `render` is handed a context for that column in the folder and pane being
 drawn. Rows in one cached folder reuse it; another folder or pane has its own.
 Treat the context and its options as read-only. Keeping a reference does not
-make it follow navigation: a later folder, cache invalidation or successful
-theme reload creates a new context instead of rebinding the old one.
+make it follow navigation: a later folder, or the same one
+[measured again](#writing-a-column), gets a new context instead of rebinding
+the old one.
 
 | Field          | Meaning                                                     |
 | -------------- | ----------------------------------------------------------- |
@@ -355,9 +356,9 @@ Widths are stated rather than measured, so none of them renders the folder
 twice. Set `width = "auto"` on any of them to have it fit instead.
 
 `size` and the three times each declare `stats`, and a column that declares
-`stats` takes one pass over the listing every time you enter a folder — cheap
-next to what Yazi has already done to list it, and the same pass a gradient
-reads from.
+`stats` takes one pass over the listing each time a folder is
+[measured](#writing-a-column) — cheap next to what Yazi has already done to
+list it, and the same pass a gradient reads from.
 
 ## Writing a column
 
@@ -382,21 +383,19 @@ supaline:setup {
 
 `render` runs for every visible row on every frame, so keep it O(1) and let it
 allocate as little as possible. Anything that has to look at the whole folder
-belongs in `stats`, which is handed the whole listing and whose result every
-row drawn from it shares.
+belongs in `stats`: it is handed the listing, and every row drawn from it
+shares what it returns.
 
 How often `stats` runs is not something to count on. What it returned is kept
-for each linemode and pane that draws a folder, for as long as the folder holds
-the same number of files: another linemode or pane measures the folder again,
-and so does a change in its file count. One folder's is thrown away whenever
-Yazi loads that folder again — as it does for a file written in place — and
-everything kept is thrown away on a `cd`, on a rename, move, delete or trash,
-on a `setup` that succeeds, and on a theme reload supaline resolves. Only a few
-are kept, and making room for another clears them all, so a folder can be
-measured again with nothing about it having changed.
+per linemode and pane, so another of either measures the folder again, and the
+folder is measured again whenever its listing may have changed — a new file
+count, Yazi loading it again, a `cd`, a file operation — and after a `setup`
+or theme reload that succeeds. Only a few are kept at a time, so a folder can
+also be measured again with nothing about it having changed. It runs inside
+the frame that needs it, so keep it to one pass over `files`.
 
 Write `stats` as a function of the files it is handed: one that counts its
-calls, or keeps something from the last of them, is counting supaline's cache
+calls, or keeps something from the last of them, is measuring supaline's cache
 rather than your folder.
 
 A column that wants a gradient needs a `stats` returning
