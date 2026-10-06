@@ -249,9 +249,10 @@ column throwing from its `stats` — about a function you never wrote — and a
 `refresh = 42` reaches you as every linemode drawn on screen as its own name.
 
 `width = "auto"` measures every file in the folder and takes the widest result,
-as often as a `stats` would run over it. It is exact, and it costs a pass over
-the listing; a stated number costs nothing. `function(stats)` sits in between,
-for a column whose width follows from the extremes.
+as often as a [`stats` would run](#writing-a-column) over it. It is exact, and
+it costs a pass over the listing; a stated number costs nothing.
+`function(stats)` sits in between, for a column whose width follows from the
+extremes.
 
 `refresh` is for a column that caches something across rows which is not a
 property of any file — the built-in timestamp columns hold the current year, so
@@ -384,18 +385,19 @@ allocate as little as possible. Anything that has to look at the whole folder
 belongs in `stats`, which is handed the whole listing and whose result every
 row drawn from it shares.
 
-That is once per listing rather than once per folder, and how often a folder
-is measured is not something to count on. What `stats` returned is kept for a
-linemode, a pane, and a folder holding so many files, so a folder is measured
-once for each linemode and each pane that draws it, and again when its file
-count changes. All of it is thrown away on every `cd`, on every rename, move,
-delete or trash, on every `setup`, and on every theme reload supaline
-resolves, and one folder's is thrown away when Yazi reports that its listing
-changed — as it does for a file written in place. Eight are kept at a time,
-and a ninth clears all eight, so a folder can be measured again without
-anything about it having changed. Write `stats` as a function of the files it
-is handed: one that counts its calls, or keeps something from the last of
-them, is counting supaline's cache rather than your folder.
+How often `stats` runs is not something to count on. What it returned is kept
+for each linemode and pane that draws a folder, for as long as the folder holds
+the same number of files: another linemode or pane measures the folder again,
+and so does a change in its file count. One folder's is thrown away whenever
+Yazi loads that folder again — as it does for a file written in place — and
+everything kept is thrown away on a `cd`, on a rename, move, delete or trash,
+on a `setup` that succeeds, and on a theme reload supaline resolves. Only a few
+are kept, and making room for another clears them all, so a folder can be
+measured again with nothing about it having changed.
+
+Write `stats` as a function of the files it is handed: one that counts its
+calls, or keeps something from the last of them, is counting supaline's cache
+rather than your folder.
 
 A column that wants a gradient needs a `stats` returning
 `{ min = ..., max = ... }`, which is almost always the extremes of one value

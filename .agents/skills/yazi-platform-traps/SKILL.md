@@ -131,8 +131,9 @@ allocate as little as possible.
 - Gradient ramps are built once and quantised into buckets, so no colour maths
   and no `ui.Style` allocation happens per row.
 - Anything that needs the whole folder belongs in `stats`, computed over the
-  listing rather than per row and cached. Cached does not mean once:
-  `README.md`'s `Writing a column` lists what measures a folder again.
+  listing, not per row, and cached. Cached does not mean once: write it as a
+  function of the files it is handed. `README.md`'s `Writing a column` lists
+  what measures a folder again.
 - `render` may return `text, style` instead of a renderable, which skips
   building an intermediate line. The built-in columns use this.
 - `ui.Style` is immutable, so `style:fg(c)` returns a new style.
