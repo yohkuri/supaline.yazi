@@ -314,19 +314,39 @@ test("normalize: a column's check refuses a value at the path it was written at"
 	-- Asked only about a value somebody wrote: `a_number` raises on nil.
 	timed { options = { "pad" }, validate = { pad = a_number } }
 	eq(prepare("timed").ctx.opts.pad, nil)
+
+	-- A definition is read again by every `setup`, so a default edited in
+	-- place after `register` is checked by the next one.
+	local def = { render = x, options = { "pad" }, validate = { pad = a_number }, pad = 1 }
+	register("edited", def)
+	def.pad = "wide"
+	refused { { "edited", 'column("edited").pad: must be a number' } }
 end)
 
-test("normalize: a check that raises, or answers neither nil nor a string, is refused at the value", function()
+test("normalize: a check that raises, or answers other than nil alone or a reason, is refused at the value", function()
 	-- The refusal names the value the check was asked about, wherever the
 	-- fault lies, so the reader is sent to the line that set it off.
 	local function raises() error("no such pad", 0) end
 	local function predicate(value) return type(value) == "number" end
-	timed { options = { "pad", "trim" }, validate = { pad = raises, trim = predicate } }
+	local function lua_no(value)
+		if type(value) ~= "number" then
+			return nil, "must be a number"
+		end
+	end
+	local function blank() return "" end
+	timed {
+		options = { "pad", "trim", "gap", "fill" },
+		validate = { pad = raises, trim = predicate, gap = lua_no, fill = blank },
+	}
 	refused {
 		{ { "timed", pad = 2 }, "spec.pad: the column's check on it raised: no such pad" },
-		-- The one shape a check is most likely written in by mistake, and the
-		-- one that would otherwise refuse every value it means to take.
-		{ { "timed", trim = 2 }, "spec.trim: the column's check on it returned a boolean", "nil for a value it takes" },
+		-- The two shapes a check is most likely written in by mistake: each
+		-- would get one half of its answers backwards, a predicate refusing
+		-- what it takes and Lua's `nil, reason` taking what it refuses.
+		{ { "timed", trim = 2 }, "spec.trim: the column's check on it returned a boolean", "nil alone for a value" },
+		{ { "timed", gap = "wide" }, "spec.gap: the column's check on it returned nil and then `must be a number`" },
+		-- A refusal with no reason in it would print the path and nothing after.
+		{ { "timed", fill = 2 }, "spec.fill: the column's check on it returned an empty string" },
 	}
 end)
 

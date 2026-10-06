@@ -233,7 +233,7 @@ and a definition that names itself alike.
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `separator` | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 | `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
-| `validate`  | `nil`        | The definition's alone: a check per declared option, `function(value)`, run by `setup` on each value of it written. See [Writing a column](#writing-a-column). |
+| `validate`  | `nil`        | The definition's alone: a check per declared option, `function(value)`, run by `column` and `setup` on each value of it written. See [Writing a column](#writing-a-column). |
 
 Any other key is refused by name, on a definition and on a spec alike, and so
 is one of those written where it is not read — `options` or `validate` at a use
@@ -529,10 +529,11 @@ supaline: setup.linemodes.detail[1].between: must be the string drawn after the 
 A check is asked about a value somebody wrote and nothing else — each use's
 own, and the definition's default whenever the definition is read — so a value
 left out never reaches it. A check that raises is refused at the same path, and
-so is one that answers anything but `nil` or a string:
-`return type(value) == "string"` reads like a check, and would refuse every
-value it means to take. The built-in timestamp columns check `format` this
-way, so `format = "%Q"` is refused by `setup` rather than drawn as `!`.
+so is one that answers anything but `nil` alone or a string saying why:
+`return type(value) == "string"` and Lua's usual `return nil, "why"` both read
+like a check, and each would get one half of its answers backwards. The
+built-in timestamp columns check `format` this way, so `format = "%Q"` is
+refused by `setup` rather than drawn as `!`.
 
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from
