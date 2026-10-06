@@ -206,10 +206,10 @@ included — overrides what the definition set. A table with nothing there is a
 definition; a render written at `[1]` rather than under `render` is refused,
 with the spelling to use instead.
 
-Every option below but the last can be set on the definition or overridden per
-use. `options` is the definition's alone, and so is `name` — a definition
-written inline may give itself one, and a definition handed to `register` is
-named by that call instead.
+Every option below but the last two can be set on the definition or overridden
+per use. `options` and `validate` are the definition's alone, and so is `name` —
+a definition written inline may give itself one, and a definition handed to
+`register` is named by that call instead.
 
 A name holds 1 to 20 characters, from lowercase letters, digits and `_`, and
 anything else is refused where it is written. The rule is not supaline's: a
@@ -233,11 +233,12 @@ and a definition that names itself alike.
 | `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](#scale).             |
 | `separator` | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](#a-coloured-separator). |
 | `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Writing a column](#writing-a-column). |
+| `validate`  | `nil`        | The definition's alone: a check per declared option, `function(value)`, run by `setup` on each value of it written. See [Writing a column](#writing-a-column). |
 
 Any other key is refused by name, on a definition and on a spec alike, and so
-is one of those two written where it is not read — `options` at a use site,
-`name` on a definition `register` has already named, an entry at `[1]` beside a
-`render`. Nothing else would say so: a misspelled `max_widht` is read by
+is one of those written where it is not read — `options` or `validate` at a use
+site, `name` on a definition `register` has already named, an entry at `[1]`
+beside a `render`. Nothing else would say so: a misspelled `max_widht` is read by
 nobody, and the column draws at its natural width without a word about why.
 
 So is a value the key does not take. `align = "centre"` is spelled right and
@@ -501,6 +502,46 @@ turn off the refusal below.
 It is a plain list, and is checked as one. A gap in it, or a name written as a
 key rather than as an entry, is refused rather than read as far as the gap and
 ignored past it.
+
+What `options` lets through is the value as written, and `render` is the first
+thing to read it. A value it cannot use reaches you at the first row, as this
+column throwing, with `!` down its length. `validate` moves that to `setup`: a
+check per declared option, handed the value and returning `nil` to take it or a
+string saying what is wrong with it:
+
+```lua
+supaline.column("initials", {
+  width = 3,
+  options = { "between" },
+  between = ".",
+  validate = {
+    between = function(value)
+      if type(value) ~= "string" then
+        return "must be the string drawn after the initial"
+      end
+    end,
+  },
+  render = function(file, ctx)
+    return file.name:sub(1, 1) .. ctx.opts.between, ctx.style
+  end,
+})
+```
+
+`{ "initials", between = false }` is then refused where it was written, the
+way a key supaline knows is:
+
+```text
+supaline: setup.linemodes.detail[1].between: must be the string drawn after the initial
+```
+
+A check is asked about a value somebody wrote and nothing else — each use's
+own, and the definition's default whenever the definition is read — so a value
+left out never reaches it, and the refusal names whichever of the two was
+wrong. A check that raises is refused at the same path, and so is one that
+answers anything but `nil` or a string: `return type(value) == "string"` reads
+like a check, and would refuse every value it means to take. The built-in
+timestamp columns check `format` this way, so `format = "%Q"` is refused by
+`setup` rather than drawn as `!`.
 
 A column cannot define `fetch`. Yazi matches `ya.sync` blocks between its sync
 and async interpreters by the position of the call, and a block registered from

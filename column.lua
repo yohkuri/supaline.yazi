@@ -1,6 +1,9 @@
 --- @since 26.9.1
 --- Column definitions, the registry that holds them, and the plan one use of a
---- column compiles to. Nothing here calls a function a column wrote.
+--- column compiles to. The one function a column wrote that is called here is
+--- a `validate`, which is configuration rather than drawing: it is asked while
+--- `register` and `setup` read what was written, so what it refuses they
+--- refuse, with the path of the value it was asked about.
 ---
 --- There are two tables a column is written as. A **definition** says what a
 --- column draws: the table `column(name, def)` registers, or one written
@@ -33,6 +36,9 @@ local M = {}
 --- The names of the options this column reads off `ctx.opts`, beyond the keys
 --- every column takes. A definition writes it; a use is checked against it.
 ---@field options string[]?
+--- A check per declared option, asked about each value of it written: nil
+--- takes the value, and a string is what is wrong with it.
+---@field validate table<string, fun(value: any): string?>?
 --- The name an inline definition gives itself, which its theme layer is
 --- looked up by. `register` names the column it is handed.
 ---@field name string?
@@ -91,6 +97,7 @@ local M = {}
 ---@field name string?
 ---@field fields table<string, any> each key it wrote, parsed; `style` is left for `compile`
 ---@field options string[]? the names it declared
+---@field validate table<string, function>? its checks, by the option each one checks
 
 ---@type supaline.Parser
 local function width(value, at)
@@ -131,7 +138,7 @@ local COMMON = {
 local COMMON_LIST = schema.key_list(schema.sorted_keys(COMMON))
 
 -- The keys only a definition writes.
-local DEFINITION_KEYS = { name = true, options = true }
+local DEFINITION_KEYS = { name = true, options = true, validate = true }
 
 -- What a stray key most likely meant. Each is a name the plugin reads,
 -- written where it is not read.
@@ -145,6 +152,8 @@ local MEANT = {
 		.. "writes its `render` under that name, and beside one `[1]` is read by nobody",
 	name = "a column is named by the `column` call that registers it, by the `[1]` a spec names "
 		.. "it with, or by a `name` written beside an inline `render`; anywhere else it is read by nobody",
+	validate = "`validate` goes on the definition, beside the `options` it checks; the values a use "
+		.. "writes are checked by it, and a use cannot add to it",
 }
 
 -- What a column may be called is `theme.toml`'s rule: its theme layer is the
@@ -217,12 +226,82 @@ local function options_of(own, at)
 	return out
 end
 
+--- The checks a definition writes, by the option each one checks. Keyed
+--- rather than one function over every option, so a value that fails is
+--- refused at the path it was written at -- the use's, or the definition's own
+--- default -- rather than at a use that may never have written it.
+---@param own any
+---@param options string[]?
+---@param at supaline.Path
+---@return table<string, function>?
+local function validators_of(own, options, at)
+	if own == nil then
+		return nil
+	elseif type(own) ~= "table" or next(own) == nil then
+		at:refuse(
+			"must be a table of checks by the option each one checks, as "
+				.. "`validate = { format = function(value) ... end }`, got %s",
+			type(own) == "table" and "an empty table" or schema.as_written(own)
+		)
+	end
+	local declared = {}
+	for _, key in ipairs(options or {}) do
+		declared[key] = true
+	end
+	for _, key in ipairs(schema.sorted_keys(own)) do
+		if not declared[key] then
+			at:refuse(
+				"checks `%s`, which this column does not declare in `options`%s -- a check on a key "
+					.. "nobody may write would never be asked",
+				tostring(key),
+				options and string.format(" (it declares %s)", schema.quoted(options)) or ""
+			)
+		elseif type(own[key]) ~= "function" then
+			at:key(key):refuse(
+				"must be a function, handed a value of `%s` and returning nil for one it takes or a string "
+					.. "saying what is wrong with it, got %s",
+				key,
+				schema.as_written(own[key])
+			)
+		end
+	end
+	return own
+end
+
+--- The parser for one declared option: the value as written, asked of the
+--- definition's check on it first when there is one. A check that throws is
+--- refused rather than contained, the way a `style` function's throw is,
+--- because `setup` can still say so and nothing has drawn yet.
+---@param check function?
+---@return supaline.Parser
+local function option(check)
+	if not check then
+		return schema.any
+	end
+	return function(value, at)
+		local ok, reason = pcall(check, value)
+		if not ok then
+			at:refuse("the column's check on it raised: %s", tostring(reason))
+		elseif type(reason) == "string" then
+			at:refuse("%s", reason)
+		elseif reason ~= nil then
+			at:refuse(
+				"the column's check on it returned %s; a check returns nil for a value it takes, or a "
+					.. "string saying what is wrong with one",
+				schema.as_written(reason)
+			)
+		end
+		return value
+	end
+end
+
 --- A record parser over the shared keys, `extra`, and the options declared.
 ---@param extra table<any, supaline.Parser>
 ---@param options string[]?
+---@param validate table<string, function>?
 ---@param draws string what the message calls the key that says what to draw
 ---@return fun(t: table, at: supaline.Path): table
-local function column_record(extra, options, draws)
+local function column_record(extra, options, validate, draws)
 	local fields = {}
 	for k, parse in pairs(COMMON) do
 		fields[k] = parse
@@ -231,7 +310,7 @@ local function column_record(extra, options, draws)
 		fields[k] = parse
 	end
 	for _, k in ipairs(options or {}) do
-		fields[k] = schema.any
+		fields[k] = option(validate and validate[k])
 	end
 	local also = options and string.format(". That column also takes %s", schema.quoted(options)) or ""
 	local help =
@@ -257,12 +336,13 @@ local function definition(t, at, name)
 		at:refuse(name and "needs a `render` function, which is what says what the column draws" or SHAPES)
 	end
 	local options = options_of(t.options, at:key("options"))
-	local extra = { options = schema.any }
+	local validate = validators_of(t.validate, options, at:key("validate"))
+	local extra = { options = schema.any, validate = schema.any }
 	if not name then
 		extra.name = column_name
 	end
-	local fields = column_record(extra, options, DRAWS_RENDER)(t, at)
-	return { at = at, name = name or fields.name, fields = fields, options = options }
+	local fields = column_record(extra, options, validate, DRAWS_RENDER)(t, at)
+	return { at = at, name = name or fields.name, fields = fields, options = options, validate = validate }
 end
 
 --- Where a column's theme layer is written: its `[supaline]` field, spelled
@@ -393,14 +473,14 @@ function M.new_registry()
 			local one = read[registered]
 			if not one then
 				local def = definition(registered.t, registered.at, name)
-				one = { def = def, use = column_record({ [1] = schema.any }, def.options, DRAWS_NAME) }
+				one = { def = def, use = column_record({ [1] = schema.any }, def.options, def.validate, DRAWS_NAME) }
 				read[registered] = one
 			end
 			return one
 		end
 
 		--- Turn one entry of a linemode into a plan. The entry is read, never
-		--- written to, and nothing it holds is called.
+		--- written to, and nothing it holds is called but a `validate`.
 		---@param spec any
 		---@param at supaline.Path
 		---@return supaline.ColumnPlan
