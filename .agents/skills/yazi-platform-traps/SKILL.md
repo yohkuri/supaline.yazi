@@ -132,8 +132,7 @@ allocate as little as possible.
   and no `ui.Style` allocation happens per row.
 - Anything that needs the whole folder belongs in `stats`, computed over the
   listing, not per row, and cached. Cached does not mean once: write it as a
-  function of the files it is handed. `README.md`'s `Writing a column` lists
-  what measures a folder again.
+  function of the files it is handed.
 - `render` may return `text, style` instead of a renderable, which skips
   building an intermediate line. The built-in columns use this.
 - `ui.Style` is immutable, so `style:fg(c)` returns a new style.
