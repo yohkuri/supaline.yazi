@@ -268,6 +268,27 @@ test("require: a proxy over the module, as Yazi hands back", function()
 	report.probe, proxy.probe = nil, nil
 end)
 
+-- --- Linemode --------------------------------------------------------------
+
+test("Linemode: a child goes into `_children` by `order`, as Yazi's does", function()
+	-- Read off 26.9.1's `linemode.lua`, where `redraw` calls `_children` and
+	-- nothing else, so a child kept anywhere beside it draws in the stub and
+	-- nowhere in Yazi, and anything that reads `_children` finds nothing.
+	stub.foreign(function(add)
+		local _, late = add(1900, "late")
+		local _, early = add(1100, "early")
+		local orders = {}
+		for _, c in ipairs(Linemode._children) do
+			orders[#orders + 1] = type(c[1]) == "string" and c[1] or c[1]()
+		end
+		eq(table.concat(orders, " "), "solo early late padding", "Yazi's two at 1000 and 2000, the rest between")
+		eq(early, late + 1, "the id is counted, not a position")
+
+		Linemode:children_remove(late)
+		eq(#stub.added(), 1, "and taken out by it")
+	end)
+end)
+
 -- --- what the stub refuses and Yazi would not ------------------------------
 
 test("refused: an `AuthKind` Yazi does not have", function()
