@@ -1122,7 +1122,9 @@ function M.install(root)
 	}
 	-- Yazi's own linemodes sit on that same table, which is the whole reason
 	-- the plugin cannot simply refuse every name already on it.
-	for _, name in ipairs { "none", "size", "permissions", "btime", "mtime", "owner" } do
+	-- `none` is not one: 26.9.1's `linemode.lua` defines no such method, and
+	-- `solo()` answers the name before it would look one up.
+	for _, name in ipairs { "size", "permissions", "btime", "mtime", "owner" } do
 		_G.Linemode[name] = function() return "" end
 	end
 

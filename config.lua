@@ -173,6 +173,14 @@ function M.compile(opts, registry, is_yazis)
 					.. "ASCII costs two to four of them",
 				tostring(name)
 			)
+		elseif name == "none" then
+			-- Not on `Linemode` in 26.9.1, so `is_yazis` would not catch it: a
+			-- linemode of that name would be installed and never drawn, and
+			-- switching to it is switching to no linemode at all.
+			at:refuse(
+				"`none` cannot be a linemode name: it is Yazi's for no linemode at all, and `solo()` draws "
+					.. "nothing for it before it would look a linemode of that name up"
+			)
 		elseif is_yazis(name) then
 			at:refuse(
 				"`%s` is part of Yazi's `Linemode` component; a linemode of that name would replace it. "

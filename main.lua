@@ -43,7 +43,7 @@ local installed = { prev = {}, child = nil }
 -- on, so a linemode named after any of it replaces it -- `new` takes out the
 -- constructor. `Linemode` is asked what it holds rather than listed, since
 -- Yazi adds to it between releases. Only Yazi's own linemodes are exempt;
--- `none` is not, because `solo()` returns before it could dispatch to it.
+-- `none` is not on the table at all, and `config.lua` refuses it by name.
 local OVERRIDABLE = {
 	size = true,
 	permissions = true,
