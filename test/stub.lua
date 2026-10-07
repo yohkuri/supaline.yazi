@@ -935,6 +935,7 @@ function M.reset()
 
 	M.notified = {}
 	M.logged = {}
+	M.emitted = {}
 	_G.ya = {
 		readable_size = function(size)
 			local units = { "B", "K", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
@@ -945,6 +946,19 @@ function M.reset()
 			end
 			local s = string.format("%.1f%s", size, units[i]):gsub("[.,]0", "", 1)
 			return s
+		end,
+		-- Recorded, because an action handed to Yazi is the whole of what it
+		-- does here: nothing in the stub acts on one. A `linemode` Yazi would
+		-- turn away is refused instead: measured on 26.9.1, one of more than 20
+		-- bytes reaches the log as a warning and nothing else.
+		emit = function(action, args)
+			if action == "linemode" then
+				local new = args[1]
+				if type(new) ~= "string" or #new < 1 or #new > 20 then
+					error("stub: Yazi's `linemode` takes a name of 1 to 20 bytes, got " .. tostring(new))
+				end
+			end
+			table.insert(M.emitted, { action, args })
 		end,
 		user_name = function(uid) return "user" .. tostring(uid) end,
 		group_name = function(gid) return "group" .. tostring(gid) end,

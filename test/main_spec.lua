@@ -229,13 +229,15 @@ test("setup: overriding one of Yazi's own linemode names is still allowed", func
 	eq(draw("size"), "  1B   1B")
 end)
 
-test("setup: a name Yazi cannot hold is refused, counted in characters", function()
-	refuses({ linemodes = { [string.rep("x", 21)] = { "size" } } }, "1 to 20 characters")
-	-- Ten characters and thirty bytes, so a byte-length check would refuse it.
-	local cjk = "詳細表示モードの名前"
+test("setup: a name Yazi cannot hold is refused, counted in bytes", function()
+	refuses({ linemodes = { [string.rep("x", 21)] = { "size" } } }, "1 to 20 bytes")
+	-- Seven characters and 21 bytes, which Yazi's `linemode` action turns away
+	-- -- so no key and no `yazi.toml` could ever switch to it.
+	refuses({ linemodes = { ["詳細表示モード"] = { "size" } } }, "1 to 20 bytes")
+	-- Four characters and twelve bytes, inside it.
+	local cjk = "詳細表示"
 	setup { [cjk] = { { "size", width = 3 } } }
-	eq(type(Linemode[cjk]), "function", "a CJK name well inside the limit is kept")
-	refuses({ linemodes = { [string.rep("あ", 21)] = { "size" } } }, "1 to 20 characters")
+	eq(type(Linemode[cjk]), "function", "a CJK name inside the limit is kept")
 end)
 
 -- --- what setup refuses ----------------------------------------------------

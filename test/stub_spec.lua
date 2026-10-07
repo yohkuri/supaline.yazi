@@ -295,6 +295,14 @@ test("refused: an `AuthKind` Yazi does not have", function()
 	throws(function() stub.spec_of("regualr") end, "no such AuthKind")
 end)
 
+test("refused: a `linemode` Yazi's action would turn away", function()
+	-- Bytes rather than characters, as `LinemodeForm` counts them.
+	ya.emit("linemode", { "詳細表示" })
+	throws(function() ya.emit("linemode", { "詳細表示モード" }) end, "1 to 20 bytes")
+	throws(function() ya.emit("linemode", { "" }) end, "1 to 20 bytes")
+	eq(#stub.emitted, 1)
+end)
+
 test("refused: a write to `th`", function()
 	-- Yazi takes one without a word. Here `th` reads through to `stub.th`, so a
 	-- write that landed would shadow every theme a spec plants after it.

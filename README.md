@@ -89,7 +89,8 @@ A value none of them takes is refused the same way, and for the same reason.
 reached every column and scaled none of them — a wrong value was accepted by
 being ignored, which is the quieter half of the same mistake.
 
-A linemode name is 1 to 20 characters. Yazi keeps its `Linemode` component's
+A linemode name is 1 to 20 bytes, which Yazi counts rather than characters, so
+a CJK name has room for six. Yazi keeps its `Linemode` component's
 own machinery on the table the linemodes are looked up on, so any name already
 on that table is refused — `new`, `redraw`, `padding`, `children_add`,
 `children_remove`, `solo`, `none` — as is anything beginning with `_`. The
