@@ -6,8 +6,8 @@
 --- and the failure lands wherever the result is first indexed -- in another
 --- module, under a message naming the wrong file.
 ---
---- The second test here is about a module's shape rather than its type, and is
---- in this file for that reason.
+--- The other tests here are about a module's shape rather than its type, and
+--- are in this file for that reason.
 
 --- Every plugin file, including additions not staged yet, asked for rather than
 --- listed. A module added later is the one this test exists for, and a
@@ -77,7 +77,7 @@ end)
 --- This catches one direction: an export the class does not name, which is the
 --- one a spec would then be refused for. A changed *signature* is past
 --- anything Lua can see at runtime, and is still read by eye.
-local MAIN_EXPORTS = { "column", "extremes", "setup" }
+local MAIN_EXPORTS = { "column", "entry", "extremes", "setup" }
 
 test("modules: `supaline.Main` names what main.lua exports", function()
 	-- Off the module rather than what `require` hands back, which in Yazi and
@@ -93,4 +93,47 @@ test("modules: `supaline.Main` names what main.lua exports", function()
 		table.concat(MAIN_EXPORTS, ", "),
 		"main.lua's exports moved; update `supaline.Main` beside them and this list"
 	)
+end)
+
+--- The annotations Yazi reads off the top of a plugin's `main.lua`, by the
+--- rules `Chunk::analyze` in 26.9.1's `yazi-runner/src/loader/chunk.rs`
+--- reads them by: blank lines skipped, every other line `---` and then a word,
+--- and the scan over at the first line that is neither an annotation nor
+--- blank. A port rather than a pattern, because what it decides is where the
+--- scan stops, and a pattern for the line would pass on wherever the line was.
+---@param body string
+---@return table<string, string> # each annotation it reached, by its word
+local function annotations(body)
+	local found = {}
+	for line in (body .. "\n"):gmatch("([^\n]*)\n") do
+		local trimmed = line:match("^%s*(.-)%s*$")
+		if trimmed ~= "" then
+			local rest = line:match("^%-%-%-(.*)$")
+			if not rest then
+				break
+			end
+			local word, value = rest:match("^%s*(%S+)[ \t]+(.-)%s*$")
+			if not word or value == "" or not word:match("^@.") then
+				break
+			end
+			found[word] = value
+		end
+	end
+	return found
+end
+
+test("modules: Yazi reads `@sync entry` off main.lua, where a key needs it", function()
+	-- A key that runs `entry` in a Lua state of its own would find no `setup`
+	-- there, and every `toggle` would be refused as made before it. Yazi takes
+	-- `@sync` only from the top of the file and stops at the first line of
+	-- prose, so the same annotation one line too low is read by nobody.
+	local f = assert(io.open(ROOT .. "/main.lua"))
+	local body = f:read("a")
+	f:close()
+	local found = annotations(body)
+	eq(found["@since"], "26.9.1", "this port reads the annotation every file carries")
+	eq(found["@sync"], "entry", "main.lua's entry is sync, and Yazi reads it so")
+
+	-- And the port stops where Yazi does.
+	eq(annotations("--- @since 26.9.1\n--- Prose.\n--- @sync entry\n")["@sync"], nil, "below a line of prose")
 end)

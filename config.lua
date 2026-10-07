@@ -29,6 +29,7 @@ local PANES = { "current", "parent", "preview" }
 ---@field order integer?
 ---@field scale "linear"|"log"|nil
 ---@field lightness supaline.LightnessRanges? the lightness ranges a `<->` may name, by name
+---@field toggles table<string, integer>? another plugin's `Linemode` child, by the `order` it sits at
 
 --- One column in one pane, and what is drawn before it.
 ---@class supaline.Cell
@@ -46,6 +47,44 @@ local PANES = { "current", "parent", "preview" }
 ---@field columns supaline.ColumnPlan[] every column once, a list shared by two panes compiled once
 ---@field slots supaline.Slot[] every column's slot and every styled separator's, drawn or not, once
 ---@field outer boolean
+---@field toggles table<string, integer> what `toggle` hides by name: an `order` among `Linemode`'s children
+
+--- `toggles`: a name `plugin supaline -- toggle` is handed, for each `order`
+--- another plugin added a `Linemode` child at. An `order` rather than the id
+--- `children_add` returned, because git.yazi's `setup` -- the child this is
+--- for -- keeps its id to itself. Named here rather than written as the
+--- `order` in the binding: `toggle 1500` says nothing to whoever reads the
+--- keymap, and a name is what lets `setup` refuse one a linemode also has.
+---@type supaline.Parser
+local function toggles(value, at)
+	if type(value) ~= "table" then
+		at:refuse("must be a table of `order`s by name, as `toggles = { git = 1500 }`, got %s", schema.as_written(value))
+	end
+	local out, named = {}, {}
+	for _, name in ipairs(schema.sorted_keys(value)) do
+		-- Any other string a key can hand over, quoted as a shell word where it
+		-- has to be: measured on 26.9.1, `toggle 'my sign'` arrives as one name.
+		if type(name) ~= "string" or name == "" then
+			at:refuse(
+				"is keyed by the name `plugin supaline -- toggle` is handed, as `toggles = { git = 1500 }`, "
+					.. "and %s is not one",
+				schema.as_written(name)
+			)
+		end
+		local order = schema.whole(value[name], at:key(name))
+		if named[order] then
+			at:key(name):refuse(
+				"names `order = %d`, as `%s` does, and one name for it is enough: both would hide and show "
+					.. "the same children",
+				order,
+				named[order]
+			)
+		end
+		named[order] = name
+		out[name] = order
+	end
+	return out
+end
 
 local SETUP_FIELDS = {
 	lightness = paint.ranges,
@@ -53,6 +92,7 @@ local SETUP_FIELDS = {
 	order = schema.whole,
 	scale = schema.enum { "linear", "log" },
 	separator = style.separator,
+	toggles = toggles,
 }
 
 local SETUP_MEANT = {
@@ -192,8 +232,19 @@ function M.compile(opts, registry, is_yazis)
 		end
 	end
 
+	local toggled = o.toggles or {}
+	for _, name in ipairs(schema.sorted_keys(toggled)) do
+		if linemodes[name] ~= nil then
+			root:key("toggles"):key(name):refuse(
+				"is a linemode's name as well, and `toggle %s` could only ever mean one of the two. Name the "
+					.. "child something no linemode is called",
+				name
+			)
+		end
+	end
+
 	---@type supaline.Plan
-	local plan = { order = o.order or 1400, modes = {}, columns = {}, slots = {}, outer = false }
+	local plan = { order = o.order or 1400, modes = {}, columns = {}, slots = {}, outer = false, toggles = toggled }
 	-- Every slot is resolved on every build, drawn or not -- the plugin-wide
 	-- separator under a linemode of one column included -- so what a function
 	-- written for one returns is refused while `setup` can still say so. The

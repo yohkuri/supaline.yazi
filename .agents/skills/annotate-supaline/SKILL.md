@@ -8,8 +8,8 @@ description: >-
   needs nothing from here, not for a spec or a stub, which `verify-supaline`
   covers, and not for a rename or a format string. Covers what carries a type
   and what does not, why a wrong value in a configuration table is refused
-  where a misspelled key is not, the eight places `types.yazi` disagrees with
-  Yazi 26.9.1 -- seven where it declares less than Yazi has and one where it
+  where a misspelled key is not, the nine places `types.yazi` disagrees with
+  Yazi 26.9.1 -- eight where it declares less than Yazi has and one where it
   declares more -- and why a difference is declared by inheriting from Yazi's
   class rather than re-opening it. The collision that makes `supaline.Main`
   necessary is summarised here and measured in
@@ -83,14 +83,16 @@ Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
 neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
 string where 26.9.1 has a method, declares `ui.truncate` but nothing for
 `Line:truncate`, which 26.9.1 has, describes no `Tab:history`, which
-`builtin.lua` asks a directory for its entry count, and no `Style:raw`, which
-`style.lua` reads every `ui.Style` it is handed through — so `types.lua`
-declares the difference, in one place, with the evidence written beside the
-classes: a probe for the four read off `cx`,
-`test/stub_spec.lua` for the one method, which pins what it does, and
-`colour_spec.lua` against `yazi-platform-traps/references/probes.md` for the
-other. A newer Yazi is a reason to run those again and correct them there,
-never to work around them at the call site.
+`builtin.lua` asks a directory for its entry count, no `Style:raw`, which
+`style.lua` reads every `ui.Style` it is handed through, and no `Linemode` at
+all, whose `_children` a `toggle` reads — so `types.lua` declares the
+difference, in one place, with the evidence written beside the classes: a
+probe for the four read off `cx`, `test/stub_spec.lua` for the one method,
+which pins what it does, `colour_spec.lua` against
+`yazi-platform-traps/references/probes.md` for the other, and `stub_spec.lua`
+again for `_children`, against the stub's port of `linemode.lua`. A newer Yazi
+is a reason to run those again and correct them there, never to work around
+them at the call site.
 
 ### What declaring one buys
 
@@ -124,7 +126,7 @@ quietly does nothing is the failure mode this whole job exists to avoid.
 
 ### The difference that runs the other way
 
-All seven of those are `types.yazi` describing **less** than Yazi has, and the
+All eight of those are `types.yazi` describing **less** than Yazi has, and the
 difference runs the other way too — which is the worse direction, because the
 check blesses the call and the screen refuses it. `ui.Style:reset()` is one:
 declared on the `ui.Style` class the annotations mark `(exact)`, and
