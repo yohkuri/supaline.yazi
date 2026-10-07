@@ -1014,6 +1014,47 @@ local function proxy(mod)
 	})
 end
 
+--- The children a function draws, in the order `redraw` calls them: what
+--- `children_add` put on `Linemode`, and none of Yazi's own two, which are
+--- named by a string.
+---@return table[]
+function M.added()
+	local out = {}
+	for _, c in ipairs(_G.Linemode._children) do
+		if type(c[1]) ~= "string" then
+			out[#out + 1] = c
+		end
+	end
+	return out
+end
+
+--- Run `body` with an `add` that puts a child at an `order`, drawing a text,
+--- the way another plugin's `setup` adds one: through `children_add`,
+--- keeping nothing of the id. Every child it added is taken back out whether
+--- or not `body` passed: `Linemode` lasts a spec file, so one left behind by a
+--- failure would be reported against the tests after it.
+---@param body fun(add: fun(order: integer, text: string): table, integer)
+function M.foreign(body)
+	local ids = {}
+	local function add(order, text)
+		local id = _G.Linemode:children_add(function() return text end, order)
+		ids[#ids + 1] = id
+		for _, c in ipairs(_G.Linemode._children) do
+			if c.id == id then
+				return c, id
+			end
+		end
+		error("children_add kept nothing")
+	end
+	local ok, err = pcall(body, add)
+	for _, id in ipairs(ids) do
+		_G.Linemode:children_remove(id)
+	end
+	if not ok then
+		error(err, 0)
+	end
+end
+
 --- Put the stubs in place as globals, and teach `require` Yazi's relative
 --- form so `require(".column")` finds `column.lua` next to it.
 ---@param root string repository root
@@ -1039,7 +1080,6 @@ function M.install(root)
 	-- Shaped like Yazi's own: the component keeps its machinery on the very
 	-- table the linemodes are looked up on, which is why a linemode may not be
 	-- named after any of it.
-	M.children = {}
 	_G.Linemode = {
 		_inc = 1000,
 		_children = { { "solo", id = 1, order = 1000 }, { "padding", id = 2, order = 2000 } },
@@ -1047,17 +1087,20 @@ function M.install(root)
 		solo = function() return "" end,
 		redraw = function() return M.Line("") end,
 		padding = function() return " " end,
-		-- Yazi's own: the id comes from `_inc` rather than the position, so it
-		-- stays valid once something before it has been removed.
+		-- Yazi's own, line for line from 26.9.1's `linemode.lua`: the id comes
+		-- from `_inc` rather than the position, so it stays valid once something
+		-- before it has been removed, and the child goes into `_children`, kept
+		-- in `order`, where `redraw` calls it from.
 		children_add = function(self, fn, order)
 			self._inc = self._inc + 1
-			table.insert(M.children, { fn = fn, order = order, id = self._inc })
+			self._children[#self._children + 1] = { fn, id = self._inc, order = order }
+			table.sort(self._children, function(a, b) return a.order < b.order end)
 			return self._inc
 		end,
-		children_remove = function(_, id)
-			for i, c in ipairs(M.children) do
-				if c.id == id then
-					table.remove(M.children, i)
+		children_remove = function(self, id)
+			for i, child in ipairs(self._children) do
+				if child.id == id then
+					table.remove(self._children, i)
 					break
 				end
 			end

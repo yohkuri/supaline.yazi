@@ -92,14 +92,19 @@ end
 ---@return supaline.Folder
 local function one_file(path, size) return stub.folder(path, { stub.file { name = "one", size = size } }) end
 
+--- What `child` draws for `file`, the first current row unless told
+--- otherwise.
+---@param child table
+---@param file table?
+---@return string
+local function drawn(child, file) return text_of(child[1] { _file = file or CURRENT.files[1] }) end
+
 --- Draw one file through the parent/preview child, if one was added.
 ---@param file table
 ---@return string
 local function draw_child(file)
-	if #stub.children == 0 then
-		return ""
-	end
-	return text_of(stub.children[1].fn { _file = file })
+	local child = stub.added()[1]
+	return child and drawn(child, file) or ""
 end
 
 --- The first style anything in row `i` of the current folder is drawn in, or
@@ -312,9 +317,9 @@ test("setup: `order` is a whole number, and is where the child sits", function()
 	refuses({ linemodes = lm, order = 1.5 }, "got `1.5`")
 
 	setup({ t = { parent = { "size" } } }, { order = 1500 })
-	eq(stub.children[1].order, 1500)
+	eq(stub.added()[1].order, 1500)
 	setup { t = { parent = { "size" } } }
-	eq(stub.children[1].order, 1400, "and 1400 when nobody said")
+	eq(stub.added()[1].order, 1400, "and 1400 when nobody said")
 end)
 
 test("setup: names that are part of the Linemode component are refused", function()
@@ -370,7 +375,7 @@ end)
 
 test("panes: the default is the current pane alone", function()
 	setup { detail = { "size" } }
-	eq(#stub.children, 0, "no child is added when no linemode leaves the current pane")
+	eq(#stub.added(), 0, "no child is added when no linemode leaves the current pane")
 	eq(draw_child(stub.file { name = "x", in_current = false }), "")
 end)
 
@@ -378,7 +383,7 @@ test("panes: a pane key opts into the pane it names, and one left out stays bare
 	local one = { { "size", width = 3 } }
 	local parent_row = stub.file { name = "current", in_current = false, size = 1 }
 	setup { detail = { current = one, parent = one } }
-	eq(#stub.children, 1, "one child, added once")
+	eq(#stub.added(), 1, "one child, added once")
 	eq(draw_child(parent_row), "  1B", "the parent pane draws, with solo()'s leading space")
 	eq(draw_child(CURRENT.files[1]), "", "and the current pane, which solo() drew, is not drawn twice")
 
@@ -443,11 +448,11 @@ test("setup: a second call replaces what the first installed", function()
 	-- `Linemode:redraw()` calls every child it holds, so a second one would draw
 	-- the parent and preview panes twice over.
 	setup { detail = { parent = { { "size", width = 3 } } } }
-	eq(#stub.children, 1, "one child after the first setup")
+	eq(#stub.added(), 1, "one child after the first setup")
 	setup { detail = { preview = { { "size", width = 3 } } } }
-	eq(#stub.children, 1, "still one after the second")
+	eq(#stub.added(), 1, "still one after the second")
 	setup { detail = { "size" } }
-	eq(#stub.children, 0, "and none once no linemode leaves the current pane")
+	eq(#stub.added(), 0, "and none once no linemode leaves the current pane")
 
 	-- Subscribed at load, not in `setup`, so no number of calls can stack them.
 	-- Named rather than counted, since `hover` is published too, and subscribed
