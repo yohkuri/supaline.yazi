@@ -146,8 +146,8 @@ allocate as little as possible.
   Yazi refuses it". The Line half is the one `layout.cell` walks into: every
   render's output goes through one `ui.Line`.
 
-A linemode name is 1 to 20 characters. An unregistered name renders as literal
-text, so a name registered late shows up on screen.
+A linemode name is 1 to 20 bytes, not characters. An unregistered name renders
+as literal text, so a name registered late shows up on screen.
 
 ## An error under a render takes the whole screen, not the row
 

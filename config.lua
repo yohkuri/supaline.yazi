@@ -156,9 +156,6 @@ function M.compile(opts, registry, is_yazis)
 
 	local names = schema.sorted_keys(linemodes)
 	for _, name in ipairs(names) do
-		-- Yazi's limit is 1 to 20 characters, not bytes; a name that is not
-		-- valid UTF-8 is Yazi's to refuse.
-		local len = type(name) == "string" and (utf8.len(name) or #name) or nil
 		if type(name) == "number" then
 			-- The one mistake this is likely to be: the columns written where
 			-- the table of linemodes goes, so the key is a position.
@@ -166,8 +163,16 @@ function M.compile(opts, registry, is_yazis)
 				'is a list, and a linemode is found by its name: write `linemodes = { detail = { "size", "mtime" } }`, '
 					.. "keyed by the name each one is switched to"
 			)
-		elseif not len or len < 1 or len > 20 then
-			at:refuse("`%s` cannot be a linemode name: Yazi takes one of 1 to 20 characters", tostring(name))
+		elseif type(name) ~= "string" or #name < 1 or #name > 20 then
+			-- Bytes, not characters. Read off 26.9.1's source, the `linemode`
+			-- action and `yazi.toml` alike measure a name with Rust's `len`;
+			-- measured on 26.9.1, the action turned away a name of seven
+			-- characters and 21 bytes, in the log alone.
+			at:refuse(
+				"`%s` cannot be a linemode name: Yazi takes one of 1 to 20 bytes, and a character outside "
+					.. "ASCII costs two to four of them",
+				tostring(name)
+			)
 		elseif is_yazis(name) then
 			at:refuse(
 				"`%s` is part of Yazi's `Linemode` component; a linemode of that name would replace it. "
