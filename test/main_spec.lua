@@ -327,7 +327,8 @@ end)
 test("setup: names that are part of the Linemode component are refused", function()
 	-- Yazi keeps the component's machinery on the table the linemodes are
 	-- looked up on, and `linemodes.new` would replace the constructor. `solo()`
-	-- returns early for `none` and `solo`, so those would silently do nothing.
+	-- returns early for `none` and `solo`, so those would silently do nothing;
+	-- `solo` is on the table, and `none` is not, so it is refused by name.
 	local before = Linemode.new
 	for _, name in ipairs {
 		"new",
@@ -337,11 +338,11 @@ test("setup: names that are part of the Linemode component are refused", functio
 		"children_remove",
 		"_children",
 		"_inc",
-		"none",
 		"solo",
 	} do
 		refuses({ linemodes = { [name] = { "size" } } }, "part of Yazi's `Linemode` component")
 	end
+	refuses({ linemodes = { none = { "size" } } }, "`none` cannot be a linemode name", "no linemode at all")
 	eq(Linemode.new, before, "the constructor survived")
 
 	-- Asked of `Linemode` rather than listed, so a member a later Yazi adds is

@@ -93,7 +93,8 @@ A linemode name is 1 to 20 bytes, which Yazi counts rather than characters, so
 a CJK name has room for six. Yazi keeps its `Linemode` component's
 own machinery on the table the linemodes are looked up on, so any name already
 on that table is refused — `new`, `redraw`, `padding`, `children_add`,
-`children_remove`, `solo`, `none` — as is anything beginning with `_`. The
+`children_remove`, `solo` — as is anything beginning with `_`, and `none`,
+which is Yazi's name for no linemode at all. The
 exception is Yazi's own linemodes: naming one `size`, `mtime`, `btime`,
 `atime`, `permissions` or `owner` replaces it, which is allowed.
 
