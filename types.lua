@@ -54,6 +54,17 @@
 ---@class supaline.Style : ui.Style
 ---@field raw fun(self: self): supaline.StyleTable
 
+--- One of `Linemode._children`, read off 26.9.1's `linemode.lua`: what
+--- `redraw` calls at `[1]` -- a method's name for Yazi's own two, a function
+--- for each child `children_add` added -- beside the id it returned and its
+--- `order`. `types.yazi` declares no `Linemode` at all, so there is no class
+--- of Yazi's to inherit from; `stub_spec.lua` pins the stub's port of the
+--- two methods that fill it.
+---@class supaline.LinemodeChild
+---@field [1] string|function|table
+---@field id integer
+---@field order integer
+
 --- `Line:truncate`, which 26.9.1 has and `test/stub_spec.lua` pins. The
 --- two options are the ones this plugin passes, not all 26.9.1 accepts.
 ---@class supaline.Line : ui.Line

@@ -77,8 +77,9 @@ desc = "Linemode: size and mtime"
 | `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](#scale). |
 | `lightness` | —           | The lightness ranges a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no range behind it is refused; see [`lightness`](#lightness). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children, as a whole number. |
+| `toggles`   | —           | Another plugin's `Linemode` child by name, as the `order` it sits at, for a key to hide; see [Toggling from a key](#toggling-from-a-key). |
 
-Those five are the whole of it: a key that is none of them — `scal`, `bnad`,
+Those six are the whole of it: a key that is none of them — `scal`, `bnad`,
 `seperator` — is refused by name rather than quietly ignored, as one is inside
 a linemode, a column, or a style. Nothing else would say so; a plugin-wide
 `scale` written `scal` is read by nobody and every column goes on scaling the
@@ -189,6 +190,65 @@ stand. The preview pane is three eighths, so it is far less tight.
 
 That is what a list per pane is for: give the edges a column that fits them and
 leave the built-ins to the pane with the room for them.
+
+### Toggling from a key
+
+Yazi's own `linemode` action switches to a linemode and never back, so no one
+key can both show the columns and hide them. `plugin supaline -- toggle` can.
+Handed a linemode's name, it switches the active tab to that linemode, or to
+`none` when it is the one showing:
+
+```toml
+# ~/.config/yazi/keymap.toml
+[[mgr.prepend_keymap]]
+on   = [ "m", "d" ]
+run  = "plugin supaline -- toggle detail"
+desc = "Toggle supaline's columns"
+```
+
+The `--` is needed: without it Yazi hands the plugin `toggle` and drops the
+name, and the press is refused for naming nothing. A press `toggle` cannot act
+on says why in a notification, rather than doing nothing.
+
+`none` hides supaline's columns and nothing else, so a sign another plugin
+draws as a `Linemode` child of its own — [git.yazi](#alongside-gityazi)'s — is
+still drawn. Hiding that takes a name for it, which `toggles` gives: the name
+a key presses, and the `order` the child was added at.
+
+```lua
+-- ~/.config/yazi/init.lua
+require("git"):setup { order = 1500 }
+require("supaline"):setup {
+  linemodes = { detail = { "size", "mtime" } },
+  toggles   = { git = 1500 },
+}
+```
+
+```toml
+# ~/.config/yazi/keymap.toml
+[[mgr.prepend_keymap]]
+on   = [ "m", "g" ]
+run  = "plugin supaline -- toggle git"
+desc = "Toggle git.yazi's sign"
+```
+
+Each key leaves the other's alone: `m d` keeps the sign and `m g` the columns.
+A hidden child is hidden in every tab, since every tab draws through the same
+`Linemode`, where a linemode is switched in the active tab alone.
+
+An `order` rather than a plugin's name, because git.yazi's `setup` keeps to
+itself the id `Linemode` handed back for its child, and the `order` is the one
+thing your configuration knows about it — 1500 unless its `setup` names
+another. Every child another plugin added at that `order` is hidden, so give a
+second plugin sharing it an `order` of its own. supaline's own child and
+Yazi's two are never hidden. That nothing sits at the `order` is said when the
+key is pressed rather than at `setup`, which may run before the plugin that
+adds the child.
+
+`setup` refuses two names in `toggles`: one that is also a linemode's, since
+`toggle` would then have two things to do with it, and a second name for an
+`order` another already has, since each would undo what the other did. A name
+with a space in it is pressed quoted, as a shell word: `toggle 'my sign'`.
 
 ### Column specs
 
@@ -585,6 +645,9 @@ Either of two options git.yazi documents lines them up again:
   ```
 
   The sign's cells are then taken on every row, in a repository or not.
+
+To hide the sign without the columns, or the columns without the sign, see
+[Toggling from a key](#toggling-from-a-key).
 
 ## Colours
 
@@ -1077,7 +1140,7 @@ again on each theme event.
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `main.lua` | Public API, Yazi events, pane selection and Linemode installation. |
+| `main.lua` | Public API, Yazi events, pane selection, Linemode installation and the `toggle` a key presses. |
 | `config.lua` | Read `setup` and each linemode's panes into the plan, with the separator before every column. |
 | `column.lua` | Explicit registries; read a definition and a use of it, and merge the two into a column's plan. |
 | `style.lua` | Read one writer's style into a layer, gather a column's or a separator's writers into a slot, merge the layers, build `ui.Style`s; read a separator. |
@@ -1094,8 +1157,8 @@ again on each theme event.
 
 ## Caveats
 
-- **The preview pane repaints on its next peek, not on a linemode switch.**
-  Yazi caches the previewer's output, so a linemode change reaches the preview
+- **The preview pane repaints on its next peek, not on a linemode switch or a
+  `toggle`.** Yazi caches the previewer's output, so either reaches the preview
   pane when the hover moves — or immediately, on `app:theme`.
 - **Yazi's default `,` bindings change the linemode as a side effect.** `,m`
   sorts by mtime *and* switches to the `mtime` linemode. Rebind them if you

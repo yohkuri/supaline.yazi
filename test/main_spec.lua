@@ -284,11 +284,14 @@ test("setup: a key `setup` itself does not take is refused", function()
 	refuses({ linemodes = lm, linemode = lm }, "`linemodes` is the spelling")
 	refuses({ linemodes = lm, columns = { "size" } }, "columns go inside a linemode")
 
-	-- And the five it does take still go through.
-	setup(
-		{ t = { { "size", width = 3 } } },
-		{ separator = "|", order = 1400, scale = "log", lightness = { fg = { from = 0.2, to = 0.9 } } }
-	)
+	-- And the six it does take still go through.
+	setup({ t = { { "size", width = 3 } } }, {
+		separator = "|",
+		order = 1400,
+		scale = "log",
+		lightness = { fg = { from = 0.2, to = 0.9 } },
+		toggles = { git = 1500 },
+	})
 end)
 
 test("setup: a value under `setup`'s own keys is refused by `setup`'s name", function()
@@ -1293,4 +1296,162 @@ test("width: a `max_width` outlives the function that failed, as a cap", functio
 	setup { detail = { { "capped", max_width = 4 } } }
 	eq(draw("detail"), "x", "unpadded, so a short cell stays short")
 	eq(draw("detail", CURRENT.files[2]), "abc…", "and a long one is still cut at the cap")
+end)
+
+-- --- toggle ----------------------------------------------------------------
+
+--- Press `plugin supaline -- <args>`, handed over as Yazi hands a sync entry
+--- the words after the `--`: a table, so a press may carry a named word too.
+---@param args table
+local function press(args) main.entry({}, { args = args }) end
+
+test("setup: `toggles` is an `order` by a name no linemode has", function()
+	local lm = { t = { "size" } }
+	refuses({ linemodes = lm, toggles = 1500 }, "setup.toggles: must be a table of `order`s by name", "got `1500`")
+	-- A list is the likely mistake: the order written without the name a key
+	-- would press it by.
+	refuses({ linemodes = lm, toggles = { 1500 } }, "setup.toggles: is keyed by the name", "`1` is not one")
+	refuses({ linemodes = lm, toggles = { [""] = 1500 } }, "setup.toggles: is keyed by the name")
+	-- Any other string is one a key can press, quoted where it has to be.
+	setup(
+		{ t = { "size" } },
+		{ toggles = { ["git.yazi"] = 1500, ["ギット"] = 1600, ["my sign"] = 1700, ["--git"] = 1800, ["#git"] = 1900 } }
+	)
+	refuses({ linemodes = lm, toggles = { git = "1500" } }, "setup.toggles.git: must be a whole number")
+	refuses({ linemodes = lm, toggles = { git = 1.5 } }, "setup.toggles.git: must be a whole number")
+	refuses({ linemodes = lm, toggles = { t = 1500 } }, "setup.toggles.t: is a linemode's name as well")
+	-- Two names for one `order` would each undo what the other did.
+	refuses(
+		{ linemodes = lm, toggles = { git = 1500, sign = 1500 } },
+		"setup.toggles.sign: names `order = 1500`, as `git` does"
+	)
+end)
+
+test("toggle: a linemode is switched to, and from itself to `none`", function()
+	setup { detail = { "size" } }
+	cx.active.pref.linemode = "none"
+	press { "toggle", "detail" }
+	cx.active.pref.linemode = "detail"
+	press { "toggle", "detail" }
+	eq(#stub.emitted, 2)
+	eq(stub.emitted[1][1], "linemode")
+	eq(stub.emitted[1][2][1], "detail", "from `none`, to the linemode")
+	eq(stub.emitted[2][2][1], "none", "and from the linemode, to `none`")
+	reported(0)
+end)
+
+test("toggle: a name under `toggles` hides another plugin's child, and shows it again", function()
+	stub.foreign(function(add)
+		local child = add(1500, "sign")
+		local draw_sign = child[1]
+		-- supaline's own child at the same `order`, which is not another plugin's.
+		setup({ detail = { parent = { { "size", width = 3 } } } }, { order = 1500, toggles = { git = 1500 } })
+		local parent_row = stub.file { name = "current", in_current = false, size = 1 }
+
+		press { "toggle", "git" }
+		eq(drawn(child), "", "the sign draws nothing")
+		local a, b = table.unpack(stub.added())
+		eq(drawn(a == child and b or a, parent_row), "  1B", "and supaline's own child, at the same `order`, draws on")
+		eq(Linemode._children[1][1], "solo", "Yazi's own children are left alone")
+		eq(stub.renders, 1, "a frame is asked for, since nothing else on the screen moved")
+
+		press { "toggle", "git" }
+		eq(child[1], draw_sign, "the sign draws what it drew before, the very function")
+		eq(stub.renders, 2)
+		reported(0)
+	end)
+end)
+
+test("toggle: a press does what the screen shows is next, not what the last one recorded", function()
+	-- The plugin may take its child out and add it again, or `setup` a second
+	-- time; the first press after hides the one now drawn rather than showing
+	-- one nobody draws any more, which would change nothing on screen.
+	stub.foreign(function(add)
+		local first, id = add(1500, "sign")
+		setup({ detail = { "size" } }, { toggles = { git = 1500 } })
+		press { "toggle", "git" }
+		eq(drawn(first), "")
+		Linemode:children_remove(id)
+		local second = add(1500, "sign")
+
+		press { "toggle", "git" }
+		eq(drawn(second), "", "the child added since is hidden")
+		press { "toggle", "git" }
+		eq(drawn(second), "sign", "and shown again")
+		reported(0)
+	end)
+end)
+
+test("toggle: a child somebody else has changed since it was hidden is theirs", function()
+	-- What it draws then is not `blank`, so neither a press nor a later `setup`
+	-- puts back what it drew before supaline hid it.
+	stub.foreign(function(add)
+		local child = add(1500, "sign")
+		setup({ detail = { "size" } }, { toggles = { git = 1500 } })
+		press { "toggle", "git" }
+		local theirs = function() return "theirs" end
+		child[1] = theirs
+		setup { detail = { "size" } }
+		eq(child[1], theirs)
+	end)
+end)
+
+test("toggle: a child drawn by a callable table is hidden like a function's", function()
+	-- `redraw` calls whatever the child holds, and only Yazi's own two are
+	-- named by a string.
+	stub.foreign(function(add)
+		local child = add(1500, "sign")
+		local callable = setmetatable({}, { __call = function() return "sign" end })
+		child[1] = callable
+		setup({ detail = { "size" } }, { toggles = { git = 1500 } })
+		press { "toggle", "git" }
+		eq(drawn(child), "")
+		press { "toggle", "git" }
+		eq(child[1], callable)
+		reported(0)
+	end)
+end)
+
+test("toggle: a later `setup` shows what a toggle hid", function()
+	-- Whether or not its `toggles` still names it: otherwise a child hidden
+	-- under a name the next configuration dropped would stay hidden with no
+	-- key left to show it.
+	stub.foreign(function(add)
+		local child = add(1500, "sign")
+		local draw_sign = child[1]
+		setup({ detail = { "size" } }, { toggles = { git = 1500 } })
+		press { "toggle", "git" }
+		eq(drawn(child), "", "the press hid it")
+		reported(0)
+		setup { detail = { "size" } }
+		eq(child[1], draw_sign, "and `setup` gave back the very function")
+	end)
+end)
+
+test("toggle: an `order` nothing else sits at is said, rather than nothing done", function()
+	setup({ detail = { "size" } }, { toggles = { git = 1234 } })
+	press { "toggle", "git" }
+	local said = reported(1)
+	has(said, "`toggle git`", "`order = 1234`", "nothing is there", "git.yazi's is 1500")
+	eq(stub.renders, 0)
+end)
+
+test("toggle: a press that is not one name `toggle` takes is said, with the names it would", function()
+	setup({ detail = { "size" }, wide = { "size" } }, { toggles = { git = 1500 } })
+	cx.active.pref.linemode = "detail"
+	local cases = {
+		{ {}, "takes one name" },
+		{ { "toggle" }, "takes one name" },
+		{ { "tgogle", "git" }, "takes one name" },
+		-- Dropping what follows would be the quiet half of the mistake.
+		{ { "toggle", "git", "detail" }, "takes one name" },
+		{ { "toggle", "git", force = true }, "takes one name" },
+		{ { "toggle", "size" }, "nothing to toggle is called `size`" },
+	}
+	for i, case in ipairs(cases) do
+		press(case[1])
+		local said = reported(i)
+		has(said, case[2], "`detail`, `git`, `wide` here")
+	end
+	eq(#stub.emitted, 0, "and nothing was switched")
 end)

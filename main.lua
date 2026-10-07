@@ -1,4 +1,5 @@
 --- @since 26.9.1
+--- @sync entry
 --- Yazi adapter and public API. The only module that reads `cx`, `th` and
 --- `ya`, subscribes and installs; everything under it is handed what it needs.
 ---
@@ -9,6 +10,7 @@
 local builtin = require(".builtin")
 local column = require(".column")
 local config = require(".config")
+local schema = require(".schema")
 local session = require(".session")
 
 --- The module table, as a spec sees it.
@@ -24,6 +26,7 @@ local session = require(".session")
 ---@field setup fun(st: table, opts: supaline.Opts?)|fun(opts: supaline.Opts)
 ---@field column fun(name: string, def: supaline.ColumnDef)|fun(self: table, name: string, def: supaline.ColumnDef)
 ---@field extremes fun(get: fun(file: supaline.File): number?): fun(files: supaline.File[]): table?
+---@field entry fun(st: table, job: { args: table })
 
 local M = {}
 
@@ -35,9 +38,11 @@ end
 local active ---@type supaline.Session?
 
 -- What supaline has put on `Linemode`: each linemode it installed, with what
--- that name held before, and the child it added.
----@type { prev: { name: string, was: any }[], child: any? }
-local installed = { prev = {}, child = nil }
+-- that name held before, the child it added, and what each child of another
+-- plugin's that a `toggle` hid drew before -- weakly, so a child its plugin
+-- has taken out is let go rather than kept until the next `setup`.
+---@type { prev: { name: string, was: any }[], child: any?, hidden: table<supaline.LinemodeChild, function> }
+local installed = { prev = {}, child = nil, hidden = setmetatable({}, { __mode = "k" }) }
 
 -- Yazi keeps the component's machinery on the table linemodes are looked up
 -- on, so a linemode named after any of it replaces it -- `new` takes out the
@@ -99,7 +104,22 @@ local function tell(logged, shown)
 	ya.notify { title = "supaline", content = shown or logged, level = "error", timeout = 20 }
 end
 
---- Restore overridden Yazi linemodes before registering a replacement setup.
+--- What a hidden child draws.
+local function blank() return "" end
+
+--- Give back what a `toggle` hid: a child that still draws `blank` draws what
+--- it drew before. One that has drawn something else since was changed by
+--- somebody else, and is theirs.
+---@param c supaline.LinemodeChild
+---@param draw function
+local function unhide(c, draw)
+	if c[1] == blank then
+		c[1] = draw
+	end
+end
+
+--- Restore overridden Yazi linemodes, and the children a `toggle` hid, before
+--- registering a replacement setup -- whose `toggles` may not name them.
 local function uninstall()
 	for _, one in ipairs(installed.prev) do
 		Linemode[one.name] = one.was
@@ -107,7 +127,10 @@ local function uninstall()
 	if installed.child then
 		Linemode:children_remove(installed.child)
 	end
-	installed = { prev = {}, child = nil }
+	for c, draw in pairs(installed.hidden) do
+		unhide(c, draw)
+	end
+	installed = { prev = {}, child = nil, hidden = setmetatable({}, { __mode = "k" }) }
 end
 
 --- The parent- and preview-pane child, drawing with `current`. Yazi calls a
@@ -227,6 +250,122 @@ end
 ---@param get fun(file: supaline.File): number?
 ---@return fun(files: supaline.File[]): table?
 function M.extremes(get) return builtin.extremes(get) end
+
+--- Hide the children another plugin added at `order`, or show them again.
+--- Read off 26.9.1's `linemode.lua`, `redraw` calls whatever a child holds at
+--- `[1]` each time it draws, so the child stays where its plugin put it and
+--- only what it draws is swapped. Measured on 26.9.1 in a detached tmux, with
+--- a child `init.lua` added at 1500 the way git.yazi's `setup` adds its sign:
+--- gone at the first press and back at the second, with the columns drawn
+--- throughout. Yazi's own two are named by a string where every other child
+--- holds something `redraw` calls, and supaline's own child is not another
+--- plugin's, so neither is hidden.
+---
+--- Which of the two a press does is asked of `_children` as it stands, not
+--- of what an earlier press recorded: a plugin may have added a child there
+--- since -- its `setup` may run after supaline's -- or taken one out and put
+--- it back, and a press that showed a child no longer drawn would change
+--- nothing on the screen.
+---@param name string
+---@param order integer
+local function flip(name, order)
+	local found, any_hidden, children = {}, false, Linemode._children --[[@as supaline.LinemodeChild[] ]]
+	for _, c in ipairs(children) do
+		if c.order == order and c.id ~= installed.child and type(c[1]) ~= "string" then
+			found[#found + 1] = c
+			any_hidden = any_hidden or c[1] == blank
+		end
+	end
+	if #found == 0 then
+		return tell(
+			string.format(
+				"supaline: `toggle %s` hides what another plugin added at `order = %d` among `Linemode`'s "
+					.. "children, and nothing is there. `toggles` takes the `order` that plugin's `setup` "
+					.. "was given -- git.yazi's is 1500 unless its `setup` names another",
+				name,
+				order
+			)
+		)
+	end
+	for _, c in ipairs(found) do
+		local draw = installed.hidden[c]
+		if not any_hidden then
+			installed.hidden[c], c[1] = c[1], blank
+		elseif draw then
+			unhide(c, draw)
+			installed.hidden[c] = nil
+		end
+	end
+	ui.render()
+end
+
+-- What a press of `toggle` takes, for every refusal of one.
+local USAGE = "`plugin supaline -- toggle <name>` takes one name: a linemode supaline installed, switched to "
+	.. "and from `none`, or one of `setup`'s `toggles`"
+
+--- Every name `toggle` would take under `plan`, sorted, for a refusal to list.
+---@param plan supaline.Plan
+---@return string
+local function toggleable(plan)
+	local names = {}
+	for _, from in ipairs { plan.modes, plan.toggles } do
+		for name in pairs(from) do
+			names[name] = true
+		end
+	end
+	return schema.quoted(schema.sorted_keys(names))
+end
+
+--- `plugin supaline -- toggle <name>`, from a key. A linemode supaline
+--- installed is switched to, or to `none` when it is the one showing, in the
+--- active tab, as Yazi's own `linemode` is; a name under `toggles` hides or
+--- shows another plugin's children in every tab at once, since all of them
+--- draw through the one `Linemode`.
+---
+--- Sync, because otherwise a key runs an entry in a Lua state of its own,
+--- where nothing `setup` did is there. Read off 26.9.1's source, a sync entry
+--- is handed the module `init.lua`'s `require` loaded, so `active` here is the
+--- one `setup` set. Yazi reads `@sync` only among the annotations at the top
+--- of the file, and `module_spec.lua` holds it there.
+---
+--- What is wrong with a press is told rather than raised. Read off 26.9.1's
+--- `plugin_do.rs`, an error out of a sync entry reaches the log alone, and a
+--- key that does nothing with nothing on the screen to say why is the quiet
+--- failure every refusal here exists to prevent.
+---@param _st table plugin state supplied by Yazi, unused
+---@param job { args: table }
+function M.entry(_st, job)
+	if not active then
+		return tell(
+			"supaline: "
+				.. USAGE
+				.. ", and no configuration is in force: `setup` was never called, or refused what it was handed"
+		)
+	end
+	local plan, args = active.plan, job.args
+	-- Anything past the name is a mistake, and dropping it would be the
+	-- quiet half of one. So is nothing at all where the name goes, which is
+	-- what a binding without the `--` hands over: measured on 26.9.1,
+	-- `plugin supaline toggle git` arrives as `toggle` alone.
+	local others, _, words = schema.shape(args)
+	local name = #others == 0 and words <= 2 and args[2]
+	if args[1] ~= "toggle" or type(name) ~= "string" then
+		return tell(string.format("supaline: %s -- %s here", USAGE, toggleable(plan)))
+	end
+
+	local order = plan.toggles[name]
+	if order then
+		return flip(name, order)
+	elseif plan.modes[name] then
+		-- Back to `none` rather than to whatever showed before the switch on:
+		-- that would make a second press depend on the presses before it, in
+		-- each tab apart, and need a linemode per tab kept by supaline, where
+		-- `none` is the one state every tab can be told to be in.
+		ya.emit("linemode", { cx.active.pref.linemode == name and "none" or name })
+	else
+		tell(string.format("supaline: nothing to toggle is called `%s`. %s -- %s here", name, USAGE, toggleable(plan)))
+	end
+end
 
 --- Compile and resolve before anything is replaced, so a refusal leaves the
 --- running session as it was.
