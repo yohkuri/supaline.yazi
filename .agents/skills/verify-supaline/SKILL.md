@@ -139,12 +139,11 @@ So a change under `test/` has somewhere to go, and it is usually not `e2e.py`:
   the most worth moving rather than the least: it is the one thing a capture
   written by hand can state exactly.
 - A fact about **what the fixture spells** belongs in a reader in `setup.py`
-  beside the copy it reads — `binding`, `broken_columns`, `band_width`,
-  `c_bg_grounds`, `terminal_grounds`, `theme_values`, `theme_ends`, `cases`,
-  `goes_to` — which `TheFixtureItReads` calls rather than re-spelling. A copied
-  pattern passes on after its reader has quietly stopped matching, and `e2e.py`
-  is not in CI to say so: one anchored on stylua's indentation most of all,
-  since re-nesting a table leaves the sweep passing over nothing.
+  beside the copy it reads, the way `binding` and `c_bg_grounds` are, which
+  `TheFixtureItReads` calls rather than re-spelling. A copied pattern passes
+  on after its reader has quietly stopped matching, and `e2e.py` is not in CI
+  to say so: one anchored on stylua's indentation most of all, since
+  re-nesting a table leaves the sweep passing over nothing.
 - What is left for `e2e.py` is driving Yazi and holding the parsed answer
   against what this machine says: `pwd`, `grp`, a file on disk, a colour read
   out of the fixture.
