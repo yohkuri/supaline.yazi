@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import NamedTuple
 
@@ -736,6 +737,7 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
         True,
     )
     check_bold(k, shots)
+    check_attributes(k, shots["colour-c_attrs"], init)
     check_scale(k, shots["colour-c_scale"], init)
     check_edge(k, shots["colour-c_edge"], init)
 
@@ -823,6 +825,49 @@ def check_bold(k: Checks, shots: dict[str, str]) -> None:
         sc.bold_over_ramp(shots["colour-c_theme"]) > 0,
         "c_theme: a spec's bold over the theme's ramp",
     )
+
+
+def check_attributes(k: Checks, capture: str, init: str) -> None:
+    """`c_attrs` draws each attribute a style takes as its own name, in it alone.
+
+    A word is held to the pen of the cell before it with its own attribute
+    switched on: that alone on most rows, and beside the hover's reverse on the
+    hovered one. Every drawn row of the pane has to hold every word, so a
+    column that drew nothing is a row short rather than a pass.
+    """
+    words = fixture.attribute_words(init)
+    if not words:
+        k.fail("c_attrs: the fixture's init.lua has no `c_attrs` words to read")
+        return
+    drew = sum(
+        1
+        for cells in sc.current_cells(capture)
+        if "".join(ch for ch, _ in cells).strip()
+    )
+    rows = sc.word_pens(capture, words)
+    k.verdict(
+        f"c_attrs: every row draws all {len(words)} words ({len(rows)} rows)",
+        drew == 0 and "c_attrs: the current pane drew nothing",
+        len(rows) != drew
+        and f"c_attrs: {len(rows)} of {drew} row(s) held every word",
+    )
+    for word in words:
+        field = sc.DRAWN_AS.get(word)
+        if field is None:
+            k.fail(f"c_attrs: `{word}` is no attribute screen.DRAWN_AS reads")
+            continue
+        wrong = [
+            pens
+            for before, pens in (row[word] for row in rows)
+            if pens != {replace(before, **{field: True})}
+        ]
+        k.verdict(
+            f"c_attrs: `{word}` draws as {field} and nothing else",
+            bool(rows)
+            and wrong
+            and f"c_attrs: `{word}` drew in {sorted(map(str, wrong[0]))} on "
+            f"{len(wrong)} of {len(rows)} row(s)",
+        )
 
 
 def cool_ends(k: Checks, init: str, who: str) -> tuple[str, str]:

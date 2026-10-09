@@ -612,6 +612,10 @@ class Pen:
     italic: bool = False
     underline: bool = False
     reverse: bool = False
+    dim: bool = False
+    blink: bool = False
+    hidden: bool = False
+    crossed: bool = False
 
 
 _DEFAULT_PEN = Pen()
@@ -620,16 +624,41 @@ _DEFAULT_PEN = Pen()
 #: One cell of a capture: the character drawn, and what it was drawn in.
 Cell = tuple[str, Pen]
 
-#: The attribute each SGR parameter turns on or off.
+#: The attributes each SGR parameter turns on or off. `22` is one parameter
+#: for two: a terminal takes bold and dim off together.
 _SWITCHES = {
-    1: ("bold", True),
-    22: ("bold", False),
-    3: ("italic", True),
-    23: ("italic", False),
-    4: ("underline", True),
-    24: ("underline", False),
-    7: ("reverse", True),
-    27: ("reverse", False),
+    1: {"bold": True},
+    2: {"dim": True},
+    22: {"bold": False, "dim": False},
+    3: {"italic": True},
+    23: {"italic": False},
+    4: {"underline": True},
+    24: {"underline": False},
+    5: {"blink": True},
+    25: {"blink": False},
+    7: {"reverse": True},
+    27: {"reverse": False},
+    8: {"hidden": True},
+    28: {"hidden": False},
+    9: {"crossed": True},
+    29: {"crossed": False},
+}
+
+#: The `Pen` field each style attribute arrives in. Spelled apart from the
+#: style keys in two places: `reversed` is `reverse` here, after the SGR, and
+#: `blink_rapid` arrives as `blink`. Measured on 26.9.1 under tmux 3.8, both
+#: blinks reach a capture as parameter 5, so a capture cannot tell them apart
+#: and the most a check can ask of `blink_rapid` is that it blinks.
+DRAWN_AS = {
+    "bold": "bold",
+    "dim": "dim",
+    "italic": "italic",
+    "underline": "underline",
+    "blink": "blink",
+    "blink_rapid": "blink",
+    "reversed": "reverse",
+    "hidden": "hidden",
+    "crossed": "crossed",
 }
 
 #: An escape of any kind, and the parameters when it is an SGR.
@@ -672,8 +701,7 @@ def _drawn_after(pen: Pen, body: str) -> Pen:
             pen = _DEFAULT_PEN
             changes.clear()
         elif p in _SWITCHES:
-            name, on = _SWITCHES[p]
-            changes[name] = on
+            changes.update(_SWITCHES[p])
         elif 30 <= p <= 37 or 40 <= p <= 47:
             changes[layer] = f"p{p % 10}"
         elif 90 <= p <= 97 or 100 <= p <= 107:
@@ -705,7 +733,7 @@ def _cell_rows(capture: str) -> Iterator[list[Cell]]:
 
     The pen carries from one line into the next, as it would in a terminal
     reading the same bytes. It decides nothing on 26.9.1: every line of
-    `e2e.py`'s 25 colour captures, 1025 of them, reads the same parsed alone.
+    `e2e.py`'s 32 colour captures, 1312 of them, reads the same parsed alone.
 
     An escape that is not an SGR is refused rather than drawn as text, and so
     is an SGR this cannot read: either would put a cell on the page in a
@@ -745,3 +773,36 @@ def current_cells(capture: str) -> list[list[Cell]]:
         if bars:
             rows.append(cells[bars[0] + 1 : bars[1] if len(bars) > 1 else None])
     return rows
+
+
+#: One word as `word_pens` reads it: the pen of the cell before it, which is
+#: the row's own, and every pen its characters were drawn in.
+Worded = tuple[Pen, frozenset[Pen]]
+
+
+def word_pens(capture: str, words: list[str]) -> list[dict[str, Worded]]:
+    """Current-pane rows that hold every word, each with how it was drawn.
+
+    A word is matched whole, so `blink` is not read out of `blink_rapid`. The
+    cell before it is a separator, drawn in the row's own style, which is what
+    a word's attribute is added to: nothing on most rows, and the hover's
+    reverse on the hovered one -- measured on 26.9.1, where a `reversed` word
+    there draws in the pen around it. A row missing a word is left out rather
+    than answered in part, so a caller holds the count against the pane.
+    """
+    out: list[dict[str, Worded]] = []
+    for cells in current_cells(capture):
+        text = "".join(ch for ch, _ in cells)
+        row: dict[str, Worded] = {}
+        for word in words:
+            found = re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text)
+            if not found or found.start() == 0:
+                break
+            at, end = found.start(), found.end()
+            row[word] = (
+                cells[at - 1][1],
+                frozenset(pen for _, pen in cells[at:end]),
+            )
+        else:
+            out.append(row)
+    return out

@@ -30,7 +30,7 @@ you through those cases in order and asks one question about each.
 | `W x` | Looks wrong — write that down, and go to the next     |
 
 The status bar shows where you are, the step's own key and the question:
-`walk 3/17 · c r · does it climb evenly, with no flat run or jump?`. The key is the
+`walk 3/18 · c r · does it climb evenly, with no flat run or jump?`. The key is the
 section of this document that has the whole of what to look for, and pressing
 it by hand puts you back in the same state. A step puts its theme in place as
 well as its case, so it reads the same whether you came to it forwards,
@@ -392,6 +392,7 @@ and takes you to the folder that case is read in.
 | `c h` | a ramp that turns in hue             | `g 3`      |
 | `c g` | a ramp over a background, and as one | `g 3`      |
 | `c a` | a bold over a colour it did not pick | `g 3`      |
+| `c i` | every attribute, each by its name    | `g 1`      |
 | `c s` | the same size, log then linear       | `g 4`      |
 | `c e` | a ramp with nothing to spread over   | `g 5`      |
 | `c t` | whatever `[supaline]` says           | `g 1`      |
@@ -409,8 +410,8 @@ leaves your scroll and your hover alone. So two that share a folder, pressed one
 after the other, differ in exactly one thing, which is what makes them worth
 putting side by side — and five of them share `g 3`.
 
-Only `c t` reads the theme. The other six write their colours in the spec,
-where a colour written wins over `[supaline]`'s, so they hold still while
+Only `c t` reads the theme. The other seven write their styles in the spec,
+where a style written wins over `[supaline]`'s, so they hold still while
 `c 1` to `c 3` swap the file underneath them.
 
 ### Before Yazi opens
@@ -612,6 +613,30 @@ colour: the columns here are meant to differ in exactly one way.
 
 `e2e.py` reads the first two off the capture — the pair on each row, and a bold
 opening a run of differently coloured characters. The third it cannot see.
+
+### `c i` — every attribute, by name
+
+In `g 1`. Nine columns, one per attribute a style table takes, each drawing
+that attribute's name in that attribute and nothing else:
+
+```text
+ empty.txt   bold dim italic underline blink blink_rapid reversed hidden crossed
+```
+
+- Each word has to look like what it says: heavier, fainter, slanted,
+  underlined, blinking, on a swapped ground, struck through. `hidden` is a gap
+  of six cells with nothing in it, which is what it is for.
+- `blink` and `blink_rapid` may blink at the same rate. A terminal is free to
+  draw both the same, and under tmux they arrive the same: measured on 26.9.1
+  under tmux 3.8, both reach a capture as one parameter, so there the
+  difference never reaches the screen at all.
+- On the hovered row the whole row is already reversed, so `reversed` there
+  reads as the row around it.
+
+`e2e.py` reads every word off the capture and holds it to its attribute alone,
+`blink_rapid` to a blink. Whether your terminal draws each one is the reader's
+question: a terminal may draw `blink` steady, or `dim` and `italic` as nothing
+at all, and a capture cannot tell.
 
 ### `c s` — log beside linear
 

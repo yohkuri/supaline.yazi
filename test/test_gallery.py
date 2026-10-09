@@ -68,6 +68,17 @@ class Styles(unittest.TestCase):
             "color:var(--bg);background:#112233",
         )
 
+    def test_every_attribute_a_style_takes_is_drawn_or_said_why_not(self):
+        # Blink alone is left out: a tile is one moment of the screen.
+        self.assertEqual(
+            gallery.css(
+                sc.Pen(underline=True, crossed=True, dim=True, hidden=True)
+            ),
+            "text-decoration:underline line-through;opacity:.5;"
+            "color:transparent",
+        )
+        self.assertEqual(gallery.css(sc.Pen(blink=True)), "")
+
     def test_a_light_ground_is_read_in_black_and_a_dark_one_in_white(self):
         self.assertEqual(gallery.foreground("#fdf6e3"), "#000000")
         self.assertEqual(gallery.foreground("#282c34"), "#ffffff")
@@ -191,6 +202,7 @@ class Approved(unittest.TestCase):
         moved = {
             "a cell": (cells("\x1b[31mab\x1b[0md"), GROUNDS, "right?"),
             "a pen": (cells("\x1b[32mab\x1b[0mc"), GROUNDS, "right?"),
+            "an attribute": (cells("\x1b[31;9mab\x1b[0mc"), GROUNDS, "right?"),
             "a ground": (drawn, GROUNDS[:1], "right?"),
             "the question": (drawn, GROUNDS, "wrong?"),
         }

@@ -245,6 +245,13 @@ linemode = "c_bold"
 desc     = "supaline: a bold over a colour the ramp chose"
 
 [[case]]
+id       = "c_attrs"
+key      = "c i"
+folder   = "data"
+linemode = "c_attrs"
+desc     = "supaline: every style attribute, each by name"
+
+[[case]]
 id       = "c_scale"
 key      = "c s"
 folder   = "colour/scale"
