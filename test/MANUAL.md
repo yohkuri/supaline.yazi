@@ -632,11 +632,17 @@ that attribute's name in that attribute and nothing else:
   difference never reaches the screen at all.
 - On the hovered row the whole row is already reversed, so `reversed` there
   reads as the row around it.
+- Not every terminal draws `blink` or `hidden`. A word that holds still, or
+  `hidden` showing its text, is the terminal declining the attribute rather
+  than supaline dropping it. Whatever sits between Yazi and the terminal — a
+  multiplexer, say — can drop one the terminal itself would draw, so check
+  the terminal on its own before blaming either:
+  `printf 'A \e[8mhidden\e[0m B \e[5mblink\e[0m C\n'`.
 
 `e2e.py` reads every word off the capture and holds it to its attribute alone,
-`blink_rapid` to a blink. Whether your terminal draws each one is the reader's
-question: a terminal may draw `blink` steady, or `dim` and `italic` as nothing
-at all, and a capture cannot tell.
+`blink_rapid` to a blink, so what it passes is what Yazi asked the terminal
+for. Whether your terminal draws each one is the reader's question, and a
+capture cannot tell.
 
 ### `c s` — log beside linear
 
