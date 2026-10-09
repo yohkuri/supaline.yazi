@@ -923,27 +923,58 @@ class Cells(unittest.TestCase):
 
 
 class Words(unittest.TestCase):
-    """`word_pens`, which `c_attrs` reads each attribute off."""
+    """`word_pens`, `misdrawn` and `leaked`, which `c_attrs` is read by."""
 
-    def test_a_word_is_read_with_the_pen_beside_it(self):
+    def test_each_word_on_its_own_attribute_is_drawn_and_leaks_nothing(self):
         text = capture(
             row("p", "name \x1b[1mbold\x1b[0m \x1b[3mitalic\x1b[0m ", "x"),
-            row("q", "\x1b[7mname \x1b[1mbold\x1b[0;7m italic\x1b[0m", "y"),
+            row(
+                "q",
+                "\x1b[7mname \x1b[1mbold\x1b[0;7m \x1b[3mitalic\x1b[0m",
+                "y",
+            ),
         )
-        plain, hovered = sc.word_pens(text, ["bold", "italic"])
+        rows = sc.word_pens(text, ["bold", "italic"])
+        plain, hovered = rows
+        self.assertEqual(plain.ground, sc.Pen())
+        self.assertEqual(plain.words["bold"], {sc.Pen(bold=True)})
+        self.assertEqual(plain.between, {sc.Pen()})
+        self.assertEqual(hovered.ground, sc.Pen(reverse=True))
+        for word in ("bold", "italic"):
+            with self.subTest(word=word):
+                self.assertEqual(sc.misdrawn(rows, word), 0)
+        self.assertEqual(sc.leaked(rows), 0)
+
+    def test_a_reversed_word_on_the_hovered_row_is_the_row(self):
+        text = capture(row("p", "\x1b[7mname reversed\x1b[0m", "x"))
         self.assertEqual(
-            plain,
-            {
-                "bold": (sc.Pen(), frozenset({sc.Pen(bold=True)})),
-                "italic": (sc.Pen(), frozenset({sc.Pen(italic=True)})),
-            },
+            sc.misdrawn(sc.word_pens(text, ["reversed"]), "reversed"), 0
         )
-        reverse = sc.Pen(reverse=True)
+
+    def test_an_attribute_left_on_is_refused_however_it_spreads(self):
+        # Nothing taken off between columns: each word wears every attribute
+        # before it, and so does the separator after it. Measured against the
+        # cell beside it, every word here is that cell plus its own attribute
+        # and passes; against the row's ground, only the first one does.
+        words = ["bold", "dim", "italic", "hidden", "crossed"]
+        drawn = "".join(
+            f"\x1b[{p}m{word} " for p, word in zip((1, 2, 3, 8, 9), words)
+        )
+        rows = sc.word_pens(capture(row("p", " " + drawn, "x")), words)
         self.assertEqual(
-            hovered["bold"],
-            (reverse, frozenset({sc.Pen(bold=True, reverse=True)})),
+            [sc.misdrawn(rows, word) for word in words], [0, 1, 1, 1, 1]
         )
-        self.assertEqual(hovered["italic"], (reverse, frozenset({reverse})))
+        self.assertEqual(sc.leaked(rows), 1)
+
+    def test_a_leak_into_the_separator_alone_is_refused(self):
+        # Taken off again before the next word, so every word reads right and
+        # the separator is the only cell that says so.
+        text = capture(row("p", " \x1b[1mbold \x1b[0;2mdim\x1b[0m", "x"))
+        rows = sc.word_pens(text, ["bold", "dim"])
+        self.assertEqual(
+            [sc.misdrawn(rows, w) for w in ("bold", "dim")], [0, 0]
+        )
+        self.assertEqual(sc.leaked(rows), 1)
 
     def test_a_word_is_matched_whole(self):
         # `blink` would otherwise be read out of `blink_rapid`, in its pen.
@@ -951,9 +982,7 @@ class Words(unittest.TestCase):
             row("p", " \x1b[5;3mblink_rapid\x1b[0m \x1b[5mblink\x1b[0m", "x")
         )
         (got,) = sc.word_pens(text, ["blink_rapid", "blink"])
-        self.assertEqual(
-            got["blink"], (sc.Pen(), frozenset({sc.Pen(blink=True)}))
-        )
+        self.assertEqual(got.words["blink"], {sc.Pen(blink=True)})
 
     def test_a_row_missing_a_word_is_left_out(self):
         text = capture(row("p", " bold italic", "x"), row("q", " bold", "y"))

@@ -775,34 +775,79 @@ def current_cells(capture: str) -> list[list[Cell]]:
     return rows
 
 
-#: One word as `word_pens` reads it: the pen of the cell before it, which is
-#: the row's own, and every pen its characters were drawn in.
-Worded = tuple[Pen, frozenset[Pen]]
+@dataclass(frozen=True)
+class WordRow:
+    """One row as `word_pens` reads it.
+
+    `ground` is the pen of the cell before the first word, which is the row's
+    own: nothing on most rows, and the hover's reverse on the hovered one.
+    `words` is every pen each word's characters were drawn in, and `between`
+    every pen of the cells between the words that no word covers.
+    """
+
+    ground: Pen
+    words: dict[str, frozenset[Pen]]
+    between: frozenset[Pen]
 
 
-def word_pens(capture: str, words: list[str]) -> list[dict[str, Worded]]:
+def word_pens(capture: str, words: list[str]) -> list[WordRow]:
     """Current-pane rows that hold every word, each with how it was drawn.
 
-    A word is matched whole, so `blink` is not read out of `blink_rapid`. The
-    cell before it is a separator, drawn in the row's own style, which is what
-    a word's attribute is added to: nothing on most rows, and the hover's
-    reverse on the hovered one -- measured on 26.9.1, where a `reversed` word
-    there draws in the pen around it. A row missing a word is left out rather
-    than answered in part, so a caller holds the count against the pane.
+    A word is matched whole, so `blink` is not read out of `blink_rapid`. A
+    row missing a word is left out rather than answered in part, so a caller
+    holds the count against the pane.
     """
-    out: list[dict[str, Worded]] = []
+    out: list[WordRow] = []
     for cells in current_cells(capture):
         text = "".join(ch for ch, _ in cells)
-        row: dict[str, Worded] = {}
+        spans: dict[str, tuple[int, int]] = {}
         for word in words:
             found = re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text)
             if not found or found.start() == 0:
                 break
-            at, end = found.start(), found.end()
-            row[word] = (
-                cells[at - 1][1],
-                frozenset(pen for _, pen in cells[at:end]),
-            )
+            spans[word] = found.span()
         else:
-            out.append(row)
+            first = min(at for at, _ in spans.values())
+            last = max(end for _, end in spans.values())
+            covered = {i for at, end in spans.values() for i in range(at, end)}
+            out.append(
+                WordRow(
+                    ground=cells[first - 1][1],
+                    words={
+                        word: frozenset(pen for _, pen in cells[at:end])
+                        for word, (at, end) in spans.items()
+                    },
+                    between=frozenset(
+                        cells[i][1]
+                        for i in range(first, last)
+                        if i not in covered
+                    ),
+                )
+            )
     return out
+
+
+def misdrawn(rows: list[WordRow], word: str) -> int:
+    """Rows where `word` is not its row's ground with its own attribute alone.
+
+    Held to the ground rather than to the cell beside the word, because an
+    attribute a column failed to take off carries into the separator after
+    it, and a word measured against that separator would inherit the leak and
+    pass. On the hovered row a `reversed` word is the ground itself, measured
+    on 26.9.1: the row is reversed already.
+    """
+    field = DRAWN_AS[word]
+    return sum(
+        row.words[word] != {replace(row.ground, **{field: True})}
+        for row in rows
+    )
+
+
+def leaked(rows: list[WordRow]) -> int:
+    """Rows where a cell between the words is drawn in more than the ground.
+
+    The other half of `misdrawn`: a column that left its attribute on after
+    its last cell shows first in the separator after it, and only reaches the
+    next word as well when nothing in between takes it off.
+    """
+    return sum(not row.between <= {row.ground} for row in rows)

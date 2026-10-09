@@ -29,7 +29,6 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
-from dataclasses import replace
 from pathlib import Path
 from typing import NamedTuple
 
@@ -830,10 +829,11 @@ def check_bold(k: Checks, shots: dict[str, str]) -> None:
 def check_attributes(k: Checks, capture: str, init: str) -> None:
     """`c_attrs` draws each attribute a style takes as its own name, in it alone.
 
-    A word is held to the pen of the cell before it with its own attribute
-    switched on: that alone on most rows, and beside the hover's reverse on the
-    hovered one. Every drawn row of the pane has to hold every word, so a
-    column that drew nothing is a row short rather than a pass.
+    Every word is held to its row's ground with its own attribute switched on,
+    and every cell between the words to the ground itself, so an attribute a
+    column leaves on is refused wherever it spreads. Every drawn row of the
+    pane has to hold every word, so a column that drew nothing is a row short
+    rather than a pass.
     """
     words = fixture.attribute_words(init)
     if not words:
@@ -851,23 +851,27 @@ def check_attributes(k: Checks, capture: str, init: str) -> None:
         len(rows) != drew
         and f"c_attrs: {len(rows)} of {drew} row(s) held every word",
     )
+    if not rows:
+        return
     for word in words:
         field = sc.DRAWN_AS.get(word)
         if field is None:
             k.fail(f"c_attrs: `{word}` is no attribute screen.DRAWN_AS reads")
             continue
-        wrong = [
-            pens
-            for before, pens in (row[word] for row in rows)
-            if pens != {replace(before, **{field: True})}
-        ]
+        wrong = sc.misdrawn(rows, word)
         k.verdict(
             f"c_attrs: `{word}` draws as {field} and nothing else",
-            bool(rows)
-            and wrong
-            and f"c_attrs: `{word}` drew in {sorted(map(str, wrong[0]))} on "
-            f"{len(wrong)} of {len(rows)} row(s)",
+            wrong > 0
+            and f"c_attrs: `{word}` drew as more or less than {field} on "
+            f"{wrong} of {len(rows)} row(s)",
         )
+    spilt = sc.leaked(rows)
+    k.verdict(
+        "c_attrs: no attribute reaches the cells between the words",
+        spilt > 0
+        and f"c_attrs: {spilt} of {len(rows)} row(s) drew a separator in more "
+        "than the row's own pen",
+    )
 
 
 def cool_ends(k: Checks, init: str, who: str) -> tuple[str, str]:
