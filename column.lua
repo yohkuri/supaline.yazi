@@ -246,7 +246,7 @@ end
 --- A key of its own rather than checks written inside `options`, as
 --- `options = { "pad", format = check }`. What that spelling gains, no check
 --- on an undeclared option, `record` below already gives; what it costs is
---- README's promise that `options` is a plain list, checked as one.
+--- `docs/columns.md`'s promise that `options` is a plain list, checked as one.
 ---@param own any
 ---@param options string[]?
 ---@param at supaline.Path
@@ -452,7 +452,7 @@ end
 ---
 --- A definition is read when it is registered, so a mistake in it is refused
 --- at the call that wrote it, and read again by every `setup`: editing the
---- table in place takes effect on the next one, as the README promises.
+--- table in place takes effect on the next one, as `docs/columns.md` promises.
 ---@return supaline.Registry
 function M.new_registry()
 	local definitions = {} ---@type table<string, { t: table, at: supaline.Path }>

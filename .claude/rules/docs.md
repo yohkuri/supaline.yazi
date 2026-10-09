@@ -18,8 +18,8 @@ platform has to meet, and the places one change has to land in step.
 
 Not style — `.markdownlint-cli2.yaml` holds the wrap, the bullet and the fence
 language, and CI runs it, so a clean lint is the whole of the form. And not
-`README.md` or `test/MANUAL.md`, which are written for people; this rule does
-not fire on them.
+`README.md`, `docs/` or `test/MANUAL.md`, which are written for people; this
+rule does not fire on them.
 
 Fixing a typo needs nothing from the skill. Adding a rule, moving one, or
 changing a count does, because nothing visible from inside the file you are

@@ -4,8 +4,8 @@ description: >-
   How this repository's instruction documents are written, and where a rule
   has to live to reach the agent it is for. Read before changing `AGENTS.md`,
   a skill under `.agents/skills/`, or a rule under `.claude/rules/` -- not for
-  `README.md` or `test/MANUAL.md`, which are written for people, and not for
-  Lua comments. Covers why a check is worth more than a paragraph and has to
+  `README.md`, `docs/` or `test/MANUAL.md`, which are written for people, and
+  not for Lua comments. Covers why a check is worth more than a paragraph and has to
   be seen failing before it is believed, who reads which file, the two
   questions that route a rule into `AGENTS.md` and the budgets that hold it
   and every skill to a length, where a check's reason goes once the check
