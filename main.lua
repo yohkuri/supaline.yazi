@@ -185,8 +185,10 @@ end
 
 -- Subscribed once at load, so a repeated `setup` replaces the active session
 -- rather than stacking a second subscription onto it. Yazi fires `theme`
--- unasked a few milliseconds after `init.lua`, when the flavor lands, and
--- again on every `app:theme`.
+-- unasked a few milliseconds after `init.lua`, and again on every
+-- `app:theme`. The flavor lands with the first, but the event is not the
+-- flavor's: measured on 26.9.1, it fires with no flavor and no `theme.toml`
+-- at all, and only a flavor named but not installed goes without it.
 ps.sub("theme", function()
 	if active then
 		active.retheme(th.supaline or {})
