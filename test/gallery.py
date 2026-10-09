@@ -46,7 +46,7 @@ import unicodedata
 import webbrowser
 from collections import defaultdict
 from collections.abc import Container
-from dataclasses import asdict
+from dataclasses import fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import IO, NamedTuple
@@ -529,18 +529,22 @@ APPROVED_HEADER = """\
 """
 
 
-#: The pen fields a digest spells only when one of them is on. A pen with
-#: none of them is spelled as the fields before them alone, so a parser that
-#: reads more of a pen takes back no approval of a pane that drew none of it.
-SPELLED_WHEN_ON = ("dim", "blink", "hidden", "crossed")
+#: The pen fields a digest spells by position. Any other field is spelled by
+#: name, and only when it is not its default, so a field `Pen` gains takes
+#: back no approval of a pane that never drew it.
+POSITIONAL = ("fg", "bg", "bold", "italic", "underline", "reverse")
 
 
-def spelled(pen: sc.Pen) -> list[str | bool]:
+def spelled(pen: sc.Pen) -> list[str | bool | dict[str, str | bool]]:
     """A pen as a digest spells it."""
-    whole = asdict(pen)
-    if any(whole[name] for name in SPELLED_WHEN_ON):
-        return list(whole.values())
-    return [v for name, v in whole.items() if name not in SPELLED_WHEN_ON]
+    named = {
+        f.name: getattr(pen, f.name)
+        for f in fields(pen)
+        if f.name not in POSITIONAL and getattr(pen, f.name) != f.default
+    }
+    return [getattr(pen, name) for name in POSITIONAL] + (
+        [named] if named else []
+    )
 
 
 def digest(

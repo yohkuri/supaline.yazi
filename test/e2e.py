@@ -839,10 +839,8 @@ def check_attributes(k: Checks, capture: str, init: str) -> None:
     if not words:
         k.fail("c_attrs: the fixture's init.lua has no `c_attrs` words to read")
         return
-    drew = sum(
-        1
-        for cells in sc.current_cells(capture)
-        if "".join(ch for ch, _ in cells).strip()
+    drew = sc.drawn(
+        ["".join(ch for ch, _ in cells) for cells in sc.current_cells(capture)]
     )
     rows = sc.word_pens(capture, words)
     k.verdict(

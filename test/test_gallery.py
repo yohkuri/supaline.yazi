@@ -188,6 +188,14 @@ class Posted(unittest.TestCase):
 
 
 class Approved(unittest.TestCase):
+    def test_a_field_past_the_first_six_is_spelled_by_name_when_on(self):
+        # So a field `Pen` gains changes no digest of a pane that never drew it.
+        self.assertEqual(
+            gallery.spelled(sc.Pen(fg="p1")),
+            ["p1", "", False, False, False, False],
+        )
+        self.assertEqual(gallery.spelled(sc.Pen(dim=True))[-1], {"dim": True})
+
     def test_a_digest_moves_with_a_cell_a_pen_a_ground_or_the_question(self):
         drawn = cells("\x1b[31mab\x1b[0mc")
         said = gallery.digest(drawn, GROUNDS, "right?")
