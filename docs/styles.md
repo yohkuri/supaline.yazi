@@ -1,8 +1,9 @@
-# Colours
+# Styles
 
-A column draws in one colour, or on a gradient across the values in the folder,
-and may be bold, or on a background, beside either. All of it is one key,
-`style`, written the same way in the spec and in your theme.
+A column's style is its colour — flat, or on a gradient across the values in
+the folder — and its attributes: bold, italic, underline and the rest a
+terminal draws, with a background beside them. All of it is one key, `style`,
+written the same way in the spec and in your theme.
 
 ## `style`
 

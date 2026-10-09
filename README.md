@@ -14,8 +14,9 @@ lets one linemode show all of them.
 
 - **Columns side by side** — size, timestamps, permissions, owner and more,
   in the order you list them.
-- **Colour** — one colour per column, or a gradient from the smallest value in
-  the folder to the largest. Set it in `init.lua` or in your `theme.toml`.
+- **Styles** — colour, bold, italic, underline and the rest, per column. A
+  colour can be a gradient from the smallest value in the folder to the
+  largest. Set it in `init.lua` or in your `theme.toml`.
 - **Columns of your own** — a few lines of Lua. Built-in columns use the same
   interface, with nothing held back.
 - **Different columns per pane** — the parent and preview panes can show
@@ -86,12 +87,13 @@ detail = {
 }
 ```
 
-## Colours
+## Styles
 
 ```lua
 detail = {
   { "size",  style = "#0b3d91 -> #7fd4ff" },             -- a gradient
-  { "mtime", style = { fg = "green", bold = true } },    -- one colour
+  { "mtime", style = { fg = "green", italic = true } },  -- a colour, in italics
+  { "owner", style = { bold = true } },                  -- bold, nothing else
 }
 ```
 
@@ -101,12 +103,16 @@ Or in your theme, so a flavor can ship them:
 # ~/.config/yazi/theme.toml
 [supaline]
 size  = "#0b3d91 -> #7fd4ff"
-mtime = { fg = "green", bold = true }
+mtime = { fg = "green", italic = true }
 ```
+
+A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
+`blink`, `blink_rapid`, `reversed`, `hidden` and `crossed`, spelled the same in
+both files.
 
 A gradient runs from the smallest value in the folder being shown to the
 largest, so the biggest file there always lands on the last colour.
-[Colours](docs/colours.md) also covers spreading a single colour across a
+[Styles](docs/styles.md) also covers spreading a single colour across a
 lightness range, and separators.
 
 ## Your own column
@@ -132,8 +138,8 @@ and options of your own.
 
 - [Configuration](docs/configuration.md) — every option, per-pane columns,
   toggling, the built-in columns in detail, and using it alongside git.yazi
-- [Colours](docs/colours.md) — styles, gradients, lightness ranges and the
-  theme
+- [Styles](docs/styles.md) — colours, attributes, gradients, lightness
+  ranges and the theme
 - [Writing a column](docs/columns.md) — the column interface
 
 ## Contributing

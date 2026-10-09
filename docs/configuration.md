@@ -1,7 +1,7 @@
 # Configuration
 
 Everything supaline reads, in the order you are likely to need it. The
-[README](../README.md) has the short version; [Colours](colours.md) and
+[README](../README.md) has the short version; [Styles](styles.md) and
 [Writing a column](columns.md) have the rest.
 
 ## `setup` options
@@ -9,9 +9,9 @@ Everything supaline reads, in the order you are likely to need it. The
 | Option      | Default     | Meaning                                              |
 | ----------- | ----------- | ---------------------------------------------------- |
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
-| `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](colours.md#a-coloured-separator). |
-| `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](colours.md#scale). |
-| `lightness` | —           | The lightness ranges a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no range behind it is refused; see [`lightness`](colours.md#lightness). |
+| `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](styles.md#a-coloured-separator). |
+| `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](styles.md#scale). |
+| `lightness` | —           | The lightness ranges a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no range behind it is refused; see [`lightness`](styles.md#lightness). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children, as a whole number. |
 | `toggles`   | —           | Another plugin's `Linemode` child by name, as the `order` it sits at, for a key to hide; see [Toggling from a key](#toggling-from-a-key). |
 
@@ -227,9 +227,9 @@ and a definition that names itself alike.
 | `max_width` | `nil`        | Caps the column's width, however it was derived. A whole number of cells, 1 or more. |
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
-| `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Colours](colours.md). |
-| `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](colours.md#scale).             |
-| `separator` | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](colours.md#a-coloured-separator). |
+| `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Styles](styles.md). |
+| `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](styles.md#scale).             |
+| `separator` | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](styles.md#a-coloured-separator). |
 | `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Options of its own](columns.md#options-of-its-own). |
 | `validate`  | `nil`        | The definition's alone: a check per declared option, `function(value)`, run by `column` and `setup` on each value of it written. See [Options of its own](columns.md#options-of-its-own). |
 
@@ -295,7 +295,7 @@ over them has none, because a colour written for the column would have turned
 the per-character painting off in the first place. What it cannot do is take
 one of those `[status]` colours *away*: `style = { bg = false }` is a
 background this column does not write rather than one it removes, for the
-reason [`style`](colours.md#style) gives.
+reason [`style`](styles.md#style) gives.
 
 `user` and `group` are the two halves of `owner`, each drawn on its own, for a
 listing where only one of them is worth the cells. Eight cells is the
