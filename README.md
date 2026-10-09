@@ -1,16 +1,14 @@
 # supaline.yazi
 
-A [Yazi](https://github.com/sxyazi/yazi) plugin that turns the linemode into
-as many columns as you like — in any order, at any width, and in colour.
+[Yazi](https://github.com/sxyazi/yazi) shows one linemode at a time — size, or
+mtime, or permissions. supaline is a plugin that turns it into as many columns
+as you like, in any order, at any width, each styled its own way.
 
 ```text
  deep                             drwxr-xr-x octocat:wheel      1 08/27 23:52
  inner-a.txt                      -rw-r--r-- octocat:wheel     1B 12/25  2023
  inner-b.bin                      -rw-r--r-- octocat:wheel   300K 08/27 23:52
 ```
-
-Yazi shows one linemode at a time: size, or mtime, or permissions. supaline
-lets one linemode show all of them.
 
 - **Columns side by side** — size, timestamps, permissions, owner and more,
   in the order you list them.
@@ -21,8 +19,6 @@ lets one linemode show all of them.
   built-in columns use.
 - **Different columns per pane** — the parent and preview panes can show
   columns too.
-- **Typos are caught** — a misspelled option in `init.lua` is refused with
-  where you wrote it, rather than quietly ignored.
 
 ## Requirements
 
