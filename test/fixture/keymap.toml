@@ -2,15 +2,27 @@
 #
 # Only the keys that name no state are written here: `T`, which reloads
 # whatever `theme.toml` holds and is what `e2e.py` presses after rewriting that
-# file in place, and the walk's. Every folder, case and theme has a key too,
-# and those are in `cases.toml`, which `setup.py` turns into bindings appended
-# to this file as it is copied -- a case's key, its folder and its linemode are
-# then written in one place rather than two.
+# file in place, the two `toggle`s, and the walk's. Every folder, case and
+# theme has a key too, and those are in `cases.toml`, which `setup.py` turns
+# into bindings appended to this file as it is copied -- a case's key, its
+# folder and its linemode are then written in one place rather than two.
 
 [[mgr.prepend_keymap]]
 on   = "T"
 run  = "app:theme"
 desc = "Reload the theme"
+
+# `toggle`, read against `m t`'s case: each turns what is on the screen over
+# rather than putting Yazi in a state, so a second press undoes the first.
+[[mgr.prepend_keymap]]
+on   = [ "m", "h" ]
+run  = "plugin supaline -- toggle sign"
+desc = "supaline: hide the sign, or show it again"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "x" ]
+run  = "plugin supaline -- toggle switch"
+desc = "supaline: switch to none, or back"
 
 # The walk through `walk.toml`, under a leader Yazi binds nothing to. Not
 # states either: each moves through the list, or records what the reader said

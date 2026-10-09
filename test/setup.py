@@ -592,6 +592,13 @@ def broken_columns(init: str) -> list[str]:
     return re.findall(r'^supaline\.column\("(torn_[a-z]*)"', init, re.MULTILINE)
 
 
+def sign(init: str) -> str:
+    """The glyph `init.lua` draws as another plugin's child, for `toggle` to
+    hide, or empty when no `local SIGN` spells one."""
+    found = re.search(r'^local SIGN = "([^"\\\s]+)"$', init, re.MULTILINE)
+    return found.group(1) if found else ""
+
+
 #: The fixture's case list, which `cases` reads.
 CASES = FIXTURE / "cases.toml"
 

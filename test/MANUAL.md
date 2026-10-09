@@ -114,11 +114,14 @@ comparing against.
 | `m 8` | `pane_prev`  | `current` + `preview`, one list between them      |
 | `m 9` | `custom`     | A registered user column, and an inline one       |
 | `m e` | `pane_each`  | A column set per pane                             |
+| `m t` | `switch`     | One column, and another plugin's sign after it    |
+| `m h` | —            | `toggle sign`: hide the sign, or show it again    |
+| `m x` | —            | `toggle switch`: to `none`, or back               |
 | `m s` | —            | Yazi's own size linemode                          |
 | `m n` | —            | Yazi's own "none"                                 |
 | `T`   | —            | Reload the theme                                  |
 
-Every key here but Yazi's own and `T` is a case in `test/fixture/cases.toml`,
+Every key here but Yazi's own, `T`, `m h` and `m x` is a case in `test/fixture/cases.toml`,
 which is where its folder and linemode are written down. A case's key takes
 you to the folder it is read in, hovers the row it names if it names one,
 switches the linemode, and has the preview pane peek again — the whole state,
@@ -333,6 +336,26 @@ the moment the key lands.
 - The clipped column shows no ellipsis, and `never-opened` becomes `never-op`.
 - All three go through the same interface the built-ins use. If a user column
   behaves differently from a built-in one, that is the bug.
+
+### `m t` — toggling
+
+```text
+ huge.bin           87.9M @
+ tiny.txt              1B @
+```
+
+- The `@` is a stand-in for git.yazi's sign: a child the fixture adds to
+  `Linemode` at 1500, which draws under `switch` and nowhere else. No other
+  case shows it.
+- `m h` hides it and leaves the size where it was; a second `m h` puts it back
+  on every row. The rows lose nothing else, because the child is still among
+  `Linemode`'s children and only what it draws is swapped.
+- `m x` switches to `none`, which takes the size and the sign with it, and a
+  second `m x` switches back to `switch`. From any other linemode it switches
+  to `switch` rather than to `none`: only the linemode it names is turned off.
+- Neither key moves the folder or the hover. `m h` acts on every tab at once
+  and lasts until pressed again, so pressed under another case it hides a sign
+  nobody can see, and `m t` then draws none until a second `m h`.
 
 ## Colour
 

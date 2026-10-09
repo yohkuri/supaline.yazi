@@ -580,6 +580,19 @@ def drawn(rows: list[str]) -> int:
     return sum(1 for row in rows if row.strip(" "))
 
 
+def signed(rows: list[str], sign: str) -> int:
+    """Rows of one pane ending in `sign`, the child `toggle` hides.
+
+    Read the way `marked` reads its marker, at the end of the row behind a
+    space, because that is where a child at 1500 lands: after the linemode's
+    columns, and before only the padding Yazi draws at 2000 -- a space, or a
+    powerline glyph on the hovered row. So a name that held the glyph would
+    not be counted.
+    """
+    tail = re.compile(rf" {re.escape(sign)}[^A-Za-z0-9]*$")
+    return sum(1 for row in rows if tail.search(row))
+
+
 # --- every cell, for the gallery ---------------------------------------------
 
 

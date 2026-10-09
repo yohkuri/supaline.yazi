@@ -276,6 +276,30 @@ class Markers(unittest.TestCase):
         self.assertEqual(sc.drawn(sc.current_of(shot)), 1)
 
 
+class Signs(unittest.TestCase):
+    """The sign `m h` hides, read at the end of a row like a marker."""
+
+    def test_a_row_is_signed_when_it_ends_in_the_sign(self):
+        # The hovered row carries a powerline glyph after it, the others a
+        # space.
+        shot = capture(
+            row(current="huge.bin   87.9M @ "),
+            row(current="tiny.txt      1B @"),
+            row(current="nested         1"),
+        )
+        self.assertEqual(sc.signed(sc.current_of(shot), "@"), 2)
+
+    def test_a_name_holding_the_glyph_is_not_a_sign(self):
+        shot = capture(row(current="a @b.txt      1B"))
+        self.assertEqual(sc.signed(sc.current_of(shot), "@"), 0)
+
+    def test_the_glyph_is_matched_literally(self):
+        # A sign is the fixture's to choose, and one that is a pattern's
+        # metacharacter would otherwise match any row ending in anything.
+        shot = capture(row(current="tiny.txt      1B x"))
+        self.assertEqual(sc.signed(sc.current_of(shot), "."), 0)
+
+
 class Owners(unittest.TestCase):
     """m2's three name columns, read off one row rather than grepped for."""
 
@@ -537,6 +561,12 @@ class TheFixtureItReads(unittest.TestCase):
         # The quietest empty answer: a run that found no broken column presses
         # no `b` key and reads a log it expected to be empty.
         self.assertTrue(fixture.broken_columns(self.init))
+
+    def test_the_sign_toggle_hides_is_found_by_name(self):
+        # `e2e.py` counts the rows carrying the sign, and an empty one is
+        # carried by every row: the run would fail on the reader and read as
+        # a `toggle` that hid nothing.
+        self.assertTrue(fixture.sign(self.init))
 
     def test_the_theme_is_a_flat_colour_and_a_ramp_under_the_names_read(self):
         # `clean_run` rewrites the theme by replacing what this answers, and
