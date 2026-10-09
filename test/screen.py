@@ -550,8 +550,9 @@ def bold_over_ramp(capture: str) -> int:
     return sum(1 for field in current_fields(capture) if dated.search(field))
 
 
-def marked(rows: list[str]) -> int:
-    """Rows of one pane ending in the trio's one column: a `d` or an `f`.
+def marked(rows: list[str], marks: tuple[str, ...] = ("d", "f")) -> int:
+    """Rows of one pane ending in one of `marks` -- by default the trio's one
+    column, a `d` or an `f`. Each is matched literally.
 
     Given a pane's rows rather than the capture, because the claim is the same
     in all three and the trio exists to ask it of each -- `pane_cur` of the
@@ -568,7 +569,9 @@ def marked(rows: list[str]) -> int:
     counts every row the stricter `[df]$` counted in the preview pane, and the
     five parent rows it read as unmarked.
     """
-    return sum(1 for row in rows if re.search(r" [df][^A-Za-z0-9]*$", row))
+    either = "|".join(re.escape(mark) for mark in marks)
+    tail = re.compile(rf" (?:{either})[^A-Za-z0-9]*$")
+    return sum(1 for row in rows if tail.search(row))
 
 
 def drawn(rows: list[str]) -> int:
@@ -583,14 +586,12 @@ def drawn(rows: list[str]) -> int:
 def signed(rows: list[str], sign: str) -> int:
     """Rows of one pane ending in `sign`, the child `toggle` hides.
 
-    Read the way `marked` reads its marker, at the end of the row behind a
-    space, because that is where a child at 1500 lands: after the linemode's
-    columns, and before only the padding Yazi draws at 2000 -- a space, or a
-    powerline glyph on the hovered row. So a name that held the glyph would
-    not be counted.
+    `marked`'s reading, because a child at 1500 lands where the marker does:
+    after the linemode's columns, and before only the padding Yazi draws at
+    2000 -- a space, or a powerline glyph on the hovered row. So a name that
+    held the glyph would not be counted.
     """
-    tail = re.compile(rf" {re.escape(sign)}[^A-Za-z0-9]*$")
-    return sum(1 for row in rows if tail.search(row))
+    return marked(rows, (sign,))
 
 
 # --- every cell, for the gallery ---------------------------------------------

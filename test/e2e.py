@@ -30,6 +30,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -110,13 +111,6 @@ def clean_run(r: Run, init: str) -> None:
     # of them is under `switch`. `m h` and `m x` name no folder, so each press
     # waits on what it turns over: the sign, or the sign and the column.
     sign = fixture.sign(init)
-
-    def signs(s: str) -> int:
-        return sc.signed(sc.current_of(s), sign)
-
-    def column(s: str) -> bool:
-        return SWITCH_CELL in "\n".join(sc.current_of(s))
-
     r.show(r.listing.cases["switch"])
     r.shot("toggle-before")
     for label, keys, want, drawn in (
@@ -132,7 +126,7 @@ def clean_run(r: Run, init: str) -> None:
     ):
         r.session.press(
             *keys,
-            until=lambda s, d=drawn: (signs(s) > 0, column(s)) == d,
+            until=lambda s, d=drawn: toggled(s, sign).drawn == d,
             what=want,
         )
         r.shot(label)
@@ -424,6 +418,27 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
 SWITCH_CELL = "87.9M"
 
 
+class Toggled(NamedTuple):
+    """What `m t`'s case has on screen, read once from a capture: the current
+    pane's rows, how many carry the sign, and whether the column is there."""
+
+    rows: list[str]
+    signs: int
+    column: bool
+
+    @property
+    def drawn(self) -> tuple[bool, bool]:
+        """Whether the sign and the column are drawn, which a press waits on."""
+        return self.signs > 0, self.column
+
+
+def toggled(capture: str, sign: str) -> Toggled:
+    """Read a capture for what `toggle` turns over: the wait after each press
+    and the checks after the run ask the same question of it."""
+    rows = sc.current_of(capture)
+    return Toggled(rows, sc.signed(rows, sign), SWITCH_CELL in "\n".join(rows))
+
+
 def check_toggle(
     k: Checks, shots: dict[str, str], listing: fixture.Cases, init: str
 ) -> None:
@@ -435,21 +450,19 @@ def check_toggle(
     """
     k.section("toggle")
     sign = fixture.sign(init)
-
-    def signs(shot: str) -> int:
-        return sc.signed(sc.current_of(shots[shot]), sign)
-
-    def column(shot: str) -> bool:
-        return SWITCH_CELL in "\n".join(sc.current_of(shots[shot]))
+    before, hidden, shown, off, back = (
+        toggled(shots[f"toggle-{label}"], sign)
+        for label in ("before", "hidden", "shown", "none", "back")
+    )
 
     # Every row, which `drawn` counts, so a sign drawn on none of them is a
     # failure rather than a count of zero agreeing with itself.
-    rows = sc.drawn(sc.current_of(shots["toggle-before"]))
+    rows = sc.drawn(before.rows)
     k.verdict(
         f"switch: every current-pane row carries the sign ({rows} rows)",
         rows == 0 and "switch: the current pane drew no rows",
-        signs("toggle-before") != rows
-        and f"switch: {signs('toggle-before')} of {rows} rows carry the sign",
+        before.signs != rows
+        and f"switch: {before.signs} of {rows} rows carry the sign",
     )
     others = [
         c.id
@@ -463,24 +476,16 @@ def check_toggle(
 
     k.verdict(
         "m h hides the sign and leaves the column",
-        signs("toggle-hidden") > 0 and "m h: the sign is still drawn",
-        not column("toggle-hidden") and "m h: the column went with the sign",
+        hidden.signs > 0 and "m h: the sign is still drawn",
+        not hidden.column and "m h: the column went with the sign",
     )
-    k.same(
-        sc.current_of(shots["toggle-shown"]),
-        sc.current_of(shots["toggle-before"]),
-        "m h again shows the sign where it was",
-    )
+    k.same(shown.rows, before.rows, "m h again shows the sign where it was")
     k.verdict(
         "m x switches the linemode to none, sign and all",
-        signs("toggle-none") > 0 and "m x: the sign is still drawn",
-        column("toggle-none") and "m x: the column is still drawn",
+        off.signs > 0 and "m x: the sign is still drawn",
+        off.column and "m x: the column is still drawn",
     )
-    k.same(
-        sc.current_of(shots["toggle-back"]),
-        sc.current_of(shots["toggle-before"]),
-        "m x again switches back to `switch`",
-    )
+    k.same(back.rows, before.rows, "m x again switches back to `switch`")
 
 
 def check_owner(k: Checks, capture: str) -> None:
