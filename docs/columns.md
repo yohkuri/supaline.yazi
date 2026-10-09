@@ -41,7 +41,7 @@ the old one.
 | `ctx.stats`       | Whatever `stats(files)` returned for the folder being drawn. |
 | `ctx.width`       | The width this cell is laid out in, `max_width` already applied, or `nil` for a column that states none. |
 | `ctx.opts`        | The options this column declared in `options`, taken from the spec and falling back to the definition. Nothing else the spec carries. |
-| `ctx.fg_written`  | Whether any of the three writers put an `fg` there, `false` included. Only a column that paints its own characters needs it; see [How the three combine](colours.md#how-the-three-combine). |
+| `ctx.fg_written`  | Whether any of the three writers put an `fg` there, `false` included. Only a column that paints its own characters needs it; see [How the three combine](styles.md#how-the-three-combine). |
 
 `render` may return one renderable, or a value and a style. Returning
 `text, style` skips building an intermediate line, and is what the built-in
