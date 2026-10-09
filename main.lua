@@ -37,12 +37,14 @@ end
 
 local active ---@type supaline.Session?
 
+local function nothing_installed() return { prev = {}, child = nil, hidden = setmetatable({}, { __mode = "k" }) } end
+
 -- What supaline has put on `Linemode`: each linemode it installed, with what
 -- that name held before, the child it added, and what each child of another
 -- plugin's that a `toggle` hid drew before -- weakly, so a child its plugin
 -- has taken out is let go rather than kept until the next `setup`.
 ---@type { prev: { name: string, was: any }[], child: any?, hidden: table<supaline.LinemodeChild, function> }
-local installed = { prev = {}, child = nil, hidden = setmetatable({}, { __mode = "k" }) }
+local installed = nothing_installed()
 
 -- Yazi keeps the component's machinery on the table linemodes are looked up
 -- on, so a linemode named after any of it replaces it -- `new` takes out the
@@ -130,7 +132,7 @@ local function uninstall()
 	for c, draw in pairs(installed.hidden) do
 		unhide(c, draw)
 	end
-	installed = { prev = {}, child = nil, hidden = setmetatable({}, { __mode = "k" }) }
+	installed = nothing_installed()
 end
 
 --- The parent- and preview-pane child, drawing with `current`. Yazi calls a
