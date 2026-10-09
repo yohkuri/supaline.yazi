@@ -410,7 +410,7 @@ leaves your scroll and your hover alone. So two that share a folder, pressed one
 after the other, differ in exactly one thing, which is what makes them worth
 putting side by side — and five of them share `g 3`.
 
-Only `c t` reads the theme. The other seven write their styles in the spec,
+Only `c t` reads the theme. The other eight write their styles in the spec,
 where a style written wins over `[supaline]`'s, so they hold still while
 `c 1` to `c 3` swap the file underneath them.
 

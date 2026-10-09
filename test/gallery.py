@@ -289,6 +289,12 @@ def css(pen: sc.Pen) -> str:
     fg, bg = colour(pen.fg, "var(--fg)"), colour(pen.bg, "var(--bg)")
     if pen.reverse:
         fg, bg = bg, fg
+    # A terminal dims the foreground and nothing else, so the ground and any
+    # line under the text keep their own strength.
+    if pen.dim:
+        fg = f"color-mix(in srgb,{fg} 50%,{bg})"
+    if pen.hidden:
+        fg = "transparent"
     # A tile is one moment of the screen, so a blink is drawn as it stands
     # rather than animated.
     lines = [
@@ -307,8 +313,6 @@ def css(pen: sc.Pen) -> str:
             ("font-weight:bold", pen.bold),
             ("font-style:italic", pen.italic),
             (f"text-decoration:{' '.join(lines)}", lines),
-            ("opacity:.5", pen.dim),
-            ("color:transparent", pen.hidden),
         )
         if wanted
     )

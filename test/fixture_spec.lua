@@ -247,8 +247,10 @@ test("fixture: `c_attrs` draws every attribute a style table takes, each by its 
 
 	local drawn = {}
 	for i, spec in ipairs(specs) do
-		local key, value = next(spec.style)
 		local where = "c_attrs[" .. i .. "]"
+		eq(spec[1], "word", where .. ": the column")
+		assert(type(spec.style) == "table", where .. ": a style table, which `e2e.py` reads the attribute out of")
+		local key, value = next(spec.style)
 		eq(key, spec.word, where .. ": the style's only key")
 		eq(value, true, where .. ": `" .. spec.word .. "` switched on")
 		eq(next(spec.style, key), nil, where .. ": no second style key")

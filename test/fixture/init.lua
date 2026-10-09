@@ -432,18 +432,18 @@ supaline:setup {
 		-- `toggle switch`.
 		switch = { "size" },
 
-		-- The colour cases, `c r` to `c t`. Each is meant to be read in one of
+		-- The style cases, `c r` to `c t`. Most are meant to be read in one of
 		-- the folders under `colour/`, because the spread of values in the
 		-- folder being drawn is what decides which part of a ramp reaches the
 		-- screen; `cases.toml` says which goes with which, and each key goes
 		-- there.
 		--
-		-- Five of the six write their colours here rather than taking them
-		-- from the theme, and that is the point: a colour written in the spec
+		-- All but `c_theme` write their styles here rather than taking them
+		-- from the theme, and that is the point: a style written in the spec
 		-- wins over `[supaline]`'s, so these hold still while `c 1` to `c 3`
-		-- swap the theme underneath them. `c_theme` colours nothing in the spec
-		-- and is the one that moves. Two code paths, told apart by pressing a
-		-- key.
+		-- swap the theme underneath them. `c_theme` styles nothing in the spec
+		-- but its bold and is the one that moves. Two code paths, told apart by
+		-- pressing a key.
 
 		-- c r, in `colour/ramp`: one row per ramp step. Both columns carry the
 		-- same ramp, so the number and the date are drawn in the same step and
