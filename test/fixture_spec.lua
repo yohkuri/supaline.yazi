@@ -247,12 +247,11 @@ test("fixture: `c_attrs` draws every attribute a style table takes, each by its 
 
 	local drawn = {}
 	for i, spec in ipairs(specs) do
-		local keys = {}
-		for k in pairs(spec.style) do
-			keys[#keys + 1] = k
-		end
-		eq(#keys == 1 and keys[1] or table.concat(keys, ", "), spec.word, "c_attrs[" .. i .. "]: the style's only key")
-		eq(spec.style[spec.word], true, "c_attrs[" .. i .. "]: `" .. spec.word .. "` switched on")
+		local key, value = next(spec.style)
+		local where = "c_attrs[" .. i .. "]"
+		eq(key, spec.word, where .. ": the style's only key")
+		eq(value, true, where .. ": `" .. spec.word .. "` switched on")
+		eq(next(spec.style, key), nil, where .. ": no second style key")
 		drawn[spec.word] = true
 	end
 	eq(missing_from(taken, drawn), "", "taken by style.lua and drawn by no column of `c_attrs`")
