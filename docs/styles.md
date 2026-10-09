@@ -43,6 +43,19 @@ absent, on, and off — and off strips a `bold` the row beneath already carries.
 Write only the keys you mean. Every other key is left to whoever else wrote
 one, which [How the three combine](#how-the-three-combine) is about.
 
+Whether an attribute shows is the terminal's to decide. Yazi passes every one
+of the nine on — measured on 26.9.1 — but not every terminal draws `blink` or
+`hidden`, and whatever sits between Yazi and the terminal, a multiplexer for
+one, can drop an attribute the terminal itself would draw. Run this in the
+same pane to tell which:
+
+```sh
+printf 'A \e[8mhidden\e[0m B \e[5mblink\e[0m C\n'
+```
+
+If `hidden` stays visible or `blink` holds still there too, no style will
+change it.
+
 The asymmetry between the two is the platform's rather than a choice.
 `ui.Style` carries a removal flag for every attribute and nothing of the kind
 for either colour — `fg` and `bg` are set or they are absent — so `false` on a
