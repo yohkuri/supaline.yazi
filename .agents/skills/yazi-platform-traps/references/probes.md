@@ -80,8 +80,11 @@ timing is the same:
 The captured one never moves: a spec is re-read on each `theme` event and never
 evaluated again. Two things the run cost an hour to learn and neither is
 supaline's: a flavor is found under `YAZI_CONFIG_HOME/flavors`, so a probe
-config that does not carry one silently has no flavor at all and no unasked
-`theme` event either; and `[status] perm_read = "#ff00ff"` is refused as
+config that names one it does not carry silently has no flavor at all and no
+unasked `theme` event either, where one naming no flavor, or with no
+`theme.toml`, still gets the event, holding the preset's values -- measured
+later, on 26.9.1, by `ya.dbg` in a `theme` handler; and
+`[status] perm_read = "#ff00ff"` is refused as
 `expected struct StyleFlat` -- a theme field wants `{ fg = "..." }`.
 
 The probe reads the field back through supaline rather than out of `th`,
@@ -141,13 +144,26 @@ field twice — once in `init.lua`, once inside a `theme` handler:
 
 Three things fall out of it.
 
-**A flavor can supply a gradient endpoint.** It writes every colour as
-`#rrggbb`, so `raw().fg` off one is a value `paint.stops` would take. Yazi's
-own preset does not: `Yellow` is a name, and a name cannot anchor a ramp. So a
-gradient anchored on a colour a function returned would refuse a flavorless
-user's, and refuse it from inside a `theme` handler rather than while `setup`
-ran — which is the part to design before the part that works. `paint.lua`
-does not do it yet.
+**A flavor could supply a gradient endpoint, and supaline does not take
+one.** A flavor writes every colour as `#rrggbb`, so `raw().fg` off one is a
+value `paint.stops` would take. Yazi's own preset writes every style as a name
+-- its 725 hex values at v26.9.1 are all under `[icon]`, read off
+`yazi-config/preset/theme-dark.toml` -- and a name cannot anchor a ramp. A
+`style` function returning `th.status.perm_read:raw().fg .. " <->"` is refused
+by `setup` as "`Yellow` cannot be a gradient endpoint", with catppuccin-mocha
+installed exactly as without it, because `setup` resolves before the flavor
+lands. Measured on 26.9.1 the same way as the table above.
+
+Taking one would mean holding that refusal back until the first `theme`
+event, which does reach a flavorless user -- the section above has when it
+fires. It is not done because it buys little. A lightness range fixes both
+ends' lightness, so the theme would supply only a hue and a chroma, in which
+two flavors' yellows barely differ once spread. The switch a theme most often
+follows, dark to light, wants the range reversed, which no endpoint can do. A
+flat colour already follows the theme through a function, and a gradient's
+one hex is written once, in `setup` or under `[supaline]`. What it would cost
+is an exception to `setup` refusing what it can, and a column left uncoloured
+without a word for a user who names a flavor that is not installed.
 
 **The flavor timing is measured a second way here.** The two columns disagree
 for exactly the fields a flavor supplies, which is what the section above
