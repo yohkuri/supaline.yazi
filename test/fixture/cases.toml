@@ -93,7 +93,7 @@ desc     = "supaline: go to the folder that breaks a `refresh`"
 #
 # The order climbs: `m 0` to `m 2` are the built-in columns at increasing
 # richness, `m 3` to `m 5` the layout decisions, `m 6` to `m 8` and `m e` the
-# panes, and `m 9` extensibility.
+# panes, `m 9` extensibility, and `m t` the state the toggles act on.
 
 [[case]]
 id       = "plain"
@@ -189,6 +189,15 @@ folder   = "data"
 hover    = "nested"
 linemode = "pane_each"
 desc     = "supaline: a column set per pane"
+
+# The state `m h` and `m x` in `keymap.toml` act on. Neither names a state of
+# its own, so they are bound there rather than here.
+[[case]]
+id       = "switch"
+key      = "m t"
+folder   = "data"
+linemode = "switch"
+desc     = "supaline: a column and another plugin's sign, to toggle"
 
 # --- colour -----------------------------------------------------------------
 # `c` is Yazi's own leader as well. The four letters it takes -- `c c`, `c d`,

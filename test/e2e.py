@@ -92,7 +92,7 @@ class Run(Driver):
         fixture.main(["--clean", str(self.dir)])
 
 
-def clean_run(r: Run) -> None:
+def clean_run(r: Run, init: str) -> None:
     """The run that is meant to log nothing, and every capture read below."""
     r.open_yazi("state")
 
@@ -104,6 +104,38 @@ def clean_run(r: Run) -> None:
     for case in r.listing.clean:
         r.show(case)
         r.shot(case.id)
+
+    # `toggle`, on `m t`'s case, after every case is captured so each of those
+    # is held to drawing no sign, and before the theme's captures, since none
+    # of them is under `switch`. `m h` and `m x` name no folder, so each press
+    # waits on what it turns over: the sign, or the sign and the column.
+    sign = fixture.sign(init)
+
+    def signs(s: str) -> int:
+        return sc.signed(sc.current_of(s), sign)
+
+    def column(s: str) -> bool:
+        return SWITCH_CELL in "\n".join(sc.current_of(s))
+
+    r.show(r.listing.cases["switch"])
+    r.shot("toggle-before")
+    for label, keys, want, drawn in (
+        ("toggle-hidden", ("m", "h"), "the sign hidden", (False, True)),
+        ("toggle-shown", ("m", "h"), "the sign shown again", (True, True)),
+        (
+            "toggle-none",
+            ("m", "x"),
+            "the linemode switched off",
+            (False, False),
+        ),
+        ("toggle-back", ("m", "x"), "the linemode back on", (True, True)),
+    ):
+        r.session.press(
+            *keys,
+            until=lambda s, d=drawn: (signs(s) > 0, column(s)) == d,
+            what=want,
+        )
+        r.shot(label)
 
     # Late, because it rewrites the theme every capture above was taken under,
     # and on `default` so a `size` and an `mtime` column are both there to
@@ -384,6 +416,70 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
         shots["custom"],
         "never-op ",
         "custom: a clipped cell carries no ellipsis",
+    )
+
+
+#: A cell `switch`'s one column draws in `data/`: `huge.bin`'s size, which
+#: `m x` takes off the screen with the linemode and `m h` leaves where it is.
+SWITCH_CELL = "87.9M"
+
+
+def check_toggle(
+    k: Checks, shots: dict[str, str], listing: fixture.Cases, init: str
+) -> None:
+    """`toggle` hides another plugin's child, and switches a linemode off.
+
+    The sign is a child the fixture adds at 1500, drawn under `switch` alone,
+    so what this asks first is that no other case drew it: that is what keeps
+    the stand-in from moving any capture but its own.
+    """
+    k.section("toggle")
+    sign = fixture.sign(init)
+
+    def signs(shot: str) -> int:
+        return sc.signed(sc.current_of(shots[shot]), sign)
+
+    def column(shot: str) -> bool:
+        return SWITCH_CELL in "\n".join(sc.current_of(shots[shot]))
+
+    # Every row, which `drawn` counts, so a sign drawn on none of them is a
+    # failure rather than a count of zero agreeing with itself.
+    rows = sc.drawn(sc.current_of(shots["toggle-before"]))
+    k.verdict(
+        f"switch: every current-pane row carries the sign ({rows} rows)",
+        rows == 0 and "switch: the current pane drew no rows",
+        signs("toggle-before") != rows
+        and f"switch: {signs('toggle-before')} of {rows} rows carry the sign",
+    )
+    others = [
+        c.id
+        for c in listing.clean
+        if c.id != "switch" and lines_with(shots[c.id], f" {sign}")
+    ]
+    k.verdict(
+        "no other case draws the sign",
+        others and f"{', '.join(others)}: the sign is drawn outside `switch`",
+    )
+
+    k.verdict(
+        "m h hides the sign and leaves the column",
+        signs("toggle-hidden") > 0 and "m h: the sign is still drawn",
+        not column("toggle-hidden") and "m h: the column went with the sign",
+    )
+    k.same(
+        sc.current_of(shots["toggle-shown"]),
+        sc.current_of(shots["toggle-before"]),
+        "m h again shows the sign where it was",
+    )
+    k.verdict(
+        "m x switches the linemode to none, sign and all",
+        signs("toggle-none") > 0 and "m x: the sign is still drawn",
+        column("toggle-none") and "m x: the column is still drawn",
+    )
+    k.same(
+        sc.current_of(shots["toggle-back"]),
+        sc.current_of(shots["toggle-before"]),
+        "m x again switches back to `switch`",
     )
 
 
@@ -942,7 +1038,7 @@ def main(argv: list[str]) -> int:
         # The fixture as Yazi is about to read it, `@DIR@` filled in, rather
         # than the source under `test/fixture/`.
         init = (r.dir / "config" / "init.lua").read_text()
-        clean_run(r)
+        clean_run(r, init)
         broken_run(r, init)
 
         k = Checks()
@@ -953,6 +1049,7 @@ def main(argv: list[str]) -> int:
         check_rows_present(k, r.shots, r.listing)
         check_columns(k, r.shots)
         check_panes(k, r.shots)
+        check_toggle(k, r.shots, r.listing, init)
         check_ramp(k, r.shots, init, r.dir)
         check_theme(k, r.shots, r.dir)
         check_walk(k, r.shots, r.dir, r.listing, r.steps)

@@ -311,6 +311,21 @@ supaline.column("whole_tick", {
 	render = function(file, ctx) return tostring(whole_ticks), ctx.style end,
 })
 
+-- Another plugin's child, for `toggle` to hide: a sign at 1500, where
+-- git.yazi's `setup` puts its own, and named under `toggles` below. It draws
+-- in the current pane under `switch` alone and is an empty string everywhere
+-- else, so no other case's capture moves for it. `e2e.py` counts the rows
+-- carrying `SIGN`, read off this line by `setup.sign`, so it is a glyph no
+-- name in the fixture holds.
+local SIGN = "@"
+
+Linemode:children_add(function(self)
+	if not self._file.in_current or cx.active.pref.linemode ~= "switch" then
+		return ""
+	end
+	return " " .. SIGN
+end, 1500)
+
 -- One list, handed to two panes below.
 local EDGE = { "mark" }
 
@@ -328,6 +343,9 @@ supaline:setup {
 		fg = { from = 0.40, to = 0.90 },
 		both = { from = 0.40, to = 0.90 },
 	},
+
+	-- The name `m h` hands `toggle` for the sign above.
+	toggles = { sign = 1500 },
 
 	linemodes = {
 		-- m0: one column, so `m s` is a fair comparison.
@@ -394,6 +412,12 @@ supaline:setup {
 			{ "name", width = 8, overflow = "clip" },
 			function(file, ctx) return file.cha.is_dir and "dir" or "file", ctx.style end,
 		},
+
+		-- m t: one column, with the sign drawn after it. `m h` hides the sign
+		-- and shows it again, and `m x` switches this linemode to `none` and
+		-- back. `switch` rather than `toggle`, so the binding reads
+		-- `toggle switch`.
+		switch = { "size" },
 
 		-- The colour cases, `c r` to `c t`. Each is meant to be read in one of
 		-- the folders under `colour/`, because the spread of values in the
