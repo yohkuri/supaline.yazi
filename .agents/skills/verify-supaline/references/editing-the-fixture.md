@@ -25,11 +25,12 @@ reading past it.
 
 `e2e.py` is left out of that comparison on purpose, and needs no place in it for
 its cases: it presses every one `setup.py`'s `cases` reads, by what it is rather
-than by its key. Beyond those it presses `T`, three of the walk's keys, and of
-the themes `alt` alone, by name, because a theme key replaces `theme.toml`
-wholesale and one swap is all a run whose earlier captures were taken against
-that file can afford. Comparing the rest against it would need a list of which
-keys are exempt, and that list would be one more place naming the set.
+than by its key. Beyond those it presses `T`, three of the walk's keys, the two
+`toggle`s, and of the themes `alt` alone, by name, because a theme key replaces
+`theme.toml` wholesale and one swap is all a run whose earlier captures were
+taken against that file can afford. Comparing the rest against it would need a
+list of which keys are exempt, and that list would be one more place naming the
+set.
 
 ## The broken columns, and why they run in a second Yazi
 
