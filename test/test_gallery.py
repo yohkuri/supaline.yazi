@@ -71,13 +71,22 @@ class Styles(unittest.TestCase):
     def test_every_attribute_a_style_takes_is_drawn_or_said_why_not(self):
         # Blink alone is left out: a tile is one moment of the screen.
         self.assertEqual(
-            gallery.css(
-                sc.Pen(underline=True, crossed=True, dim=True, hidden=True)
-            ),
-            "text-decoration:underline line-through;opacity:.5;"
-            "color:transparent",
+            gallery.css(sc.Pen(underline=True, crossed=True)),
+            "text-decoration:underline line-through",
         )
         self.assertEqual(gallery.css(sc.Pen(blink=True)), "")
+        # Hidden is one declaration, whatever colour the text had.
+        self.assertEqual(
+            gallery.css(sc.Pen(fg="p1", hidden=True)), "color:transparent"
+        )
+
+    def test_dim_fades_the_text_toward_its_ground_and_nothing_else(self):
+        # On the hovered row too: the swapped ground stays at full strength.
+        self.assertEqual(
+            gallery.css(sc.Pen(dim=True, reverse=True)),
+            "color:color-mix(in srgb,var(--bg) 50%,var(--fg));"
+            "background:var(--fg)",
+        )
 
     def test_a_light_ground_is_read_in_black_and_a_dark_one_in_white(self):
         self.assertEqual(gallery.foreground("#fdf6e3"), "#000000")

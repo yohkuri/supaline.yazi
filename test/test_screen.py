@@ -922,6 +922,10 @@ class Cells(unittest.TestCase):
         )
 
 
+def worded(text: str, words: list[str]) -> list[sc.WordRow]:
+    return sc.word_pens(sc.current_cells(text), words)
+
+
 class Words(unittest.TestCase):
     """`word_pens`, `misdrawn` and `leaked`, which `c_attrs` is read by."""
 
@@ -930,26 +934,27 @@ class Words(unittest.TestCase):
             row("p", "name \x1b[1mbold\x1b[0m \x1b[3mitalic\x1b[0m ", "x"),
             row(
                 "q",
-                "\x1b[7mname \x1b[1mbold\x1b[0;7m \x1b[3mitalic\x1b[0m",
+                "\x1b[7mname \x1b[1mbold\x1b[0;7m \x1b[3mitalic\x1b[0m\ue0b4",
                 "y",
             ),
         )
-        rows = sc.word_pens(text, ["bold", "italic"])
+        rows = worded(text, ["bold", "italic"])
         plain, hovered = rows
         self.assertEqual(plain.ground, sc.Pen())
         self.assertEqual(plain.words["bold"], {sc.Pen(bold=True)})
-        self.assertEqual(plain.between, {sc.Pen()})
+        self.assertEqual(plain.rest, {sc.Pen()})
         self.assertEqual(hovered.ground, sc.Pen(reverse=True))
         for word in ("bold", "italic"):
             with self.subTest(word=word):
                 self.assertEqual(sc.misdrawn(rows, word), 0)
+        # The hovered row's closing glyph is drawn outside the reverse, which
+        # is a colour of the row's own and not a leak.
         self.assertEqual(sc.leaked(rows), 0)
 
     def test_a_reversed_word_on_the_hovered_row_is_the_row(self):
         text = capture(row("p", "\x1b[7mname reversed\x1b[0m", "x"))
-        self.assertEqual(
-            sc.misdrawn(sc.word_pens(text, ["reversed"]), "reversed"), 0
-        )
+        rows = worded(text, ["reversed"])
+        self.assertEqual(sc.misdrawn(rows, "reversed"), 0)
 
     def test_an_attribute_left_on_is_refused_however_it_spreads(self):
         # Nothing taken off between columns: each word wears every attribute
@@ -960,7 +965,7 @@ class Words(unittest.TestCase):
         drawn = "".join(
             f"\x1b[{p}m{word} " for p, word in zip((1, 2, 3, 8, 9), words)
         )
-        rows = sc.word_pens(capture(row("p", " " + drawn, "x")), words)
+        rows = worded(capture(row("p", " " + drawn, "x")), words)
         self.assertEqual(
             [sc.misdrawn(rows, word) for word in words], [0, 1, 1, 1, 1]
         )
@@ -970,24 +975,44 @@ class Words(unittest.TestCase):
         # Taken off again before the next word, so every word reads right and
         # the separator is the only cell that says so.
         text = capture(row("p", " \x1b[1mbold \x1b[0;2mdim\x1b[0m", "x"))
-        rows = sc.word_pens(text, ["bold", "dim"])
+        rows = worded(text, ["bold", "dim"])
         self.assertEqual(
             [sc.misdrawn(rows, w) for w in ("bold", "dim")], [0, 0]
         )
         self.assertEqual(sc.leaked(rows), 1)
+
+    def test_a_leak_past_the_last_word_is_refused(self):
+        # The last column has no word after it to inherit the leak, so only
+        # the cells after it can say so.
+        text = capture(row("p", " \x1b[1mbold\x1b[0m \x1b[9mcrossed   ", "x"))
+        rows = worded(text, ["bold", "crossed"])
+        self.assertEqual(sc.misdrawn(rows, "crossed"), 0)
+        self.assertEqual(sc.leaked(rows), 1)
+
+    def test_a_name_that_spells_a_word_is_not_read_as_its_column(self):
+        text = capture(
+            row(
+                "p",
+                " hidden-away.txt \x1b[1mbold\x1b[0m \x1b[8mhidden\x1b[0m",
+                "x",
+            )
+        )
+        (got,) = worded(text, ["bold", "hidden"])
+        self.assertEqual(got.words["hidden"], {sc.Pen(hidden=True)})
+        self.assertEqual(got.ground, sc.Pen())
 
     def test_a_word_is_matched_whole(self):
         # `blink` would otherwise be read out of `blink_rapid`, in its pen.
         text = capture(
             row("p", " \x1b[5;3mblink_rapid\x1b[0m \x1b[5mblink\x1b[0m", "x")
         )
-        (got,) = sc.word_pens(text, ["blink_rapid", "blink"])
+        (got,) = worded(text, ["blink_rapid", "blink"])
         self.assertEqual(got.words["blink"], {sc.Pen(blink=True)})
 
     def test_a_row_missing_a_word_is_left_out(self):
         text = capture(row("p", " bold italic", "x"), row("q", " bold", "y"))
-        self.assertEqual(len(sc.word_pens(text, ["bold", "italic"])), 1)
-        self.assertEqual(sc.word_pens(text, ["dim"]), [])
+        self.assertEqual(len(worded(text, ["bold", "italic"])), 1)
+        self.assertEqual(worded(text, ["dim"]), [])
 
 
 class Sizes(unittest.TestCase):

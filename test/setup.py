@@ -934,6 +934,17 @@ def band_width(init: str, name: str) -> int:
     return int(found.group(1)) if found else 0
 
 
+def linemode_block(init: str, name: str) -> str | None:
+    """The linemode `name` as `init.lua` writes it, or `None` if it is gone.
+
+    Anchored on stylua's indentation -- a linemode's table closes on a line of
+    two tabs -- so re-nesting `linemodes` is all it takes to lose every block,
+    and each reader says `None` rather than reading nothing out of one.
+    """
+    block = re.search(rf"\b{name} = \{{.*?\n\t\t\}},", init, re.DOTALL)
+    return block.group(0) if block else None
+
+
 def c_bg_grounds(init: str) -> list[str] | None:
     """Every name `c_bg` writes under a `bg`, or `None` if the block is gone.
 
@@ -942,10 +953,10 @@ def c_bg_grounds(init: str) -> list[str] | None:
     nothing -- the pattern is anchored on stylua's indentation, so re-nesting
     that table is all it takes.
     """
-    block = re.search(r"c_bg = \{.*?\n\t\t\},", init, re.DOTALL)
-    if not block:
+    block = linemode_block(init, "c_bg")
+    if block is None:
         return None
-    return re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0))
+    return re.findall(r"bg = ([A-Z_]+)[ ,}]", block)
 
 
 def attribute_words(init: str) -> list[str] | None:
@@ -953,14 +964,13 @@ def attribute_words(init: str) -> list[str] | None:
 
     Each is an attribute's name drawn in that attribute alone, which
     `fixture_spec.lua` holds the block to -- against the list `style.lua`
-    takes -- so the word is what `e2e.py` reads the attribute by. Anchored on
-    stylua's indentation, as `c_bg_grounds` is, and for the same reason told
-    apart from a block that names none.
+    takes -- so the word is what `e2e.py` reads the attribute by. Told apart
+    from a block that names none, as `c_bg_grounds` is.
     """
-    block = re.search(r"c_attrs = \{.*?\n\t\t\},", init, re.DOTALL)
-    if not block:
+    block = linemode_block(init, "c_attrs")
+    if block is None:
         return None
-    return re.findall(r'\{ "word", word = "(\w+)",', block.group(0))
+    return re.findall(r'\{ "word", word = "(\w+)",', block)
 
 
 def terminal_grounds(init: str) -> list[tuple[str, str]]:

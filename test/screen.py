@@ -594,7 +594,7 @@ def signed(rows: list[str], sign: str) -> int:
     return marked(rows, (sign,))
 
 
-# --- every cell, for the gallery ---------------------------------------------
+# --- every cell, for the gallery and `c_attrs` --------------------------------
 
 
 @dataclass(frozen=True)
@@ -732,12 +732,13 @@ def _cell_rows(capture: str) -> Iterator[list[Cell]]:
     """Every line of a colour capture, as each character and its pen.
 
     The pen carries from one line into the next, as it would in a terminal
-    reading the same bytes. It decides nothing on 26.9.1: every line of
-    `e2e.py`'s 32 colour captures, 1312 of them, reads the same parsed alone.
+    reading the same bytes. It decides nothing on 26.9.1: every line of every
+    colour capture `e2e.py` takes reads the same parsed alone.
 
     An escape that is not an SGR is refused rather than drawn as text, and so
     is an SGR this cannot read: either would put a cell on the page in a
-    colour the terminal never showed.
+    colour the terminal never showed, or hold `c_attrs` to one. A caller that
+    must go on past it -- `e2e.py` -- catches the `ValueError`.
     """
     pen = _DEFAULT_PEN
     for line in capture.split("\n"):
@@ -775,40 +776,53 @@ def current_cells(capture: str) -> list[list[Cell]]:
     return rows
 
 
-@dataclass(frozen=True)
+#: The `Pen` fields that are attributes rather than colours.
+ATTRIBUTES = frozenset(DRAWN_AS.values())
+
+
+@dataclass
 class WordRow:
     """One row as `word_pens` reads it.
 
     `ground` is the pen of the cell before the first word, which is the row's
     own: nothing on most rows, and the hover's reverse on the hovered one.
-    `words` is every pen each word's characters were drawn in, and `between`
-    every pen of the cells between the words that no word covers.
+    `words` is every pen each word's characters were drawn in, and `rest`
+    every pen of the cells after the first word that no word covers -- the
+    separators between them, and whatever the row draws after the last.
     """
 
     ground: Pen
     words: dict[str, frozenset[Pen]]
-    between: frozenset[Pen]
+    rest: frozenset[Pen]
 
 
-def word_pens(capture: str, words: list[str]) -> list[WordRow]:
-    """Current-pane rows that hold every word, each with how it was drawn.
+def word_pens(pane: list[list[Cell]], words: list[str]) -> list[WordRow]:
+    """Rows of a pane that hold every word, each with how it was drawn.
 
-    A word is matched whole, so `blink` is not read out of `blink_rapid`. A
-    row missing a word is left out rather than answered in part, so a caller
-    holds the count against the pane.
+    `pane` is what `current_cells` reads. A word is matched whole, so `blink`
+    is not read out of `blink_rapid`, and the words are found from the right,
+    each to the left of the one after it: they are the row's last columns,
+    and a file name that happens to spell one -- `hidden-away.txt` -- sits to
+    the left of all of them. A row missing a word is left out rather than
+    answered in part, so a caller holds the count against the pane.
     """
     out: list[WordRow] = []
-    for cells in current_cells(capture):
+    for cells in pane:
         text = "".join(ch for ch, _ in cells)
         spans: dict[str, tuple[int, int]] = {}
-        for word in words:
-            found = re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text)
-            if not found or found.start() == 0:
+        limit = len(text)
+        for word in reversed(words):
+            found = [
+                m
+                for m in re.finditer(rf"(?<!\w){re.escape(word)}(?!\w)", text)
+                if m.end() <= limit
+            ]
+            if not found or found[-1].start() == 0:
                 break
-            spans[word] = found.span()
+            spans[word] = found[-1].span()
+            limit = found[-1].start()
         else:
             first = min(at for at, _ in spans.values())
-            last = max(end for _, end in spans.values())
             covered = {i for at, end in spans.values() for i in range(at, end)}
             out.append(
                 WordRow(
@@ -817,10 +831,10 @@ def word_pens(capture: str, words: list[str]) -> list[WordRow]:
                         word: frozenset(pen for _, pen in cells[at:end])
                         for word, (at, end) in spans.items()
                     },
-                    between=frozenset(
-                        cells[i][1]
-                        for i in range(first, last)
-                        if i not in covered
+                    rest=frozenset(
+                        pen
+                        for i, (_, pen) in enumerate(cells)
+                        if i >= first and i not in covered
                     ),
                 )
             )
@@ -844,10 +858,20 @@ def misdrawn(rows: list[WordRow], word: str) -> int:
 
 
 def leaked(rows: list[WordRow]) -> int:
-    """Rows where a cell between the words is drawn in more than the ground.
+    """Rows where a cell outside the words carries an attribute the ground does not.
 
     The other half of `misdrawn`: a column that left its attribute on after
-    its last cell shows first in the separator after it, and only reaches the
-    next word as well when nothing in between takes it off.
+    its last cell shows first in the cell after it, and only reaches the next
+    word as well when nothing in between takes it off -- and the last column
+    has no next word at all. Asked of the attributes alone, because the row
+    may draw its edge in a colour of its own: on 26.9.1 the hovered row ends
+    in a glyph drawn outside the hover's reverse.
     """
-    return sum(not row.between <= {row.ground} for row in rows)
+    return sum(
+        any(
+            getattr(pen, name) and not getattr(row.ground, name)
+            for pen in row.rest
+            for name in ATTRIBUTES
+        )
+        for row in rows
+    )

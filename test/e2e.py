@@ -736,7 +736,6 @@ def check_ramp(k: Checks, shots: dict[str, str], init: str, dir: Path) -> None:
         True,
     )
     check_bold(k, shots)
-    check_attributes(k, shots["colour-c_attrs"], init)
     check_scale(k, shots["colour-c_scale"], init)
     check_edge(k, shots["colour-c_edge"], init)
 
@@ -830,19 +829,26 @@ def check_attributes(k: Checks, capture: str, init: str) -> None:
     """`c_attrs` draws each attribute a style takes as its own name, in it alone.
 
     Every word is held to its row's ground with its own attribute switched on,
-    and every cell between the words to the ground itself, so an attribute a
-    column leaves on is refused wherever it spreads. Every drawn row of the
-    pane has to hold every word, so a column that drew nothing is a row short
-    rather than a pass.
+    and every other cell from the first word on to carry no attribute the
+    ground does not, so one a column leaves on is refused wherever it spreads.
+    Every drawn row of the pane has to hold every word, so a column that drew
+    nothing is a row short rather than a pass.
     """
+    k.section("attributes")
     words = fixture.attribute_words(init)
     if not words:
         k.fail("c_attrs: the fixture's init.lua has no `c_attrs` words to read")
         return
-    drew = sc.drawn(
-        ["".join(ch for ch, _ in cells) for cells in sc.current_cells(capture)]
-    )
-    rows = sc.word_pens(capture, words)
+    # The cell parser refuses an escape it cannot read anywhere on the line,
+    # header and status bar included; here that is one failure, not the end of
+    # the run.
+    try:
+        pane = sc.current_cells(capture)
+    except ValueError as error:
+        k.fail(f"c_attrs: the capture could not be read: {error}")
+        return
+    drew = sc.drawn(["".join(ch for ch, _ in cells) for cells in pane])
+    rows = sc.word_pens(pane, words)
     k.verdict(
         f"c_attrs: every row draws all {len(words)} words ({len(rows)} rows)",
         drew == 0 and "c_attrs: the current pane drew nothing",
@@ -865,10 +871,10 @@ def check_attributes(k: Checks, capture: str, init: str) -> None:
         )
     spilt = sc.leaked(rows)
     k.verdict(
-        "c_attrs: no attribute reaches the cells between the words",
+        "c_attrs: no attribute reaches a cell outside its word",
         spilt > 0
-        and f"c_attrs: {spilt} of {len(rows)} row(s) drew a separator in more "
-        "than the row's own pen",
+        and f"c_attrs: {spilt} of {len(rows)} row(s) drew a cell outside the "
+        "words in an attribute the row does not carry",
     )
 
 
@@ -1103,6 +1109,7 @@ def main(argv: list[str]) -> int:
         check_panes(k, r.shots)
         check_toggle(k, r.shots, r.listing, init)
         check_ramp(k, r.shots, init, r.dir)
+        check_attributes(k, r.shots["colour-c_attrs"], init)
         check_theme(k, r.shots, r.dir)
         check_walk(k, r.shots, r.dir, r.listing, r.steps)
 
