@@ -410,10 +410,10 @@ supaline:setup {
 		pane_prev = { current = EDGE, preview = EDGE },
 
 		-- m e: the same two panes as m7, each carrying columns of its own.
-		-- This is what the width table in docs/configuration.md is about -- the middle
-		-- takes what it has room for, the parent takes the marker, and
-		-- `preview` is named by nobody, which is how a pane is told to draw
-		-- nothing.
+		-- This is what the width table in docs/configuration.md is about --
+		-- the middle takes what it has room for, the parent takes the marker,
+		-- and `preview` is named by nobody, which is how a pane is told to
+		-- draw nothing.
 		pane_each = {
 			current = { "ext", "size" },
 			parent = { "mark" },

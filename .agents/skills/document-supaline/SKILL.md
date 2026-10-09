@@ -20,9 +20,9 @@ description: >-
 # Writing the instruction documents
 
 The reader is an agent starting cold: no memory of the last session, no idea
-what has already been tried and rejected. It has `README.md` and `AGENTS.md`,
-and nothing else — not this repository's history, not the sessions that
-produced it, not another skill unless it was sent there.
+what has already been tried and rejected. It has `README.md`, `docs/` and
+`AGENTS.md`, and nothing else — not this repository's history, not the
+sessions that produced it, not another skill unless it was sent there.
 
 One rule follows from that, about what a sentence here may lean on. Name a
 check, a file or a command and the reader can go and look. Name an incident — a

@@ -96,13 +96,14 @@ written under `fg` or under `bg`. A string on its own is the `fg`:
 { "size",  style = { bg = "#0b3d91 -> #7fd4ff", fg = "#ffffff" } }
 ```
 
-Where a file lands on it is `ctx.ratio`: its position between the smallest and
-largest value in the folder, on the column's `scale`. The colours between the
-endpoints are interpolated in Oklab and quantised into 64 styles when the
-linemode is built, so a row costs an array index and no colour arithmetic at
-all. Everything written beside the gradient — a `bold`, a `bg` under an `fg`
-gradient, an `fg` over a `bg` one — is on every one of the 64 steps, and two
-gradients on one column land on the same step at the same ratio.
+Where a file lands on it is [`ctx.ratio`](columns.md#ctx): its position
+between the smallest and largest value in the folder, on the column's `scale`.
+The colours between the endpoints are interpolated in Oklab and quantised into
+64 styles when the linemode is built, so a row costs an array index and no
+colour arithmetic at all. Everything written beside the gradient — a `bold`, a
+`bg` under an `fg` gradient, an `fg` over a `bg` one — is on every one of the
+64 steps, and two gradients on one column land on the same step at the same
+ratio.
 
 A row with no value to place draws the gradient's **low** end — a directory in
 `size`, a file with no mtime.
