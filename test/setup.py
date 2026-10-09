@@ -948,6 +948,21 @@ def c_bg_grounds(init: str) -> list[str] | None:
     return re.findall(r"bg = ([A-Z_]+)[ ,}]", block.group(0))
 
 
+def attribute_words(init: str) -> list[str] | None:
+    """Every word `c_attrs` draws, in its order, or `None` if the block is gone.
+
+    Each is an attribute's name drawn in that attribute alone, which
+    `fixture_spec.lua` holds the block to -- against the list `style.lua`
+    takes -- so the word is what `e2e.py` reads the attribute by. Anchored on
+    stylua's indentation, as `c_bg_grounds` is, and for the same reason told
+    apart from a block that names none.
+    """
+    block = re.search(r"c_attrs = \{.*?\n\t\t\},", init, re.DOTALL)
+    if not block:
+        return None
+    return re.findall(r'\{ "word", word = "(\w+)",', block.group(0))
+
+
 def terminal_grounds(init: str) -> list[tuple[str, str]]:
     """The terminal grounds `init.lua` measures `GROUND` against, as a name and
     a hex each, in its order -- which `gallery.py` draws every capture on.

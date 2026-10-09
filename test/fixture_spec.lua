@@ -226,3 +226,35 @@ test("fixture: every case names a linemode `init.lua` declares, and every one it
 	eq(missing_from(named, declared), "", "named by test/fixture/cases.toml and declared by no linemode in init.lua")
 	eq(missing_from(declared, named), "", "declared in init.lua and named by no case in test/fixture/cases.toml")
 end)
+
+test("fixture: `c_attrs` draws every attribute a style table takes, each by its own name", function()
+	-- `e2e.py` reads each attribute off the screen by the word it is drawn as,
+	-- so a word that is not its column's only key would be read as the wrong
+	-- attribute, and an attribute `style.lua` gained and this linemode did not
+	-- would never be drawn at all. The list is read out of `style.lua` rather
+	-- than written here, which would be a second list for it to drift from.
+	local attrs = read(ROOT .. "/style.lua"):match("\nlocal ATTRS = (%b{})")
+	assert(attrs, "no `local ATTRS = { ... }` in style.lua; this spec is reading nothing")
+	local taken = {}
+	for k in attrs:gmatch('"([%w_]+)"') do
+		taken[k] = true
+	end
+
+	local ok, err, opts = configure()
+	assert(ok and opts and opts.linemodes, "the fixture's `init.lua` handed `setup` no linemodes: " .. tostring(err))
+	local specs = opts.linemodes.c_attrs
+	assert(specs, "no `c_attrs` linemode in the fixture's init.lua")
+
+	local drawn = {}
+	for i, spec in ipairs(specs) do
+		local keys = {}
+		for k in pairs(spec.style) do
+			keys[#keys + 1] = k
+		end
+		eq(#keys == 1 and keys[1] or table.concat(keys, ", "), spec.word, "c_attrs[" .. i .. "]: the style's only key")
+		eq(spec.style[spec.word], true, "c_attrs[" .. i .. "]: `" .. spec.word .. "` switched on")
+		drawn[spec.word] = true
+	end
+	eq(missing_from(taken, drawn), "", "taken by style.lua and drawn by no column of `c_attrs`")
+	eq(missing_from(drawn, taken), "", "drawn by `c_attrs` and not an attribute style.lua takes")
+end)

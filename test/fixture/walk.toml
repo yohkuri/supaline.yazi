@@ -63,6 +63,10 @@ case = "c_bold"
 ask  = "is the bold pair one colour, one heavier?"
 
 [[step]]
+case = "c_attrs"
+ask  = "does each word look like what it says?"
+
+[[step]]
 case    = "c_scale"
 gallery = true
 ask     = "does the left column read as a gradient?"

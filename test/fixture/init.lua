@@ -149,6 +149,19 @@ supaline.column("name_line", {
 	render = function(file, ctx) return ui.Line { ui.Span(file.name) }, ctx.style end,
 })
 
+-- A word the use site names, the same on every row, so a column can say what it
+-- is drawn in. `c i` writes each style attribute's own name in that attribute
+-- alone, which is how a reader tells which one a terminal failed to draw, and
+-- how `e2e.py` finds the cells to read each attribute off. `"auto"` because the
+-- words differ in length and a stated width would pad the short ones with
+-- cells drawn in the attribute too.
+supaline.column("word", {
+	width = "auto",
+	align = "left",
+	options = { "word" },
+	render = function(_, ctx) return ctx.opts.word, ctx.style end,
+})
+
 -- --- columns that are wrong on purpose -------------------------------------
 -- Every report a broken column can cause, which is six: the four functions a
 -- column may write, each throwing, plus the two supaline words itself when a
@@ -522,6 +535,23 @@ supaline:setup {
 			{ "ratio", style = { fg = COOL, bold = true } },
 			{ "ratio", style = COOL, separator = "┊" },
 			{ "permissions", style = { bold = true } },
+		},
+
+		-- c i, in `data/`: every attribute a style table takes, each the
+		-- only key of its column's style and drawn as its own name. `e2e.py`
+		-- reads every one of them off the capture, so this is where a key that
+		-- `style.lua` accepts and Yazi does not draw would show. `hidden` is
+		-- meant to leave a gap a reader sees nothing in.
+		c_attrs = {
+			{ "word", word = "bold", style = { bold = true } },
+			{ "word", word = "dim", style = { dim = true } },
+			{ "word", word = "italic", style = { italic = true } },
+			{ "word", word = "underline", style = { underline = true } },
+			{ "word", word = "blink", style = { blink = true } },
+			{ "word", word = "blink_rapid", style = { blink_rapid = true } },
+			{ "word", word = "reversed", style = { reversed = true } },
+			{ "word", word = "hidden", style = { hidden = true } },
+			{ "word", word = "crossed", style = { crossed = true } },
 		},
 
 		-- c s, in `colour/scale`: the same size twice, log then linear, on one

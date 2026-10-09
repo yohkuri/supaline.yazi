@@ -804,6 +804,17 @@ class TheFixtureItReads(unittest.TestCase):
     def test_a_file_with_no_c_bg_block_is_told_from_one_with_no_grounds(self):
         self.assertIsNone(fixture.c_bg_grounds('local GROUND = "#112233"\n'))
 
+    def test_c_attrs_names_every_attribute_a_capture_is_read_for(self):
+        # The other half of the chain `fixture_spec.lua` starts: that spec holds
+        # the block to `style.lua`'s list, and this holds `DRAWN_AS` to the
+        # block, so an attribute added to the plugin is one `e2e.py` reads.
+        words = fixture.attribute_words(self.init)
+        assert words is not None
+        self.assertEqual(sorted(words), sorted(sc.DRAWN_AS))
+        self.assertIsNone(
+            fixture.attribute_words(self.init.replace("c_attrs", "c_x"))
+        )
+
     def test_a_binding_is_one_colour_or_two_ends_and_nothing_else(self):
         init = 'local A = "#112233"\nlocal B = "#112233 -> #445566"\n'
         init += 'local C = "#112233 <->"\nlocal D = "#112233 -> #445566 -> #778899"\n'
@@ -822,6 +833,26 @@ class Cells(unittest.TestCase):
             cell,
             ("x", sc.Pen("p1", "#112233", True, True, True, True)),
         )
+
+    def test_every_attribute_a_style_takes_reaches_a_pen(self):
+        # What tmux writes for each of `style.lua`'s attributes, read off a
+        # capture of `c_attrs` on 26.9.1: one parameter apiece, and 5 for both
+        # blinks. A field `DRAWN_AS` names that no parameter sets would be an
+        # attribute `e2e.py` asks for and could never find.
+        line = "".join(f"\x1b[{p}m{p}\x1b[0m" for p in (1, 2, 3, 4, 5, 7, 8, 9))
+        drawn = {
+            name
+            for _, pen in sc.pens(line)[0]
+            for name, on in vars(pen).items()
+            if on is True
+        }
+        self.assertEqual(drawn, set(sc.DRAWN_AS.values()))
+
+    def test_one_parameter_takes_bold_and_dim_off_together(self):
+        line = "\x1b[1;2ma\x1b[22mb\x1b[25;28;29mc"
+        pens = [pen for _, pen in sc.pens(line)[0]]
+        self.assertEqual(pens[0], sc.Pen(bold=True, dim=True))
+        self.assertEqual(pens[1:], [sc.Pen(), sc.Pen()])
 
     def test_a_reset_and_a_default_colour_put_the_terminal_back(self):
         line = cell("#010203", "a") + "\x1b[39mb\x1b[1mc\x1b[0md"
@@ -850,7 +881,7 @@ class Cells(unittest.TestCase):
 
     def test_what_this_cannot_draw_is_refused(self):
         for line in (
-            "\x1b[9mx",
+            "\x1b[53mx",
             "\x1b[38;2;1;2mx",
             "\x1b[4:3mx",
             "\x1b]0;t\x07",
@@ -889,6 +920,45 @@ class Cells(unittest.TestCase):
                 if field
             ],
         )
+
+
+class Words(unittest.TestCase):
+    """`word_pens`, which `c_attrs` reads each attribute off."""
+
+    def test_a_word_is_read_with_the_pen_beside_it(self):
+        text = capture(
+            row("p", "name \x1b[1mbold\x1b[0m \x1b[3mitalic\x1b[0m ", "x"),
+            row("q", "\x1b[7mname \x1b[1mbold\x1b[0;7m italic\x1b[0m", "y"),
+        )
+        plain, hovered = sc.word_pens(text, ["bold", "italic"])
+        self.assertEqual(
+            plain,
+            {
+                "bold": (sc.Pen(), frozenset({sc.Pen(bold=True)})),
+                "italic": (sc.Pen(), frozenset({sc.Pen(italic=True)})),
+            },
+        )
+        reverse = sc.Pen(reverse=True)
+        self.assertEqual(
+            hovered["bold"],
+            (reverse, frozenset({sc.Pen(bold=True, reverse=True)})),
+        )
+        self.assertEqual(hovered["italic"], (reverse, frozenset({reverse})))
+
+    def test_a_word_is_matched_whole(self):
+        # `blink` would otherwise be read out of `blink_rapid`, in its pen.
+        text = capture(
+            row("p", " \x1b[5;3mblink_rapid\x1b[0m \x1b[5mblink\x1b[0m", "x")
+        )
+        (got,) = sc.word_pens(text, ["blink_rapid", "blink"])
+        self.assertEqual(
+            got["blink"], (sc.Pen(), frozenset({sc.Pen(blink=True)}))
+        )
+
+    def test_a_row_missing_a_word_is_left_out(self):
+        text = capture(row("p", " bold italic", "x"), row("q", " bold", "y"))
+        self.assertEqual(len(sc.word_pens(text, ["bold", "italic"])), 1)
+        self.assertEqual(sc.word_pens(text, ["dim"]), [])
 
 
 class Sizes(unittest.TestCase):

@@ -46,7 +46,7 @@ import unicodedata
 import webbrowser
 from collections import defaultdict
 from collections.abc import Container
-from dataclasses import astuple
+from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import IO, NamedTuple
@@ -289,6 +289,16 @@ def css(pen: sc.Pen) -> str:
     fg, bg = colour(pen.fg, "var(--fg)"), colour(pen.bg, "var(--bg)")
     if pen.reverse:
         fg, bg = bg, fg
+    # A tile is one moment of the screen, so a blink is drawn as it stands
+    # rather than animated.
+    lines = [
+        name
+        for name, on in (
+            ("underline", pen.underline),
+            ("line-through", pen.crossed),
+        )
+        if on
+    ]
     return ";".join(
         part
         for part, wanted in (
@@ -296,7 +306,9 @@ def css(pen: sc.Pen) -> str:
             (f"background:{bg}", bg != "var(--bg)"),
             ("font-weight:bold", pen.bold),
             ("font-style:italic", pen.italic),
-            ("text-decoration:underline", pen.underline),
+            (f"text-decoration:{' '.join(lines)}", lines),
+            ("opacity:.5", pen.dim),
+            ("color:transparent", pen.hidden),
         )
         if wanted
     )
@@ -517,6 +529,20 @@ APPROVED_HEADER = """\
 """
 
 
+#: The pen fields a digest spells only when one of them is on. A pen with
+#: none of them is spelled as the fields before them alone, so a parser that
+#: reads more of a pen takes back no approval of a pane that drew none of it.
+SPELLED_WHEN_ON = ("dim", "blink", "hidden", "crossed")
+
+
+def spelled(pen: sc.Pen) -> list[str | bool]:
+    """A pen as a digest spells it."""
+    whole = asdict(pen)
+    if any(whole[name] for name in SPELLED_WHEN_ON):
+        return list(whole.values())
+    return [v for name, v in whole.items() if name not in SPELLED_WHEN_ON]
+
+
 def digest(
     cells: list[list[sc.Cell]], grounds: list[tuple[str, str]], ask: str
 ) -> str:
@@ -528,7 +554,7 @@ def digest(
     the scheme's. And the question, so a step asked differently is asked again.
     """
     seen = {
-        "pane": [[[ch, *astuple(pen)] for ch, pen in row] for row in cells],
+        "pane": [[[ch, *spelled(pen)] for ch, pen in row] for row in cells],
         "grounds": [[name, *scheme(name, hex)] for name, hex in grounds],
         "ask": ask,
     }
