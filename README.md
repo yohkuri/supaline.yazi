@@ -5,9 +5,9 @@ mtime, or permissions. supaline is a plugin that turns it into as many columns
 as you like, in any order, at any width, each styled its own way.
 
 ```text
- deep                             drwxr-xr-x octocat:wheel      1 08/27 23:52
- inner-a.txt                      -rw-r--r-- octocat:wheel     1B 12/25  2023
- inner-b.bin                      -rw-r--r-- octocat:wheel   300K 08/27 23:52
+ deep                           drwxr-xr-x octocat:dev        1 08/27 23:52
+ inner-a.txt                    -rw-r--r-- octocat:dev       1B 12/25  2023
+ inner-b.bin                    -rw-r--r-- octocat:dev     300K 08/27 23:52
 ```
 
 - **Columns side by side** — size, timestamps, permissions, owner and more,
