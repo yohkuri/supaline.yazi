@@ -31,7 +31,7 @@ linemode with a configurable set of columns: sizes and timestamps, coloured
 flat or on a gradient. Built-in columns and user-written ones go through the
 same interface; neither has a privileged path.
 
-Three things about it get described wrongly by default. `README.md` and
+Three things about it get described wrongly by default. `docs/colours.md` and
 `colour.lua`'s `M.spread` carry the reasoning; the rule is here.
 
 - **Neither the gradient nor the spread is eza's.** eza replaces a lightness
