@@ -104,8 +104,9 @@ is on.
 **Both keys are named ones**, and a `stats` of your own that writes the pair
 as a list is the mistake here that draws: `{ lo, hi }` has no `min` and no
 `max`, so the extremes stay unset, `ctx.ratio` answers `nil` for every row,
-and the column draws flat at its gradient's low end. The refusal a gradient
-gets for a column with no `stats` does not fire either — this column has one.
+and the column draws flat at its gradient's low end.
+[The refusal](styles.md#a-gradient) a gradient gets for a column with no
+`stats` does not fire either — this column has one.
 
 supaline says so on screen, once per column, and goes on drawing. It cannot
 refuse it: what `stats` returned is knowable only while a pane is being
@@ -166,9 +167,10 @@ ignored past it.
 
 What `options` lets through is the value as written, and `render` is the first
 thing to read it. A value it cannot use reaches you at the first row, as this
-column throwing, with `!` down its length. `validate` moves that to `setup`: a
-check per declared option, handed the value and returning `nil` to take it or a
-string saying what is wrong with it. Added to `initials` above:
+column throwing, with `!` down its length — see
+[When a column fails](#when-a-column-fails). `validate` moves that to `setup`:
+a check per declared option, handed the value and returning `nil` to take it or
+a string saying what is wrong with it. Added to `initials` above:
 
 ```lua
 validate = {

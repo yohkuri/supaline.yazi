@@ -17,12 +17,12 @@ lets one linemode show all of them.
 - **Styles** — colour, bold, italic, underline and the rest, per column. A
   colour can be a gradient from the smallest value in the folder to the
   largest. Set it in `init.lua` or in your `theme.toml`.
-- **Columns of your own** — a few lines of Lua. Built-in columns use the same
-  interface, with nothing held back.
+- **Columns of your own** — a few lines of Lua, through the interface the
+  built-in columns use.
 - **Different columns per pane** — the parent and preview panes can show
   columns too.
-- **Typos are caught** — a misspelled option is refused with where you wrote
-  it, rather than quietly ignored.
+- **Typos are caught** — a misspelled option in `init.lua` is refused with
+  where you wrote it, rather than quietly ignored.
 
 ## Requirements
 
@@ -67,7 +67,7 @@ desc = "Toggle supaline's columns"
 
 | Column        | Shows                          |
 | ------------- | ------------------------------ |
-| `size`        | File size; for a directory you have opened, its entry count |
+| `size`        | File size; for a directory Yazi has listed but not sized, its entry count |
 | `mtime`       | Modified time                  |
 | `btime`       | Created time                   |
 | `atime`       | Accessed time                  |
@@ -108,7 +108,9 @@ mtime = { fg = "green", italic = true }
 
 A style table takes `fg` and `bg`, plus `bold`, `dim`, `italic`, `underline`,
 `blink`, `blink_rapid`, `reversed`, `hidden` and `crossed`, spelled the same in
-both files.
+both files. One thing differs: in `theme.toml` a gradient is a whole value, as
+`size` is above. Under a table's `fg` Yazi reads it as one colour, fails to
+parse it, and drops the whole file.
 
 A gradient runs from the smallest value in the folder being shown to the
 largest, so the biggest file there always lands on the last colour.
@@ -137,7 +139,8 @@ and options of your own.
 ## Documentation
 
 - [Configuration](docs/configuration.md) — every option, per-pane columns,
-  toggling, the built-in columns in detail, and using it alongside git.yazi
+  toggling, the built-in columns in detail, using it alongside git.yazi, and
+  the caveats
 - [Styles](docs/styles.md) — colours, attributes, gradients, lightness
   ranges and the theme
 - [Writing a column](docs/columns.md) — the column interface

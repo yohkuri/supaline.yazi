@@ -28,7 +28,7 @@ is the instructive one.
 
 Sweeping for it by hand works, and is worth doing before an audit: diff every
 backticked identifier in `AGENTS.md` and `.claude/rules/` against what
-`README.md` and `AGENTS.md` name, then match every "the X step / job / check"
+`README.md`, `docs/` and `AGENTS.md` name, then match every "the X step / job / check"
 phrase against the names in `check.yml`. Expect most hits of the first to be
 legitimate — general shell, a path the reader can open, a term its own sentence
 defines.
