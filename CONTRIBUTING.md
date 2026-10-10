@@ -141,10 +141,6 @@ message rules above are checked rather than tidied up afterwards.
 **New built-in columns are welcome.** They go through the same interface
 as user-written ones, with no special treatment.
 
-**Status columns — git, dotfile management and so on — aren't decided
-yet.** A pull request adding one is a proposal rather than a fix, so it
-helps if you say so, and say what it needs from the column registry.
-
 If you're editing `README.md` or anything under `docs/`, skim
 `AGENTS.md`'s "What this is" section first. It lists three things about this
 plugin that are easy to describe wrongly.
