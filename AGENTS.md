@@ -45,10 +45,6 @@ Three things about it get described wrongly by default. `docs/styles.md` and
   with no range behind it is refused rather than drawn. `paint.lua` recommends a
   pair and every refusal quotes it; calling that a default is the mistake.
 
-Whether supaline ships status columns of its own — version control, dotfile
-management — is **undecided**. Not planned and not forthcoming; if one has to
-come up at all, say plainly that it is hypothetical.
-
 ## Source of truth
 
 Prefer code, tests, Git history, and actual tool output over documentation when
