@@ -162,9 +162,9 @@ end
 --- by `s` cubed. Nothing leaves the gamut going down, and the colour keeps its
 --- character rather than merely its hue.
 ---
---- Moving `L` alone is what eza does, and it is the reason not to: with `a`
---- and `b` held, a saturated colour runs out of gamut in *both* directions and
---- the clamp turns it. Measured the same way -- `#ff8800` reaches the screen
+--- Moving `L` alone is the obvious alternative, and it fails: with `a` and
+--- `b` held, a saturated colour runs out of gamut in *both* directions and the
+--- clamp turns it. Measured the same way -- `#ff8800` reaches the screen
 --- at hue 32 degrees at the bottom and 90 at the top, from 56.5; `#0b3d91`
 --- arrives at 196 from 260.7, a navy drawn as cyan.
 ---

@@ -63,9 +63,8 @@ function M.definitions()
 	local definitions = {}
 	local function register(name, def) definitions[name] = def end
 
-	-- Extremes of the current listing, the way `eza --color-scale-mode=gradient`
-	-- takes them. Public through `main.lua`, because a user-written ranged
-	-- column wants the same.
+	-- Extremes of the current listing. Public through `main.lua`, because a
+	-- user-written ranged column wants the same.
 	local extremes = M.extremes
 
 	--- The entry count of an already-visited directory. Yazi keeps folders it has
@@ -85,9 +84,8 @@ function M.definitions()
 	-- A listing's sizes span orders of magnitude and its extremes are almost always
 	-- one huge file and one tiny one, so a linear ratio puts everything but the
 	-- largest file on the floor: measured over the harness fixture, 1B to 88M, a
-	-- 300K file lands at 0.003 linear and 0.68 log. eza colours sizes on a linear
-	-- ratio and this is exactly how it looks -- every file below the biggest draws
-	-- the same colour.
+	-- 300K file lands at 0.003 linear and 0.68 log, so every file below the
+	-- biggest draws the same colour.
 	--
 	-- A default, not a decision taken out of the user's hands: a `scale` written
 	-- in `setup` outranks this, and one written in the spec outranks that.

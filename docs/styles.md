@@ -314,9 +314,8 @@ Three places can say, and the first that does wins:
 Failing all three it is `"linear"`. That order is what makes the `setup` option
 worth having: a listing's sizes span orders of magnitude, so `size` defaults to
 `"log"` and a linear ratio would put everything below the largest file on the
-floor — but `scale = "linear"` in `setup` still reaches it, which is how you
-get eza's own behaviour if you want it. A timestamp needs none of this: a
-folder's mtimes sit within a few years of each other.
+floor — but `scale = "linear"` in `setup` still reaches it. A timestamp needs
+none of this: a folder's mtimes sit within a few years of each other.
 
 ## From the theme
 

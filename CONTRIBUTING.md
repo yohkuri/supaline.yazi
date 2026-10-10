@@ -142,7 +142,7 @@ message rules above are checked rather than tidied up afterwards.
 as user-written ones, with no special treatment.
 
 If you're editing `README.md` or anything under `docs/`, skim
-`AGENTS.md`'s "What this is" section first. It lists three things about this
+`AGENTS.md`'s "What this is" section first. It lists two things about this
 plugin that are easy to describe wrongly.
 
 ## How the code is laid out

@@ -31,13 +31,9 @@ linemode with a configurable set of columns: sizes and timestamps, coloured
 flat or on a gradient. Built-in columns and user-written ones go through the
 same interface; neither has a privileged path.
 
-Three things about it get described wrongly by default. `docs/styles.md` and
+Two things about it get described wrongly by default. `docs/styles.md` and
 `colour.lua`'s `M.spread` carry the reasoning; the rule is here.
 
-- **Neither the gradient nor the spread is eza's.** eza replaces a lightness
-  and has no endpoints to interpolate between; supaline interpolates, and gives
-  up chroma rather than turn the hue. What it takes from eza is the shape of
-  the idea and the extremes of the listing.
 - **A lightness range's two ends are fixed lightnesses**, not derived from the
   colour — black and white spread into the identical greys. "Spread a colour
   both ways" names an endpoint that does not exist.
