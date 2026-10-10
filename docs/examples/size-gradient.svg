@@ -1,55 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="553.2" height="488" viewBox="0 0 553.2 488" role="img" data-source="cd2a0babcbe8267e1d4f28e2e4abb6500e8f553e1e88587245f54e9c2616061c" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
-<title>size from grey to orange</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="553.2" height="488" viewBox="0 0 553.2 488" role="img" data-source="7b98ef456dcb8224ab6a9fba7184393cf57c5193fe9c9de4fba3a93c90e883c6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
+<title>size from blue to red</title>
 <g transform="translate(0,0)">
 <rect width="553.2" height="236" rx="8" fill="#1e1e2e" stroke="#8888" stroke-width="1"/>
 <text x="12" y="17" font-size="12" fill="#757a91">Catppuccin Mocha</text>
 <path d="M28.8,26 A8.4,9 0 0 0 28.8,44 Z" fill="#89b4fa"/>
 <rect x="28.8" y="26" width="344.4" height="18" fill="#89b4fa"/>
 <text x="28.8" y="38.96" fill="#1e1e2e">assets</text>
-<rect x="373.2" y="26" width="58.8" height="18" fill="#808080"/>
+<rect x="373.2" y="26" width="58.8" height="18" fill="#3b82f6"/>
 <text x="423.6" y="38.96" fill="#1e1e2e">3</text>
 <rect x="432" y="26" width="100.8" height="18" fill="#89b4fa"/>
 <text x="440.4" y="38.96" fill="#1e1e2e">09/14</text>
 <text x="490.8" y="38.96" fill="#1e1e2e">18:02</text>
 <path d="M532.8,26 A8.4,9 0 0 1 532.8,44 Z" fill="#89b4fa"/>
 <text x="28.8" y="56.96" fill="#89b4fa">docs</text>
-<text x="423.6" y="56.96" fill="#808080">-</text>
+<text x="423.6" y="56.96" fill="#3b82f6">-</text>
 <text x="440.4" y="56.96" fill="#89b4fa">10/02</text>
 <text x="490.8" y="56.96" fill="#89b4fa">11:33</text>
 <text x="28.8" y="74.96" fill="#89b4fa">src</text>
-<text x="423.6" y="74.96" fill="#808080">-</text>
+<text x="423.6" y="74.96" fill="#3b82f6">-</text>
 <text x="440.4" y="74.96" fill="#89b4fa">10/09</text>
 <text x="490.8" y="74.96" fill="#89b4fa">19:47</text>
 <text x="28.8" y="92.96" fill="#cdd6f4">backup.tar.gz</text>
-<text x="390" y="92.96" fill="#de602a">45.8M</text>
+<text x="390" y="92.96" fill="#e0555e">45.8M</text>
 <text x="440.4" y="92.96" fill="#cdd6f4">06/30</text>
 <text x="490.8" y="92.96" fill="#cdd6f4">02:00</text>
 <text x="28.8" y="110.96" fill="#cdd6f4">cover.png</text>
-<text x="415.2" y="110.96" fill="#c56d4b">2M</text>
+<text x="415.2" y="110.96" fill="#bc6d8e">2M</text>
 <text x="440.4" y="110.96" fill="#cdd6f4">09/14</text>
 <text x="490.8" y="110.96" fill="#cdd6f4">17:58</text>
 <text x="28.8" y="128.96" fill="#cdd6f4">demo.mp4</text>
-<text x="381.6" y="128.96" fill="#e8590c">171.7M</text>
+<text x="381.6" y="128.96" fill="#ef4444">171.7M</text>
 <text x="440.4" y="128.96" fill="#cdd6f4">08/22</text>
 <text x="490.8" y="128.96" fill="#cdd6f4">15:10</text>
 <text x="28.8" y="146.96" fill="#a6e3a1">install.sh</text>
-<text x="398.4" y="146.96" fill="#8c7e79">3.1K</text>
+<text x="398.4" y="146.96" fill="#5981e7">3.1K</text>
 <text x="440.4" y="146.96" fill="#a6e3a1">03/11</text>
 <text x="490.8" y="146.96" fill="#a6e3a1">09:21</text>
 <text x="28.8" y="164.96" fill="#cdd6f4">LICENSE</text>
-<text x="415.2" y="164.96" fill="#808080">1K</text>
+<text x="415.2" y="164.96" fill="#3b82f6">1K</text>
 <text x="440.4" y="164.96" fill="#cdd6f4">01/05</text>
 <text x="490.8" y="164.96" fill="#cdd6f4">00:00</text>
 <text x="28.8" y="182.96" fill="#cdd6f4">notes.md</text>
-<text x="415.2" y="182.96" fill="#917d76">6K</text>
+<text x="415.2" y="182.96" fill="#6581df">6K</text>
 <text x="440.4" y="182.96" fill="#cdd6f4">10/10</text>
 <text x="490.8" y="182.96" fill="#cdd6f4">10:26</text>
 <text x="28.8" y="200.96" fill="#cdd6f4">README.md</text>
-<text x="390" y="200.96" fill="#987c71">11.7K</text>
+<text x="390" y="200.96" fill="#7380d5">11.7K</text>
 <text x="440.4" y="200.96" fill="#cdd6f4">10/09</text>
 <text x="490.8" y="200.96" fill="#cdd6f4">19:52</text>
 <text x="28.8" y="218.96" fill="#cdd6f4">report.pdf</text>
-<text x="381.6" y="218.96" fill="#bd7153">839.8K</text>
+<text x="381.6" y="218.96" fill="#b0729c">839.8K</text>
 <text x="440.4" y="218.96" fill="#cdd6f4">07/18</text>
 <text x="490.8" y="218.96" fill="#cdd6f4">08:45</text>
 </g>
@@ -59,50 +59,50 @@
 <path d="M28.8,26 A8.4,9 0 0 0 28.8,44 Z" fill="#268bd2"/>
 <rect x="28.8" y="26" width="344.4" height="18" fill="#268bd2"/>
 <text x="28.8" y="38.96" fill="#fdf6e3">assets</text>
-<rect x="373.2" y="26" width="58.8" height="18" fill="#808080"/>
+<rect x="373.2" y="26" width="58.8" height="18" fill="#3b82f6"/>
 <text x="423.6" y="38.96" fill="#fdf6e3">3</text>
 <rect x="432" y="26" width="100.8" height="18" fill="#268bd2"/>
 <text x="440.4" y="38.96" fill="#fdf6e3">09/14</text>
 <text x="490.8" y="38.96" fill="#fdf6e3">18:02</text>
 <path d="M532.8,26 A8.4,9 0 0 1 532.8,44 Z" fill="#268bd2"/>
 <text x="28.8" y="56.96" fill="#268bd2">docs</text>
-<text x="423.6" y="56.96" fill="#808080">-</text>
+<text x="423.6" y="56.96" fill="#3b82f6">-</text>
 <text x="440.4" y="56.96" fill="#268bd2">10/02</text>
 <text x="490.8" y="56.96" fill="#268bd2">11:33</text>
 <text x="28.8" y="74.96" fill="#268bd2">src</text>
-<text x="423.6" y="74.96" fill="#808080">-</text>
+<text x="423.6" y="74.96" fill="#3b82f6">-</text>
 <text x="440.4" y="74.96" fill="#268bd2">10/09</text>
 <text x="490.8" y="74.96" fill="#268bd2">19:47</text>
 <text x="28.8" y="92.96" fill="#657b83">backup.tar.gz</text>
-<text x="390" y="92.96" fill="#de602a">45.8M</text>
+<text x="390" y="92.96" fill="#e0555e">45.8M</text>
 <text x="440.4" y="92.96" fill="#657b83">06/30</text>
 <text x="490.8" y="92.96" fill="#657b83">02:00</text>
 <text x="28.8" y="110.96" fill="#657b83">cover.png</text>
-<text x="415.2" y="110.96" fill="#c56d4b">2M</text>
+<text x="415.2" y="110.96" fill="#bc6d8e">2M</text>
 <text x="440.4" y="110.96" fill="#657b83">09/14</text>
 <text x="490.8" y="110.96" fill="#657b83">17:58</text>
 <text x="28.8" y="128.96" fill="#657b83">demo.mp4</text>
-<text x="381.6" y="128.96" fill="#e8590c">171.7M</text>
+<text x="381.6" y="128.96" fill="#ef4444">171.7M</text>
 <text x="440.4" y="128.96" fill="#657b83">08/22</text>
 <text x="490.8" y="128.96" fill="#657b83">15:10</text>
 <text x="28.8" y="146.96" fill="#859900">install.sh</text>
-<text x="398.4" y="146.96" fill="#8c7e79">3.1K</text>
+<text x="398.4" y="146.96" fill="#5981e7">3.1K</text>
 <text x="440.4" y="146.96" fill="#859900">03/11</text>
 <text x="490.8" y="146.96" fill="#859900">09:21</text>
 <text x="28.8" y="164.96" fill="#657b83">LICENSE</text>
-<text x="415.2" y="164.96" fill="#808080">1K</text>
+<text x="415.2" y="164.96" fill="#3b82f6">1K</text>
 <text x="440.4" y="164.96" fill="#657b83">01/05</text>
 <text x="490.8" y="164.96" fill="#657b83">00:00</text>
 <text x="28.8" y="182.96" fill="#657b83">notes.md</text>
-<text x="415.2" y="182.96" fill="#917d76">6K</text>
+<text x="415.2" y="182.96" fill="#6581df">6K</text>
 <text x="440.4" y="182.96" fill="#657b83">10/10</text>
 <text x="490.8" y="182.96" fill="#657b83">10:26</text>
 <text x="28.8" y="200.96" fill="#657b83">README.md</text>
-<text x="390" y="200.96" fill="#987c71">11.7K</text>
+<text x="390" y="200.96" fill="#7380d5">11.7K</text>
 <text x="440.4" y="200.96" fill="#657b83">10/09</text>
 <text x="490.8" y="200.96" fill="#657b83">19:52</text>
 <text x="28.8" y="218.96" fill="#657b83">report.pdf</text>
-<text x="381.6" y="218.96" fill="#bd7153">839.8K</text>
+<text x="381.6" y="218.96" fill="#b0729c">839.8K</text>
 <text x="440.4" y="218.96" fill="#657b83">07/18</text>
 <text x="490.8" y="218.96" fill="#657b83">08:45</text>
 </g>
