@@ -284,8 +284,10 @@ FAMILY = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', mono
 #: Around a tile's rows, the strip its name is written in, and between tiles.
 PAD, TITLE, GAP = 12, 26, 16
 
-#: Tiles to a row.
-ACROSS = 2
+#: Tiles to a row. One, so a tile is drawn at its own size: GitHub fits an
+#: image to the page's text column, and two across were shrunk to about two
+#: thirds there, measured in Chrome, with the text the size of a footnote.
+ACROSS = 1
 
 #: The glyphs drawn as shapes rather than text: the half-discs either side of
 #: the hovered row, U+E0B6 and U+E0B4, open towards the row. Any other
