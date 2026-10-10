@@ -10,7 +10,8 @@ picture of is the `init.lua` block above it, with a `theme.toml` block if the
 example has one -- each fenced block naming its file on its first line, the
 way the README spells them. This opens a Yazi on that configuration and on a
 folder built here, captures it the way `e2e.py` does, and writes the file list
-as an SVG on every terminal ground `gallery.py` draws on.
+as an SVG: on one dark terminal and one light, or on every ground `gallery.py`
+draws on where the picture says so.
 
 Each SVG carries a digest of the blocks it was drawn from, and
 `test_examples.py` holds every image line to it in CI, so a configuration
@@ -77,6 +78,18 @@ exts  = []
 conds = []
 """
 
+#: The two grounds a picture is drawn on unless it asks for every one: a
+#: dark terminal and a light one, out of the seven `gallery.py` draws on.
+#: Both, rather than the one matching the reader's page, because a reader on
+#: a dark page may well run a light terminal -- and a configuration tuned for
+#: one ground is worth seeing on the other.
+PAIR = ("Catppuccin Mocha", "Solarized light")
+
+#: A line above an image asking for every ground instead, for a picture whose
+#: point is how the columns follow the terminal's palette. A comment, so the
+#: page shows nothing of it and markdownlint asks for no exemption.
+EVERY = "<!-- drawn on every ground -->"
+
 #: The first line of a block, naming the file it belongs in.
 INIT = "-- ~/.config/yazi/init.lua"
 THEME = "# ~/.config/yazi/theme.toml"
@@ -96,24 +109,28 @@ class Example:
     alt: str
     init: str
     theme: str = ""
+    every: bool = False
 
     @property
     def digest(self) -> str:
-        """What the picture was drawn from, so a block edited since says so."""
-        body = f"{self.init}\0{self.theme}".encode()
+        """What the picture was drawn from, so a block edited since says so --
+        and the grounds it was asked for, since those change the picture as
+        much."""
+        body = f"{self.init}\0{self.theme}\0{self.every}".encode()
         return hashlib.sha256(body).hexdigest()
 
 
 def examples(text: str) -> list[Example]:
     """Every picture in `docs/examples.md`, with its blocks.
 
-    A block belongs to the next image below it. An image with no `init.lua`
-    block since the one before it is refused, since there would be nothing to
-    draw, and so is a second block for one file: which of the two is the
-    picture's would be a guess.
+    A block belongs to the next image below it, and so does `EVERY`. An image
+    with no `init.lua` block since the one before it is refused, since there
+    would be nothing to draw, and so is a second block for one file: which of
+    the two is the picture's would be a guess.
     """
     found: list[Example] = []
     blocks: dict[str, str] = {}
+    every = False
     lines = text.splitlines()
     i = 0
     while i < len(lines):
@@ -135,6 +152,8 @@ def examples(text: str) -> list[Example]:
                 blocks[body[0]] = "\n".join(body) + "\n"
             i = end + 1
             continue
+        if line == EVERY:
+            every = True
         image = IMAGE.match(line)
         if image:
             if INIT not in blocks:
@@ -148,11 +167,21 @@ def examples(text: str) -> list[Example]:
                     image.group(1),
                     blocks[INIT],
                     blocks.get(THEME, ""),
+                    every,
                 )
             )
-            blocks = {}
+            blocks, every = {}, False
         i += 1
     return found
+
+
+def drawn_on(
+    example: Example, grounds: list[tuple[str, str]]
+) -> list[tuple[str, str]]:
+    """The grounds `example` is drawn on, out of every one there is."""
+    if example.every:
+        return grounds
+    return [(name, hex) for name, hex in grounds if name in PAIR]
 
 
 def drawn_from(svg: str) -> str | None:
@@ -492,13 +521,19 @@ def main(argv: list[str]) -> int:
     fixture.clear(DIR)
     DIR.mkdir()
     (DIR / fixture.MARKER).touch()
+    missing = set(PAIR) - {name for name, _ in grounds}
+    if missing:
+        refuse(
+            f"examples: {', '.join(sorted(missing))} is not among the grounds "
+            "test/fixture/init.lua names"
+        )
     folder = build_folder(DIR)
     for example in found:
         rows = file_rows(capture(DIR, folder, example))
         if not rows:
             refuse(f"examples: {example.image} drew no rows")
         try:
-            picture = svg(rows, grounds, example)
+            picture = svg(rows, drawn_on(example, grounds), example)
         except ValueError as error:
             refuse(f"examples: {example.image}: {error}")
         target = EXAMPLES.parent / example.image
