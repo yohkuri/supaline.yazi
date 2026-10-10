@@ -32,23 +32,43 @@ require("supaline"):setup {
 `permissions` takes its colours from your theme's `[status]` section, and
 Yazi's preset theme writes those by name as well.
 
-## A gradient
+## A gradient on size
 
-A colour can run from the smallest value in the folder to the largest. `size`
-places a file by the magnitude of its size, so a folder of kilobytes and
-gigabytes still spreads across the whole gradient; a directory, which has no
-size to place, takes the low end.
+A colour can run from the smallest value in the folder to the largest. From
+grey to a colour, the large files stand out and the small ones step back.
+`size` places a file by the magnitude of its size, so kilobytes and gigabytes
+in one folder still spread across the whole gradient; a directory, which has
+no size to place, takes the low end.
 
 ```lua
 -- ~/.config/yazi/init.lua
 require("supaline"):setup {
   linemodes = {
     detail = {
-      { "size", style = "#26a69a -> #ef6c00" },
-      { "mtime", style = "#7e57c2 -> #1e88e5" },
+      { "size", style = "#808080 -> #e8590c" },
+      "mtime",
     },
   },
 }
 ```
 
-![size and mtime, each on a gradient of its own](examples/gradient.svg)
+![size from grey to orange](examples/size-gradient.svg)
+
+## A gradient on age
+
+The same on `mtime` picks out what changed recently, and lets what has sat
+untouched for months fade into grey.
+
+```lua
+-- ~/.config/yazi/init.lua
+require("supaline"):setup {
+  linemodes = {
+    detail = {
+      "size",
+      { "mtime", style = "#808080 -> #1c7ed6" },
+    },
+  },
+}
+```
+
+![mtime from grey to blue](examples/mtime-gradient.svg)

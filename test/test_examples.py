@@ -40,6 +40,17 @@ class ThePage(unittest.TestCase):
                     "ones above it: run test/examples.py",
                 )
 
+    def test_every_picture_on_disk_is_on_the_page(self):
+        # A picture whose image line was removed or renamed is otherwise kept
+        # and published, a picture of nothing on the page.
+        shown = {
+            example.image
+            for example in examples.examples(examples.EXAMPLES.read_text())
+        }
+        for path in (examples.EXAMPLES.parent / "examples").glob("*.svg"):
+            with self.subTest(path.name):
+                self.assertIn(f"examples/{path.name}", shown)
+
 
 class Reading(unittest.TestCase):
     def test_a_picture_takes_the_blocks_above_it(self):
