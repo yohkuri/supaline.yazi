@@ -24,35 +24,35 @@ key switches to. A directory has no size of its own: `size` counts its entries
 once Yazi has listed it, as it has the hovered one here, and draws a dash
 until then.
 
+> [!TIP]
+> `plugin supaline -- toggle detail` bound to a key shows the columns and puts
+> them away again, which Yazi's own `linemode` action cannot.
+
 The rest of the setup, the `yazi.toml` line and a key to show and hide the
 columns, is under [Quick start](../README.md#quick-start), and every option
 `setup` takes under [`setup` options](../configuration.md#setup-options).
 
 ## Like `ls -l`
 
-Four of the built-in columns give the long listing `ls -l` prints:
+Four of the built-in columns give much of the long listing `ls -l` prints:
 
 ```lua
 -- ~/.config/yazi/init.lua
 require("supaline"):setup {
   linemodes = {
-    detail = {
-      "permissions",
-      { "owner", width = "auto" },
-      "size",
-      "mtime",
-    },
+    detail = { "permissions", "user", "size", "mtime" },
   },
 }
 ```
 
-![permissions, owner, size and mtime](images/ls-l.svg)
+![permissions, user, size and mtime](images/ls-l.svg)
 
-Yazi gives the columns their room first, so a long file name is cut short
-rather than a column. `owner` is the user and group from this machine's
-accounts, which `user` and `group` show one at a time. Its 12 cells are a
-guess at how long those names run, and `width = "auto"` fits the column to the
-longest in the folder instead.
+`user` is the owning user's name from this machine's accounts. `group` is the
+group beside it, and `owner` the two together as `user:group`.
+
+> [!NOTE]
+> Yazi gives the columns their room first, so a long file name is cut short
+> rather than a column. The wider the linemode, the less of each name shows.
 
 Every built-in column, with its width, is under
 [Built-in columns](../configuration.md#built-in-columns).
@@ -102,7 +102,8 @@ require("supaline"):setup {
 
 ![one timestamp cut with an ellipsis, clipped, and grown](images/overflow.svg)
 
-`grow` draws the whole cell, and the name pays for it.
+> [!WARNING]
+> `grow` draws the whole cell, and the file name pays for it on every row.
 
 `overflow` is under [Column specs](../configuration.md#column-specs), and how
 a cell is cut under [Caveats](../configuration.md#caveats).
@@ -128,8 +129,9 @@ require("supaline"):setup {
 
 ![grey bars between the columns, and a pink dot before mtime](images/separators.svg)
 
-A separator written on a column replaces the plugin-wide one whole, colour and
-all.
+> [!IMPORTANT]
+> A separator written on a column replaces the plugin-wide one whole, colour
+> and all: a bare `" · "` there is drawn with no colour.
 
 Where a separator may be written, and what it may not carry, is under
 [A coloured separator](../styles.md#a-coloured-separator).
