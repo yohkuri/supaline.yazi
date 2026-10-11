@@ -36,7 +36,12 @@ Four of the built-in columns give the long listing `ls -l` prints:
 -- ~/.config/yazi/init.lua
 require("supaline"):setup {
   linemodes = {
-    detail = { "permissions", "owner", "size", "mtime" },
+    detail = {
+      "permissions",
+      { "owner", width = "auto" },
+      "size",
+      "mtime",
+    },
   },
 }
 ```
@@ -45,7 +50,9 @@ require("supaline"):setup {
 
 Yazi gives the columns their room first, so a long file name is cut short
 rather than a column. `owner` is the user and group from this machine's
-accounts, which `user` and `group` show one at a time.
+accounts, which `user` and `group` show one at a time. Its 12 cells are a
+guess at how long those names run, and `width = "auto"` fits the column to the
+longest in the folder instead.
 
 Every built-in column, with its width, is under
 [Built-in columns](../configuration.md#built-in-columns).

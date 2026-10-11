@@ -161,7 +161,7 @@ without one:
 require("supaline"):setup {
   linemodes = {
     detail = {
-      { "owner", style = { bold = true } },
+      { "owner", width = "auto", style = { bold = true } },
       { "size", style = { underline = true } },
       { "mtime", style = { fg = "blue", italic = true } },
     },
