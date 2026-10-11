@@ -1,11 +1,8 @@
-# Examples
+# Colours
 
-Each example is a configuration and what it draws. Every picture here is
-rendered by running the configuration above it in Yazi 26.9.1, so the two say
-the same thing; Yazi's file icons are switched off for the pictures, since an
-image cannot rely on its viewer having a Nerd Font. Each is drawn on a dark
-terminal and a light one, Catppuccin Mocha and Solarized light, except where
-the terminal is the point.
+What a column can be coloured with: a colour your terminal names, and a
+gradient from the smallest value in the folder to the largest. How the pictures
+are drawn is in [the index](README.md).
 
 ## On any terminal
 
@@ -27,10 +24,13 @@ require("supaline"):setup {
 ```
 
 <!-- drawn on every ground -->
-![The same columns on seven terminal colour schemes](examples/named-colours.svg)
+![The same columns on seven terminal colour schemes](images/named-colours.svg)
 
 `permissions` takes its colours from your theme's `[status]` section, and
 Yazi's preset theme writes those by name as well.
+
+Every way to write a colour is under [`style`](../styles.md#style), and what
+`permissions` draws under [Built-in columns](../configuration.md#built-in-columns).
 
 ## A gradient on size
 
@@ -52,7 +52,11 @@ require("supaline"):setup {
 }
 ```
 
-![size from blue to red](examples/size-gradient.svg)
+![size from blue to red](images/size-gradient.svg)
+
+How a gradient is written and where a file lands on it are under
+[A gradient](../styles.md#a-gradient), and placing by magnitude under
+[`scale`](../styles.md#scale).
 
 ## A gradient on age
 
@@ -71,4 +75,7 @@ require("supaline"):setup {
 }
 ```
 
-![mtime from blue to red](examples/mtime-gradient.svg)
+![mtime from blue to red](images/mtime-gradient.svg)
+
+A timestamp is placed on a linear scale rather than by magnitude;
+[`scale`](../styles.md#scale) says why.

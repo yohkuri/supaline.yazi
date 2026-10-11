@@ -1,4 +1,4 @@
-"""The pictures in `docs/examples.md`, against the blocks above them.
+"""The pictures in `docs/examples/`, against the blocks above them.
 
 `examples.py` needs a real Yazi to draw a picture and none to read what one
 says it was drawn from, so that is checked here, in CI: a configuration edited
@@ -10,7 +10,10 @@ beside a picture of something else.
 
 from __future__ import annotations
 
+import re
+import tempfile
 import unittest
+from pathlib import Path
 
 import examples
 import screen as sc
@@ -18,18 +21,24 @@ from gallery import Scheme
 
 INIT = "```lua\n-- ~/.config/yazi/init.lua\nrequire('supaline'):setup {}\n```\n"
 THEME = '```toml\n# ~/.config/yazi/theme.toml\n[supaline]\nsize = "red"\n```\n'
-IMAGE = "![A picture](examples/a-picture.svg)\n"
+IMAGE = "![A picture](images/a-picture.svg)\n"
+
+#: Any reference to a picture, an image line's or a linked one's.
+SHOWN = re.compile(r"\]\((images/[^)]+\.svg)\)")
 
 
-class ThePage(unittest.TestCase):
+class ThePages(unittest.TestCase):
+    def setUp(self):
+        self.pages = sorted(examples.PAGES.glob("*.md"))
+        self.found = examples.gathered(self.pages)
+
     def test_every_picture_was_drawn_from_the_blocks_above_it(self):
-        found = examples.examples(examples.EXAMPLES.read_text())
-        # Guarded, so a page whose image lines stopped matching is not a
+        # Guarded, so pages whose image lines stopped matching are not a
         # sweep over nothing.
-        self.assertTrue(found, "no picture found in docs/examples.md")
-        for example in found:
+        self.assertTrue(self.found, "no picture found in docs/examples/")
+        for example in self.found:
             with self.subTest(example.image):
-                path = examples.EXAMPLES.parent / example.image
+                path = examples.PAGES / example.image
                 self.assertTrue(
                     path.exists(), f"{example.image}: run test/examples.py"
                 )
@@ -40,22 +49,29 @@ class ThePage(unittest.TestCase):
                     "ones above it: run test/examples.py",
                 )
 
-    def test_every_picture_on_disk_is_on_the_page(self):
+    def test_every_picture_on_disk_is_on_a_page(self):
         # A picture whose image line was removed or renamed is otherwise kept
-        # and published, a picture of nothing on the page.
-        shown = {
-            example.image
-            for example in examples.examples(examples.EXAMPLES.read_text())
-        }
-        for path in (examples.EXAMPLES.parent / "examples").glob("*.svg"):
+        # and published, a picture of nothing on any page.
+        drawn = {example.image for example in self.found}
+        for path in (examples.PAGES / "images").glob("*.svg"):
             with self.subTest(path.name):
-                self.assertIn(f"examples/{path.name}", shown)
+                self.assertIn(f"images/{path.name}", drawn)
+
+    def test_every_picture_shown_is_drawn_by_an_example(self):
+        # The index shows pictures as links to the example under them, which
+        # are not image lines: nothing else would notice one naming a file
+        # no example draws.
+        drawn = {example.image for example in self.found}
+        for page in self.pages:
+            for shown in SHOWN.findall(page.read_text()):
+                with self.subTest(page=page.name, image=shown):
+                    self.assertIn(shown, drawn)
 
 
 class Reading(unittest.TestCase):
     def test_a_picture_takes_the_blocks_above_it(self):
         [found] = examples.examples(INIT + THEME + IMAGE)
-        self.assertEqual(found.image, "examples/a-picture.svg")
+        self.assertEqual(found.image, "images/a-picture.svg")
         self.assertEqual(found.alt, "A picture")
         self.assertIn("setup {}", found.init)
         self.assertIn('size = "red"', found.theme)
@@ -72,6 +88,18 @@ class Reading(unittest.TestCase):
     def test_a_picture_with_nothing_to_draw_is_refused(self):
         with self.assertRaisesRegex(ValueError, "no `-- ~/.config/yazi"):
             examples.examples(THEME + IMAGE)
+
+    def test_one_picture_on_two_pages_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pages = [Path(tmp) / "a.md", Path(tmp) / "b.md"]
+            for page in pages:
+                page.write_text(INIT + IMAGE)
+            with self.assertRaisesRegex(ValueError, "b.md: .* by a.md"):
+                examples.gathered(pages)
+
+    def test_a_linked_picture_is_not_an_example(self):
+        linked = "[![A picture](images/a-picture.svg)](page.md)\n"
+        self.assertEqual(examples.examples(INIT + linked), [])
 
     def test_two_blocks_for_one_file_are_refused(self):
         with self.assertRaisesRegex(ValueError, "a second"):

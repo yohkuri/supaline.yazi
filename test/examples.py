@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Draw the pictures in `docs/examples.md`, by running the configuration above
+"""Draw the pictures in `docs/examples/`, by running the configuration above
 each of them in a real Yazi.
 
     test/examples.py          draw every picture
     test/examples.py --clean  throw the scratch directory away
 
-`docs/examples.md` is the source: a picture is an image line, and what it is a
-picture of is the `init.lua` block above it, with a `theme.toml` block if the
-example has one -- each fenced block naming its file on its first line, the
-way the README spells them. This opens a Yazi on that configuration and on a
+The pages in `docs/examples/` are the source: a picture is an image line, and
+what it is a picture of is the `init.lua` block above it, with a `theme.toml`
+block if the example has one -- each fenced block naming its file on its first
+line, the way the README spells them. This opens a Yazi on that configuration and on a
 folder built here, captures it the way `e2e.py` does, and writes the file list
 as an SVG: on one dark terminal and one light, or on every ground `gallery.py`
 draws on where the picture says so.
@@ -48,7 +48,9 @@ from e2e import TROUBLE
 from gallery import SCHEMES, Scheme, scheme
 from harness import ROOT, Session, catch_term, need, refuse, yazi_env, yazi_log
 
-EXAMPLES = ROOT / "docs" / "examples.md"
+#: The pages, every `*.md` in it, and the pictures under `images/` beside them.
+#: One directory for every page, so an image path is the same from each.
+PAGES = ROOT / "docs" / "examples"
 
 DIR = Path(tempfile.gettempdir()) / "supaline-examples"
 
@@ -94,7 +96,7 @@ EVERY = "<!-- drawn on every ground -->"
 INIT = "-- ~/.config/yazi/init.lua"
 THEME = "# ~/.config/yazi/theme.toml"
 
-IMAGE = re.compile(r"^!\[([^\]]+)\]\((examples/[a-z0-9-]+\.svg)\)$")
+IMAGE = re.compile(r"^!\[([^\]]+)\]\((images/[a-z0-9-]+\.svg)\)$")
 FENCE = re.compile(r"^```")
 
 #: The attribute the digest is written in, on the SVG's root element.
@@ -121,7 +123,7 @@ class Example:
 
 
 def examples(text: str) -> list[Example]:
-    """Every picture in `docs/examples.md`, with its blocks.
+    """Every picture on one page, with its blocks.
 
     A block belongs to the next image below it, and so does `EVERY`. An image
     with no `init.lua` block since the one before it is refused, since there
@@ -172,6 +174,31 @@ def examples(text: str) -> list[Example]:
             )
             blocks, every = {}, False
         i += 1
+    return found
+
+
+def gathered(pages: list[Path]) -> list[Example]:
+    """Every picture on every page.
+
+    Refused when two image lines name one file, wherever they are: each would
+    be drawn over the other, and the page that lost would show a picture of
+    the other's blocks.
+    """
+    found: list[Example] = []
+    where: dict[str, str] = {}
+    for page in pages:
+        try:
+            on_page = examples(page.read_text())
+        except ValueError as error:
+            raise ValueError(f"{page.name}: {error}") from None
+        for example in on_page:
+            if example.image in where:
+                raise ValueError(
+                    f"{page.name}: {example.image} is drawn by "
+                    f"{where[example.image]} already"
+                )
+            where[example.image] = page.name
+        found.extend(on_page)
     return found
 
 
@@ -511,12 +538,13 @@ def main(argv: list[str]) -> int:
             "examples: no ground in the comment above `GROUND` in "
             "test/fixture/init.lua -- a name and a backticked hex each"
         )
+    pages = sorted(PAGES.glob("*.md"))
     try:
-        found = examples(EXAMPLES.read_text())
+        found = gathered(pages)
     except ValueError as error:
-        refuse(f"examples: {EXAMPLES.relative_to(ROOT)}: {error}")
+        refuse(f"examples: {PAGES.relative_to(ROOT)}/{error}")
     if not found:
-        refuse(f"examples: no picture in {EXAMPLES.relative_to(ROOT)}")
+        refuse(f"examples: no picture in {PAGES.relative_to(ROOT)}")
 
     fixture.clear(DIR)
     DIR.mkdir()
@@ -536,7 +564,7 @@ def main(argv: list[str]) -> int:
             picture = svg(rows, drawn_on(example, grounds), example)
         except ValueError as error:
             refuse(f"examples: {example.image}: {error}")
-        target = EXAMPLES.parent / example.image
+        target = PAGES / example.image
         target.parent.mkdir(exist_ok=True)
         target.write_text(picture)
         print(f"examples: drew {target.relative_to(ROOT)}")
