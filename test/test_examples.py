@@ -28,9 +28,11 @@ SHOWN = re.compile(r"\]\((images/[^)]+\.svg)\)")
 
 
 class ThePages(unittest.TestCase):
-    def setUp(self):
-        self.pages = sorted(examples.PAGES.glob("*.md"))
-        self.found = examples.gathered(self.pages)
+    @classmethod
+    def setUpClass(cls):
+        cls.pages = sorted(examples.PAGES.glob("*.md"))
+        cls.found = examples.gathered(cls.pages)
+        cls.drawn = {example.image for example in cls.found}
 
     def test_every_picture_was_drawn_from_the_blocks_above_it(self):
         # Guarded, so pages whose image lines stopped matching are not a
@@ -52,20 +54,18 @@ class ThePages(unittest.TestCase):
     def test_every_picture_on_disk_is_on_a_page(self):
         # A picture whose image line was removed or renamed is otherwise kept
         # and published, a picture of nothing on any page.
-        drawn = {example.image for example in self.found}
         for path in (examples.PAGES / "images").glob("*.svg"):
             with self.subTest(path.name):
-                self.assertIn(f"images/{path.name}", drawn)
+                self.assertIn(f"images/{path.name}", self.drawn)
 
     def test_every_picture_shown_is_drawn_by_an_example(self):
         # The index shows pictures as links to the example under them, which
         # are not image lines: nothing else would notice one naming a file
         # no example draws.
-        drawn = {example.image for example in self.found}
         for page in self.pages:
             for shown in SHOWN.findall(page.read_text()):
                 with self.subTest(page=page.name, image=shown):
-                    self.assertIn(shown, drawn)
+                    self.assertIn(shown, self.drawn)
 
 
 class Reading(unittest.TestCase):

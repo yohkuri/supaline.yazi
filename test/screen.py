@@ -14,6 +14,7 @@ parser here returning nothing.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 
@@ -66,6 +67,12 @@ def rgb(colour: str) -> str:
     """
     h = colour.lstrip("#")
     return ";".join(str(int(h[i : i + 2], 16)) for i in (0, 2, 4))
+
+
+def width(ch: str) -> int:
+    """The cells a character takes on the terminal: two for a wide or a
+    fullwidth one, one for anything else."""
+    return 2 if unicodedata.east_asian_width(ch) in "WF" else 1
 
 
 def escaped(layer: int, colour: str) -> str:

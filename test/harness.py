@@ -50,6 +50,10 @@ REFUSED = 2
 #: shell reports for a process SIGTERM ended.
 TERMINATED = 143
 
+#: How long a Yazi just started gets to list its folder, longer than any other
+#: wait here because a cold start can be slow.
+STARTUP = 30
+
 
 def refuse(message: str) -> NoReturn:
     """Stop before doing anything, saying what was missing.
@@ -607,7 +611,7 @@ class Driver:
         self.session.wait_for(
             lambda s: landmark in s,
             "the fixture listed",
-            timeout=30,
+            timeout=STARTUP,
         )
 
     def store(self, label: str, plain: str, colour: str = "") -> None:
