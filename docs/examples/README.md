@@ -16,16 +16,16 @@ for what the picture leaves out.
 `ls -l`, with their widths, what happens to a cell too long for its column,
 and the separators between them.
 
-[![permissions, owner, size and mtime](images/ls-l.svg)](layout.md#like-ls--l)
+[![permissions, user, size and mtime](images/ls-l.svg)](layout.md#like-ls--l)
 
-## Colours
+## Styles
 
-[Colours](colours.md): a colour your terminal names, drawn on seven terminal
+[Styles](styles.md): a colour your terminal names, drawn on seven colour
 schemes; gradients on `size` and on `mtime`, with three stops, on a linear
 scale and behind the text; attributes; styles written in `theme.toml`; and the
 colours `permissions` takes from your theme.
 
-[![size from blue to red](images/size-gradient.svg)](colours.md#a-gradient-on-size)
+[![size from blue to red](images/size-gradient.svg)](styles.md#a-gradient-on-size)
 
 ## Columns of your own
 
