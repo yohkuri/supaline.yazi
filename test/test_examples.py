@@ -99,7 +99,48 @@ class Reading(unittest.TestCase):
 
     def test_a_linked_picture_is_not_an_example(self):
         linked = "[![A picture](images/a-picture.svg)](page.md)\n"
-        self.assertEqual(examples.examples(INIT + linked), [])
+        self.assertEqual(examples.examples(linked), [])
+
+    def test_a_block_does_not_cross_a_heading(self):
+        # Carried on, the theme would be drawn into the next section's
+        # picture, and its digest would agree.
+        with self.assertRaisesRegex(ValueError, "line 7: .* no picture"):
+            examples.examples(THEME + "\n## Next\n" + INIT + IMAGE)
+
+    def test_a_block_left_at_the_end_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "end of the page"):
+            examples.examples(INIT + IMAGE + THEME)
+
+    def test_every_ground_left_alone_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "no picture"):
+            examples.examples(examples.EVERY + "\n## Next\n")
+
+    def test_trailing_space_is_not_read(self):
+        [found] = examples.examples(
+            INIT + examples.EVERY + "  \n" + IMAGE.replace("\n", " \n")
+        )
+        self.assertTrue(found.every)
+
+    def test_a_misspelled_ground_comment_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "the one way"):
+            examples.examples(
+                INIT + "<!-- drawn on every grounds -->\n" + IMAGE
+            )
+
+    def test_a_longer_fence_holds_a_shorter_one(self):
+        quoted = "````md\n```lua\n-- ~/.config/yazi/init.lua\n```\n````\n"
+        [found] = examples.examples(quoted + INIT + IMAGE)
+        self.assertIn("setup {}", found.init)
+
+    def test_a_theme_that_themes_icons_is_refused(self):
+        icons = "```toml\n# ~/.config/yazi/theme.toml\n[icon]\ndirs = []\n```\n"
+        with self.assertRaisesRegex(ValueError, "`\\[icon\\]`"):
+            examples.examples(INIT + icons + IMAGE)
+
+    def test_a_theme_that_does_not_parse_is_refused(self):
+        broken = "```toml\n# ~/.config/yazi/theme.toml\n[supaline\n```\n"
+        with self.assertRaisesRegex(ValueError, "does not parse"):
+            examples.examples(INIT + broken + IMAGE)
 
     def test_two_blocks_for_one_file_are_refused(self):
         with self.assertRaisesRegex(ValueError, "a second"):
@@ -129,6 +170,12 @@ class Reading(unittest.TestCase):
             [name for name, _ in examples.drawn_on(pair, grounds)],
             list(examples.PAIR),
         )
+
+    def test_the_digest_covers_the_alt_text(self):
+        # The SVG carries it as its title.
+        [plain] = examples.examples(INIT + IMAGE)
+        [renamed] = examples.examples(INIT + IMAGE.replace("A picture", "B"))
+        self.assertNotEqual(plain.digest, renamed.digest)
 
     def test_the_digest_covers_the_theme_too(self):
         [plain] = examples.examples(INIT + IMAGE)

@@ -2,22 +2,25 @@
 """Draw the pictures in `docs/examples/`, by running the configuration above
 each of them in a real Yazi.
 
-    test/examples.py          draw every picture
-    test/examples.py --clean  throw the scratch directory away
+    test/examples.py  draw every picture
 
 The pages in `docs/examples/` are the source: a picture is an image line, and
 what it is a picture of is the `init.lua` block above it, with a `theme.toml`
 block if the example has one -- each fenced block naming its file on its first
-line, the way the README spells them. This opens a Yazi on that configuration and on a
-folder built here, captures it the way `e2e.py` does, and writes the file list
-as an SVG: on one dark terminal and one light, or on every ground `gallery.py`
-draws on where the picture says so.
+line, the way the README spells them. This opens a Yazi on that configuration
+and on a folder built here, captures it the way `e2e.py` does, and writes the
+file list as an SVG: on one dark terminal and one light, or on every ground
+`gallery.py` draws on where the picture says so.
 
-Each SVG carries a digest of the blocks it was drawn from, and
-`test_examples.py` holds every image line to it in CI, so a configuration
+Each SVG carries a digest of the blocks it was drawn from and of its alt text,
+and `test_examples.py` holds every image line to it in CI, so a configuration
 edited without its picture being redrawn fails there rather than being
-published beside a picture of something else. Drawing needs a Yazi and a
-terminal, and is not in CI, for the reason `e2e.py` is not.
+published beside a picture of something else. What the digest does not cover
+is everything the blocks run on -- the plugin, the folder, the window -- since
+a picture that went stale with every edit to the plugin would be redrawn
+without being looked at. Redraw them after a change that moves what a column
+draws. Drawing needs a Yazi and a terminal, and is not in CI, for the reason
+`e2e.py` is not.
 
 The pictures switch Yazi's file icons off. They are Nerd Font glyphs, which an
 SVG cannot draw unless its viewer has the font, and a picture full of empty
@@ -28,10 +31,12 @@ the hovered row are drawn as shapes instead, since they are the cursor.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import sys
 import tempfile
 import time
+import tomllib
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,19 +49,36 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harness  # noqa: F401
 import screen as sc
 import setup as fixture
-from e2e import TROUBLE
+from e2e import troubles
 from gallery import SCHEMES, Scheme, scheme
-from harness import ROOT, Session, catch_term, need, refuse, yazi_env, yazi_log
+from harness import (
+    ROOT,
+    Session,
+    catch_term,
+    need,
+    refuse,
+    yazi_env,
+    yazi_log,
+    yazi_version,
+)
 
 #: The pages, every `*.md` in it, and the pictures under `images/` beside them.
 #: One directory for every page, so an image path is the same from each.
 PAGES = ROOT / "docs" / "examples"
 
-DIR = Path(tempfile.gettempdir()) / "supaline-examples"
+#: The scratch directory and the tmux session, both named after the run, so
+#: a run owns everything it touches -- for the reason `e2e.py` gives -- and
+#: removed when it ends.
+PID = os.getpid()
+DIR = Path(tempfile.gettempdir()) / f"supaline-examples.{PID}"
 
 #: The window a picture is taken in. Narrower than the harnesses' own, because
 #: a picture holds one pane and is read at the width of a page.
 WIDTH, HEIGHT = 64, 16
+
+#: How long the folder gets to appear: what `Driver.open_yazi` gives the
+#: fixture, since a cold start can be slow.
+STARTUP = 30
 
 #: What Yazi is told besides the example: the linemode every example is
 #: written to define, and the current pane alone, so the file list is the
@@ -67,10 +89,12 @@ linemode = "detail"
 ratio    = [0, 1, 0]
 """
 
-#: Put before the example's own `theme.toml`, so the icons are switched off
-#: however the example themes the rest. Measured on 26.9.1, the five lists
-#: written empty leave no icon drawn: they replace the preset's rather than
-#: adding to it.
+#: Put after the example's own `theme.toml`, so the icons are switched off
+#: however the example themes the rest, and a key the example writes before
+#: its first table stays at the top level. An example that themes `[icon]`
+#: itself is refused, since the two tables could not both be read. Measured
+#: on 26.9.1, the five lists written empty leave no icon drawn: they replace
+#: the preset's rather than adding to it.
 NO_ICONS = """\
 [icon]
 globs = []
@@ -89,7 +113,9 @@ PAIR = ("Catppuccin Mocha", "Solarized light")
 
 #: A line above an image asking for every ground instead, for a picture whose
 #: point is how the columns follow the terminal's palette. A comment, so the
-#: page shows nothing of it and markdownlint asks for no exemption.
+#: page shows nothing of it and markdownlint asks for no exemption. Any other
+#: comment that names grounds is refused rather than ignored, since a
+#: misspelled one would draw a pair without saying so.
 EVERY = "<!-- drawn on every ground -->"
 
 #: The first line of a block, naming the file it belongs in.
@@ -97,7 +123,9 @@ INIT = "-- ~/.config/yazi/init.lua"
 THEME = "# ~/.config/yazi/theme.toml"
 
 IMAGE = re.compile(r"^!\[([^\]]+)\]\((images/[a-z0-9-]+\.svg)\)$")
-FENCE = re.compile(r"^```")
+GROUNDS = re.compile(r"^<!--.*\bground", re.IGNORECASE)
+HEADING = re.compile(r"^#{1,6}\s")
+FENCE = re.compile(r"^(`{3,}|~{3,})")
 
 #: The attribute the digest is written in, on the SVG's root element.
 SOURCE = "data-source"
@@ -117,9 +145,29 @@ class Example:
     def digest(self) -> str:
         """What the picture was drawn from, so a block edited since says so --
         and the grounds it was asked for, since those change the picture as
-        much."""
-        body = f"{self.init}\0{self.theme}\0{self.every}".encode()
+        much, and the alt text the SVG carries as its title."""
+        body = f"{self.alt}\0{self.init}\0{self.theme}\0{self.every}".encode()
         return hashlib.sha256(body).hexdigest()
+
+
+def closing(fence: str, line: str) -> bool:
+    """Whether `line` closes a block opened by `fence`: the same character,
+    at least as many of it, and nothing else -- so a block quoting a shorter
+    fence inside a longer one is read whole, the way CommonMark reads it."""
+    run = line.strip()
+    return len(run) >= len(fence) and run == fence[0] * len(run)
+
+
+def theme_problem(theme: str) -> str | None:
+    """Why a `theme.toml` block cannot be drawn, if it cannot."""
+    body = "\n".join(theme.splitlines()[1:])
+    try:
+        parsed = tomllib.loads(body)
+    except tomllib.TOMLDecodeError as error:
+        return f"does not parse: {error}"
+    if "icon" in parsed:
+        return "themes `[icon]`, which the pictures switch off themselves"
+    return None
 
 
 def examples(text: str) -> list[Example]:
@@ -128,18 +176,32 @@ def examples(text: str) -> list[Example]:
     A block belongs to the next image below it, and so does `EVERY`. An image
     with no `init.lua` block since the one before it is refused, since there
     would be nothing to draw, and so is a second block for one file: which of
-    the two is the picture's would be a guess.
+    the two is the picture's would be a guess. So is a block or an `EVERY`
+    with no image under it before the next heading or the end of the page:
+    carried on, it would be drawn into the next section's picture, and the
+    digest would agree with it.
     """
     found: list[Example] = []
     blocks: dict[str, str] = {}
     every = False
+
+    def nothing_left(at: str) -> None:
+        if blocks or every:
+            named = ", ".join(f"`{name}`" for name in blocks) or f"`{EVERY}`"
+            raise ValueError(f"{at}: {named} with no picture under it")
+
     lines = text.splitlines()
     i = 0
     while i < len(lines):
-        line = lines[i]
-        if FENCE.match(line):
+        line = lines[i].rstrip()
+        fence = FENCE.match(line)
+        if fence:
             end = next(
-                (j for j in range(i + 1, len(lines)) if FENCE.match(lines[j])),
+                (
+                    j
+                    for j in range(i + 1, len(lines))
+                    if closing(fence.group(1), lines[j])
+                ),
                 None,
             )
             if end is None:
@@ -151,11 +213,22 @@ def examples(text: str) -> list[Example]:
                         f"line {i + 1}: a second `{body[0]}` block before "
                         "the picture the first one is for"
                     )
-                blocks[body[0]] = "\n".join(body) + "\n"
+                block = "\n".join(body) + "\n"
+                problem = body[0] == THEME and theme_problem(block)
+                if problem:
+                    raise ValueError(f"line {i + 1}: the theme {problem}")
+                blocks[body[0]] = block
             i = end + 1
             continue
+        if HEADING.match(line):
+            nothing_left(f"line {i + 1}")
         if line == EVERY:
             every = True
+        elif GROUNDS.match(line):
+            raise ValueError(
+                f"line {i + 1}: {line} is not `{EVERY}`, the one way to ask "
+                "for grounds"
+            )
         image = IMAGE.match(line)
         if image:
             if INIT not in blocks:
@@ -174,6 +247,7 @@ def examples(text: str) -> list[Example]:
             )
             blocks, every = {}, False
         i += 1
+    nothing_left("the end of the page")
     return found
 
 
@@ -222,8 +296,9 @@ def drawn_from(svg: str) -> str | None:
 #: The folder's entries: a size each, `None` for a directory, and the date it
 #: carries as `MMDDhhmm` of this year. This year's because `mtime` draws one as
 #: a time of day, which is the form most of a real listing is in, and the year
-#: itself never reaches the screen -- so the picture is the same whichever year
-#: it is redrawn in.
+#: itself never reaches the screen. Another year moves the dates apart only by
+#: where a leap day or a clock change falls: far less than one of a gradient's
+#: 64 steps, though a file sitting on a step's edge can still cross it.
 FOLDER: dict[str, tuple[int | None, str]] = {
     "assets": (None, "09141802"),
     "docs": (None, "10021133"),
@@ -238,8 +313,11 @@ FOLDER: dict[str, tuple[int | None, str]] = {
     "report.pdf": (860_000, "07180845"),
 }
 
-#: The executables, so `permissions` has an `x` to draw.
+#: The executables, so `permissions` has an `x` to draw. Every mode is set
+#: rather than left to the umask, which would draw the column differently for
+#: whoever redraws it.
 EXECUTABLE = {"install.sh"}
+FILE_MODE, DIR_MODE = 0o644, 0o755
 
 #: The name the screen is waited on, which sorts last.
 LANDMARK = "report.pdf"
@@ -260,11 +338,12 @@ def build_folder(root: Path) -> Path:
             path.mkdir(parents=True)
             for n in range(3):
                 (path / f"{name}-{n}").write_bytes(b"x")
+                (path / f"{name}-{n}").chmod(FILE_MODE)
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             fixture.sized(path, size)
-        if name in EXECUTABLE:
-            path.chmod(0o755)
+        executable = size is None or name in EXECUTABLE
+        path.chmod(DIR_MODE if executable else FILE_MODE)
     # After everything is created, because creating an entry moves its
     # directory's mtime.
     for name, (_, when) in FOLDER.items():
@@ -280,20 +359,21 @@ def capture(root: Path, folder: Path, example: Example) -> str:
 
     Refused when Yazi logged an error, since a column that failed has drawn a
     picture of the failure -- and a notification over the list would be in
-    the picture besides.
+    the picture besides. Refused too when the folder never appeared, since
+    what is on the screen then is a picture of Yazi starting.
     """
     config = root / "config"
     config.mkdir(exist_ok=True)
     (config / "yazi.toml").write_text(YAZI_TOML)
     (config / "init.lua").write_text(example.init)
-    (config / "theme.toml").write_text(NO_ICONS + "\n" + example.theme)
+    (config / "theme.toml").write_text(example.theme + "\n" + NO_ICONS)
     plugin = config / "plugins" / "supaline.yazi"
     if not plugin.is_symlink():
         plugin.parent.mkdir(parents=True, exist_ok=True)
         plugin.symlink_to(ROOT)
 
     state = f"state-{Path(example.image).stem}"
-    session = Session(f"supaline-examples-{Path(example.image).stem}")
+    session = Session(f"supaline-examples-{PID}")
     session.start(
         ["yazi", str(folder)],
         env=yazi_env(root, state),
@@ -301,17 +381,24 @@ def capture(root: Path, folder: Path, example: Example) -> str:
         height=HEIGHT,
     )
     try:
-        session.wait_for(lambda s: LANDMARK in s, "the folder listed")
+        # What `wait_for` returns is the last screen it read, met or not.
+        listed = session.wait_for(
+            lambda s: LANDMARK in s, "the folder listed", timeout=STARTUP
+        )
         screen = session.settle(colour=True)
+        # Quit rather than kill, so Yazi has the grace `quit` gives to finish
+        # the log read below.
+        session.quit("q")
     finally:
         session.kill()
 
+    if LANDMARK not in listed:
+        refuse(
+            f"examples: {LANDMARK} never appeared drawing {example.image}, "
+            f"in {STARTUP}s"
+        )
     log = yazi_log(root, state)
-    trouble = [
-        line
-        for line in (log.read_text() if log.exists() else "").splitlines()
-        if TROUBLE.search(line)
-    ]
+    trouble = troubles(log.read_text() if log.exists() else "")
     if trouble:
         refuse(
             f"examples: Yazi logged trouble drawing {example.image}:\n"
@@ -517,16 +604,12 @@ def svg(
 
 # --- the run -----------------------------------------------------------------
 
-USAGE = "test/examples.py [--clean]"
+USAGE = "test/examples.py"
 
 
 def main(argv: list[str]) -> int:
-    if argv not in ([], ["--clean"]):
+    if argv:
         refuse(f"usage: {USAGE}")
-    if argv == ["--clean"]:
-        fixture.clear(DIR)
-        print(f"examples: removed {DIR}")
-        return 0
 
     need("tmux", "yazi")
     catch_term()
@@ -538,6 +621,12 @@ def main(argv: list[str]) -> int:
             "examples: no ground in the comment above `GROUND` in "
             "test/fixture/init.lua -- a name and a backticked hex each"
         )
+    missing = set(PAIR) - {name for name, _ in grounds}
+    if missing:
+        refuse(
+            f"examples: {', '.join(sorted(missing))} is not among the grounds "
+            "test/fixture/init.lua names"
+        )
     pages = sorted(PAGES.glob("*.md"))
     try:
         found = gathered(pages)
@@ -546,29 +635,36 @@ def main(argv: list[str]) -> int:
     if not found:
         refuse(f"examples: no picture in {PAGES.relative_to(ROOT)}")
 
+    print(f"examples: Yazi {yazi_version()}")
+
     fixture.clear(DIR)
     DIR.mkdir()
     (DIR / fixture.MARKER).touch()
-    missing = set(PAIR) - {name for name, _ in grounds}
-    if missing:
-        refuse(
-            f"examples: {', '.join(sorted(missing))} is not among the grounds "
-            "test/fixture/init.lua names"
-        )
-    folder = build_folder(DIR)
-    for example in found:
-        rows = file_rows(capture(DIR, folder, example))
-        if not rows:
-            refuse(f"examples: {example.image} drew no rows")
-        try:
-            picture = svg(rows, drawn_on(example, grounds), example)
-        except ValueError as error:
-            refuse(f"examples: {example.image}: {error}")
-        target = PAGES / example.image
-        target.parent.mkdir(exist_ok=True)
-        target.write_text(picture)
-        print(f"examples: drew {target.relative_to(ROOT)}")
+    try:
+        folder = build_folder(DIR)
+        for example in found:
+            draw(folder, example, grounds)
+    finally:
+        fixture.clear(DIR)
     return 0
+
+
+def draw(
+    folder: Path, example: Example, grounds: list[tuple[str, str]]
+) -> None:
+    """Take `example`'s picture and write it where its image line says."""
+    screen = capture(DIR, folder, example)
+    try:
+        rows = file_rows(screen)
+        picture = svg(rows, drawn_on(example, grounds), example)
+    except ValueError as error:
+        refuse(f"examples: {example.image}: {error}")
+    if not rows:
+        refuse(f"examples: {example.image} drew no rows")
+    target = PAGES / example.image
+    target.parent.mkdir(exist_ok=True)
+    target.write_text(picture)
+    print(f"examples: drew {target.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
