@@ -291,6 +291,10 @@ def drawn_from(svg: str) -> str | None:
 #: itself never reaches the screen. Another year moves the dates apart only by
 #: where a leap day or a clock change falls: far less than one of a gradient's
 #: 64 steps, though a file sitting on a step's edge can still cross it.
+#:
+#: One name is long, so a picture shows what a wide linemode costs: Yazi takes
+#: the room out of the name rather than the columns. It sorts before
+#: `LANDMARK`, which a cut name could no longer be waited on as.
 FOLDER: dict[str, tuple[int | None, str]] = {
     "assets": (None, "09141802"),
     "docs": (None, "10021133"),
@@ -301,6 +305,7 @@ FOLDER: dict[str, tuple[int | None, str]] = {
     "install.sh": (3_200, "03110921"),
     "LICENSE": (1_070, "01050000"),
     "notes.md": (6_100, "10101026"),
+    "photo-2026-10-04-143207-edited.jpg": (3_400_000, "10041432"),
     "README.md": (12_000, "10091952"),
     "report.pdf": (860_000, "07180845"),
 }
