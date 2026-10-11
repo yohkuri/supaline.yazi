@@ -37,7 +37,6 @@ import sys
 import tempfile
 import time
 import tomllib
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from xml.sax.saxutils import escape, quoteattr
@@ -53,6 +52,7 @@ from e2e import troubles
 from gallery import SCHEMES, Scheme, scheme
 from harness import (
     ROOT,
+    STARTUP,
     Session,
     catch_term,
     need,
@@ -75,10 +75,6 @@ DIR = Path(tempfile.gettempdir()) / f"supaline-examples.{PID}"
 #: The window a picture is taken in. Narrower than the harnesses' own, because
 #: a picture holds one pane and is read at the width of a page.
 WIDTH, HEIGHT = 64, 16
-
-#: How long the folder gets to appear: what `Driver.open_yazi` gives the
-#: fixture, since a cold start can be slow.
-STARTUP = 30
 
 #: What Yazi is told besides the example: the linemode every example is
 #: written to define, and the current pane alone, so the file list is the
@@ -150,12 +146,16 @@ class Example:
         return hashlib.sha256(body).hexdigest()
 
 
-def closing(fence: str, line: str) -> bool:
-    """Whether `line` closes a block opened by `fence`: the same character,
-    at least as many of it, and nothing else -- so a block quoting a shorter
-    fence inside a longer one is read whole, the way CommonMark reads it."""
-    run = line.strip()
-    return len(run) >= len(fence) and run == fence[0] * len(run)
+def closing(lines: list[str], start: int, fence: str) -> int | None:
+    """The line that closes the block `fence` opens on line `start`: the same
+    character, at least as many of it, and nothing else -- so a block quoting
+    a shorter fence inside a longer one is read whole, the way CommonMark
+    reads it."""
+    for j in range(start + 1, len(lines)):
+        run = lines[j].strip()
+        if len(run) >= len(fence) and run == fence[0] * len(run):
+            return j
+    return None
 
 
 def theme_problem(theme: str) -> str | None:
@@ -196,14 +196,7 @@ def examples(text: str) -> list[Example]:
         line = lines[i].rstrip()
         fence = FENCE.match(line)
         if fence:
-            end = next(
-                (
-                    j
-                    for j in range(i + 1, len(lines))
-                    if closing(fence.group(1), lines[j])
-                ),
-                None,
-            )
+            end = closing(lines, i, fence.group(1))
             if end is None:
                 raise ValueError(f"line {i + 1}: a block that never closes")
             body = lines[i + 1 : end]
@@ -214,8 +207,7 @@ def examples(text: str) -> list[Example]:
                         "the picture the first one is for"
                     )
                 block = "\n".join(body) + "\n"
-                problem = body[0] == THEME and theme_problem(block)
-                if problem:
+                if body[0] == THEME and (problem := theme_problem(block)):
                     raise ValueError(f"line {i + 1}: the theme {problem}")
                 blocks[body[0]] = block
             i = end + 1
@@ -313,11 +305,8 @@ FOLDER: dict[str, tuple[int | None, str]] = {
     "report.pdf": (860_000, "07180845"),
 }
 
-#: The executables, so `permissions` has an `x` to draw. Every mode is set
-#: rather than left to the umask, which would draw the column differently for
-#: whoever redraws it.
+#: The executables, so `permissions` has an `x` to draw.
 EXECUTABLE = {"install.sh"}
-FILE_MODE, DIR_MODE = 0o644, 0o755
 
 #: The name the screen is waited on, which sorts last.
 LANDMARK = "report.pdf"
@@ -328,22 +317,26 @@ def build_folder(root: Path) -> Path:
 
     A directory holds a few files, so the hovered one -- which Yazi lists, and
     `size` then counts -- has entries to count. Sizes are sparse, as
-    `setup.sized` says why.
+    `setup.sized` says why. Built under the umask `setup.build` states, so
+    `permissions` draws the same modes whoever redraws the picture.
     """
     folder = root / "project"
     year = time.localtime().tm_year
-    for name, (size, _) in FOLDER.items():
-        path = folder / name
-        if size is None:
-            path.mkdir(parents=True)
-            for n in range(3):
-                (path / f"{name}-{n}").write_bytes(b"x")
-                (path / f"{name}-{n}").chmod(FILE_MODE)
-        else:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fixture.sized(path, size)
-        executable = size is None or name in EXECUTABLE
-        path.chmod(DIR_MODE if executable else FILE_MODE)
+    was = os.umask(0o022)
+    try:
+        for name, (size, _) in FOLDER.items():
+            path = folder / name
+            if size is None:
+                path.mkdir(parents=True)
+                for n in range(3):
+                    (path / f"{name}-{n}").write_bytes(b"x")
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                fixture.sized(path, size)
+            if name in EXECUTABLE:
+                path.chmod(0o755)
+    finally:
+        os.umask(was)
     # After everything is created, because creating an entry moves its
     # directory's mtime.
     for name, (_, when) in FOLDER.items():
@@ -352,6 +345,15 @@ def build_folder(root: Path) -> Path:
 
 
 # --- taking the picture ------------------------------------------------------
+
+
+def configure(root: Path) -> None:
+    """What every picture's Yazi shares under `root/config`: `YAZI_TOML`, and
+    the plugin, linked to this checkout. `capture` writes the rest."""
+    config = root / "config"
+    (config / "plugins").mkdir(parents=True)
+    (config / "yazi.toml").write_text(YAZI_TOML)
+    (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
 
 
 def capture(root: Path, folder: Path, example: Example) -> str:
@@ -363,14 +365,8 @@ def capture(root: Path, folder: Path, example: Example) -> str:
     what is on the screen then is a picture of Yazi starting.
     """
     config = root / "config"
-    config.mkdir(exist_ok=True)
-    (config / "yazi.toml").write_text(YAZI_TOML)
     (config / "init.lua").write_text(example.init)
     (config / "theme.toml").write_text(example.theme + "\n" + NO_ICONS)
-    plugin = config / "plugins" / "supaline.yazi"
-    if not plugin.is_symlink():
-        plugin.parent.mkdir(parents=True, exist_ok=True)
-        plugin.symlink_to(ROOT)
 
     state = f"state-{Path(example.image).stem}"
     session = Session(f"supaline-examples-{PID}")
@@ -398,7 +394,12 @@ def capture(root: Path, folder: Path, example: Example) -> str:
             f"in {STARTUP}s"
         )
     log = yazi_log(root, state)
-    trouble = troubles(log.read_text() if log.exists() else "")
+    if not log.exists():
+        refuse(
+            f"examples: Yazi wrote no log drawing {example.image}, so nothing "
+            "says the columns drew without error"
+        )
+    trouble = troubles(log.read_text())
     if trouble:
         refuse(
             f"examples: Yazi logged trouble drawing {example.image}:\n"
@@ -425,12 +426,11 @@ CELL_W, CELL_H, FONT = 8.4, 18, 14
 FAMILY = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
 
 #: Around a tile's rows, the strip its name is written in, and between tiles.
+#: The tiles are stacked one to a row, so each is drawn at its own size:
+#: GitHub fits an image to the page's text column, and two across were shrunk
+#: to about two thirds there, measured in Chrome, with the text the size of a
+#: footnote.
 PAD, TITLE, GAP = 12, 26, 16
-
-#: Tiles to a row. One, so a tile is drawn at its own size: GitHub fits an
-#: image to the page's text column, and two across were shrunk to about two
-#: thirds there, measured in Chrome, with the text the size of a footnote.
-ACROSS = 1
 
 #: The glyphs drawn as shapes rather than text: the half-discs either side of
 #: the hovered row, U+E0B6 and U+E0B4, open towards the row. Any other
@@ -467,11 +467,6 @@ def colours(pen: sc.Pen, palette: Scheme) -> tuple[str, str]:
     return fg, bg
 
 
-def width(ch: str) -> int:
-    """The cells a character takes, as the terminal gave them."""
-    return 2 if unicodedata.east_asian_width(ch) in "WF" else 1
-
-
 def cap(side: str, x: float, y: float, fill: str) -> str:
     """A half-disc filling one cell, its flat side towards the row."""
     if side == "left":
@@ -501,7 +496,7 @@ def runs(row: list[sc.Cell]) -> list[tuple[int, str, sc.Pen]]:
             found[-1] = (last[0], last[1] + ch, pen)
         else:
             found.append((col, ch, pen))
-        col += width(ch)
+        col += sc.width(ch)
     return found
 
 
@@ -512,9 +507,9 @@ def drawn_run(
     where it has one of its own, then its text or its cap."""
     fg, bg = colours(pen, palette)
     x = PAD + at * CELL_W
+    cells = sum(sc.width(ch) for ch in text)
     out = []
     if bg != palette.ground:
-        cells = sum(width(ch) for ch in text)
         out.append(
             f'<rect x="{x:g}" y="{y:g}" width="{cells * CELL_W:g}" '
             f'height="{CELL_H}" fill="{bg}"/>'
@@ -532,14 +527,13 @@ def drawn_run(
         if pen.italic:
             attrs.append('font-style="italic"')
         for word in re.finditer(r"\S+", text):
-            wx = x + sum(width(ch) for ch in text[: word.start()]) * CELL_W
+            wx = x + sum(sc.width(ch) for ch in text[: word.start()]) * CELL_W
             out.append(
                 f'<text x="{wx:g}" y="{y + CELL_H * 0.72:g}" {" ".join(attrs)}>'
                 f"{escape(word.group())}</text>"
             )
         # Lines as shapes, for the same reason: a terminal draws them under
         # the spaces too, and there are no spaces left to draw them under.
-        cells = sum(width(ch) for ch in text)
         for level, on in ((0.86, pen.underline), (0.5, pen.crossed)):
             if on:
                 out.append(
@@ -549,11 +543,15 @@ def drawn_run(
     return out
 
 
+def tile_size(rows: list[list[sc.Cell]]) -> tuple[float, float]:
+    """How wide and tall a tile of `rows` is, which every ground's is."""
+    cols = max((sum(sc.width(ch) for ch, _ in row) for row in rows), default=0)
+    return cols * CELL_W + 2 * PAD, TITLE + len(rows) * CELL_H + PAD
+
+
 def tile(rows: list[list[sc.Cell]], name: str, palette: Scheme) -> list[str]:
     """One ground's tile, at the origin: its ground, its name, and the rows."""
-    cols = max((sum(width(ch) for ch, _ in row) for row in rows), default=0)
-    w = cols * CELL_W + 2 * PAD
-    h = TITLE + len(rows) * CELL_H + PAD
+    w, h = tile_size(rows)
     # Edged in grey, so a tile on the ground of the page it sits on still has
     # a shape: GitHub draws a light page white and a dark one near black, the
     # two xterm grounds.
@@ -579,17 +577,12 @@ def svg(
     grounds: list[tuple[str, str]],
     example: Example,
 ) -> str:
-    """The picture: a tile per ground, `ACROSS` to a row."""
-    cols = max((sum(width(ch) for ch, _ in row) for row in rows), default=0)
-    tw = cols * CELL_W + 2 * PAD
-    th = TITLE + len(rows) * CELL_H + PAD
-    down = -(-len(grounds) // ACROSS)
-    w = ACROSS * tw + (ACROSS - 1) * GAP
-    h = down * th + (down - 1) * GAP
+    """The picture: a tile per ground, stacked."""
+    w, th = tile_size(rows)
+    h = len(grounds) * th + (len(grounds) - 1) * GAP
     body = []
     for i, (name, hex) in enumerate(grounds):
-        x, y = (i % ACROSS) * (tw + GAP), (i // ACROSS) * (th + GAP)
-        body.append(f'<g transform="translate({x:g},{y:g})">')
+        body.append(f'<g transform="translate(0,{i * (th + GAP):g})">')
         body.extend(tile(rows, name, scheme(name, hex)))
         body.append("</g>")
     return (
@@ -641,26 +634,27 @@ def main(argv: list[str]) -> int:
     DIR.mkdir()
     (DIR / fixture.MARKER).touch()
     try:
+        configure(DIR)
         folder = build_folder(DIR)
         for example in found:
-            draw(folder, example, grounds)
+            draw(DIR, folder, example, grounds)
     finally:
         fixture.clear(DIR)
     return 0
 
 
 def draw(
-    folder: Path, example: Example, grounds: list[tuple[str, str]]
+    root: Path, folder: Path, example: Example, grounds: list[tuple[str, str]]
 ) -> None:
     """Take `example`'s picture and write it where its image line says."""
-    screen = capture(DIR, folder, example)
+    screen = capture(root, folder, example)
     try:
         rows = file_rows(screen)
+        if not rows:
+            refuse(f"examples: {example.image} drew no rows")
         picture = svg(rows, drawn_on(example, grounds), example)
     except ValueError as error:
         refuse(f"examples: {example.image}: {error}")
-    if not rows:
-        refuse(f"examples: {example.image} drew no rows")
     target = PAGES / example.image
     target.parent.mkdir(exist_ok=True)
     target.write_text(picture)

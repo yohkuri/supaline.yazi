@@ -42,7 +42,6 @@ import re
 import sys
 import tempfile
 import threading
-import unicodedata
 import webbrowser
 from collections import defaultdict
 from collections.abc import Container
@@ -327,8 +326,7 @@ def glyph(ch: str) -> str:
     """
     if " " <= ch <= "~":
         return html.escape(ch)
-    cells = 2 if unicodedata.east_asian_width(ch) in "WF" else 1
-    return f'<span class="w{cells}">{html.escape(ch)}</span>'
+    return f'<span class="w{sc.width(ch)}">{html.escape(ch)}</span>'
 
 
 def drawn(rows: list[list[sc.Cell]]) -> str:
