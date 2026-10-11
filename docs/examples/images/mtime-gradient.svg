@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="553.2" height="488" viewBox="0 0 553.2 488" role="img" data-source="3f93627fecc7f94cc7940c6c24456469daa7e6657ee5c455ca2347d8de8a3d0a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
+<svg xmlns="http://www.w3.org/2000/svg" width="553.2" height="524" viewBox="0 0 553.2 524" role="img" data-source="3f93627fecc7f94cc7940c6c24456469daa7e6657ee5c455ca2347d8de8a3d0a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
 <title>mtime from blue to red</title>
 <g transform="translate(0,0)">
-<rect width="553.2" height="236" rx="8" fill="#1e1e2e" stroke="#8888" stroke-width="1"/>
+<rect width="553.2" height="254" rx="8" fill="#1e1e2e" stroke="#8888" stroke-width="1"/>
 <text x="12" y="17" font-size="12" fill="#757a91">Catppuccin Mocha</text>
 <path d="M28.8,26 A8.4,9 0 0 0 28.8,44 Z" fill="#89b4fa"/>
 <rect x="28.8" y="26" width="411.6" height="18" fill="#89b4fa"/>
@@ -43,17 +43,21 @@
 <text x="415.2" y="182.96" fill="#cdd6f4">6K</text>
 <text x="440.4" y="182.96" fill="#ef4444">10/10</text>
 <text x="490.8" y="182.96" fill="#ef4444">10:26</text>
-<text x="28.8" y="200.96" fill="#cdd6f4">README.md</text>
-<text x="390" y="200.96" fill="#cdd6f4">11.7K</text>
-<text x="440.4" y="200.96" fill="#ef4444">10/09</text>
-<text x="490.8" y="200.96" fill="#ef4444">19:52</text>
-<text x="28.8" y="218.96" fill="#cdd6f4">report.pdf</text>
-<text x="381.6" y="218.96" fill="#cdd6f4">839.8K</text>
-<text x="440.4" y="218.96" fill="#c56883">07/18</text>
-<text x="490.8" y="218.96" fill="#c56883">08:45</text>
+<text x="28.8" y="200.96" fill="#cdd6f4">photo-2026-10-04-143207-edited.jpg</text>
+<text x="398.4" y="200.96" fill="#cdd6f4">3.2M</text>
+<text x="440.4" y="200.96" fill="#ed4748">10/04</text>
+<text x="490.8" y="200.96" fill="#ed4748">14:32</text>
+<text x="28.8" y="218.96" fill="#cdd6f4">README.md</text>
+<text x="390" y="218.96" fill="#cdd6f4">11.7K</text>
+<text x="440.4" y="218.96" fill="#ef4444">10/09</text>
+<text x="490.8" y="218.96" fill="#ef4444">19:52</text>
+<text x="28.8" y="236.96" fill="#cdd6f4">report.pdf</text>
+<text x="381.6" y="236.96" fill="#cdd6f4">839.8K</text>
+<text x="440.4" y="236.96" fill="#c56883">07/18</text>
+<text x="490.8" y="236.96" fill="#c56883">08:45</text>
 </g>
-<g transform="translate(0,252)">
-<rect width="553.2" height="236" rx="8" fill="#fdf6e3" stroke="#8888" stroke-width="1"/>
+<g transform="translate(0,270)">
+<rect width="553.2" height="254" rx="8" fill="#fdf6e3" stroke="#8888" stroke-width="1"/>
 <text x="12" y="17" font-size="12" fill="#b1b8b3">Solarized light</text>
 <path d="M28.8,26 A8.4,9 0 0 0 28.8,44 Z" fill="#268bd2"/>
 <rect x="28.8" y="26" width="411.6" height="18" fill="#268bd2"/>
@@ -95,13 +99,17 @@
 <text x="415.2" y="182.96" fill="#657b83">6K</text>
 <text x="440.4" y="182.96" fill="#ef4444">10/10</text>
 <text x="490.8" y="182.96" fill="#ef4444">10:26</text>
-<text x="28.8" y="200.96" fill="#657b83">README.md</text>
-<text x="390" y="200.96" fill="#657b83">11.7K</text>
-<text x="440.4" y="200.96" fill="#ef4444">10/09</text>
-<text x="490.8" y="200.96" fill="#ef4444">19:52</text>
-<text x="28.8" y="218.96" fill="#657b83">report.pdf</text>
-<text x="381.6" y="218.96" fill="#657b83">839.8K</text>
-<text x="440.4" y="218.96" fill="#c56883">07/18</text>
-<text x="490.8" y="218.96" fill="#c56883">08:45</text>
+<text x="28.8" y="200.96" fill="#657b83">photo-2026-10-04-143207-edited.jpg</text>
+<text x="398.4" y="200.96" fill="#657b83">3.2M</text>
+<text x="440.4" y="200.96" fill="#ed4748">10/04</text>
+<text x="490.8" y="200.96" fill="#ed4748">14:32</text>
+<text x="28.8" y="218.96" fill="#657b83">README.md</text>
+<text x="390" y="218.96" fill="#657b83">11.7K</text>
+<text x="440.4" y="218.96" fill="#ef4444">10/09</text>
+<text x="490.8" y="218.96" fill="#ef4444">19:52</text>
+<text x="28.8" y="236.96" fill="#657b83">report.pdf</text>
+<text x="381.6" y="236.96" fill="#657b83">839.8K</text>
+<text x="440.4" y="236.96" fill="#c56883">07/18</text>
+<text x="490.8" y="236.96" fill="#c56883">08:45</text>
 </g>
 </svg>
