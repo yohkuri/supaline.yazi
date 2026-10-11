@@ -48,7 +48,9 @@ jobs:
         # `test/test_gallery.py` is found by the same pattern: the half of
         # `gallery.py` that draws a page out of those cells needs no Yazi
         # either, and neither does holding `test/approved.toml` to the steps
-        # the walk puts in the gallery.
+        # the walk puts in the gallery. `test/test_examples.py` likewise holds
+        # each picture in `docs/examples/` to the configuration above it, which
+        # takes reading the page and the SVG and no Yazi.
         #
         # Before that split those parsers were `awk` inside the shell harness
         # and nothing tested them, which is the quietest hole a test harness
@@ -814,11 +816,11 @@ jobs:
           fi
           exit $rc
 
-# `test/e2e.py`, `test/manual.py` and `test/gallery.py` are deliberately not
-# here. They need a
-# real Yazi binary and a real terminal, and what they check -- rendering, and
-# how wide a cell came out -- is not what a runner is good at. Run them locally
-# before saying that anything about the screen works.
+# `test/e2e.py`, `test/manual.py`, `test/gallery.py` and `test/examples.py` are
+# deliberately not here. They need a real Yazi binary and a real terminal, and
+# what they check -- rendering, and how wide a cell came out -- is not what a
+# runner is good at. Run them locally before saying that anything about the
+# screen works.
 #
 # What *is* here is the half of `e2e.py` that needs neither: `test/screen.py`
 # reads a capture and is tested by `test/test_screen.py` in the `Unit tests`

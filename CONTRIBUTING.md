@@ -26,6 +26,7 @@ versions themselves:
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
 | `test/gallery.py` | tmux and a browser |
+| `test/examples.py` | tmux |
 
 Match the stylua version exactly. Another release can format the same
 file differently, and CI would refuse what yours passed.
@@ -77,19 +78,25 @@ uvx ruff@0.16.7 check test .github/scripts           # Python lint
 uvx ruff@0.16.7 format --check test .github/scripts  # Python formatting
 ```
 
-Two things worth knowing:
+A few things worth knowing:
 
 - `lua-language-server --check .` passes quietly even when it can't find
   Yazi's own type annotations, which makes it look like it checked more
   than it did. Install them with `ya pkg add yazi-rs/plugins:types`.
-- `test/e2e.py`, `test/manual.py` and `test/gallery.py` open a real Yazi,
-  so they're not in CI. Run them yourself if your change affects what's
-  on screen — and trust the exit status over how the screen looks,
-  because a broken fetcher still looks fine.
+- `test/e2e.py`, `test/manual.py`, `test/gallery.py` and
+  `test/examples.py` open a real Yazi, so they're not in CI. Run them
+  yourself if your change affects what's on screen — and trust the exit
+  status over how the screen looks, because a broken fetcher still looks
+  fine.
 - If your change moves a colour, `test/gallery.py` shows you the steps it
   moved, and a *looks right* there updates `test/approved.toml`. Commit
   that file with your change; the diff tells a reviewer which steps you
   looked at. `test/MANUAL.md` has the rest.
+- The pictures in `docs/examples/` are drawn by `test/examples.py` from the
+  configuration above each of them. Run it after changing an example, and
+  commit the pictures it redraws; CI refuses a picture drawn from anything
+  else. A change to what a column draws needs a redraw too, which CI cannot
+  see.
 
 ## Commit messages
 
