@@ -23,6 +23,13 @@ from gallery import Scheme
 INIT = "```lua\n-- ~/.config/yazi/init.lua\nrequire('supaline'):setup {}\n```\n"
 THEME = '```toml\n# ~/.config/yazi/theme.toml\n[supaline]\nsize = "red"\n```\n'
 IMAGE = "![A picture](images/a-picture.svg)\n"
+YAZI = '```toml\n# ~/.config/yazi/yazi.toml\n[mgr]\nlinemode = "detail"\n```\n'
+KEYMAP = (
+    "```toml\n# ~/.config/yazi/keymap.toml\n[[mgr.prepend_keymap]]\n"
+    'on = [ "m", "d" ]\nrun = "plugin supaline -- toggle detail"\n```\n'
+)
+PRESSING = "<!-- drawn before and after pressing m d -->\n"
+WIDE = "<!-- drawn 120 columns wide -->\n"
 
 #: Any reference to a picture, an image line's or a linked one's.
 SHOWN = re.compile(r"\]\((images/[^)]+\.svg)\)")
@@ -76,6 +83,55 @@ class Reading(unittest.TestCase):
         self.assertEqual(found.alt, "A picture")
         self.assertIn("setup {}", found.init)
         self.assertIn('size = "red"', found.theme)
+
+    def test_a_picture_takes_the_yazi_and_keymap_blocks_too(self):
+        [found] = examples.examples(INIT + YAZI + KEYMAP + IMAGE)
+        self.assertIn('linemode = "detail"', found.yazi)
+        self.assertIn("toggle detail", found.keymap)
+
+    def test_a_picture_takes_the_keys_and_the_width_asked_for(self):
+        [found] = examples.examples(INIT + PRESSING + WIDE + IMAGE)
+        self.assertEqual(found.pressed, "m d")
+        self.assertEqual(found.width, 120)
+
+    def test_a_picture_asks_nothing_unless_a_line_does(self):
+        [found] = examples.examples(INIT + IMAGE)
+        self.assertEqual((found.pressed, found.width), ("", 0))
+
+    def test_a_key_of_more_than_one_character_is_refused(self):
+        # Each is typed as it is spelled, so `<Enter>` would be seven keys.
+        with self.assertRaisesRegex(ValueError, "the ways to ask"):
+            examples.examples(
+                INIT
+                + "<!-- drawn before and after pressing <Enter> -->\n"
+                + IMAGE
+            )
+
+    def test_two_lines_asking_the_same_thing_are_refused(self):
+        for line in (PRESSING, WIDE):
+            with (
+                self.subTest(line),
+                self.assertRaisesRegex(ValueError, "for one picture"),
+            ):
+                examples.examples(INIT + line + line + IMAGE)
+
+    def test_a_yazi_or_keymap_block_that_does_not_parse_is_refused(self):
+        for block in (YAZI, KEYMAP):
+            broken = block.replace("[", "[[[", 1)
+            with (
+                self.subTest(block.splitlines()[1]),
+                self.assertRaisesRegex(ValueError, "does not parse"),
+            ):
+                examples.examples(INIT + broken + IMAGE)
+
+    def test_the_plugins_required_are_supaline_s_neighbours(self):
+        init = (
+            'require("git"):setup { order = 1500 }\n'
+            "require 'full-border'\n"
+            'require("supaline"):setup {}\n'
+        )
+        found = [examples.Example("images/a.svg", "a", init)]
+        self.assertEqual(examples.required(found), {"git", "full-border"})
 
     def test_a_block_belongs_to_one_picture_only(self):
         [first, second] = examples.examples(INIT + THEME + IMAGE + INIT + IMAGE)
@@ -239,6 +295,13 @@ class Reading(unittest.TestCase):
         [themed] = examples.examples(INIT + THEME + IMAGE)
         self.assertNotEqual(plain.digest, themed.digest)
 
+    def test_the_digest_covers_the_other_blocks_and_what_is_asked(self):
+        digests = set()
+        for extra in ("", YAZI, KEYMAP, PRESSING, WIDE):
+            [found] = examples.examples(INIT + extra + IMAGE)
+            digests.add(found.digest)
+        self.assertEqual(len(digests), 5)
+
 
 #: A ground and foreground, and sixteen named colours each its own.
 PALETTE = Scheme(
@@ -263,10 +326,35 @@ class Waiting(unittest.TestCase):
         # log says what; waiting on them would time out before it is read.
         self.assertTrue(examples.listed(self.screen(len(examples.FOLDER) + 2)))
 
+    def test_rows_of_nothing_but_pane_borders_are_not_kept(self):
+        # Three panes draw a border down the whole window, so the rows under
+        # the last entry are not empty, and would be drawn as rows.
+        border = f"{examples.BORDER}   {examples.BORDER}"
+        screen = "\n".join(["header", f" entry{border}", border, "status"])
+        self.assertEqual(len(examples.file_rows(screen)), 1)
+
     def test_the_folder_fits_the_window(self):
         # Past the window's rows less the header and the status bar, the
         # entries scrolled off are never drawn, and the wait never ends.
         self.assertLessEqual(len(examples.FOLDER), examples.HEIGHT - 2)
+
+
+class TheFolder(unittest.TestCase):
+    def test_every_entry_git_names_is_in_the_folder(self):
+        self.assertLessEqual(set(examples.GIT), set(examples.FOLDER))
+
+    def test_git_names_each_state_once(self):
+        # `repository` looks an entry up by its state, so a second entry in
+        # one state would be committed clean without a word.
+        self.assertCountEqual(
+            examples.GIT.values(),
+            ["staged", "unstaged", "untracked", "ignored"],
+        )
+
+    def test_the_folder_is_among_its_siblings(self):
+        # The parent pane draws the folder's own folder, and the hovered row
+        # there is the folder.
+        self.assertIn("project", examples.SIBLINGS)
 
 
 class Drawing(unittest.TestCase):
@@ -285,6 +373,11 @@ class Drawing(unittest.TestCase):
         rows = [[("", sc.Pen())]]
         with self.assertRaisesRegex(ValueError, "U\\+F015"):
             examples.tile(rows, "black", PALETTE)
+
+    def test_a_tile_names_its_screen(self):
+        rows = [[("a", sc.Pen())]]
+        drawn = "\n".join(examples.tile(rows, "black", PALETTE, "after m d"))
+        self.assertIn("xterm, black ground, after m d", drawn)
 
     def test_the_hover_caps_are_shapes(self):
         rows = [[("", sc.Pen(fg="p4")), ("a", sc.Pen())]]

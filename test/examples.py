@@ -5,12 +5,14 @@ each of them in a real Yazi.
     test/examples.py  draw every picture
 
 The pages in `docs/examples/` are the source: a picture is an image line, and
-what it is a picture of is the `init.lua` block above it, with a `theme.toml`
-block if the example has one -- each fenced block naming its file on its first
-line, the way the README spells them. This opens a Yazi on that configuration
-and on a folder built here, captures it the way `e2e.py` does, and writes the
-file list as an SVG: on one dark terminal and one light, on one of the two
-alone, or on every ground `gallery.py` draws on, where the picture says so.
+what it is a picture of is the `init.lua` block above it, with a `theme.toml`,
+a `yazi.toml` or a `keymap.toml` block if the example has one -- each fenced
+block naming its file on its first line, the way the README spells them. This
+opens a Yazi on that configuration and on a folder built here, captures it the
+way `e2e.py` does, and writes the file list as an SVG: on one dark terminal and
+one light, on one of the two alone, or on every ground `gallery.py` draws on,
+where the picture says so -- and before and after a key, or in a wider window,
+where it says that.
 
 Each SVG carries a digest of the blocks it was drawn from and of its alt text,
 and `test_examples.py` holds every image line to it in CI, so a configuration
@@ -33,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -72,13 +75,16 @@ PAGES = ROOT / "docs" / "examples"
 PID = os.getpid()
 DIR = Path(tempfile.gettempdir()) / f"supaline-examples.{PID}"
 
-#: The window a picture is taken in. Narrower than the harnesses' own, because
-#: a picture holds one pane and is read at the width of a page.
+#: The window a picture is taken in, unless it asks for a wider one.
+#: Narrower than the harnesses' own, because a picture holds one pane and is
+#: read at the width of a page.
 WIDTH, HEIGHT = 64, 16
 
-#: What Yazi is told besides the example: the linemode every example is
-#: written to define, and the current pane alone, so the file list is the
-#: whole window and nothing either side of it is drawn half-cut.
+#: What Yazi is told unless the example has a `yazi.toml` of its own: the
+#: linemode every example is written to define, and the current pane alone,
+#: so the file list is the whole window and nothing either side of it is
+#: drawn half-cut. An example's own replaces it whole, so it names the
+#: linemode itself, and shows the reader the panes it draws.
 YAZI_TOML = """\
 [mgr]
 linemode = "detail"
@@ -126,12 +132,33 @@ ASKED: dict[str, tuple[str, ...] | None] = {
     LIGHT: PAIR[1:],
 }
 
+#: A line above an image asking for its screen to be drawn twice, before a
+#: key is pressed and after, for an example whose point is what a key does.
+#: The keys are typed one at a time, so each is one character.
+PRESSING = re.compile(
+    r"^<!-- drawn before and after pressing ((?:\S )*\S) -->$"
+)
+
+#: A line above an image asking for a wider window than `WIDTH`, for an
+#: example whose `yazi.toml` draws the panes either side of the file list.
+WIDE = re.compile(r"^<!-- drawn (\d+) columns wide -->$")
+
+#: Every way to ask, for a refusal of a line that is none of them.
+WAYS = (
+    *ASKED,
+    "<!-- drawn before and after pressing KEYS -->",
+    "<!-- drawn N columns wide -->",
+)
+
 #: The first line of a block, naming the file it belongs in.
 INIT = "-- ~/.config/yazi/init.lua"
 THEME = "# ~/.config/yazi/theme.toml"
+YAZI = "# ~/.config/yazi/yazi.toml"
+KEYMAP = "# ~/.config/yazi/keymap.toml"
+FILES = (INIT, THEME, YAZI, KEYMAP)
 
 IMAGE = re.compile(r"^!\[([^\]]+)\]\((images/[a-z0-9-]+\.svg)\)$")
-GROUNDS = re.compile(r"^\s*<!--.*\bground", re.IGNORECASE)
+ASKING = re.compile(r"^\s*<!--.*\b(?:ground|press|wide)", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s")
 FENCE = re.compile(r"^(`{3,}|~{3,})")
 
@@ -147,16 +174,31 @@ class Example:
     alt: str
     init: str
     theme: str = ""
+    #: Written in place of `YAZI_TOML`, when the example has one.
+    yazi: str = ""
+    keymap: str = ""
     #: The line in `ASKED` above the image, or nothing for the pair.
     asked: str = ""
+    #: The keys `PRESSING` names, as it names them, or nothing for one screen.
+    pressed: str = ""
+    width: int = 0
 
     @property
     def digest(self) -> str:
         """What the picture was drawn from, so a block edited since says so --
-        and the grounds it was asked for, since those change the picture as
+        and what the lines above it asked, since those change the picture as
         much, and the alt text the SVG carries as its title."""
-        body = f"{self.alt}\0{self.init}\0{self.theme}\0{self.asked}".encode()
-        return hashlib.sha256(body).hexdigest()
+        fields = (
+            self.alt,
+            self.init,
+            self.theme,
+            self.yazi,
+            self.keymap,
+            self.asked,
+            self.pressed,
+            str(self.width or ""),
+        )
+        return hashlib.sha256("\0".join(fields).encode()).hexdigest()
 
 
 def closing(lines: list[str], start: int, fence: str) -> int | None:
@@ -171,36 +213,48 @@ def closing(lines: list[str], start: int, fence: str) -> int | None:
     return None
 
 
-def theme_problem(theme: str) -> str | None:
-    """Why a `theme.toml` block cannot be drawn, if it cannot."""
-    body = "\n".join(theme.splitlines()[1:])
+def toml_problem(block: str) -> str | None:
+    """Why a `.toml` block cannot be drawn, if it cannot."""
+    body = "\n".join(block.splitlines()[1:])
     try:
         parsed = tomllib.loads(body)
     except tomllib.TOMLDecodeError as error:
         return f"does not parse: {error}"
-    if "icon" in parsed:
+    if block.startswith(THEME) and "icon" in parsed:
         return "themes `[icon]`, which the pictures switch off themselves"
+    return None
+
+
+def asking(line: str) -> tuple[str, str] | None:
+    """What a line above an image asks of its picture, if it asks anything: a
+    kind, which one picture takes once, and the value."""
+    if line in ASKED:
+        return "grounds", line
+    if found := PRESSING.match(line):
+        return "keys", found.group(1)
+    if found := WIDE.match(line):
+        return "width", found.group(1)
     return None
 
 
 def examples(text: str) -> list[Example]:
     """Every picture on one page, with its blocks.
 
-    A block belongs to the next image below it, and so does a line in
-    `ASKED`, indented or not. An image with no `init.lua` block since the one
-    before it is refused, since there would be nothing to draw, and so is a
-    second block for one file, or a second line asking for grounds: which of
-    the two is the picture's would be a guess. So is a block or an asking line
-    with no image under it before the next heading or the end of the page:
-    carried on, it would be drawn into the next section's picture, and the
-    digest would agree with it.
+    A block belongs to the next image below it, and so does a line asking
+    something of the picture, indented or not. An image with no `init.lua`
+    block since the one before it is refused, since there would be nothing to
+    draw, and so is a second block for one file, or a second line asking the
+    same thing: which of the two is the picture's would be a guess. So is a
+    block or an asking line with no image under it before the next heading or
+    the end of the page: carried on, it would be drawn into the next section's
+    picture, and the digest would agree with it.
     """
     found: list[Example] = []
     blocks: dict[str, str] = {}
-    asked = ""
+    asks: dict[str, tuple[str, str]] = {}
 
     def nothing_left(at: str) -> None:
-        left = [*blocks, asked] if asked else [*blocks]
+        left = [*blocks, *(line for line, _ in asks.values())]
         if left:
             named = ", ".join(f"`{name}`" for name in left)
             raise ValueError(f"{at}: {named} with no picture under it")
@@ -215,32 +269,33 @@ def examples(text: str) -> list[Example]:
             if end is None:
                 raise ValueError(f"line {i + 1}: a block that never closes")
             body = lines[i + 1 : end]
-            if body and body[0] in (INIT, THEME):
+            if body and body[0] in FILES:
                 if body[0] in blocks:
                     raise ValueError(
                         f"line {i + 1}: a second `{body[0]}` block before "
                         "the picture the first one is for"
                     )
                 block = "\n".join(body) + "\n"
-                if body[0] == THEME and (problem := theme_problem(block)):
-                    raise ValueError(f"line {i + 1}: the theme {problem}")
+                if body[0] != INIT and (problem := toml_problem(block)):
+                    raise ValueError(f"line {i + 1}: the block {problem}")
                 blocks[body[0]] = block
             i = end + 1
             continue
         if HEADING.match(line):
             nothing_left(f"line {i + 1}")
-        if line.lstrip() in ASKED:
-            if asked:
+        if ask := asking(line.lstrip()):
+            kind, value = ask
+            if kind in asks:
                 raise ValueError(
-                    f"line {i + 1}: {line.lstrip()} after `{asked}`, for one "
-                    "picture"
+                    f"line {i + 1}: {line.lstrip()} after `{asks[kind][0]}`, "
+                    "for one picture"
                 )
-            asked = line.lstrip()
-        elif GROUNDS.match(line):
-            ways = ", ".join(f"`{way}`" for way in ASKED)
+            asks[kind] = (line.lstrip(), value)
+        elif ASKING.match(line):
+            ways = ", ".join(f"`{way}`" for way in WAYS)
             raise ValueError(
                 f"line {i + 1}: {line} is none of {ways}, the ways to ask "
-                "for grounds"
+                "something of a picture"
             )
         image = IMAGE.match(line)
         if image:
@@ -249,16 +304,21 @@ def examples(text: str) -> list[Example]:
                     f"line {i + 1}: {image.group(2)} has no `{INIT}` block "
                     "above it"
                 )
+            values = {kind: value for kind, (_, value) in asks.items()}
             found.append(
                 Example(
                     image.group(2),
                     image.group(1),
                     blocks[INIT],
                     blocks.get(THEME, ""),
-                    asked,
+                    blocks.get(YAZI, ""),
+                    blocks.get(KEYMAP, ""),
+                    values.get("grounds", ""),
+                    values.get("keys", ""),
+                    int(values.get("width", 0)),
                 )
             )
-            blocks, asked = {}, ""
+            blocks, asks = {}, {}
         i += 1
     nothing_left("the end of the page")
     return found
@@ -338,6 +398,24 @@ FOLDER: dict[str, tuple[int | None, str]] = {
 #: The executables, so `permissions` has an `x` to draw.
 EXECUTABLE = {"install.sh"}
 
+#: The folder's own folder, which a picture of three panes draws on the left:
+#: the folder and the directories beside it, dated the same way.
+SIBLINGS: dict[str, str] = {
+    "dotfiles": "08300915",
+    "project": "10101026",
+    "scratch": "10111710",
+    "website": "05221340",
+}
+
+#: What git says of the entries that are not committed and clean, so
+#: git.yazi has a sign to draw for each kind a folder usually holds.
+GIT = {
+    "README.md": "staged",
+    "notes.md": "unstaged",
+    "report.pdf": "untracked",
+    "backup.tar.gz": "ignored",
+}
+
 
 def listed(screen: str) -> bool:
     """Whether the whole folder is on `screen`: a row for every entry.
@@ -357,70 +435,159 @@ def build_folder(root: Path) -> Path:
     """The folder a picture is taken in, under `root`.
 
     A directory holds a few files, so the hovered one -- which Yazi lists, and
-    `size` then counts -- has entries to count. Sizes are sparse, as
-    `setup.sized` says why. Built under the umask `setup.build` states, so
-    `permissions` draws the same modes whoever redraws the picture.
+    `size` then counts, and the preview pane draws -- has entries to count.
+    Sizes are sparse, as `setup.sized` says why. Built under the umask
+    `setup.build` states, so `permissions` draws the same modes whoever
+    redraws the picture, and a repository, as `repository` says.
     """
-    folder = root / "project"
+    folder = root / "work" / "project"
     year = time.localtime().tm_year
+    dated: dict[Path, str] = {}
     was = os.umask(0o022)
     try:
-        for name, (size, _) in FOLDER.items():
+        for name, when in SIBLINGS.items():
+            (folder.parent / name).mkdir(parents=True)
+            dated[folder.parent / name] = when
+        for name, (size, when) in FOLDER.items():
             path = folder / name
             if size is None:
-                path.mkdir(parents=True)
+                path.mkdir()
                 for n in range(3):
                     (path / f"{name}-{n}").write_bytes(b"x")
+                    dated[path / f"{name}-{n}"] = when
             else:
-                path.parent.mkdir(parents=True, exist_ok=True)
                 fixture.sized(path, size)
             if name in EXECUTABLE:
                 path.chmod(0o755)
+            dated[path] = when
+        repository(folder)
     finally:
         os.umask(was)
     # After everything is created, because creating an entry moves its
-    # directory's mtime.
-    for name, (_, when) in FOLDER.items():
-        fixture.stamp(folder / name, fixture.epoch(f"{year}{when}"))
+    # directory's mtime: the deepest first, for the same reason.
+    for path, when in sorted(dated.items(), key=lambda kv: -len(kv[0].parts)):
+        fixture.stamp(path, fixture.epoch(f"{year}{when}"))
     return folder
+
+
+#: Git run with nobody's configuration, so a redraw does not depend on whose
+#: machine it is on: a global hook or signing would fail the commit.
+GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+def repository(folder: Path) -> None:
+    """Make `folder` a repository holding `GIT`'s states: everything else
+    committed, an ignored file written into `.gitignore`, and each change
+    one byte, so no size moves. Hidden files are not listed, so `.git` and
+    `.gitignore` are on no picture."""
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=supaline",
+                "-c",
+                "user.email=supaline@example.invalid",
+                *args,
+            ],
+            cwd=folder,
+            env={**os.environ, **GIT_ENV},
+            check=True,
+            capture_output=True,
+        )
+
+    def touched(name: str) -> None:
+        with (folder / name).open("r+b") as f:
+            f.write(b"x")
+
+    states = {state: name for name, state in GIT.items()}
+    (folder / ".gitignore").write_text(states["ignored"] + "\n")
+    git("init", "-q")
+    git("add", "--all", "--", ".", f":!{states['untracked']}")
+    git("commit", "-q", "-m", "the folder")
+    touched(states["unstaged"])
+    touched(states["staged"])
+    git("add", "--", states["staged"])
 
 
 # --- taking the picture ------------------------------------------------------
 
 
-def configure(root: Path) -> None:
-    """What every picture's Yazi shares under `root/config`: `YAZI_TOML`, and
-    the plugin, linked to this checkout. `capture` writes the rest."""
+#: Where a plugin an example requires besides supaline is linked from: where
+#: `ya pkg add` puts it, and where `.luarc.json` already reads `types.yazi`.
+#: Whatever revision is installed there is what the picture draws.
+PLUGINS = Path.home() / ".config" / "yazi" / "plugins"
+REQUIRE = re.compile(r"""\brequire\s*\(?\s*["']([\w.-]+)["']""")
+
+
+def required(found: list[Example]) -> set[str]:
+    """The plugins the examples require besides supaline."""
+    return {
+        name for example in found for name in REQUIRE.findall(example.init)
+    } - {"supaline"}
+
+
+def configure(root: Path, plugins: set[str]) -> None:
+    """What every picture's Yazi shares under `root/config`: the plugin,
+    linked to this checkout, and `plugins`, linked from `PLUGINS`. `capture`
+    writes the rest."""
     config = root / "config"
     (config / "plugins").mkdir(parents=True)
-    (config / "yazi.toml").write_text(YAZI_TOML)
     (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
+    for name in plugins:
+        (config / "plugins" / f"{name}.yazi").symlink_to(
+            PLUGINS / f"{name}.yazi"
+        )
 
 
-def capture(root: Path, folder: Path, example: Example) -> str:
-    """The screen a Yazi draws on `folder` under `example`, with its colours.
+def capture(
+    root: Path, folder: Path, example: Example
+) -> list[tuple[str, str]]:
+    """The screens a Yazi draws on `folder` under `example`, with their
+    colours, each with what to call it: one, or the one before the keys the
+    example presses and the one after.
 
     Refused when Yazi logged an error, since a column that failed has drawn a
     picture of the failure -- and a notification over the list would be in
     the picture besides. Refused too when the folder never appeared, since
-    what is on the screen then is a picture of Yazi starting.
+    what is on the screen then is a picture of Yazi starting, and when the
+    keys changed nothing, since the two screens would be one picture twice.
     """
     config = root / "config"
     (config / "init.lua").write_text(example.init)
     (config / "theme.toml").write_text(example.theme + "\n" + NO_ICONS)
+    (config / "yazi.toml").write_text(example.yazi or YAZI_TOML)
+    (config / "keymap.toml").write_text(example.keymap)
 
     state = f"state-{Path(example.image).stem}"
     session = Session(f"supaline-examples-{PID}")
     session.start(
         ["yazi", str(folder)],
-        env=yazi_env(root, state),
-        width=WIDTH,
+        # Git with nobody's configuration, for git.yazi's `git status`.
+        env={**yazi_env(root, state), **GIT_ENV},
+        width=example.width or WIDTH,
         height=HEIGHT,
     )
+    changed = True
     try:
         # What `wait_for` returns is the last screen it read, met or not.
         first = session.wait_for(listed, "the folder listed", timeout=STARTUP)
-        screen = session.settle(colour=True)
+        screens = [("", session.settle(colour=True))]
+        if example.pressed:
+            before = session.capture()
+            session.keys(*example.pressed.split())
+            changed = (
+                session.wait_for(
+                    lambda screen: screen != before,
+                    f"{example.pressed} pressed",
+                )
+                != before
+            )
+            screens = [
+                (f"before {example.pressed}", screens[0][1]),
+                (f"after {example.pressed}", session.settle(colour=True)),
+            ]
         # Quit rather than kill, so Yazi has the grace `quit` gives to finish
         # the log read below.
         session.quit("q")
@@ -441,19 +608,31 @@ def capture(root: Path, folder: Path, example: Example) -> str:
             f"examples: the folder's {len(FOLDER)} entries never all appeared "
             f"drawing {example.image}, in {STARTUP}s"
         )
+    if not changed:
+        refuse(
+            f"examples: pressing {example.pressed} changed nothing on the "
+            f"screen drawing {example.image}"
+        )
     if not log.exists():
         refuse(
             f"examples: Yazi wrote no log drawing {example.image}, so nothing "
             "says the columns drew without error"
         )
-    return screen
+    return screens
+
+
+#: What Yazi draws between two panes, by its preset `[mgr] border_symbol`.
+BORDER = "\u2502"
 
 
 def file_rows(screen: str) -> list[list[sc.Cell]]:
     """The file list: every row between the header and the status bar, less
-    the empty ones under the last entry."""
+    the empty ones under the last entry -- empty but for the borders between
+    the panes, where there are three."""
     rows = sc.pens(screen.rstrip("\n"))[1:-1]
-    while rows and all(ch == " " and pen == sc.Pen() for ch, pen in rows[-1]):
+    while rows and all(
+        ch == BORDER or (ch == " " and pen == sc.Pen()) for ch, pen in rows[-1]
+    ):
         rows.pop()
     return rows
 
@@ -590,8 +769,11 @@ def tile_size(rows: list[list[sc.Cell]]) -> tuple[float, float]:
     return cols * CELL_W + 2 * PAD, TITLE + len(rows) * CELL_H + PAD
 
 
-def tile(rows: list[list[sc.Cell]], name: str, palette: Scheme) -> list[str]:
-    """One ground's tile, at the origin: its ground, its name, and the rows."""
+def tile(
+    rows: list[list[sc.Cell]], name: str, palette: Scheme, shot: str = ""
+) -> list[str]:
+    """One ground's tile, at the origin: its ground, its name and which
+    screen it is, and the rows."""
     w, h = tile_size(rows)
     # Edged in grey, so a tile on the ground of the page it sits on still has
     # a shape: GitHub draws a light page white and a dark one near black, the
@@ -604,7 +786,7 @@ def tile(rows: list[list[sc.Cell]], name: str, palette: Scheme) -> list[str]:
         (
             f'<text x="{PAD}" y="{TITLE - 9}" font-size="12" '
             f'fill="{mix(palette.fg, palette.ground)}">'
-            f"{escape(label(name))}</text>"
+            f"{escape(', '.join(filter(None, (label(name), shot))))}</text>"
         ),
     ]
     for r, row in enumerate(rows):
@@ -614,18 +796,22 @@ def tile(rows: list[list[sc.Cell]], name: str, palette: Scheme) -> list[str]:
 
 
 def svg(
-    rows: list[list[sc.Cell]],
+    shots: list[tuple[str, list[list[sc.Cell]]]],
     grounds: list[tuple[str, str]],
     example: Example,
 ) -> str:
-    """The picture: a tile per ground, stacked."""
-    w, th = tile_size(rows)
-    h = len(grounds) * th + (len(grounds) - 1) * GAP
+    """The picture: a tile per ground and screen, stacked, each ground's
+    screens together."""
+    w = max(tile_size(rows)[0] for _, rows in shots)
+    y = 0.0
     body = []
-    for i, (name, hex) in enumerate(grounds):
-        body.append(f'<g transform="translate(0,{i * (th + GAP):g})">')
-        body.extend(tile(rows, name, scheme(name, hex)))
-        body.append("</g>")
+    for name, hex in grounds:
+        for shot, rows in shots:
+            body.append(f'<g transform="translate(0,{y:g})">')
+            body.extend(tile(rows, name, scheme(name, hex), shot))
+            body.append("</g>")
+            y += tile_size(rows)[1] + GAP
+    h = y - GAP
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w:g}" height="{h:g}" '
         f'viewBox="0 0 {w:g} {h:g}" role="img" {SOURCE}="{example.digest}" '
@@ -645,7 +831,7 @@ def main(argv: list[str]) -> int:
     if argv:
         refuse(f"usage: {USAGE}")
 
-    need("tmux", "yazi")
+    need("tmux", "yazi", "git")
     catch_term()
     grounds = fixture.terminal_grounds(
         (fixture.FIXTURE / "init.lua").read_text()
@@ -668,6 +854,13 @@ def main(argv: list[str]) -> int:
         refuse(f"examples: {PAGES.relative_to(ROOT)}/{error}")
     if not found:
         refuse(f"examples: no picture in {PAGES.relative_to(ROOT)}")
+    plugins = required(found)
+    for name in sorted(plugins):
+        if not (PLUGINS / f"{name}.yazi").is_dir():
+            refuse(
+                f"examples: an example requires {name}, and there is no "
+                f"{PLUGINS / f'{name}.yazi'} to link it from: `ya pkg add` it"
+            )
 
     print(f"examples: Yazi {yazi_version()}")
 
@@ -675,7 +868,7 @@ def main(argv: list[str]) -> int:
     DIR.mkdir()
     (DIR / fixture.MARKER).touch()
     try:
-        configure(DIR)
+        configure(DIR, plugins)
         folder = build_folder(DIR)
         for example in found:
             draw(DIR, folder, example, grounds)
@@ -688,12 +881,14 @@ def draw(
     root: Path, folder: Path, example: Example, grounds: list[tuple[str, str]]
 ) -> None:
     """Take `example`'s picture and write it where its image line says."""
-    screen = capture(root, folder, example)
+    shots = [
+        (shot, file_rows(screen))
+        for shot, screen in capture(root, folder, example)
+    ]
     try:
-        rows = file_rows(screen)
-        if not rows:
+        if not all(rows for _, rows in shots):
             refuse(f"examples: {example.image} drew no rows")
-        picture = svg(rows, drawn_on(example, grounds), example)
+        picture = svg(shots, drawn_on(example, grounds), example)
     except ValueError as error:
         refuse(f"examples: {example.image}: {error}")
     target = PAGES / example.image
