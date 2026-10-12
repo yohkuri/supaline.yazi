@@ -10,6 +10,7 @@ milliseconds after `init.lua` and without being asked, which the first half of
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
@@ -112,8 +113,10 @@ def run(
     *,
     timeout: float = 20,
     check: bool = True,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """A subprocess with a deadline on it, and its output captured.
+    """A subprocess with a deadline on it, and its output captured, in this
+    environment with `env` set over it.
 
     The deadline is the whole reason this is a function rather than a call:
     every external command either answers or the run stops with a message
@@ -128,6 +131,7 @@ def run(
             text=True,
             timeout=timeout,
             check=False,
+            env={**os.environ, **env} if env else None,
         )
     except subprocess.TimeoutExpired:
         refuse(f"{args[0]}: no answer in {timeout}s -- {' '.join(args)}")
