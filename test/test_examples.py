@@ -189,6 +189,24 @@ PALETTE = Scheme(
 )
 
 
+class Waiting(unittest.TestCase):
+    def screen(self, entries: int) -> str:
+        rows = [f" entry-{n}" for n in range(entries)]
+        blank = [""] * (examples.HEIGHT - 2 - entries)
+        return "\n".join(["header", *rows, *blank, "status"])
+
+    def test_the_folder_is_listed_once_every_entry_has_a_row(self):
+        self.assertTrue(examples.listed(self.screen(len(examples.FOLDER))))
+
+    def test_a_folder_part_drawn_is_not_listed(self):
+        self.assertFalse(examples.listed(self.screen(len(examples.FOLDER) - 1)))
+
+    def test_the_folder_fits_the_window(self):
+        # Past the window's rows less the header and the status bar, the
+        # entries scrolled off are never drawn, and the wait never ends.
+        self.assertLessEqual(len(examples.FOLDER), examples.HEIGHT - 2)
+
+
 class Drawing(unittest.TestCase):
     def test_a_named_colour_is_the_palette_s(self):
         self.assertEqual(
