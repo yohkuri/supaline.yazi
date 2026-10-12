@@ -14,6 +14,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import examples
 import screen as sc
@@ -289,13 +290,8 @@ class Reading(unittest.TestCase):
         # any page says so.
         [found] = examples.examples(INIT + IMAGE)
         before = found.digest
-        was = examples.DARK_GROUND
-        try:
-            examples.DARK_GROUND = "elsewhere"
-            after = found.digest
-        finally:
-            examples.DARK_GROUND = was
-        self.assertNotEqual(before, after)
+        with mock.patch.object(examples, "DARK_GROUND", "elsewhere"):
+            self.assertNotEqual(found.digest, before)
 
     def test_the_digest_covers_the_alt_text(self):
         # The SVG carries it as its title.
@@ -342,7 +338,7 @@ class Waiting(unittest.TestCase):
     def test_rows_of_nothing_but_pane_borders_are_not_kept(self):
         # Three panes draw a border down the whole window, so the rows under
         # the last entry are not empty, and would be drawn as rows.
-        border = f"{examples.BORDER}   {examples.BORDER}"
+        border = f"{sc.BAR}   {sc.BAR}"
         screen = "\n".join(["header", f" entry{border}", border, "status"])
         self.assertEqual(len(examples.file_rows(screen)), 1)
 
@@ -354,15 +350,7 @@ class Waiting(unittest.TestCase):
 
 class TheFolder(unittest.TestCase):
     def test_every_entry_git_names_is_in_the_folder(self):
-        self.assertLessEqual(set(examples.GIT), set(examples.FOLDER))
-
-    def test_git_names_each_state_once(self):
-        # `repository` looks an entry up by its state, so a second entry in
-        # one state would be committed clean without a word.
-        self.assertCountEqual(
-            examples.GIT.values(),
-            ["staged", "unstaged", "untracked", "ignored"],
-        )
+        self.assertLessEqual(set(examples.GIT.values()), set(examples.FOLDER))
 
     def test_the_folder_is_among_its_siblings(self):
         # The parent pane draws the folder's own folder, and the hovered row

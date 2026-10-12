@@ -34,7 +34,6 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import time
@@ -59,6 +58,7 @@ from harness import (
     catch_term,
     need,
     refuse,
+    run,
     yazi_env,
     yazi_log,
     yazi_version,
@@ -134,20 +134,28 @@ ASKED: dict[str, tuple[str, ...] | None] = {
 #: A line above an image asking for its screen to be drawn twice, before a
 #: key is pressed and after, for an example whose point is what a key does.
 #: The keys are typed one at a time, so each is one character.
-PRESSING = re.compile(
-    r"^<!-- drawn before and after pressing ((?:\S )*\S) -->$"
-)
+PRESSING = "<!-- drawn before and after pressing KEYS -->"
 
 #: A line above an image asking for a wider window than `WIDTH`, for an
 #: example whose `yazi.toml` draws the panes either side of the file list.
-WIDE = re.compile(r"^<!-- drawn (\d+) columns wide -->$")
+WIDE = "<!-- drawn N columns wide -->"
+
+
+def filled(way: str, slot: str, value: str) -> re.Pattern[str]:
+    """A way to ask as a page writes it: its spelling, with `slot` filled by
+    what `value` matches."""
+    return re.compile("^" + re.escape(way).replace(slot, f"({value})") + "$")
+
+
+#: The ways to ask that carry a value, by the `Example` field each fills,
+#: with how a page spells it and how the field reads it.
+FILLED = {
+    "pressed": (filled(PRESSING, "KEYS", r"(?:\S )*\S"), str),
+    "width": (filled(WIDE, "N", r"\d+"), int),
+}
 
 #: Every way to ask, for a refusal of a line that is none of them.
-WAYS = (
-    *ASKED,
-    "<!-- drawn before and after pressing KEYS -->",
-    "<!-- drawn N columns wide -->",
-)
+WAYS = (*ASKED, PRESSING, WIDE)
 
 #: The first line of a block, naming the file it belongs in.
 INIT = "-- ~/.config/yazi/init.lua"
@@ -157,7 +165,9 @@ KEYMAP = "# ~/.config/yazi/keymap.toml"
 FILES = (INIT, THEME, YAZI, KEYMAP)
 
 IMAGE = re.compile(r"^!\[([^\]]+)\]\((images/[a-z0-9-]+\.svg)\)$")
-ASKING = re.compile(r"^\s*<!--.*\b(?:ground|press|wide)", re.IGNORECASE)
+#: What every way to ask starts with, and the word a ground is asked by, so a
+#: line meant as one and spelled as none is refused rather than ignored.
+ASKING = re.compile(r"^\s*<!--(?:\s*drawn\b|.*\bground)", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s")
 FENCE = re.compile(r"^(`{3,}|~{3,})")
 
@@ -183,23 +193,26 @@ class Example:
     width: int = 0
 
     @property
+    def grounds(self) -> tuple[str, ...] | None:
+        """The grounds the picture is drawn on by name, `None` for every one."""
+        return ASKED.get(self.asked, (DARK_GROUND,))
+
+    @property
     def digest(self) -> str:
         """What the picture was drawn from, so a block edited since says so --
         and what the lines above it asked, since those change the picture as
         much, and the alt text the SVG carries as its title. The grounds by
-        name as well as by the line asking for them, so a picture drawn on
+        name rather than by the line asking for them, so a picture drawn on
         another default than `DARK_GROUND` says so with no line moved."""
-        grounds = ASKED.get(self.asked, (DARK_GROUND,))
         fields = (
             self.alt,
             self.init,
             self.theme,
             self.yazi,
             self.keymap,
-            self.asked,
-            "every" if grounds is None else "\n".join(grounds),
+            "every" if self.grounds is None else "\n".join(self.grounds),
             self.pressed,
-            str(self.width or ""),
+            str(self.width),
         )
         return hashlib.sha256("\0".join(fields).encode()).hexdigest()
 
@@ -228,15 +241,15 @@ def toml_problem(block: str) -> str | None:
     return None
 
 
-def asking(line: str) -> tuple[str, str] | None:
-    """What a line above an image asks of its picture, if it asks anything: a
-    kind, which one picture takes once, and the value."""
+def asking(line: str) -> tuple[str, str | int] | None:
+    """What a line above an image asks of its picture, if it asks anything:
+    the `Example` field it fills, which one picture fills once, and the
+    value."""
     if line in ASKED:
-        return "grounds", line
-    if found := PRESSING.match(line):
-        return "keys", found.group(1)
-    if found := WIDE.match(line):
-        return "width", found.group(1)
+        return "asked", line
+    for field, (pattern, read) in FILLED.items():
+        if found := pattern.match(line):
+            return field, read(found.group(1))
     return None
 
 
@@ -254,7 +267,7 @@ def examples(text: str) -> list[Example]:
     """
     found: list[Example] = []
     blocks: dict[str, str] = {}
-    asks: dict[str, tuple[str, str]] = {}
+    asks: dict[str, tuple[str, str | int]] = {}
 
     def nothing_left(at: str) -> None:
         left = [*blocks, *(line for line, _ in asks.values())]
@@ -307,7 +320,6 @@ def examples(text: str) -> list[Example]:
                     f"line {i + 1}: {image.group(2)} has no `{INIT}` block "
                     "above it"
                 )
-            values = {kind: value for kind, (_, value) in asks.items()}
             found.append(
                 Example(
                     image.group(2),
@@ -316,9 +328,7 @@ def examples(text: str) -> list[Example]:
                     blocks.get(THEME, ""),
                     blocks.get(YAZI, ""),
                     blocks.get(KEYMAP, ""),
-                    values.get("grounds", ""),
-                    values.get("keys", ""),
-                    int(values.get("width", 0)),
+                    **{field: value for field, (_, value) in asks.items()},
                 )
             )
             blocks, asks = {}, {}
@@ -356,7 +366,7 @@ def drawn_on(
     example: Example, grounds: list[tuple[str, str]]
 ) -> list[tuple[str, str]]:
     """The grounds `example` is drawn on, out of every one there is."""
-    wanted = ASKED.get(example.asked, (DARK_GROUND,))
+    wanted = example.grounds
     if wanted is None:
         return grounds
     return [(name, hex) for name, hex in grounds if name in wanted]
@@ -410,13 +420,13 @@ SIBLINGS: dict[str, str] = {
     "website": "05221340",
 }
 
-#: What git says of the entries that are not committed and clean, so
+#: The entry git says each state of, for those not committed and clean, so
 #: git.yazi has a sign to draw for each kind a folder usually holds.
 GIT = {
-    "README.md": "staged",
-    "notes.md": "unstaged",
-    "report.pdf": "untracked",
-    "backup.tar.gz": "ignored",
+    "staged": "README.md",
+    "unstaged": "notes.md",
+    "untracked": "report.pdf",
+    "ignored": "backup.tar.gz",
 }
 
 
@@ -485,33 +495,31 @@ def repository(folder: Path) -> None:
     `.gitignore` are on no picture."""
 
     def git(*args: str) -> None:
-        subprocess.run(
+        run(
             [
                 "git",
+                "-C",
+                str(folder),
                 "-c",
                 "user.name=supaline",
                 "-c",
                 "user.email=supaline@example.invalid",
                 *args,
             ],
-            cwd=folder,
-            env={**os.environ, **GIT_ENV},
-            check=True,
-            capture_output=True,
+            env=GIT_ENV,
         )
 
     def touched(name: str) -> None:
         with (folder / name).open("r+b") as f:
             f.write(b"x")
 
-    states = {state: name for name, state in GIT.items()}
-    (folder / ".gitignore").write_text(states["ignored"] + "\n")
+    (folder / ".gitignore").write_text(GIT["ignored"] + "\n")
     git("init", "-q")
-    git("add", "--all", "--", ".", f":!{states['untracked']}")
+    git("add", "--all", "--", ".", f":!{GIT['untracked']}")
     git("commit", "-q", "-m", "the folder")
-    touched(states["unstaged"])
-    touched(states["staged"])
-    git("add", "--", states["staged"])
+    touched(GIT["unstaged"])
+    touched(GIT["staged"])
+    git("add", "--", GIT["staged"])
 
 
 # --- taking the picture ------------------------------------------------------
@@ -522,6 +530,11 @@ def repository(folder: Path) -> None:
 #: Whatever revision is installed there is what the picture draws.
 PLUGINS = Path.home() / ".config" / "yazi" / "plugins"
 REQUIRE = re.compile(r"""\brequire\s*\(?\s*["']([\w.-]+)["']""")
+
+
+def installed(name: str) -> Path:
+    """Where `ya pkg add` puts the plugin `name`."""
+    return PLUGINS / f"{name}.yazi"
 
 
 def required(found: list[Example]) -> set[str]:
@@ -539,9 +552,7 @@ def configure(root: Path, plugins: set[str]) -> None:
     (config / "plugins").mkdir(parents=True)
     (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
     for name in plugins:
-        (config / "plugins" / f"{name}.yazi").symlink_to(
-            PLUGINS / f"{name}.yazi"
-        )
+        (config / "plugins" / f"{name}.yazi").symlink_to(installed(name))
 
 
 def capture(
@@ -576,21 +587,23 @@ def capture(
     try:
         # What `wait_for` returns is the last screen it read, met or not.
         first = session.wait_for(listed, "the folder listed", timeout=STARTUP)
-        screens = [("", session.settle(colour=True))]
+        shown = session.settle(colour=True)
         if example.pressed:
-            before = session.capture()
             session.keys(*example.pressed.split())
             changed = (
                 session.wait_for(
-                    lambda screen: screen != before,
+                    lambda screen: screen != shown,
                     f"{example.pressed} pressed",
+                    colour=True,
                 )
-                != before
+                != shown
             )
             screens = [
-                (f"before {example.pressed}", screens[0][1]),
+                (f"before {example.pressed}", shown),
                 (f"after {example.pressed}", session.settle(colour=True)),
             ]
+        else:
+            screens = [("", shown)]
         # Quit rather than kill, so Yazi has the grace `quit` gives to finish
         # the log read below.
         session.quit("q")
@@ -624,17 +637,13 @@ def capture(
     return screens
 
 
-#: What Yazi draws between two panes, by its preset `[mgr] border_symbol`.
-BORDER = "\u2502"
-
-
 def file_rows(screen: str) -> list[list[sc.Cell]]:
     """The file list: every row between the header and the status bar, less
     the empty ones under the last entry -- empty but for the borders between
     the panes, where there are three."""
     rows = sc.pens(screen.rstrip("\n"))[1:-1]
     while rows and all(
-        ch == BORDER or (ch == " " and pen == sc.Pen()) for ch, pen in rows[-1]
+        ch == sc.BAR or (ch == " " and pen == sc.Pen()) for ch, pen in rows[-1]
     ):
         rows.pop()
     return rows
@@ -859,10 +868,10 @@ def main(argv: list[str]) -> int:
         refuse(f"examples: no picture in {PAGES.relative_to(ROOT)}")
     plugins = required(found)
     for name in sorted(plugins):
-        if not (PLUGINS / f"{name}.yazi").is_dir():
+        if not installed(name).is_dir():
             refuse(
                 f"examples: an example requires {name}, and there is no "
-                f"{PLUGINS / f'{name}.yazi'} to link it from: `ya pkg add` it"
+                f"{installed(name)} to link it from: `ya pkg add` it"
             )
 
     print(f"examples: Yazi {yazi_version()}")
