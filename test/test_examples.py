@@ -17,6 +17,7 @@ from pathlib import Path
 
 import examples
 import screen as sc
+import setup as fixture
 from gallery import Scheme
 
 INIT = "```lua\n-- ~/.config/yazi/init.lua\nrequire('supaline'):setup {}\n```\n"
@@ -111,15 +112,38 @@ class Reading(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "end of the page"):
             examples.examples(INIT + IMAGE + THEME)
 
-    def test_every_ground_left_alone_is_refused(self):
-        with self.assertRaisesRegex(ValueError, "no picture"):
-            examples.examples(examples.EVERY + "\n## Next\n")
+    def test_an_asking_line_left_alone_is_refused(self):
+        for line in examples.ASKED:
+            for after in ("\n## Next\n", "\n"):
+                with (
+                    self.subTest(line=line, after=after),
+                    self.assertRaisesRegex(ValueError, "no picture"),
+                ):
+                    examples.examples(line + after)
+
+    def test_what_is_left_alone_is_named_in_full(self):
+        # A block and an asking line both stranded, so the refusal says
+        # both rather than leaving the second to be found after the first.
+        with self.assertRaisesRegex(ValueError, "init.lua`, `<!-- drawn"):
+            examples.examples(INIT + examples.DARK + "\n## Next\n")
 
     def test_trailing_space_is_not_read(self):
         [found] = examples.examples(
             INIT + examples.EVERY + "  \n" + IMAGE.replace("\n", " \n")
         )
-        self.assertEqual(found.grounds, "every")
+        self.assertEqual(found.asked, examples.EVERY)
+
+    def test_an_indented_asking_line_is_read(self):
+        # Indented up to three spaces, CommonMark still reads it as the same
+        # comment, so the page shows nothing either way.
+        [found] = examples.examples(INIT + "   " + examples.DARK + "\n" + IMAGE)
+        self.assertEqual(found.asked, examples.DARK)
+
+    def test_an_indented_misspelled_ground_comment_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "the ways to ask"):
+            examples.examples(
+                INIT + "  <!-- drawn on the dark grounds -->\n" + IMAGE
+            )
 
     def test_a_misspelled_ground_comment_is_refused(self):
         with self.assertRaisesRegex(ValueError, "the ways to ask"):
@@ -159,12 +183,10 @@ class Reading(unittest.TestCase):
             page += INIT + line + "\n" + IMAGE
         page += INIT + IMAGE
         [plain, *asked, after] = examples.examples(page)
-        self.assertEqual(plain.grounds, "pair")
-        self.assertEqual(
-            [found.grounds for found in asked], list(examples.ASKED.values())
-        )
+        self.assertEqual(plain.asked, "")
+        self.assertEqual([found.asked for found in asked], list(examples.ASKED))
         # The comment is the next picture's alone.
-        self.assertEqual(after.grounds, "pair")
+        self.assertEqual(after.asked, "")
 
     def test_the_digest_covers_the_grounds_asked_for(self):
         [pair] = examples.examples(INIT + IMAGE)
@@ -174,27 +196,37 @@ class Reading(unittest.TestCase):
             digests.add(found.digest)
         self.assertEqual(len(digests), 1 + len(examples.ASKED))
 
-    def test_a_pair_is_two_of_the_grounds(self):
+    def test_each_way_draws_on_its_grounds(self):
         grounds = [("black", "#000000")] + [
             (n, "#111111") for n in examples.PAIR
         ]
-        [pair] = examples.examples(INIT + IMAGE)
-        self.assertEqual(
-            [name for name, _ in examples.drawn_on(pair, grounds)],
-            list(examples.PAIR),
-        )
-
-    def test_the_dark_and_the_light_ground_are_the_pair_s(self):
-        grounds = [("black", "#000000")] + [
-            (n, "#111111") for n in examples.PAIR
-        ]
-        for line, want in ((examples.DARK, 0), (examples.LIGHT, 1)):
+        [dark, light] = examples.PAIR
+        for line, want in (
+            ("", [dark, light]),
+            (examples.EVERY, ["black", dark, light]),
+            (examples.DARK, [dark]),
+            (examples.LIGHT, [light]),
+        ):
             [found] = examples.examples(INIT + line + "\n" + IMAGE)
-            with self.subTest(found.grounds):
+            with self.subTest(line or "the pair"):
                 self.assertEqual(
                     [name for name, _ in examples.drawn_on(found, grounds)],
-                    [examples.PAIR[want]],
+                    want,
                 )
+
+    def test_the_pair_is_dark_first(self):
+        # `DARK` and `LIGHT` pick by place, and a page names the ground each
+        # draws on: swapped, both would draw on the other, and every digest
+        # would still agree.
+        grounds = dict(
+            fixture.terminal_grounds((fixture.FIXTURE / "init.lua").read_text())
+        )
+
+        def brightness(hex: str) -> int:
+            return sum(int(hex[i : i + 2], 16) for i in (1, 3, 5))
+
+        dark, light = (grounds[name] for name in examples.PAIR)
+        self.assertLess(brightness(dark), brightness(light))
 
     def test_the_digest_covers_the_alt_text(self):
         # The SVG carries it as its title.
