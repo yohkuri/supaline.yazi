@@ -9,8 +9,8 @@ what it is a picture of is the `init.lua` block above it, with a `theme.toml`
 block if the example has one -- each fenced block naming its file on its first
 line, the way the README spells them. This opens a Yazi on that configuration
 and on a folder built here, captures it the way `e2e.py` does, and writes the
-file list as an SVG: on one dark terminal and one light, or on every ground
-`gallery.py` draws on where the picture says so.
+file list as an SVG: on one dark terminal and one light, on one of the two
+alone, or on every ground `gallery.py` draws on, where the picture says so.
 
 Each SVG carries a digest of the blocks it was drawn from and of its alt text,
 and `test_examples.py` holds every image line to it in CI, so a configuration
@@ -104,15 +104,22 @@ conds = []
 #: dark terminal and a light one, out of the seven `gallery.py` draws on.
 #: Both, rather than the one matching the reader's page, because a reader on
 #: a dark page may well run a light terminal -- and a configuration tuned for
-#: one ground is worth seeing on the other.
+#: one ground is worth seeing on the other. Dark first, which `DARK` and
+#: `LIGHT` pick by.
 PAIR = ("Catppuccin Mocha", "Solarized light")
 
-#: A line above an image asking for every ground instead, for a picture whose
-#: point is how the columns follow the terminal's palette. A comment, so the
-#: page shows nothing of it and markdownlint asks for no exemption. Any other
-#: comment that names grounds is refused rather than ignored, since a
-#: misspelled one would draw a pair without saying so.
+#: A line above an image asking for other grounds than the pair: every one,
+#: for a picture whose point is how the columns follow the terminal's palette,
+#: or the pair's dark one or light one alone, for a configuration written for
+#: one kind of ground and wrong on the other -- a lightness range is a claim
+#: about the ground. A comment, so the page shows nothing of it and
+#: markdownlint asks for no exemption. Any other comment that names grounds is
+#: refused rather than ignored, since a misspelled one would draw a pair
+#: without saying so.
 EVERY = "<!-- drawn on every ground -->"
+DARK = "<!-- drawn on the dark ground -->"
+LIGHT = "<!-- drawn on the light ground -->"
+ASKED = {EVERY: "every", DARK: "dark", LIGHT: "light"}
 
 #: The first line of a block, naming the file it belongs in.
 INIT = "-- ~/.config/yazi/init.lua"
@@ -135,14 +142,15 @@ class Example:
     alt: str
     init: str
     theme: str = ""
-    every: bool = False
+    #: `pair`, or the value `ASKED` gives the line that asked for others.
+    grounds: str = "pair"
 
     @property
     def digest(self) -> str:
         """What the picture was drawn from, so a block edited since says so --
         and the grounds it was asked for, since those change the picture as
         much, and the alt text the SVG carries as its title."""
-        body = f"{self.alt}\0{self.init}\0{self.theme}\0{self.every}".encode()
+        body = f"{self.alt}\0{self.init}\0{self.theme}\0{self.grounds}".encode()
         return hashlib.sha256(body).hexdigest()
 
 
@@ -173,21 +181,22 @@ def theme_problem(theme: str) -> str | None:
 def examples(text: str) -> list[Example]:
     """Every picture on one page, with its blocks.
 
-    A block belongs to the next image below it, and so does `EVERY`. An image
+    A block belongs to the next image below it, and so does a line `ASKED`
+    holds. An image
     with no `init.lua` block since the one before it is refused, since there
     would be nothing to draw, and so is a second block for one file: which of
-    the two is the picture's would be a guess. So is a block or an `EVERY`
+    the two is the picture's would be a guess. So is a block or an asking line
     with no image under it before the next heading or the end of the page:
     carried on, it would be drawn into the next section's picture, and the
     digest would agree with it.
     """
     found: list[Example] = []
     blocks: dict[str, str] = {}
-    every = False
+    asked = ""
 
     def nothing_left(at: str) -> None:
-        if blocks or every:
-            named = ", ".join(f"`{name}`" for name in blocks) or f"`{EVERY}`"
+        if blocks or asked:
+            named = ", ".join(f"`{name}`" for name in blocks) or f"`{asked}`"
             raise ValueError(f"{at}: {named} with no picture under it")
 
     lines = text.splitlines()
@@ -214,11 +223,16 @@ def examples(text: str) -> list[Example]:
             continue
         if HEADING.match(line):
             nothing_left(f"line {i + 1}")
-        if line == EVERY:
-            every = True
+        if line in ASKED:
+            if asked:
+                raise ValueError(
+                    f"line {i + 1}: {line} after `{asked}`, for one picture"
+                )
+            asked = line
         elif GROUNDS.match(line):
+            ways = ", ".join(f"`{way}`" for way in ASKED)
             raise ValueError(
-                f"line {i + 1}: {line} is not `{EVERY}`, the one way to ask "
+                f"line {i + 1}: {line} is none of {ways}, the ways to ask "
                 "for grounds"
             )
         image = IMAGE.match(line)
@@ -234,10 +248,10 @@ def examples(text: str) -> list[Example]:
                     image.group(1),
                     blocks[INIT],
                     blocks.get(THEME, ""),
-                    every,
+                    ASKED.get(asked, "pair"),
                 )
             )
-            blocks, every = {}, False
+            blocks, asked = {}, ""
         i += 1
     nothing_left("the end of the page")
     return found
@@ -272,9 +286,13 @@ def drawn_on(
     example: Example, grounds: list[tuple[str, str]]
 ) -> list[tuple[str, str]]:
     """The grounds `example` is drawn on, out of every one there is."""
-    if example.every:
-        return grounds
-    return [(name, hex) for name, hex in grounds if name in PAIR]
+    wanted = {
+        "every": [name for name, _ in grounds],
+        "pair": PAIR,
+        "dark": PAIR[:1],
+        "light": PAIR[1:],
+    }[example.grounds]
+    return [(name, hex) for name, hex in grounds if name in wanted]
 
 
 def drawn_from(svg: str) -> str | None:
