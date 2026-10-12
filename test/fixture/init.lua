@@ -87,8 +87,8 @@ supaline.column("ext", {
 })
 
 -- A one-cell marker. Every built-in is 5 to 12 cells wide and the parent pane
--- is an eighth of the terminal, so none of them can demonstrate a pane there
--- without swallowing the file name; what fits at the edges is a marker.
+-- is an eighth of the terminal, 21 cells in the harnesses' window, so any of
+-- them there would leave little of the file name to read the row by.
 supaline.column("mark", {
 	width = 1,
 	align = "left",
