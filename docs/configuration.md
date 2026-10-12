@@ -80,9 +80,10 @@ the current pane, for a linemode that names only the other two. The two ways of
 saying what the current pane draws do not mix: once any pane is named, a list
 left beside it is refused rather than drawn nowhere.
 
-`mark` there is a column of your own rather than one supaline ships. Every
-built-in starts at 5 cells and a parent pane has room for one or two, which is
-what the width note below is about; three lines register one that narrow:
+`mark` there is a column of your own rather than one supaline ships, as
+narrow as you make it: every built-in is at least 5 cells, and how many the
+parent pane can spare depends on the terminal's width, which the note below is
+about. A few lines register one a single cell wide:
 
 ```lua
 supaline.column("mark", {
@@ -120,12 +121,14 @@ eighth of the terminal under Yazi's default `ratio`, so:
 
 `size` (7) and `mtime` (11) come to 19 cells with the separator, which leaves an
 80-column parent pane nothing for the name and a 170-column one a cell or two.
-Every built-in column is 5 to 12 cells wide. The parent pane is worth turning on
-for a **narrow marker** — one or two cells — and not for the built-ins as they
-stand. The preview pane is three eighths, so it is far less tight.
+Every built-in column is 5 to 12 cells wide, so `size` alone leaves a 170-column
+parent pane 14 cells for the name, and an 80-column one 3. How much the parent
+pane can carry is a question of how wide your terminal is, and of `ratio`,
+which can give the pane more. The preview pane is three eighths, so it is far
+less tight.
 
-That is what a list per pane is for: give the edges a column that fits them and
-leave the built-ins to the pane with the room for them.
+That is what a list per pane is for: give each pane the columns its width
+leaves the names room beside.
 
 ## Toggling from a key
 

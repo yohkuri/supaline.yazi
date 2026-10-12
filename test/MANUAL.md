@@ -296,12 +296,13 @@ the terminal wide. That is a judgement about the screen, and it is yours.
 
 One cell, and not a built-in, on purpose. Yazi gives the linemode priority over
 the file name, and the parent pane is an eighth of the terminal — 21 cells at
-170 columns, 10 at 80. `size` and `mtime` together are 19, which leaves nothing
-at all for the name; even `mtime` alone does not fit an 80-column parent pane.
-Every built-in is 5 to 12 cells wide, so what belongs at the edges is a narrow
-marker, and there is no built-in that narrow to demonstrate it with. `mark` is
-the fixture's own, defined in `test/fixture/init.lua` beside the m9
-columns.
+the 170 columns the harnesses open in. `size` and `mtime` together are 19,
+which leaves the name two cells, and the name is what tells you which row the
+marker is on. Every built-in is 5 to 12 cells wide, so a column narrower than
+any of them is what leaves the names readable in this window, and there is no
+built-in that narrow to demonstrate it with. A wider terminal has room for
+more; the fixture's is the one it is drawn at. `mark` is the fixture's own,
+defined in `test/fixture/init.lua` beside the m9 columns.
 
 Switching the linemode does not make Yazi peek again, so on its own the right
 pane would go on showing the previous mode until the hover moved. Every case
