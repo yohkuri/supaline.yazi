@@ -22,8 +22,9 @@ and the separators between them.
 
 [Styles](styles.md): a colour your terminal names, drawn on five colour
 schemes and on xterm; gradients on `size` and on `mtime`, with three stops, on
-a linear scale and behind the text; attributes; styles written in
-`theme.toml`; and the colours `permissions` takes from your theme.
+a linear scale and behind the text; one colour across a lightness range, on
+dark terminals and on light ones; attributes; styles written in `theme.toml`;
+and the colours `permissions` takes from your theme.
 
 [![size from blue to red](images/size-gradient.svg)](styles.md#a-gradient-on-size)
 
