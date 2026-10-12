@@ -119,10 +119,10 @@ class Reading(unittest.TestCase):
         [found] = examples.examples(
             INIT + examples.EVERY + "  \n" + IMAGE.replace("\n", " \n")
         )
-        self.assertTrue(found.every)
+        self.assertEqual(found.grounds, "every")
 
     def test_a_misspelled_ground_comment_is_refused(self):
-        with self.assertRaisesRegex(ValueError, "the one way"):
+        with self.assertRaisesRegex(ValueError, "the ways to ask"):
             examples.examples(
                 INIT + "<!-- drawn on every grounds -->\n" + IMAGE
             )
@@ -142,24 +142,37 @@ class Reading(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not parse"):
             examples.examples(INIT + broken + IMAGE)
 
+    def test_two_asking_lines_for_one_picture_are_refused(self):
+        # Which of the two the picture is drawn on would be a guess.
+        with self.assertRaisesRegex(ValueError, "for one picture"):
+            examples.examples(
+                INIT + examples.DARK + "\n" + examples.EVERY + "\n" + IMAGE
+            )
+
     def test_two_blocks_for_one_file_are_refused(self):
         with self.assertRaisesRegex(ValueError, "a second"):
             examples.examples(INIT + INIT + IMAGE)
 
-    def test_a_picture_is_a_pair_unless_it_asks_for_every_ground(self):
-        every = examples.EVERY + "\n"
-        [plain, asked, after] = examples.examples(
-            INIT + IMAGE + INIT + every + IMAGE + INIT + IMAGE
+    def test_a_picture_is_a_pair_unless_it_asks_for_other_grounds(self):
+        page = INIT + IMAGE
+        for line in examples.ASKED:
+            page += INIT + line + "\n" + IMAGE
+        page += INIT + IMAGE
+        [plain, *asked, after] = examples.examples(page)
+        self.assertEqual(plain.grounds, "pair")
+        self.assertEqual(
+            [found.grounds for found in asked], list(examples.ASKED.values())
         )
-        self.assertFalse(plain.every)
-        self.assertTrue(asked.every)
         # The comment is the next picture's alone.
-        self.assertFalse(after.every)
+        self.assertEqual(after.grounds, "pair")
 
     def test_the_digest_covers_the_grounds_asked_for(self):
         [pair] = examples.examples(INIT + IMAGE)
-        [every] = examples.examples(INIT + examples.EVERY + "\n" + IMAGE)
-        self.assertNotEqual(pair.digest, every.digest)
+        digests = {pair.digest}
+        for line in examples.ASKED:
+            [found] = examples.examples(INIT + line + "\n" + IMAGE)
+            digests.add(found.digest)
+        self.assertEqual(len(digests), 1 + len(examples.ASKED))
 
     def test_a_pair_is_two_of_the_grounds(self):
         grounds = [("black", "#000000")] + [
@@ -170,6 +183,18 @@ class Reading(unittest.TestCase):
             [name for name, _ in examples.drawn_on(pair, grounds)],
             list(examples.PAIR),
         )
+
+    def test_the_dark_and_the_light_ground_are_the_pair_s(self):
+        grounds = [("black", "#000000")] + [
+            (n, "#111111") for n in examples.PAIR
+        ]
+        for line, want in ((examples.DARK, 0), (examples.LIGHT, 1)):
+            [found] = examples.examples(INIT + line + "\n" + IMAGE)
+            with self.subTest(found.grounds):
+                self.assertEqual(
+                    [name for name, _ in examples.drawn_on(found, grounds)],
+                    [examples.PAIR[want]],
+                )
 
     def test_the_digest_covers_the_alt_text(self):
         # The SVG carries it as its title.
