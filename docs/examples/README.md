@@ -41,4 +41,4 @@ a gradient of its own, and one taking an option of its own.
 [Panes and keys](panes.md): columns of their own in the parent and preview
 panes, and a key that shows the columns and hides them.
 
-[![size and mtime in the file list, a d or an f in the parent pane, and size in the preview pane](images/per-pane-narrow.svg)](panes.md#different-columns-per-pane)
+[![size and mtime in the file list, a d or an f in the parent pane, and size in the preview pane](images/per-pane.svg)](panes.md#different-columns-per-pane)
