@@ -95,8 +95,8 @@ A timestamp is placed on a linear scale rather than by magnitude;
 Between two stops, a file in the middle of the range takes the colour halfway
 along the line between them, and for blue and red that is a muted purple, not
 far from either end. A third stop says what the middle is instead. The same
-column twice, the second through amber, so small, middling and large files
-each have a colour of their own:
+column twice, the second through a neutral grey, so the middling files fade
+and only the smallest and the largest stand out in colour:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -104,13 +104,13 @@ require("supaline"):setup {
   linemodes = {
     detail = {
       { "size", style = "#3b82f6 -> #ef4444" },
-      { "size", style = "#3b82f6 -> #d97706 -> #ef4444" },
+      { "size", style = "#3b82f6 -> #808080 -> #ef4444" },
     },
   },
 }
 ```
 
-![size from blue to red, and from blue through amber to red](images/three-stops.svg)
+![size from blue to red, and from blue through grey to red](images/three-stops.svg)
 
 The stops are spread evenly, so the middle one is drawn at the middle of the
 range. Each is a `#rrggbb`, with an arrow between each pair; see
