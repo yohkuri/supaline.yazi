@@ -9,7 +9,8 @@ in both. How the pictures are drawn is in [the index](README.md).
 
 A colour written by name — `blue`, `magenta` — is whatever your terminal's
 colour scheme makes it, the same way Yazi draws a directory or an executable.
-One capture of this configuration, drawn in the colours of seven schemes:
+One capture of this configuration, drawn in the colours of five schemes and of
+xterm's own palette, on black and on white:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -25,7 +26,7 @@ require("supaline"):setup {
 ```
 
 <!-- drawn on every ground -->
-![The same columns on seven terminal colour schemes](images/named-colours.svg)
+![The same columns on five colour schemes and on xterm, black and white](images/named-colours.svg)
 
 `permissions` takes its colours from your Yazi theme's `[status]` section,
 and Yazi's preset theme writes those by name as well.
@@ -93,8 +94,8 @@ A timestamp is placed on a linear scale rather than by magnitude;
 ## Three stops
 
 Between two stops, a file in the middle of the range takes the colour halfway
-along the line between them, and for blue and red that is a muted purple, not
-far from either end. A third stop says what the middle is instead. The same
+along the line between them, and for blue and red that is a muted purple, duller
+than either end. A third stop says what the middle is instead. The same
 column twice, the second through a neutral grey, so the middling files fade
 and only the smallest and the largest stand out in colour:
 

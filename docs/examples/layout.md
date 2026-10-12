@@ -25,7 +25,7 @@ once Yazi has listed it, as it has the hovered one here, and draws a dash
 until then.
 
 The rest of the setup, the `yazi.toml` line and a key to show and hide the
-columns, is under [Quick start](../README.md#quick-start), and every option
+columns, is under [Quick start](../../README.md#quick-start), and every option
 `setup` takes under [`setup` options](../configuration.md#setup-options).
 
 ## Like `ls -l`
