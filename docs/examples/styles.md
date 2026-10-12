@@ -1,8 +1,8 @@
 # Styles
 
 What a column is drawn in: a colour your terminal names, a gradient from the
-smallest value in the folder to the largest, one colour spread from dark to
-light, and the attributes a terminal draws, such as bold and underline —
+smallest value in the folder to the largest, one colour across a lightness
+range, and the attributes a terminal draws, such as bold and underline —
 written in `init.lua`, in `theme.toml`, or in both. How the pictures are drawn
 is in [the index](README.md).
 
@@ -117,59 +117,6 @@ require("supaline"):setup {
 The stops are spread evenly, so the middle one is drawn at the middle of the
 range; see [A gradient](../styles.md#a-gradient).
 
-## One colour across a lightness range
-
-`<->` spreads a single colour from dark to light, holding its hue. The two ends
-are not taken from the colour: they are two lightnesses you name under
-`lightness`, the same for every column, and they are a claim about your
-terminal's background, since the dark end has to stay readable on it. This pair
-is the one for a dark terminal, drawn on Catppuccin Mocha:
-
-```lua
--- ~/.config/yazi/init.lua
-require("supaline"):setup {
-  lightness = { fg = { from = 0.40, to = 0.90 } },
-  linemodes = {
-    detail = {
-      { "size", style = "#3b82f6 <->" },
-      { "mtime", style = "#ef4444 <->" },
-    },
-  },
-}
-```
-
-<!-- drawn on the dark ground -->
-![size in blue and mtime in red, each from dark to light, on Catppuccin Mocha](images/lightness-dark.svg)
-
-On a light terminal, write the pair backwards, here drawn on Solarized light.
-The largest and the most recent files still stand out, now by being the
-darkest:
-
-```lua
--- ~/.config/yazi/init.lua
-require("supaline"):setup {
-  lightness = { fg = { from = 0.90, to = 0.40 } },
-  linemodes = {
-    detail = {
-      { "size", style = "#3b82f6 <->" },
-      { "mtime", style = "#ef4444 <->" },
-    },
-  },
-}
-```
-
-<!-- drawn on the light ground -->
-![size in blue and mtime in red, each from light to dark, on Solarized light](images/lightness-light.svg)
-
-> [!IMPORTANT]
-> No range is defined for you. A `<->` with no range under `lightness` behind it
-> is refused, and the message carries the dark terminal's pair to paste.
-
-What the spread does with the colour you wrote is in
-[One colour across a lightness range](../styles.md#one-colour-across-a-lightness-range),
-and how to move the two ends for your own terminal is in
-[Adjusting it](../styles.md#adjusting-it).
-
 ## Log against linear
 
 Placed by the size itself rather than its magnitude, on a linear scale, the
@@ -222,6 +169,61 @@ require("supaline"):setup {
 
 `fg` and `bg` both take a gradient, together or apart; see
 [A gradient](../styles.md#a-gradient).
+
+## One colour across a lightness range
+
+`<->` spreads a single colour between two lightnesses, holding its hue. The two
+ends are not taken from the colour: they are a range you name under
+`lightness`, and they are a claim about your terminal's background, since the
+end nearer it has to stay readable on it. On a dark terminal that is the dark
+end. This is the pair supaline recommends, drawn on Catppuccin Mocha:
+
+```lua
+-- ~/.config/yazi/init.lua
+require("supaline"):setup {
+  lightness = { fg = { from = 0.40, to = 0.90 } },
+  linemodes = {
+    detail = {
+      { "size", style = "#3b82f6 <->" },
+      { "mtime", style = "#ef4444 <->" },
+    },
+  },
+}
+```
+
+<!-- drawn on the dark ground -->
+![size in blue and mtime in red, each from dark to light, on Catppuccin Mocha](images/lightness-dark.svg)
+
+On a light terminal the pale end is the one nearer the background, so write the
+pair backwards, here drawn on Solarized light. The largest and the most recent
+files still stand out, now by being the darkest:
+
+```lua
+-- ~/.config/yazi/init.lua
+require("supaline"):setup {
+  lightness = { fg = { from = 0.90, to = 0.40 } },
+  linemodes = {
+    detail = {
+      { "size", style = "#3b82f6 <->" },
+      { "mtime", style = "#ef4444 <->" },
+    },
+  },
+}
+```
+
+<!-- drawn on the light ground -->
+![size in blue and mtime in red, each from light to dark, on Solarized light](images/lightness-light.svg)
+
+> [!IMPORTANT]
+> No range is defined for you. A `<->` with no range under `lightness` behind it
+> is refused, and the message carries the recommended pair to paste, in the
+> dark terminal's order: on a light one, reverse it.
+
+What the spread does with the colour you wrote, and how a column asks for a
+range by another name, are in
+[One colour across a lightness range](../styles.md#one-colour-across-a-lightness-range);
+how to move the two ends for your own terminal is in
+[Adjusting it](../styles.md#adjusting-it).
 
 ## Attributes
 
