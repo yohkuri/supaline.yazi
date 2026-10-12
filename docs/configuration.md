@@ -128,12 +128,14 @@ eighth of the terminal under Yazi's default `ratio`, so:
 | 120      | 15 cells    |
 | 80       | 10 cells    |
 
-`size` (7) and `mtime` (11) come to 19 cells with the separator, which leaves an
-80-column parent pane nothing for the name and a 170-column one a cell or two.
-Every built-in column is 5 to 12 cells wide, so `size` alone leaves a 170-column
-parent pane 14 cells for the name, and an 80-column one 3. How much the parent
-pane can carry is a question of how wide your terminal is, and of `ratio`,
-which can give the pane more. The preview pane is three eighths, so it is far
+Four of a pane's cells are never the name's, whatever it carries: a margin, the
+two ends of the hovered row and the space before the columns. Yazi's file icon
+takes two more. `size` (7) and `mtime` (11) come to 19 cells with the separator,
+which leaves no room for the name even in a 170-column parent pane. Every
+built-in column is 5 to 12 cells wide, and `size` alone leaves the name 8 cells
+at 170 columns, 2 at 120 and none at 80. How much the parent pane can carry is
+a question of how wide your terminal is, and of `ratio`, which can give the
+pane more. The preview pane is three eighths, so it is far
 less tight.
 
 That is what a list per pane is for: give each pane the columns its width

@@ -8,8 +8,9 @@ pictures are drawn is in [the index](README.md).
 
 A linemode that names a pane draws columns there, and a pane it leaves out
 draws none. Under Yazi's own `ratio` the parent pane is an eighth of the
-terminal, so how many cells a column there can take depends on how wide the
-terminal is: 15 at the 120 columns drawn here, 21 at 170. Whatever the columns
+terminal, 15 cells at the 120 columns drawn here and 21 at 170. Four of them
+are a margin, the two ends of the hovered row and the space before the
+columns, a file icon takes two more where Yazi draws one, and what the columns
 take comes out of the names. Here the parent pane has a column of your own, a
 dot for when each entry was last modified, spread across one colour's
 lightness the way
@@ -124,8 +125,9 @@ ignored_sign  = "! "
 ![size and mtime pushed left on the rows git.yazi draws a sign on](images/git-alongside.svg)
 
 Giving the clean rows a sign as wide as the rest, two spaces, lines the columns
-up again with the signs at the right edge. `unknown_sign` is the one outside a
-repository, which the parent pane here is:
+up again with the signs at the right edge. `unknown_sign` is the one for a
+file git.yazi has no status for yet, or none at all outside a repository, so
+the columns stay put there too:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -211,7 +213,8 @@ Both are under [Alongside git.yazi](../configuration.md#alongside-gityazi).
 ## A key for git.yazi's sign
 
 `toggle` hides the sign as well, given a name for it under `toggles` and the
-`order` git.yazi added it at. The columns stay, as the sign does under `m d`:
+`order` git.yazi added it at. The columns stay, as the sign does under `m d`,
+and move right into the room the sign took:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -260,7 +263,7 @@ desc = "Toggle git.yazi's sign"
 
 <!-- drawn 120 columns wide -->
 <!-- drawn before and after pressing m g -->
-![git.yazi's signs at the right edge, and then gone once m g is pressed, with size and mtime left where they were](images/git-toggle.svg)
+![git.yazi's signs at the right edge, and then gone once m g is pressed, with size and mtime moved right into its room](images/git-toggle.svg)
 
 Why it takes an `order` rather than the plugin's name is under
 [Toggling from a key](../configuration.md#toggling-from-a-key).
