@@ -293,8 +293,7 @@ def drawn_from(svg: str) -> str | None:
 #: 64 steps, though a file sitting on a step's edge can still cross it.
 #:
 #: One name is long, so a picture shows what a wide linemode costs: Yazi takes
-#: the room out of the name rather than the columns. It sorts before
-#: `LANDMARK`, which a cut name could no longer be waited on as.
+#: the room out of the name rather than the columns.
 FOLDER: dict[str, tuple[int | None, str]] = {
     "assets": (None, "09141802"),
     "docs": (None, "10021133"),
@@ -313,8 +312,16 @@ FOLDER: dict[str, tuple[int | None, str]] = {
 #: The executables, so `permissions` has an `x` to draw.
 EXECUTABLE = {"install.sh"}
 
-#: The name the screen is waited on, which sorts last.
-LANDMARK = "report.pdf"
+
+def listed(screen: str) -> bool:
+    """Whether the whole folder is on `screen`: a row for every entry.
+
+    Counted rather than waited on by name, so no entry's name or place in the
+    sort is load-bearing, and a name a wide linemode cuts short counts the
+    same. It holds while `FOLDER` fits in the window's `HEIGHT` less the header
+    and the status bar; past that, the rows scrolled off are never seen.
+    """
+    return len(file_rows(screen)) == len(FOLDER)
 
 
 def build_folder(root: Path) -> Path:
@@ -383,9 +390,7 @@ def capture(root: Path, folder: Path, example: Example) -> str:
     )
     try:
         # What `wait_for` returns is the last screen it read, met or not.
-        listed = session.wait_for(
-            lambda s: LANDMARK in s, "the folder listed", timeout=STARTUP
-        )
+        first = session.wait_for(listed, "the folder listed", timeout=STARTUP)
         screen = session.settle(colour=True)
         # Quit rather than kill, so Yazi has the grace `quit` gives to finish
         # the log read below.
@@ -393,10 +398,10 @@ def capture(root: Path, folder: Path, example: Example) -> str:
     finally:
         session.kill()
 
-    if LANDMARK not in listed:
+    if not listed(first):
         refuse(
-            f"examples: {LANDMARK} never appeared drawing {example.image}, "
-            f"in {STARTUP}s"
+            f"examples: the folder's {len(FOLDER)} entries never all appeared "
+            f"drawing {example.image}, in {STARTUP}s"
         )
     log = yazi_log(root, state)
     if not log.exists():
