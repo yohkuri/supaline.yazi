@@ -33,7 +33,7 @@ and Yazi's preset theme writes those by name as well.
 > [!TIP]
 > A named colour suits a configuration you share, or one you keep across
 > colour schemes: it follows the scheme rather than fighting it. A `#rrggbb`
-> looks the same on every scheme, which is what a gradient needs.
+> looks the same on every scheme.
 
 Every way to write a colour is under [`style`](../styles.md#style), and what
 `permissions` draws under [Built-in columns](../configuration.md#built-in-columns).
@@ -113,15 +113,13 @@ require("supaline"):setup {
 ![size from blue to red, and from blue through grey to red](images/three-stops.svg)
 
 The stops are spread evenly, so the middle one is drawn at the middle of the
-range. Each is a `#rrggbb`, with an arrow between each pair; see
-[A gradient](../styles.md#a-gradient).
+range; see [A gradient](../styles.md#a-gradient).
 
 ## Log against linear
 
-`size` places a file by the magnitude of its size. Placed by the size itself,
-on a linear scale, the largest file takes the top of the gradient and almost
-everything else lands near the bottom. The same column twice, the second
-linear:
+Placed by the size itself rather than its magnitude, on a linear scale, the
+largest file takes the top of the gradient and almost everything else lands
+near the bottom. The same column twice, the second linear:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -138,8 +136,8 @@ require("supaline"):setup {
 ![size on a log scale and on a linear one](images/log-and-linear.svg)
 
 > [!NOTE]
-> `size` is the one built-in column on a log scale by default; the timestamps
-> are linear. `scale = "linear"` in `setup` reaches `size` too.
+> `size` is the one built-in column on a log scale by default, and
+> `scale = "linear"` in `setup` reaches it too.
 
 Where `scale` may be written, and which place wins, is under
 [`scale`](../styles.md#scale).
