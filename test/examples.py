@@ -9,10 +9,9 @@ what it is a picture of is the `init.lua` block above it, with a `theme.toml`,
 a `yazi.toml` or a `keymap.toml` block if the example has one -- each fenced
 block naming its file on its first line, the way the README spells them. This
 opens a Yazi on that configuration and on a folder built here, captures it the
-way `e2e.py` does, and writes the file list as an SVG: on one dark terminal and
-one light, on one of the two alone, or on every ground `gallery.py` draws on,
-where the picture says so -- and before and after a key, or in a wider window,
-where it says that.
+way `e2e.py` does, and writes the file list as an SVG: on one dark terminal, or
+on a light one or every ground `gallery.py` draws on where the picture says
+so -- and before and after a key, or in a wider window, where it says that.
 
 Each SVG carries a digest of the blocks it was drawn from and of its alt text,
 and `test_examples.py` holds every image line to it in CI, so a configuration
@@ -106,30 +105,30 @@ exts  = []
 conds = []
 """
 
-#: The two grounds a picture is drawn on unless it asks for others: a dark
-#: terminal and a light one, out of the seven `gallery.py` draws on. Both,
-#: rather than the one matching the reader's page, because a reader on a dark
-#: page may well run a light terminal -- and a configuration tuned for one
-#: ground is worth seeing on the other. Dark first, which `DARK` and `LIGHT`
-#: pick by and `test_examples.py` holds the two to.
-PAIR = ("Catppuccin Mocha", "Solarized light")
+#: The ground a picture is drawn on unless it asks for others: a dark
+#: terminal, out of the seven `gallery.py` draws on. One, because most of what
+#: an example shows is where its columns go and what they say, which a second
+#: ground draws again unchanged; a picture whose point is the ground asks.
+DARK_GROUND = "Catppuccin Mocha"
 
-#: A line above an image asking for other grounds than the pair: every one,
-#: for a picture whose point is how the columns follow the terminal's palette,
-#: or the pair's dark one or light one alone, for a configuration written for
-#: one kind of ground and wrong on the other -- a lightness range is a claim
-#: about the ground. A comment, so the page shows nothing of it and
-#: markdownlint asks for no exemption. Any other comment that names grounds is
-#: refused rather than ignored, since a misspelled one would draw a pair
-#: without saying so. Each maps to the grounds it draws on, `None` for every
-#: one.
+#: The light terminal a picture may ask for instead. Lighter than `DARK_GROUND`,
+#: which `test_examples.py` holds the two to, since a page names the ground
+#: each is drawn on.
+LIGHT_GROUND = "Solarized light"
+
+#: A line above an image asking for other grounds than `DARK_GROUND`: every one, for
+#: a picture whose point is how the columns follow the terminal's palette, or
+#: the light one, for a configuration written for a light ground and wrong on
+#: a dark one -- a lightness range is a claim about the ground. A comment, so
+#: the page shows nothing of it and markdownlint asks for no exemption. Any
+#: other comment that names grounds is refused rather than ignored, since a
+#: misspelled one would draw on the dark ground without saying so. Each maps
+#: to the grounds it draws on, `None` for every one.
 EVERY = "<!-- drawn on every ground -->"
-DARK = "<!-- drawn on the dark ground -->"
 LIGHT = "<!-- drawn on the light ground -->"
 ASKED: dict[str, tuple[str, ...] | None] = {
     EVERY: None,
-    DARK: PAIR[:1],
-    LIGHT: PAIR[1:],
+    LIGHT: (LIGHT_GROUND,),
 }
 
 #: A line above an image asking for its screen to be drawn twice, before a
@@ -177,7 +176,7 @@ class Example:
     #: Written in place of `YAZI_TOML`, when the example has one.
     yazi: str = ""
     keymap: str = ""
-    #: The line in `ASKED` above the image, or nothing for the pair.
+    #: The line in `ASKED` above the image, or nothing for `DARK_GROUND` alone.
     asked: str = ""
     #: The keys `PRESSING` names, as it names them, or nothing for one screen.
     pressed: str = ""
@@ -187,7 +186,10 @@ class Example:
     def digest(self) -> str:
         """What the picture was drawn from, so a block edited since says so --
         and what the lines above it asked, since those change the picture as
-        much, and the alt text the SVG carries as its title."""
+        much, and the alt text the SVG carries as its title. The grounds by
+        name as well as by the line asking for them, so a picture drawn on
+        another default than `DARK_GROUND` says so with no line moved."""
+        grounds = ASKED.get(self.asked, (DARK_GROUND,))
         fields = (
             self.alt,
             self.init,
@@ -195,6 +197,7 @@ class Example:
             self.yazi,
             self.keymap,
             self.asked,
+            "every" if grounds is None else "\n".join(grounds),
             self.pressed,
             str(self.width or ""),
         )
@@ -353,7 +356,7 @@ def drawn_on(
     example: Example, grounds: list[tuple[str, str]]
 ) -> list[tuple[str, str]]:
     """The grounds `example` is drawn on, out of every one there is."""
-    wanted = ASKED.get(example.asked, PAIR)
+    wanted = ASKED.get(example.asked, (DARK_GROUND,))
     if wanted is None:
         return grounds
     return [(name, hex) for name, hex in grounds if name in wanted]
@@ -841,7 +844,7 @@ def main(argv: list[str]) -> int:
             "examples: no ground in the comment above `GROUND` in "
             "test/fixture/init.lua -- a name and a backticked hex each"
         )
-    missing = set(PAIR) - {name for name, _ in grounds}
+    missing = {DARK_GROUND, LIGHT_GROUND} - {name for name, _ in grounds}
     if missing:
         refuse(
             f"examples: {', '.join(sorted(missing))} is not among the grounds "

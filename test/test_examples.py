@@ -181,7 +181,7 @@ class Reading(unittest.TestCase):
         # A block and an asking line both stranded, so the refusal says
         # both rather than leaving the second to be found after the first.
         with self.assertRaisesRegex(ValueError, "init.lua`, `<!-- drawn"):
-            examples.examples(INIT + examples.DARK + "\n## Next\n")
+            examples.examples(INIT + examples.LIGHT + "\n## Next\n")
 
     def test_trailing_space_is_not_read(self):
         [found] = examples.examples(
@@ -192,13 +192,15 @@ class Reading(unittest.TestCase):
     def test_an_indented_asking_line_is_read(self):
         # Indented up to three spaces, CommonMark still reads it as the same
         # comment, so the page shows nothing either way.
-        [found] = examples.examples(INIT + "   " + examples.DARK + "\n" + IMAGE)
-        self.assertEqual(found.asked, examples.DARK)
+        [found] = examples.examples(
+            INIT + "   " + examples.LIGHT + "\n" + IMAGE
+        )
+        self.assertEqual(found.asked, examples.LIGHT)
 
     def test_an_indented_misspelled_ground_comment_is_refused(self):
         with self.assertRaisesRegex(ValueError, "the ways to ask"):
             examples.examples(
-                INIT + "  <!-- drawn on the dark grounds -->\n" + IMAGE
+                INIT + "  <!-- drawn on the light grounds -->\n" + IMAGE
             )
 
     def test_a_misspelled_ground_comment_is_refused(self):
@@ -226,14 +228,14 @@ class Reading(unittest.TestCase):
         # Which of the two the picture is drawn on would be a guess.
         with self.assertRaisesRegex(ValueError, "for one picture"):
             examples.examples(
-                INIT + examples.DARK + "\n" + examples.EVERY + "\n" + IMAGE
+                INIT + examples.LIGHT + "\n" + examples.EVERY + "\n" + IMAGE
             )
 
     def test_two_blocks_for_one_file_are_refused(self):
         with self.assertRaisesRegex(ValueError, "a second"):
             examples.examples(INIT + INIT + IMAGE)
 
-    def test_a_picture_is_a_pair_unless_it_asks_for_other_grounds(self):
+    def test_a_picture_is_on_the_dark_ground_unless_it_asks(self):
         page = INIT + IMAGE
         for line in examples.ASKED:
             page += INIT + line + "\n" + IMAGE
@@ -245,34 +247,31 @@ class Reading(unittest.TestCase):
         self.assertEqual(after.asked, "")
 
     def test_the_digest_covers_the_grounds_asked_for(self):
-        [pair] = examples.examples(INIT + IMAGE)
-        digests = {pair.digest}
+        [dark] = examples.examples(INIT + IMAGE)
+        digests = {dark.digest}
         for line in examples.ASKED:
             [found] = examples.examples(INIT + line + "\n" + IMAGE)
             digests.add(found.digest)
         self.assertEqual(len(digests), 1 + len(examples.ASKED))
 
     def test_each_way_draws_on_its_grounds(self):
-        grounds = [("black", "#000000")] + [
-            (n, "#111111") for n in examples.PAIR
-        ]
-        [dark, light] = examples.PAIR
+        dark, light = examples.DARK_GROUND, examples.LIGHT_GROUND
+        grounds = [("black", "#000000"), (dark, "#111111"), (light, "#eeeeee")]
         for line, want in (
-            ("", [dark, light]),
+            ("", [dark]),
             (examples.EVERY, ["black", dark, light]),
-            (examples.DARK, [dark]),
             (examples.LIGHT, [light]),
         ):
             [found] = examples.examples(INIT + line + "\n" + IMAGE)
-            with self.subTest(line or "the pair"):
+            with self.subTest(line or "the dark ground"):
                 self.assertEqual(
                     [name for name, _ in examples.drawn_on(found, grounds)],
                     want,
                 )
 
-    def test_the_pair_is_dark_first(self):
-        # `DARK` and `LIGHT` pick by place, and a page names the ground each
-        # draws on: swapped, both would draw on the other, and every digest
+    def test_the_dark_ground_is_darker_than_the_light_one(self):
+        # A page names the ground each picture is drawn on: swapped, the
+        # lightness examples would each draw on the other, and every digest
         # would still agree.
         grounds = dict(
             fixture.terminal_grounds((fixture.FIXTURE / "init.lua").read_text())
@@ -281,8 +280,22 @@ class Reading(unittest.TestCase):
         def brightness(hex: str) -> int:
             return sum(int(hex[i : i + 2], 16) for i in (1, 3, 5))
 
-        dark, light = (grounds[name] for name in examples.PAIR)
+        dark = grounds[examples.DARK_GROUND]
+        light = grounds[examples.LIGHT_GROUND]
         self.assertLess(brightness(dark), brightness(light))
+
+    def test_the_digest_covers_the_default_ground(self):
+        # A default moved draws every unasking picture again, and no line on
+        # any page says so.
+        [found] = examples.examples(INIT + IMAGE)
+        before = found.digest
+        was = examples.DARK_GROUND
+        try:
+            examples.DARK_GROUND = "elsewhere"
+            after = found.digest
+        finally:
+            examples.DARK_GROUND = was
+        self.assertNotEqual(before, after)
 
     def test_the_digest_covers_the_alt_text(self):
         # The SVG carries it as its title.

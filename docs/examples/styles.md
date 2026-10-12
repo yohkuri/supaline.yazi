@@ -191,7 +191,6 @@ require("supaline"):setup {
 }
 ```
 
-<!-- drawn on the dark ground -->
 ![size in blue and mtime in red, each from dark to light, on Catppuccin Mocha](images/lightness-dark.svg)
 
 On a light terminal the pale end is the one nearer the background, so write the
