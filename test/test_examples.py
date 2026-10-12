@@ -125,6 +125,13 @@ class Reading(unittest.TestCase):
             ):
                 examples.examples(INIT + broken + IMAGE)
 
+    def test_a_yazi_block_naming_no_linemode_is_refused(self):
+        # It replaces the one that names `detail`, so the columns would be
+        # drawn nowhere, and the picture would agree with its digest.
+        bare = "```toml\n# ~/.config/yazi/yazi.toml\n[mgr]\nratio = [1, 4, 3]\n```\n"
+        with self.assertRaisesRegex(ValueError, "no `\\[mgr\\] linemode`"):
+            examples.examples(INIT + bare + IMAGE)
+
     def test_the_plugins_required_are_supaline_s_neighbours(self):
         init = (
             'require("git"):setup { order = 1500 }\n'
@@ -355,7 +362,7 @@ class TheFolder(unittest.TestCase):
     def test_the_folder_is_among_its_siblings(self):
         # The parent pane draws the folder's own folder, and the hovered row
         # there is the folder.
-        self.assertIn("project", examples.SIBLINGS)
+        self.assertIn(examples.PROJECT, examples.SIBLINGS)
 
 
 class Drawing(unittest.TestCase):
