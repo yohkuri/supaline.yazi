@@ -39,6 +39,7 @@ a gradient of its own, and one taking an option of its own.
 ## Panes and keys
 
 [Panes and keys](panes.md): columns of their own in the parent and preview
-panes, and a key that shows the columns and hides them.
+panes, a key that shows the columns and hides them, and supaline beside
+git.yazi's sign, lined up and hidden from a key of its own.
 
 [![size and mtime in the file list, a red dot from dark to light by mtime in the parent pane, and size in the preview pane](images/per-pane.svg)](panes.md#different-columns-per-pane)
