@@ -1,14 +1,14 @@
 # Examples
 
-Each example is a configuration and what it draws, a page to a subject. Every
-picture is rendered by running the configuration above it in Yazi 26.9.1, so
-the two say the same thing; Yazi's file icons are switched off for the
-pictures, since an image cannot rely on its viewer having a Nerd Font. Each is
-drawn on a dark terminal and a light one, Catppuccin Mocha and Solarized
-light, except where the terminal is the point.
+The pages listed below hold the examples, a page to a subject. Each example
+is a configuration and what it draws. Every picture is rendered by running the
+configuration above it in Yazi 26.9.1, so the two say the same thing; Yazi's
+file icons are switched off for the pictures, since an image cannot rely on its
+viewer having a Nerd Font. Each is drawn on a dark terminal and a light one,
+Catppuccin Mocha and Solarized light, except where the terminal is the point.
 
-An example ends with a link to the part of the documentation that explains it,
-for what the picture leaves out.
+Each example on those pages ends with a link to the part of the documentation
+that explains it, for what the picture leaves out.
 
 ## Layout
 
