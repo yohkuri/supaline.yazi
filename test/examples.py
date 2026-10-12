@@ -238,6 +238,11 @@ def toml_problem(block: str) -> str | None:
         return f"does not parse: {error}"
     if block.startswith(THEME) and "icon" in parsed:
         return "themes `[icon]`, which the pictures switch off themselves"
+    if block.startswith(YAZI) and "linemode" not in parsed.get("mgr", {}):
+        return (
+            "sets no `[mgr] linemode`, and replaces the one that does, so "
+            "nothing would be drawn in the columns"
+        )
     return None
 
 
@@ -411,11 +416,14 @@ FOLDER: dict[str, tuple[int | None, str]] = {
 #: The executables, so `permissions` has an `x` to draw.
 EXECUTABLE = {"install.sh"}
 
+#: The folder's name, which the parent pane draws among its siblings.
+PROJECT = "project"
+
 #: The folder's own folder, which a picture of three panes draws on the left:
 #: the folder and the directories beside it, dated the same way.
 SIBLINGS: dict[str, str] = {
     "dotfiles": "08300915",
-    "project": "10101026",
+    PROJECT: "10101026",
     "scratch": "10111710",
     "website": "05221340",
 }
@@ -453,7 +461,7 @@ def build_folder(root: Path) -> Path:
     `setup.build` states, so `permissions` draws the same modes whoever
     redraws the picture, and a repository, as `repository` says.
     """
-    folder = root / "work" / "project"
+    folder = root / "work" / PROJECT
     year = time.localtime().tm_year
     dated: dict[Path, str] = {}
     was = os.umask(0o022)
@@ -480,6 +488,12 @@ def build_folder(root: Path) -> Path:
     # directory's mtime: the deepest first, for the same reason.
     for path, when in sorted(dated.items(), key=lambda kv: -len(kv[0].parts)):
         fixture.stamp(path, fixture.epoch(f"{year}{when}"))
+    # Every mtime moved since the index recorded it, so a `git status` would
+    # hash every file again -- 0.24s a call, measured, against 0.01s once
+    # refreshed -- and git.yazi runs it with `--no-optional-locks`, which never
+    # writes the refresh back. Its signs would then land after the screen had
+    # already held still long enough to be taken.
+    git(folder, "update-index", "-q", "--refresh")
     return folder
 
 
@@ -488,38 +502,40 @@ def build_folder(root: Path) -> Path:
 GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
 
+def git(folder: Path, *args: str) -> None:
+    """Run git on `folder`'s repository, as nobody."""
+    run(
+        [
+            "git",
+            "-C",
+            str(folder),
+            "-c",
+            "user.name=supaline",
+            "-c",
+            "user.email=supaline@example.invalid",
+            *args,
+        ],
+        env=GIT_ENV,
+    )
+
+
 def repository(folder: Path) -> None:
     """Make `folder` a repository holding `GIT`'s states: everything else
     committed, an ignored file written into `.gitignore`, and each change
     one byte, so no size moves. Hidden files are not listed, so `.git` and
     `.gitignore` are on no picture."""
 
-    def git(*args: str) -> None:
-        run(
-            [
-                "git",
-                "-C",
-                str(folder),
-                "-c",
-                "user.name=supaline",
-                "-c",
-                "user.email=supaline@example.invalid",
-                *args,
-            ],
-            env=GIT_ENV,
-        )
-
     def touched(name: str) -> None:
         with (folder / name).open("r+b") as f:
             f.write(b"x")
 
     (folder / ".gitignore").write_text(GIT["ignored"] + "\n")
-    git("init", "-q")
-    git("add", "--all", "--", ".", f":!{GIT['untracked']}")
-    git("commit", "-q", "-m", "the folder")
+    git(folder, "init", "-q")
+    git(folder, "add", "--all", "--", ".", f":!{GIT['untracked']}")
+    git(folder, "commit", "-q", "-m", "the folder")
     touched(GIT["unstaged"])
     touched(GIT["staged"])
-    git("add", "--", GIT["staged"])
+    git(folder, "add", "--", GIT["staged"])
 
 
 # --- taking the picture ------------------------------------------------------
@@ -590,17 +606,18 @@ def capture(
         shown = session.settle(colour=True)
         if example.pressed:
             session.keys(*example.pressed.split())
-            changed = (
-                session.wait_for(
-                    lambda screen: screen != shown,
-                    f"{example.pressed} pressed",
-                    colour=True,
-                )
-                != shown
+            session.wait_for(
+                lambda screen: screen != shown,
+                f"{example.pressed} pressed",
+                colour=True,
             )
+            # The settled screens compared, not the first that differed: a
+            # which-key popup comes and goes between the keys of one press.
+            after = session.settle(colour=True)
+            changed = after != shown
             screens = [
                 (f"before {example.pressed}", shown),
-                (f"after {example.pressed}", session.settle(colour=True)),
+                (f"after {example.pressed}", after),
             ]
         else:
             screens = [("", shown)]
@@ -893,11 +910,9 @@ def draw(
     root: Path, folder: Path, example: Example, grounds: list[tuple[str, str]]
 ) -> None:
     """Take `example`'s picture and write it where its image line says."""
-    shots = [
-        (shot, file_rows(screen))
-        for shot, screen in capture(root, folder, example)
-    ]
+    screens = capture(root, folder, example)
     try:
+        shots = [(shot, file_rows(screen)) for shot, screen in screens]
         if not all(rows for _, rows in shots):
             refuse(f"examples: {example.image} drew no rows")
         picture = svg(shots, drawn_on(example, grounds), example)
