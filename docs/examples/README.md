@@ -5,7 +5,8 @@ is a configuration and what it draws. Every picture is rendered by running the
 configuration above it in Yazi 26.9.1, so the two say the same thing; Yazi's
 file icons are switched off for the pictures, since an image cannot rely on its
 viewer having a Nerd Font. Each is drawn on a dark terminal and a light one,
-Catppuccin Mocha and Solarized light, except where the terminal is the point.
+Catppuccin Mocha and Solarized light, unless the terminal is the point: then on
+more grounds, or on only the one the configuration is written for.
 
 Each example on those pages ends with a link to the part of the documentation
 that explains it, for what the picture leaves out.
@@ -23,7 +24,7 @@ and the separators between them.
 [Styles](styles.md): a colour your terminal names, drawn on five colour
 schemes and on xterm; gradients on `size` and on `mtime`, with three stops, on
 a linear scale and behind the text; one colour across a lightness range, on
-dark terminals and on light ones; attributes; styles written in `theme.toml`;
+a dark terminal and on a light one; attributes; styles written in `theme.toml`;
 and the colours `permissions` takes from your theme.
 
 [![size from blue to red](images/size-gradient.svg)](styles.md#a-gradient-on-size)
