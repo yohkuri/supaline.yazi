@@ -50,7 +50,6 @@ supaline:setup {
 linemode = "detail"
 ```
 
-<!-- drawn on the dark ground -->
 <!-- drawn 120 columns wide -->
 ![size and mtime in the file list, a red dot from dark to light by mtime in the parent pane, and size in the preview pane](images/per-pane.svg)
 
@@ -76,6 +75,5 @@ run  = "plugin supaline -- toggle detail"
 desc = "Toggle supaline's columns"
 ```
 
-<!-- drawn on the dark ground -->
 <!-- drawn before and after pressing m d -->
 ![size and mtime, and then no columns at all once m d is pressed](images/toggle.svg)
