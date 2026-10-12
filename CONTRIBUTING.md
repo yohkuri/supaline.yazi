@@ -26,7 +26,7 @@ versions themselves:
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
 | `test/gallery.py` | tmux and a browser |
-| `test/examples.py` | tmux |
+| `test/examples.py` | tmux, git, and git.yazi installed with `ya pkg add yazi-rs/plugins:git` |
 
 Match the stylua version exactly. Another release can format the same
 file differently, and CI would refuse what yours passed.
