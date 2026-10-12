@@ -35,3 +35,10 @@ and the colours `permissions` takes from your theme.
 a gradient of its own, and one taking an option of its own.
 
 [![the length of each name, from blue for the shortest to red for the longest](images/name-length.svg)](custom-columns.md#a-gradient-of-your-own)
+
+## Panes and keys
+
+[Panes and keys](panes.md): columns of their own in the parent and preview
+panes, and a key that shows the columns and hides them.
+
+[![size and mtime in the file list, a d or an f in the parent pane, and size in the preview pane](images/per-pane-narrow.svg)](panes.md#different-columns-per-pane)
