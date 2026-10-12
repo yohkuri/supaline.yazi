@@ -20,10 +20,10 @@ and the separators between them.
 
 ## Styles
 
-[Styles](styles.md): a colour your terminal names, drawn on seven colour
-schemes; gradients on `size` and on `mtime`, with three stops, on a linear
-scale and behind the text; attributes; styles written in `theme.toml`; and the
-colours `permissions` takes from your theme.
+[Styles](styles.md): a colour your terminal names, drawn on five colour
+schemes and on xterm; gradients on `size` and on `mtime`, with three stops, on
+a linear scale and behind the text; attributes; styles written in
+`theme.toml`; and the colours `permissions` takes from your theme.
 
 [![size from blue to red](images/size-gradient.svg)](styles.md#a-gradient-on-size)
 

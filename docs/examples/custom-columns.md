@@ -29,8 +29,9 @@ supaline:setup {
 
 ![a magenta column of extensions before size and mtime](images/extension.svg)
 
-A directory has no extension, and nor has `LICENSE`, so both draw an empty
-cell; `backup.tar.gz` has `gz`, the part after the last dot.
+The extension comes from the name alone: these directories have none, and nor
+has `LICENSE`, so they draw an empty cell, where `backup.tar.gz` has `gz`, the
+part after the last dot.
 
 > [!IMPORTANT]
 > `render` runs for every visible row on every frame. Keep it to a lookup, and
@@ -41,8 +42,9 @@ What `render` is handed and may return is under
 
 ## A gradient of your own
 
-A gradient needs the smallest and largest value in the folder, which `stats`
-measures once for every row, and `supaline.extremes` is that loop. Here the
+A gradient needs the smallest and largest value in the folder. `stats`
+measures them once, every row shares the result, and `supaline.extremes` is
+that loop. Here the
 length of each file's name, from blue to red:
 
 ```lua
