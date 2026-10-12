@@ -83,16 +83,25 @@ left beside it is refused rather than drawn nowhere.
 `mark` there is a column of your own rather than one supaline ships, as
 narrow as you make it: every built-in is at least 5 cells, and how many the
 parent pane can spare depends on the terminal's width, which the note below is
-about. A few lines register one a single cell wide:
+about. A few lines register one a single cell wide, a dot for when each entry
+was last modified, on one colour spread across a lightness range:
 
 ```lua
+local function mtime(file) return file.cha.mtime or 0 end
+
 supaline.column("mark", {
   width  = 1,
+  style  = "#ef4444 <->",
+  stats  = supaline.extremes(mtime),
   render = function(file, ctx)
-    return file.cha.is_dir and "d" or "f", ctx.style
+    return "●", ctx.style_at(ctx.ratio(mtime(file)))
   end,
 })
 ```
+
+`<->` takes its two ends from a range under `lightness`, which `setup` has to
+name; [One colour across a lightness range](styles.md#one-colour-across-a-lightness-range)
+says why there is none until you do.
 
 [Writing a column](columns.md) has the rest of what one may do.
 

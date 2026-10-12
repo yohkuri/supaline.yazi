@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1023.6" height="254" viewBox="0 0 1023.6 254" role="img" data-source="f192a1037be7df040a97cdcac886e66f0d560156f030827cf1be26e9d1a47bc1" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
-<title>size and mtime in the file list, a d or an f in the parent pane, and size in the preview pane</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="1023.6" height="254" viewBox="0 0 1023.6 254" role="img" data-source="a95876e179326ca79a6ecdcf96641273ace300b9e35e337dba15eb511c6b8aff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
+<title>size and mtime in the file list, a red dot from dark to light by mtime in the parent pane, and size in the preview pane</title>
 <g transform="translate(0,0)">
 <rect width="1023.6" height="254" rx="8" fill="#1e1e2e" stroke="#8888" stroke-width="1"/>
 <text x="12" y="17" font-size="12" fill="#757a91">Catppuccin Mocha</text>
 <text x="28.8" y="38.96" fill="#89b4fa">dotfiles</text>
-<text x="121.2" y="38.96" fill="#89b4fa">d</text>
+<text x="121.2" y="38.96" fill="#da9c96">●</text>
 <text x="138" y="38.96" fill="#a6adc8">│</text>
 <path d="M154.8,26 A8.4,9 0 0 0 154.8,44 Z" fill="#89b4fa"/>
 <rect x="154.8" y="26" width="470.4" height="18" fill="#89b4fa"/>
@@ -18,9 +18,10 @@
 <text x="986.4" y="38.96" fill="#cdd6f4">1B</text>
 <rect x="642" y="41.48" width="369.6" height="1" fill="#cdd6f4"/>
 <path d="M28.8,44 A8.4,9 0 0 0 28.8,62 Z" fill="#89b4fa"/>
-<rect x="28.8" y="44" width="100.8" height="18" fill="#89b4fa"/>
+<rect x="28.8" y="44" width="92.4" height="18" fill="#89b4fa"/>
 <text x="28.8" y="56.96" fill="#1e1e2e">project</text>
-<text x="121.2" y="56.96" fill="#1e1e2e">d</text>
+<rect x="121.2" y="44" width="8.4" height="18" fill="#fdcfca"/>
+<text x="121.2" y="56.96" fill="#1e1e2e">●</text>
 <path d="M129.6,44 A8.4,9 0 0 1 129.6,62 Z" fill="#89b4fa"/>
 <text x="138" y="56.96" fill="#a6adc8">│</text>
 <text x="154.8" y="56.96" fill="#89b4fa">docs</text>
@@ -31,7 +32,7 @@
 <text x="650.4" y="56.96" fill="#cdd6f4">assets-1</text>
 <text x="986.4" y="56.96" fill="#cdd6f4">1B</text>
 <text x="28.8" y="74.96" fill="#89b4fa">scratch</text>
-<text x="121.2" y="74.96" fill="#89b4fa">d</text>
+<text x="121.2" y="74.96" fill="#ffd2cd">●</text>
 <text x="138" y="74.96" fill="#a6adc8">│</text>
 <text x="154.8" y="74.96" fill="#89b4fa">src</text>
 <text x="516" y="74.96" fill="#89b4fa">-</text>
@@ -41,7 +42,7 @@
 <text x="650.4" y="74.96" fill="#cdd6f4">assets-2</text>
 <text x="986.4" y="74.96" fill="#cdd6f4">1B</text>
 <text x="28.8" y="92.96" fill="#89b4fa">website</text>
-<text x="121.2" y="92.96" fill="#89b4fa">d</text>
+<text x="121.2" y="92.96" fill="#7f2020">●</text>
 <text x="138" y="92.96" fill="#a6adc8">│</text>
 <text x="154.8" y="92.96" fill="#cdd6f4">backup.tar.gz</text>
 <text x="482.4" y="92.96" fill="#cdd6f4">45.8M</text>
