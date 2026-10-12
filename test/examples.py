@@ -100,12 +100,12 @@ exts  = []
 conds = []
 """
 
-#: The two grounds a picture is drawn on unless it asks for every one: a
-#: dark terminal and a light one, out of the seven `gallery.py` draws on.
-#: Both, rather than the one matching the reader's page, because a reader on
-#: a dark page may well run a light terminal -- and a configuration tuned for
-#: one ground is worth seeing on the other. Dark first, which `DARK` and
-#: `LIGHT` pick by.
+#: The two grounds a picture is drawn on unless it asks for others: a dark
+#: terminal and a light one, out of the seven `gallery.py` draws on. Both,
+#: rather than the one matching the reader's page, because a reader on a dark
+#: page may well run a light terminal -- and a configuration tuned for one
+#: ground is worth seeing on the other. Dark first, which `DARK` and `LIGHT`
+#: pick by and `test_examples.py` holds the two to.
 PAIR = ("Catppuccin Mocha", "Solarized light")
 
 #: A line above an image asking for other grounds than the pair: every one,
@@ -115,18 +115,23 @@ PAIR = ("Catppuccin Mocha", "Solarized light")
 #: about the ground. A comment, so the page shows nothing of it and
 #: markdownlint asks for no exemption. Any other comment that names grounds is
 #: refused rather than ignored, since a misspelled one would draw a pair
-#: without saying so.
+#: without saying so. Each maps to the grounds it draws on, `None` for every
+#: one.
 EVERY = "<!-- drawn on every ground -->"
 DARK = "<!-- drawn on the dark ground -->"
 LIGHT = "<!-- drawn on the light ground -->"
-ASKED = {EVERY: "every", DARK: "dark", LIGHT: "light"}
+ASKED: dict[str, tuple[str, ...] | None] = {
+    EVERY: None,
+    DARK: PAIR[:1],
+    LIGHT: PAIR[1:],
+}
 
 #: The first line of a block, naming the file it belongs in.
 INIT = "-- ~/.config/yazi/init.lua"
 THEME = "# ~/.config/yazi/theme.toml"
 
 IMAGE = re.compile(r"^!\[([^\]]+)\]\((images/[a-z0-9-]+\.svg)\)$")
-GROUNDS = re.compile(r"^<!--.*\bground", re.IGNORECASE)
+GROUNDS = re.compile(r"^\s*<!--.*\bground", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s")
 FENCE = re.compile(r"^(`{3,}|~{3,})")
 
@@ -142,15 +147,15 @@ class Example:
     alt: str
     init: str
     theme: str = ""
-    #: `pair`, or the value `ASKED` gives the line that asked for others.
-    grounds: str = "pair"
+    #: The line in `ASKED` above the image, or nothing for the pair.
+    asked: str = ""
 
     @property
     def digest(self) -> str:
         """What the picture was drawn from, so a block edited since says so --
         and the grounds it was asked for, since those change the picture as
         much, and the alt text the SVG carries as its title."""
-        body = f"{self.alt}\0{self.init}\0{self.theme}\0{self.grounds}".encode()
+        body = f"{self.alt}\0{self.init}\0{self.theme}\0{self.asked}".encode()
         return hashlib.sha256(body).hexdigest()
 
 
@@ -181,10 +186,10 @@ def theme_problem(theme: str) -> str | None:
 def examples(text: str) -> list[Example]:
     """Every picture on one page, with its blocks.
 
-    A block belongs to the next image below it, and so does a line `ASKED`
-    holds. An image
-    with no `init.lua` block since the one before it is refused, since there
-    would be nothing to draw, and so is a second block for one file: which of
+    A block belongs to the next image below it, and so does a line in
+    `ASKED`, indented or not. An image with no `init.lua` block since the one
+    before it is refused, since there would be nothing to draw, and so is a
+    second block for one file, or a second line asking for grounds: which of
     the two is the picture's would be a guess. So is a block or an asking line
     with no image under it before the next heading or the end of the page:
     carried on, it would be drawn into the next section's picture, and the
@@ -195,8 +200,9 @@ def examples(text: str) -> list[Example]:
     asked = ""
 
     def nothing_left(at: str) -> None:
-        if blocks or asked:
-            named = ", ".join(f"`{name}`" for name in blocks) or f"`{asked}`"
+        left = [*blocks, asked] if asked else [*blocks]
+        if left:
+            named = ", ".join(f"`{name}`" for name in left)
             raise ValueError(f"{at}: {named} with no picture under it")
 
     lines = text.splitlines()
@@ -223,12 +229,13 @@ def examples(text: str) -> list[Example]:
             continue
         if HEADING.match(line):
             nothing_left(f"line {i + 1}")
-        if line in ASKED:
+        if line.lstrip() in ASKED:
             if asked:
                 raise ValueError(
-                    f"line {i + 1}: {line} after `{asked}`, for one picture"
+                    f"line {i + 1}: {line.lstrip()} after `{asked}`, for one "
+                    "picture"
                 )
-            asked = line
+            asked = line.lstrip()
         elif GROUNDS.match(line):
             ways = ", ".join(f"`{way}`" for way in ASKED)
             raise ValueError(
@@ -248,7 +255,7 @@ def examples(text: str) -> list[Example]:
                     image.group(1),
                     blocks[INIT],
                     blocks.get(THEME, ""),
-                    ASKED.get(asked, "pair"),
+                    asked,
                 )
             )
             blocks, asked = {}, ""
@@ -286,12 +293,9 @@ def drawn_on(
     example: Example, grounds: list[tuple[str, str]]
 ) -> list[tuple[str, str]]:
     """The grounds `example` is drawn on, out of every one there is."""
-    wanted = {
-        "every": [name for name, _ in grounds],
-        "pair": PAIR,
-        "dark": PAIR[:1],
-        "light": PAIR[1:],
-    }[example.grounds]
+    wanted = ASKED.get(example.asked, PAIR)
+    if wanted is None:
+        return grounds
     return [(name, hex) for name, hex in grounds if name in wanted]
 
 
