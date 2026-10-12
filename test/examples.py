@@ -287,13 +287,17 @@ def drawn_from(svg: str) -> str | None:
 
 #: The folder's entries: a size each, `None` for a directory, and the date it
 #: carries as `MMDDhhmm` of this year. This year's because `mtime` draws one as
-#: a time of day, which is the form most of a real listing is in, and the year
-#: itself never reaches the screen. Another year moves the dates apart only by
-#: where a leap day or a clock change falls: far less than one of a gradient's
-#: 64 steps, though a file sitting on a step's edge can still cross it.
+#: a time of day, which is the form most of a real listing is in. The year
+#: reaches the screen only where an example's `format` asks for it, and is
+#: then whichever year the picture was redrawn in, so no name here carries a
+#: date for it to contradict. Another year moves the dates apart only by where
+#: a leap day or a clock change falls: far less than one of a gradient's 64
+#: steps, though a file sitting on a step's edge can still cross it.
 #:
 #: One name is long, so a picture shows what a wide linemode costs: Yazi takes
-#: the room out of the name rather than the columns.
+#: the room out of the name rather than the columns. Long enough to be cut
+#: beside `ls -l`'s four columns, and no longer, since a column measuring the
+#: names spreads them between the shortest and this one.
 FOLDER: dict[str, tuple[int | None, str]] = {
     "assets": (None, "09141802"),
     "docs": (None, "10021133"),
@@ -301,10 +305,10 @@ FOLDER: dict[str, tuple[int | None, str]] = {
     "backup.tar.gz": (48_000_000, "06300200"),
     "cover.png": (2_100_000, "09141758"),
     "demo.mp4": (180_000_000, "08221510"),
+    "holiday-photo-edited.jpg": (3_400_000, "10041432"),
     "install.sh": (3_200, "03110921"),
     "LICENSE": (1_070, "01050000"),
     "notes.md": (6_100, "10101026"),
-    "photo-2026-10-04-143207-edited.jpg": (3_400_000, "10041432"),
     "README.md": (12_000, "10091952"),
     "report.pdf": (860_000, "07180845"),
 }
@@ -318,10 +322,13 @@ def listed(screen: str) -> bool:
 
     Counted rather than waited on by name, so no entry's name or place in the
     sort is load-bearing, and a name a wide linemode cuts short counts the
-    same. It holds while `FOLDER` fits in the window's `HEIGHT` less the header
-    and the status bar; past that, the rows scrolled off are never seen.
+    same. At least as many rows rather than exactly, since a notification
+    reaching below the last entry adds rows without taking any away, and what
+    it says is the log's to report. It holds while `FOLDER` fits in the
+    window's `HEIGHT` less the header and the status bar; past that, the rows
+    scrolled off are never seen.
     """
-    return len(file_rows(screen)) == len(FOLDER)
+    return len(file_rows(screen)) >= len(FOLDER)
 
 
 def build_folder(root: Path) -> Path:
@@ -398,22 +405,24 @@ def capture(root: Path, folder: Path, example: Example) -> str:
     finally:
         session.kill()
 
+    # The log first, since what it says is why the folder never appeared as
+    # often as not, and is worth more than saying that it did not.
+    log = yazi_log(root, state)
+    trouble = troubles(log.read_text()) if log.exists() else []
+    if trouble:
+        refuse(
+            f"examples: Yazi logged trouble drawing {example.image}:\n"
+            + "\n".join(f"  {line.strip()}" for line in trouble[:5])
+        )
     if not listed(first):
         refuse(
             f"examples: the folder's {len(FOLDER)} entries never all appeared "
             f"drawing {example.image}, in {STARTUP}s"
         )
-    log = yazi_log(root, state)
     if not log.exists():
         refuse(
             f"examples: Yazi wrote no log drawing {example.image}, so nothing "
             "says the columns drew without error"
-        )
-    trouble = troubles(log.read_text())
-    if trouble:
-        refuse(
-            f"examples: Yazi logged trouble drawing {example.image}:\n"
-            + "\n".join(f"  {line.strip()}" for line in trouble[:5])
         )
     return screen
 

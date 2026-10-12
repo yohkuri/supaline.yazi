@@ -201,6 +201,11 @@ class Waiting(unittest.TestCase):
     def test_a_folder_part_drawn_is_not_listed(self):
         self.assertFalse(examples.listed(self.screen(len(examples.FOLDER) - 1)))
 
+    def test_a_notification_below_the_list_does_not_hold_the_wait(self):
+        # Rows past the entries are something drawn over the list, and the
+        # log says what; waiting on them would time out before it is read.
+        self.assertTrue(examples.listed(self.screen(len(examples.FOLDER) + 2)))
+
     def test_the_folder_fits_the_window(self):
         # Past the window's rows less the header and the status bar, the
         # entries scrolled off are never drawn, and the wait never ends.

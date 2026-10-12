@@ -84,29 +84,29 @@
 <text x="415.2" y="128.96" fill="#f9e2af" font-weight="bold">r</text>
 <text x="423.6" y="128.96" fill="#585b70" font-weight="bold">--</text>
 <text x="448.8" y="128.96" fill="#94e2d5">-rw-r--r--</text>
-<text x="28.8" y="146.96" fill="#a6e3a1">install.sh</text>
+<text x="28.8" y="146.96" fill="#cdd6f4">holiday-photo-edited.jpg</text>
 <text x="356.4" y="146.96" fill="#585b70" font-weight="bold">-</text>
 <text x="364.8" y="146.96" fill="#f9e2af" font-weight="bold">r</text>
 <text x="373.2" y="146.96" fill="#f38ba8" font-weight="bold">w</text>
-<text x="381.6" y="146.96" fill="#94e2d5" font-weight="bold">x</text>
+<text x="381.6" y="146.96" fill="#585b70" font-weight="bold">-</text>
 <text x="390" y="146.96" fill="#f9e2af" font-weight="bold">r</text>
-<text x="398.4" y="146.96" fill="#585b70" font-weight="bold">-</text>
-<text x="406.8" y="146.96" fill="#94e2d5" font-weight="bold">x</text>
+<text x="398.4" y="146.96" fill="#585b70" font-weight="bold">--</text>
 <text x="415.2" y="146.96" fill="#f9e2af" font-weight="bold">r</text>
-<text x="423.6" y="146.96" fill="#585b70" font-weight="bold">-</text>
-<text x="432" y="146.96" fill="#94e2d5" font-weight="bold">x</text>
-<text x="448.8" y="146.96" fill="#94e2d5">-rwxr-xr-x</text>
-<text x="28.8" y="164.96" fill="#cdd6f4">LICENSE</text>
+<text x="423.6" y="146.96" fill="#585b70" font-weight="bold">--</text>
+<text x="448.8" y="146.96" fill="#94e2d5">-rw-r--r--</text>
+<text x="28.8" y="164.96" fill="#a6e3a1">install.sh</text>
 <text x="356.4" y="164.96" fill="#585b70" font-weight="bold">-</text>
 <text x="364.8" y="164.96" fill="#f9e2af" font-weight="bold">r</text>
 <text x="373.2" y="164.96" fill="#f38ba8" font-weight="bold">w</text>
-<text x="381.6" y="164.96" fill="#585b70" font-weight="bold">-</text>
+<text x="381.6" y="164.96" fill="#94e2d5" font-weight="bold">x</text>
 <text x="390" y="164.96" fill="#f9e2af" font-weight="bold">r</text>
-<text x="398.4" y="164.96" fill="#585b70" font-weight="bold">--</text>
+<text x="398.4" y="164.96" fill="#585b70" font-weight="bold">-</text>
+<text x="406.8" y="164.96" fill="#94e2d5" font-weight="bold">x</text>
 <text x="415.2" y="164.96" fill="#f9e2af" font-weight="bold">r</text>
-<text x="423.6" y="164.96" fill="#585b70" font-weight="bold">--</text>
-<text x="448.8" y="164.96" fill="#94e2d5">-rw-r--r--</text>
-<text x="28.8" y="182.96" fill="#cdd6f4">notes.md</text>
+<text x="423.6" y="164.96" fill="#585b70" font-weight="bold">-</text>
+<text x="432" y="164.96" fill="#94e2d5" font-weight="bold">x</text>
+<text x="448.8" y="164.96" fill="#94e2d5">-rwxr-xr-x</text>
+<text x="28.8" y="182.96" fill="#cdd6f4">LICENSE</text>
 <text x="356.4" y="182.96" fill="#585b70" font-weight="bold">-</text>
 <text x="364.8" y="182.96" fill="#f9e2af" font-weight="bold">r</text>
 <text x="373.2" y="182.96" fill="#f38ba8" font-weight="bold">w</text>
@@ -116,7 +116,7 @@
 <text x="415.2" y="182.96" fill="#f9e2af" font-weight="bold">r</text>
 <text x="423.6" y="182.96" fill="#585b70" font-weight="bold">--</text>
 <text x="448.8" y="182.96" fill="#94e2d5">-rw-r--r--</text>
-<text x="28.8" y="200.96" fill="#cdd6f4">photo-2026-10-04-143207-edited.jpg</text>
+<text x="28.8" y="200.96" fill="#cdd6f4">notes.md</text>
 <text x="356.4" y="200.96" fill="#585b70" font-weight="bold">-</text>
 <text x="364.8" y="200.96" fill="#f9e2af" font-weight="bold">r</text>
 <text x="373.2" y="200.96" fill="#f38ba8" font-weight="bold">w</text>
@@ -231,29 +231,29 @@
 <text x="415.2" y="128.96" fill="#b58900" font-weight="bold">r</text>
 <text x="423.6" y="128.96" fill="#002b36" font-weight="bold">--</text>
 <text x="448.8" y="128.96" fill="#2aa198">-rw-r--r--</text>
-<text x="28.8" y="146.96" fill="#859900">install.sh</text>
+<text x="28.8" y="146.96" fill="#657b83">holiday-photo-edited.jpg</text>
 <text x="356.4" y="146.96" fill="#002b36" font-weight="bold">-</text>
 <text x="364.8" y="146.96" fill="#b58900" font-weight="bold">r</text>
 <text x="373.2" y="146.96" fill="#dc322f" font-weight="bold">w</text>
-<text x="381.6" y="146.96" fill="#2aa198" font-weight="bold">x</text>
+<text x="381.6" y="146.96" fill="#002b36" font-weight="bold">-</text>
 <text x="390" y="146.96" fill="#b58900" font-weight="bold">r</text>
-<text x="398.4" y="146.96" fill="#002b36" font-weight="bold">-</text>
-<text x="406.8" y="146.96" fill="#2aa198" font-weight="bold">x</text>
+<text x="398.4" y="146.96" fill="#002b36" font-weight="bold">--</text>
 <text x="415.2" y="146.96" fill="#b58900" font-weight="bold">r</text>
-<text x="423.6" y="146.96" fill="#002b36" font-weight="bold">-</text>
-<text x="432" y="146.96" fill="#2aa198" font-weight="bold">x</text>
-<text x="448.8" y="146.96" fill="#2aa198">-rwxr-xr-x</text>
-<text x="28.8" y="164.96" fill="#657b83">LICENSE</text>
+<text x="423.6" y="146.96" fill="#002b36" font-weight="bold">--</text>
+<text x="448.8" y="146.96" fill="#2aa198">-rw-r--r--</text>
+<text x="28.8" y="164.96" fill="#859900">install.sh</text>
 <text x="356.4" y="164.96" fill="#002b36" font-weight="bold">-</text>
 <text x="364.8" y="164.96" fill="#b58900" font-weight="bold">r</text>
 <text x="373.2" y="164.96" fill="#dc322f" font-weight="bold">w</text>
-<text x="381.6" y="164.96" fill="#002b36" font-weight="bold">-</text>
+<text x="381.6" y="164.96" fill="#2aa198" font-weight="bold">x</text>
 <text x="390" y="164.96" fill="#b58900" font-weight="bold">r</text>
-<text x="398.4" y="164.96" fill="#002b36" font-weight="bold">--</text>
+<text x="398.4" y="164.96" fill="#002b36" font-weight="bold">-</text>
+<text x="406.8" y="164.96" fill="#2aa198" font-weight="bold">x</text>
 <text x="415.2" y="164.96" fill="#b58900" font-weight="bold">r</text>
-<text x="423.6" y="164.96" fill="#002b36" font-weight="bold">--</text>
-<text x="448.8" y="164.96" fill="#2aa198">-rw-r--r--</text>
-<text x="28.8" y="182.96" fill="#657b83">notes.md</text>
+<text x="423.6" y="164.96" fill="#002b36" font-weight="bold">-</text>
+<text x="432" y="164.96" fill="#2aa198" font-weight="bold">x</text>
+<text x="448.8" y="164.96" fill="#2aa198">-rwxr-xr-x</text>
+<text x="28.8" y="182.96" fill="#657b83">LICENSE</text>
 <text x="356.4" y="182.96" fill="#002b36" font-weight="bold">-</text>
 <text x="364.8" y="182.96" fill="#b58900" font-weight="bold">r</text>
 <text x="373.2" y="182.96" fill="#dc322f" font-weight="bold">w</text>
@@ -263,7 +263,7 @@
 <text x="415.2" y="182.96" fill="#b58900" font-weight="bold">r</text>
 <text x="423.6" y="182.96" fill="#002b36" font-weight="bold">--</text>
 <text x="448.8" y="182.96" fill="#2aa198">-rw-r--r--</text>
-<text x="28.8" y="200.96" fill="#657b83">photo-2026-10-04-143207-edited.jpg</text>
+<text x="28.8" y="200.96" fill="#657b83">notes.md</text>
 <text x="356.4" y="200.96" fill="#002b36" font-weight="bold">-</text>
 <text x="364.8" y="200.96" fill="#b58900" font-weight="bold">r</text>
 <text x="373.2" y="200.96" fill="#dc322f" font-weight="bold">w</text>
