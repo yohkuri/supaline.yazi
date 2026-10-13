@@ -27,6 +27,7 @@ versions themselves:
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
 | `test/gallery.py` | tmux and a browser |
 | `test/examples.py` | tmux, git, and git.yazi installed with `ya pkg add yazi-rs/plugins:git` |
+| `test/readme.py` | a real terminal, git, and what the README's setup names installed with `ya pkg add` |
 
 Match the stylua version exactly. Another release can format the same
 file differently, and CI would refuse what yours passed.
@@ -83,8 +84,8 @@ A few things worth knowing:
 - `lua-language-server --check .` passes quietly even when it can't find
   Yazi's own type annotations, which makes it look like it checked more
   than it did. Install them with `ya pkg add yazi-rs/plugins:types`.
-- `test/e2e.py`, `test/manual.py`, `test/gallery.py` and
-  `test/examples.py` open a real Yazi, so they're not in CI. Run them
+- `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py`
+  and `test/readme.py` open a real Yazi, so they're not in CI. Run them
   yourself if your change affects what's on screen — and trust the exit
   status over how the screen looks, because a broken fetcher still looks
   fine.
@@ -97,6 +98,10 @@ A few things worth knowing:
   commit the pictures it redraws; CI refuses a picture drawn from anything
   else. A change to what a column draws needs a redraw too, which CI cannot
   see.
+- The picture at the top of `README.md` is a screenshot of
+  `test/readme.py`, which opens the README's own setup in your terminal.
+  Retake it after a change to that setup moves what it draws; nothing
+  checks the two against each other.
 
 ## Commit messages
 
