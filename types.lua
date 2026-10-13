@@ -15,12 +15,16 @@
 ---     file.in_current  boolean, true
 ---     cha.perm         function; `cha:perm()` returned "drwxr-xr-x"
 ---     url.spec         userdata; `spec.is_virtual` false for a local file
+---
+--- And one drawn rather than logged: `cha.ctime`, which a linemode drew beside
+--- `mtime` for a file touched back to 2020, matching `stat`.
 
---- `perm` is a method here and a `string?` upstream.
+--- `perm` is a method here and a `string?` upstream, and `ctime` is not
+--- declared upstream at all.
 ---@class supaline.Cha : Cha
---- The inode's change time, in seconds since the epoch. Read off 26.9.1's
---- `yazi-fs`: Unix alone, and nil elsewhere but for the Windows Recycle Bin's
---- fingerprint. `types.yazi` does not declare it.
+--- The inode's change time, in seconds since the epoch, for a local file on
+--- Unix. Elsewhere it is nil or something that is not a change time: read off
+--- 26.9.1's source, `builtin.lua` says which and asks before drawing it.
 ---@field ctime number?
 ---@field perm fun(self: self): string?
 

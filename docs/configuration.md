@@ -257,7 +257,7 @@ changed.
 | `mtime`       | 11    | right | Modification time. `format` takes an `os.date` format, `{ "mtime", format = "%Y-%m-%d" }`; the default is Yazi's own. |
 | `btime`       | 11    | right | Birth time, and `format` as `mtime` takes it.     |
 | `atime`       | 11    | right | Access time, and `format` as `mtime` takes it.    |
-| `ctime`       | 11    | right | The inode's change time, not its creation: see below. |
+| `ctime`       | 11    | right | Change time, not creation, and `format` as `mtime` takes it. Unix only, local files only; see below. |
 | `permissions` | 10    | left  | Unix only. Coloured from your theme, a character at a time. |
 | `owner`       | 12    | left  | `user:group`. Unix only; numeric off this machine. |
 | `user`        | 8     | left  | The owning user alone, under the same rule.       |
@@ -267,11 +267,11 @@ changed.
 `ctime` is when the file's metadata last changed -- a rename, a `chmod`, a new
 link, or a write -- so it moves whenever `mtime` does and also when `mtime` is
 kept: a file unpacked from an archive, or copied with `cp -p`, keeps its old
-`mtime` and shows when it arrived here in `ctime`. Creation is `btime`. Yazi
-has `ctime` on Unix alone, so off Unix the column is blank -- except in the
-Windows Recycle Bin, where Yazi keeps a fingerprint of the bin's contents in
-the field rather than a time, and the column draws it as a date that means
-nothing. That much is read off 26.9.1's source and was not seen on screen.
+`mtime` and shows when it arrived here in `ctime`. Creation is `btime`.
+
+The column is blank off Unix and for a remote file, such as one over SFTP,
+where what Yazi holds in the field is not a change time. That much is read off
+26.9.1's source; the times on a local Unix file were measured on macOS.
 
 None of them names a colour. A built-in column leaves its cell unstyled, so it
 is drawn in whatever colour your flavor already gives the file row -- the same
@@ -316,7 +316,7 @@ linemode does. A remote file still shows its numbers there: those came off the
 server.
 
 The built-ins' widths are stated rather than measured; `width = "auto"` on any
-of them fits it instead. `size` and the three times each declare `stats`, so
+of them fits it instead. `size` and the four times each declare `stats`, so
 they are the built-ins a gradient can be written on.
 
 ## Alongside git.yazi
