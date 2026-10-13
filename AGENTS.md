@@ -154,6 +154,7 @@ test/e2e.py                       # render in a real Yazi, headless
 test/manual.py                    # ... interactively, for a human to look at
 test/gallery.py                   # ... on seven grounds, in a browser
 test/examples.py                  # ... into the pictures in docs/examples/
+test/readme.py                    # ... for the README's, a screenshot by hand
 stylua --check .                  # Lua formatting
 lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
@@ -176,8 +177,9 @@ installs. Without that directory the check still runs and still finds nothing,
 having quietly stopped comparing the plugin against anything but this
 repository.
 
-`test/e2e.py`, `test/manual.py`, `test/gallery.py` and `test/examples.py` need
-a real Yazi and a real terminal and are deliberately not in CI. Run them
+`test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py` and
+`test/readme.py` need a real Yazi and a real terminal and are deliberately not
+in CI. Run them
 yourself before claiming anything about the screen — and a green exit is worth
 more than the screen looking right, because a broken fetcher shows up nowhere
 on it.

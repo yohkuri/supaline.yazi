@@ -816,8 +816,8 @@ jobs:
           fi
           exit $rc
 
-# `test/e2e.py`, `test/manual.py`, `test/gallery.py` and `test/examples.py` are
-# deliberately not here. They need a real Yazi binary and a real terminal, and
+# `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py` and
+# `test/readme.py` are deliberately not here. They need a real Yazi binary and a real terminal, and
 # what they check -- rendering, and how wide a cell came out -- is not what a
 # runner is good at. Run them locally before saying that anything about the
 # screen works.

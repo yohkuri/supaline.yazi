@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""Open the Yazi the README's picture is taken from, in this terminal.
+
+    test/readme.py  build the folder, wait for the window, and open it
+
+The configuration is the README's own: the blocks under `My favourite setup`,
+each naming its file on its first line the way the pages in `docs/examples/`
+spell them, written out as they stand. The folder is built here, under a
+scratch home that Yazi is given as `HOME`, so its header reads
+`~/work/project` and nothing of your own configuration reaches it -- Yazi's
+or git's. supaline is this checkout; every other plugin the setup requires,
+and every flavor it names, is linked from where `ya pkg add` put yours.
+
+Nothing here sets the terminal up, since nothing could for every terminal:
+take the picture on the flavor's background, `#1e1e2e` for Catppuccin Mocha,
+with a Nerd Font, and at a font size that gives the picture its resolution --
+the PNG in `docs/images/` is 2019 pixels wide. This waits for the window to
+reach the size the README says the picture is, then opens Yazi with `assets`
+hovered. Take the screenshot, quit, and the scratch home is removed.
+
+Not in CI, for the reason `e2e.py` is not, and not checked against the PNG:
+retake the picture when what the setup draws changes.
+"""
+
+from __future__ import annotations
+
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+from pathlib import Path
+from types import FrameType
+from typing import NoReturn
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# First, because importing it is what refuses too old a Python.
+import harness  # noqa: F401
+import setup as fixture
+from e2e import troubles
+from examples import (
+    FENCE,
+    FILES,
+    GIT_ENV,
+    HEADING,
+    INIT,
+    REQUIRE,
+    THEME,
+    closing,
+    git,
+    installed,
+)
+from harness import (
+    ROOT,
+    TERMINATED,
+    catch_term,
+    need,
+    refuse,
+    yazi_env,
+    yazi_log,
+    yazi_version,
+)
+
+README = ROOT / "README.md"
+SECTION = "## My favourite setup"
+
+#: The window the picture is taken in: the width the section says it is, and
+#: the height that holds the folder's 13 entries with the header and the
+#: status bar.
+COLS, ROWS = 140, 15
+
+#: One fixed scratch home, as `manual.py` keeps, so a run that died before
+#: removing it leaves it for the next run to clear rather than for nobody.
+DIR = Path(tempfile.gettempdir()) / "supaline-readme"
+
+#: Where a flavor the setup names is linked from: where `ya pkg add` puts it,
+#: beside the plugins `examples.installed` links.
+FLAVORS = Path.home() / ".config" / "yazi" / "flavors"
+
+HOUR = 3600
+DAY = 24 * HOUR
+
+#: The folder's files: path under the project, size in bytes, and age in
+#: seconds. The ages run from minutes to over a year, so each gradient spans
+#: its whole range, and `assets` -- the entry Yazi hovers first -- holds sizes
+#: and ages as far apart as the list's, for the preview pane to show them too.
+#: Sparse, as `setup.sized` says why.
+FILES_BY_AGE = [
+    ("assets/hero.png", 1_468_006, 2 * HOUR),
+    ("assets/logo.svg", 6_349, 3 * DAY),
+    ("assets/intro.mp4", 39_845_888, 21 * DAY),
+    ("assets/favicon.ico", 15_086, 64 * DAY),
+    ("assets/font.woff2", 98_304, 150 * DAY),
+    ("docs/guide.md", 8_192, 5 * DAY),
+    ("docs/api.md", 14_336, 9 * DAY),
+    ("src/main.rs", 3_072, 1 * HOUR),
+    ("src/lib.rs", 12_288, 30 * HOUR),
+    ("backup.tar.gz", 48_024_780, 105 * DAY),
+    ("CHANGELOG.md", 2_150, 20 * 60),
+    ("cover.png", 2_097_152, 29 * DAY),
+    ("demo.mp4", 180_040_499, 52 * DAY),
+    ("holiday-photo.jpg", 3_355_443, 9 * DAY),
+    ("install.sh", 3_174, 216 * DAY),
+    ("LICENSE", 1_067, 400 * DAY),
+    ("notes.md", 6_144, 40 * 60),
+    ("README.md", 11_980, 4 * HOUR),
+    ("report.pdf", 860_160, 87 * DAY),
+]
+DIRS = {"assets": 2 * HOUR, "docs": 5 * DAY, "src": 1 * HOUR}
+
+#: The executables, so `permissions` has an `x` to draw.
+EXECUTABLE = {"install.sh"}
+
+#: The project's siblings, for the parent pane's dots, with their ages.
+SIBLINGS = {"dotfiles": 2 * DAY, "scratch": 300 * DAY, "website": 33 * DAY}
+PROJECT_AGE = 20 * 60
+
+#: The entry git says each state of, for those not committed and clean, so
+#: git.yazi has a sign to draw for each one it has.
+GIT = {
+    "added": "CHANGELOG.md",
+    "staged": "README.md",
+    "unstaged": "notes.md",
+    "untracked": "report.pdf",
+    "ignored": "backup.tar.gz",
+}
+
+
+def setup_blocks(text: str) -> dict[str, str]:
+    """The blocks under `SECTION` in the README, by the file each names.
+
+    Refused when the section is missing, holds no `init.lua` block, or holds
+    two blocks for one file, since which of them is the setup would be a
+    guess; and when a `.toml` block does not parse, since Yazi drops a
+    `theme.toml` that does not, whole, without a word on the screen.
+    """
+    lines = text.splitlines()
+    try:
+        i = lines.index(SECTION) + 1
+    except ValueError:
+        raise ValueError(f"no `{SECTION}` heading") from None
+    blocks: dict[str, str] = {}
+    while i < len(lines) and not HEADING.match(lines[i]):
+        fence = FENCE.match(lines[i].rstrip())
+        if not fence:
+            i += 1
+            continue
+        end = closing(lines, i, fence.group(1))
+        if end is None:
+            raise ValueError(f"line {i + 1}: a block that never closes")
+        body = lines[i + 1 : end]
+        if body and body[0] in FILES:
+            if body[0] in blocks:
+                raise ValueError(f"line {i + 1}: a second `{body[0]}` block")
+            block = "\n".join(body) + "\n"
+            if body[0] != INIT:
+                try:
+                    tomllib.loads(block)
+                except tomllib.TOMLDecodeError as error:
+                    raise ValueError(
+                        f"line {i + 1}: the block does not parse: {error}"
+                    ) from None
+            blocks[body[0]] = block
+        i = end + 1
+    if INIT not in blocks:
+        raise ValueError(f"no `{INIT}` block under `{SECTION}`")
+    return blocks
+
+
+def flavors(theme: str) -> set[str]:
+    """The flavors a `theme.toml` block names, in either slot."""
+    named = tomllib.loads(theme).get("flavor", {}) if theme else {}
+    return {name for name in named.values() if isinstance(name, str) and name}
+
+
+def configure(home: Path, blocks: dict[str, str]) -> None:
+    """The setup's files under `home/config`, with supaline linked to this
+    checkout and the other plugins and the flavors from yours."""
+    config = home / "config"
+    (config / "plugins").mkdir(parents=True)
+    (config / "flavors").mkdir()
+    for header, block in blocks.items():
+        (config / header.split("/")[-1]).write_text(block)
+    (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
+    for name in set(REQUIRE.findall(blocks[INIT])) - {"supaline"}:
+        (config / "plugins" / f"{name}.yazi").symlink_to(installed(name))
+    for name in flavors(blocks.get(THEME, "")):
+        (config / "flavors" / f"{name}.yazi").symlink_to(
+            FLAVORS / f"{name}.yazi"
+        )
+
+
+def stamp(path: Path, age: int, now: float) -> None:
+    """Date `path` `age` seconds back, plus a few minutes taken from its
+    name, so the ages above do not all print the same minute."""
+    age += sum(path.name.encode()) % 47 * 60
+    fixture.stamp(path, now - age)
+
+
+def build_folder(home: Path) -> Path:
+    """The folder the picture is of, under `home`, as a repository holding
+    `GIT`'s states. Built under the umask `setup.build` states, so
+    `permissions` draws the same modes whoever retakes the picture."""
+    work = home / "work"
+    folder = work / "project"
+    was = os.umask(0o022)
+    try:
+        for name in SIBLINGS:
+            (work / name).mkdir(parents=True)
+            (work / name / "README.md").write_text(f"# {name}\n")
+        for name, size, _ in FILES_BY_AGE:
+            path = folder / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fixture.sized(path, size)
+            if name in EXECUTABLE:
+                path.chmod(0o755)
+
+        def touched(name: str) -> None:
+            # One byte overwritten, so no size moves.
+            with (folder / name).open("r+b") as f:
+                f.write(b"x")
+
+        (folder / ".gitignore").write_text(GIT["ignored"] + "\n")
+        git(folder, "init", "-q")
+        git(
+            folder,
+            "add",
+            "--all",
+            "--",
+            ".",
+            f":!{GIT['untracked']}",
+            f":!{GIT['added']}",
+        )
+        git(folder, "commit", "-q", "-m", "the folder")
+        git(folder, "add", "--", GIT["added"])
+        touched(GIT["staged"])
+        git(folder, "add", "--", GIT["staged"])
+        touched(GIT["unstaged"])
+    finally:
+        os.umask(was)
+
+    # After everything is created, because creating an entry moves its
+    # directory's mtime: the deepest first, for the same reason.
+    now = time.time()
+    for name, _, age in FILES_BY_AGE:
+        stamp(folder / name, age, now)
+    for name, age in DIRS.items():
+        stamp(folder / name, age, now)
+    for name, age in SIBLINGS.items():
+        stamp(work / name / "README.md", age, now)
+        stamp(work / name, age, now)
+    stamp(folder, PROJECT_AGE, now)
+    # For the reason `examples.build_folder` gives.
+    git(folder, "update-index", "-q", "--refresh")
+    return folder
+
+
+def wait_for_window() -> None:
+    """Return once the terminal is `COLS` x `ROWS`, saying how far off it is
+    until then: no terminal can be sized in cells from in here."""
+    while True:
+        size = os.get_terminal_size()
+        if (size.columns, size.lines) == (COLS, ROWS):
+            print()
+            return
+        print(
+            f"\rResize the window to {COLS}x{ROWS} "
+            f"(now {size.columns}x{size.lines}), or Ctrl-C to quit.   ",
+            end="",
+            flush=True,
+        )
+        time.sleep(0.2)
+
+
+def _hung_up(number: int, frame: FrameType | None) -> NoReturn:
+    raise SystemExit(TERMINATED)
+
+
+def main(argv: list[str]) -> int:
+    if argv:
+        refuse("usage: test/readme.py")
+    if not sys.stdout.isatty():
+        refuse("readme: run this in the terminal the picture is taken in")
+
+    need("yazi", "git")
+    try:
+        blocks = setup_blocks(README.read_text())
+    except ValueError as error:
+        refuse(f"readme: README.md: {error}")
+    for name in sorted(set(REQUIRE.findall(blocks[INIT])) - {"supaline"}):
+        if not installed(name).is_dir():
+            refuse(
+                f"readme: the setup requires {name}, and there is no "
+                f"{installed(name)} to link it from: `ya pkg add` it"
+            )
+    for name in sorted(flavors(blocks.get(THEME, ""))):
+        if not (FLAVORS / f"{name}.yazi").is_dir():
+            refuse(
+                f"readme: the setup names the flavor {name}, and there is no "
+                f"{FLAVORS / name}.yazi to link it from: `ya pkg add` it"
+            )
+    if os.environ.get("TMUX"):
+        print("readme: inside tmux -- its status bar would be in the picture")
+
+    print(f"readme: Yazi {yazi_version()}")
+    catch_term()
+    # Closing the window hangs the run up, and the `finally` below runs only
+    # if that raises.
+    signal.signal(signal.SIGHUP, _hung_up)
+
+    fixture.clear(DIR)
+    DIR.mkdir()
+    (DIR / fixture.MARKER).touch()
+    try:
+        configure(DIR, blocks)
+        folder = build_folder(DIR)
+        try:
+            wait_for_window()
+        except KeyboardInterrupt:
+            print()
+            return 130
+        env = {
+            **os.environ,
+            **yazi_env(DIR, "state"),
+            **GIT_ENV,
+            "HOME": str(DIR),
+            "XDG_CONFIG_HOME": str(DIR / ".config"),
+        }
+        subprocess.run(["yazi", str(folder)], cwd=folder, env=env, check=False)
+        log = yazi_log(DIR, "state")
+        trouble = troubles(log.read_text()) if log.exists() else []
+        if trouble:
+            print(
+                "readme: Yazi logged trouble, which the picture may show:\n"
+                + "\n".join(f"  {line.strip()}" for line in trouble[:5]),
+                file=sys.stderr,
+            )
+            return 1
+    finally:
+        fixture.clear(DIR)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
