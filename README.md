@@ -4,11 +4,11 @@
 mtime, or permissions. supaline is a plugin that turns it into as many columns
 as you like, in any order, at any width, each styled its own way.
 
-```text
- deep                           drwxr-xr-x octocat:dev        1 08/27 23:52
- inner-a.txt                    -rw-r--r-- octocat:dev       1B 12/25  2023
- inner-b.bin                    -rw-r--r-- octocat:dev     300K 08/27 23:52
-```
+![Yazi with permissions, an italic user, size in red and mtime in blue, each lighter the larger or the newer it is, beside git.yazi's signs; a blue dot by mtime in the parent pane, and size and mtime in the preview pane](docs/images/readme.png)
+
+The configuration behind it is under [The picture above](#the-picture-above),
+and [the examples](docs/examples/README.md) show more, each with the
+configuration that draws it.
 
 - **Columns side by side** — size, timestamps, permissions, owner and more,
   in the order you list them.
@@ -135,8 +135,83 @@ supaline:setup {
 [Writing a column](docs/columns.md) covers per-folder statistics, gradients
 and options of your own.
 
+## The picture above
+
+Drawn in Ghostty, on the
+[Catppuccin Mocha](https://github.com/yazi-rs/flavors) flavor, with
+[git.yazi](https://github.com/yazi-rs/plugins/tree/main/git.yazi) beside
+supaline. git.yazi's signs and the file icons are Nerd Font glyphs. Each of
+`size` and `mtime` is one colour spread across a lightness range, and so is
+`mark`, a column of your own in the parent pane:
+
+```lua
+-- ~/.config/yazi/init.lua
+local supaline = require("supaline")
+
+local function mtime(file) return file.cha.mtime or 0 end
+
+supaline.column("mark", {
+  width = 1,
+  style = "#3b82f6 <->",
+  stats = supaline.extremes(mtime),
+  render = function(file, ctx)
+    return "●", ctx.style_at(ctx.ratio(mtime(file)))
+  end,
+})
+
+require("git"):setup { order = 1500 }
+supaline:setup {
+  lightness = { fg = { from = 0.40, to = 0.90 } },
+  linemodes = {
+    detail = {
+      current = {
+        "permissions",
+        { "user", style = { italic = true } },
+        { "size", style = "#ef4444 <->" },
+        { "mtime", style = "#3b82f6 <->" },
+      },
+      parent  = { "mark" },
+      preview = {
+        { "size", style = "#ef4444 <->" },
+        { "mtime", style = "#3b82f6 <->" },
+      },
+    },
+  },
+}
+```
+
+```toml
+# ~/.config/yazi/yazi.toml
+[mgr]
+linemode = "detail"
+
+[[plugin.prepend_fetchers]]
+url   = "*"
+run   = "git"
+group = "git"
+
+[[plugin.prepend_fetchers]]
+url   = "*/"
+run   = "git"
+group = "git"
+```
+
+```toml
+# ~/.config/yazi/theme.toml
+[git]
+clean_sign   = "  "
+unknown_sign = "  "
+```
+
+The two signs in `theme.toml` keep the columns lined up on the rows git.yazi
+has nothing to say about;
+[Panes and keys](docs/examples/panes.md#alongside-gityazi) shows them without
+it.
+
 ## Documentation
 
+- [Examples](docs/examples/README.md) — a picture of each, beside the
+  configuration that draws it
 - [Configuration](docs/configuration.md) — every option, per-pane columns,
   toggling, the built-in columns in detail, using it alongside git.yazi, and
   the caveats
