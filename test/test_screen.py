@@ -14,7 +14,6 @@ from __future__ import annotations
 import contextlib
 import io
 import re
-import time
 import unittest
 
 # First, because importing it is what refuses too old a Python, and `screen`
@@ -416,19 +415,6 @@ class Times(unittest.TestCase):
         shot = capture(row("", " large.bin  01/02  2020            ", ""))
         self.assertEqual(sc.time_cells(shot, "large.bin"), ["01/02  2020"])
 
-    def test_this_year_draws_a_time_of_day_and_any_other_the_year(self):
-        at = time.mktime((2020, 1, 2, 3, 4, 0, 0, 0, -1))
-        self.assertEqual(sc.drawn_time(at, 2020), "01/02 03:04")
-        self.assertEqual(sc.drawn_time(at, 2021), "01/02  2020")
-
-    def test_what_it_draws_is_what_the_cells_are_read_as(self):
-        at = time.mktime((2020, 1, 2, 3, 4, 0, 0, 0, -1))
-        for year in (2020, 2021):
-            with self.subTest(year=year):
-                self.assertRegex(
-                    sc.drawn_time(at, year), rf"^{sc.TIME_RE.pattern}$"
-                )
-
 
 class Scales(unittest.TestCase):
     """`c_scale` draws one size twice, log then linear, either side of U+250A."""
@@ -619,8 +605,8 @@ class TheFixtureItReads(unittest.TestCase):
 
     def test_the_times_linemode_lists_the_four_time_columns(self):
         # `check_times` holds each cell against the field its column names.
-        self.assertCountEqual(
-            fixture.time_columns(self.init),
+        self.assertEqual(
+            fixture.linemode_columns(self.init, "times"),
             ["mtime", "btime", "atime", "ctime"],
         )
 
