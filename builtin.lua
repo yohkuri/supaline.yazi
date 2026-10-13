@@ -101,7 +101,9 @@ function M.definitions()
 			if size then
 				return ya.readable_size(size), ctx.style_at(ctx.ratio(size))
 			end
-			-- An unevaluated directory, exactly as the preset `size` linemode does.
+			-- An unevaluated directory, as the preset `size` linemode does -- the
+			-- entry count once listed -- except that one never listed draws a dash,
+			-- where the preset draws nothing.
 			return entries(file), ctx.style
 		end,
 	})
