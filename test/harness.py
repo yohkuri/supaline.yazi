@@ -47,11 +47,6 @@ WIDTH, HEIGHT = 170, 40
 #: answered by different people.
 REFUSED = 2
 
-#: What it exits with when something outside it asked it to stop -- what a
-#: shell reports for a process SIGTERM ended. A hang-up exits 129, by the same
-#: arithmetic.
-TERMINATED = 143
-
 #: How long a Yazi just started gets to list its folder, longer than any other
 #: wait here because a cold start can be slow.
 STARTUP = 30
@@ -95,6 +90,8 @@ import screen as sc
 
 
 def _terminated(number: int, frame: FrameType | None) -> NoReturn:
+    """Exit as a process the signal `number` ended does, as a shell reports
+    it: 128 plus the signal, so 143 for a SIGTERM and 129 for a SIGHUP."""
     raise SystemExit(128 + number)
 
 

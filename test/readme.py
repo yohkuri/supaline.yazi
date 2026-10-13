@@ -44,6 +44,7 @@ from e2e import troubles
 from examples import (
     GIT_ENV,
     INIT,
+    PLUGINS,
     REQUIRE,
     THEME,
     file_block,
@@ -51,6 +52,7 @@ from examples import (
     installed,
     repository,
 )
+from examples import configure as examples_configure
 from harness import (
     ROOT,
     catch_term,
@@ -76,7 +78,7 @@ DIR = Path(tempfile.gettempdir()) / f"supaline-readme.{os.getpid()}"
 
 #: Where a flavor the setup names is linked from: where `ya pkg add` puts it,
 #: beside the plugins `examples.installed` links.
-FLAVORS = Path.home() / ".config" / "yazi" / "flavors"
+FLAVORS = PLUGINS.parent / "flavors"
 
 HOUR = 3600
 DAY = 24 * HOUR
@@ -110,7 +112,6 @@ FILES_BY_AGE = [
     ("README.md", 11_980, 4 * HOUR),
     ("report.pdf", 860_160, 87 * DAY),
 ]
-DIRS = {"assets": 2 * HOUR, "docs": 5 * DAY, "src": 1 * HOUR}
 
 #: The moment the ages count back from, as `MMDDhhmm` of this year: when the
 #: PNG was taken.
@@ -121,7 +122,6 @@ EXECUTABLE = {"install.sh"}
 
 #: The project's siblings, for the parent pane's dots, with their ages.
 SIBLINGS = {"dotfiles": 2 * DAY, "scratch": 300 * DAY, "website": 33 * DAY}
-PROJECT_AGE = 20 * 60
 
 #: The window's height: a row for each of the project's entries, with the
 #: header and the status bar, so none of them scrolls off the picture.
@@ -163,13 +163,11 @@ def setup_blocks(text: str) -> dict[str, str]:
                 raise ValueError(f"line {i + 1}: a second `{name}` block")
             if name != INIT:
                 try:
-                    parsed = tomllib.loads(block)
+                    tomllib.loads(block)
                 except tomllib.TOMLDecodeError as error:
                     raise ValueError(
                         f"line {i + 1}: the block does not parse: {error}"
                     ) from None
-                if not isinstance(parsed.get("flavor", {}), dict):
-                    raise ValueError(f"line {i + 1}: `flavor` is not a table")
             blocks[name] = block
         i = end + 1
     if INIT not in blocks:
@@ -179,25 +177,29 @@ def setup_blocks(text: str) -> dict[str, str]:
 
 def flavors(theme: str) -> set[str]:
     """The flavors a `theme.toml` block names, in either slot."""
-    named = tomllib.loads(theme).get("flavor", {}) if theme else {}
-    return {name for name in named.values() if isinstance(name, str) and name}
+    named = tomllib.loads(theme).get("flavor", {})
+    if isinstance(named, dict):
+        return {n for n in named.values() if isinstance(n, str) and n}
+    raise ValueError("`flavor` in the `theme.toml` block is not a table")
 
 
-def configure(home: Path, blocks: dict[str, str]) -> None:
-    """The setup's files under `home/config`, with supaline linked to this
-    checkout and the other plugins and the flavors from yours."""
+def flavor(name: str) -> Path:
+    """Where `ya pkg add` puts the flavor `name`."""
+    return FLAVORS / f"{name}.yazi"
+
+
+def configure(
+    home: Path, blocks: dict[str, str], plugins: set[str], named: set[str]
+) -> None:
+    """The setup's files under `home/config`, with the plugins linked as
+    `examples.configure` links them, and the `named` flavors from yours."""
+    examples_configure(home, plugins)
     config = home / "config"
-    (config / "plugins").mkdir(parents=True)
     (config / "flavors").mkdir()
     for header, block in blocks.items():
         (config / header.split("/")[-1]).write_text(block)
-    (config / "plugins" / "supaline.yazi").symlink_to(ROOT)
-    for name in set(REQUIRE.findall(blocks[INIT])) - {"supaline"}:
-        (config / "plugins" / f"{name}.yazi").symlink_to(installed(name))
-    for name in flavors(blocks.get(THEME, "")):
-        (config / "flavors" / f"{name}.yazi").symlink_to(
-            FLAVORS / f"{name}.yazi"
-        )
+    for name in named:
+        (config / "flavors" / f"{name}.yazi").symlink_to(flavor(name))
 
 
 def stamp(path: Path, age: int, now: float) -> None:
@@ -207,13 +209,10 @@ def stamp(path: Path, age: int, now: float) -> None:
     fixture.stamp(path, now - age)
 
 
-def build_folder(home: Path, env: dict[str, str]) -> Path:
+def build_folder(home: Path) -> Path:
     """The folder the picture is of, under `home`, as a repository holding
     `GIT`'s states. Built under the umask `setup.build` states, so
-    `permissions` draws the same modes whoever retakes the picture, and with
-    git given `env`, the HOME Yazi runs under: git reads an ignore file from
-    the real one even with `GIT_CONFIG_GLOBAL` set, so a `*.mp4` there would
-    leave a file uncommitted that git.yazi then draws as untracked."""
+    `permissions` draws the same modes whoever retakes the picture."""
     work = home / "work"
     folder = work / "project"
     was = os.umask(0o022)
@@ -227,23 +226,28 @@ def build_folder(home: Path, env: dict[str, str]) -> Path:
             fixture.sized(path, size)
             if name in EXECUTABLE:
                 path.chmod(0o755)
-        repository(folder, GIT, env)
+        repository(folder, GIT)
     finally:
         os.umask(was)
 
     # After everything is created, because creating an entry moves its
-    # directory's mtime: the deepest first, for the same reason.
+    # directory's mtime: the deepest first, for the same reason. A directory,
+    # the project included, is as old as its newest entry.
     now = fixture.epoch(f"{time.localtime().tm_year}{TAKEN}")
+    newest: dict[Path, int] = {}
     for name, _, age in FILES_BY_AGE:
         stamp(folder / name, age, now)
-    for name, age in DIRS.items():
-        stamp(folder / name, age, now)
+        for parent in (folder / name).parents:
+            if parent == folder.parent:
+                break
+            newest[parent] = min(newest.get(parent, age), age)
+    for path in sorted(newest, key=lambda path: -len(path.parts)):
+        stamp(path, newest[path], now)
     for name, age in SIBLINGS.items():
         stamp(work / name / "README.md", age, now)
         stamp(work / name, age, now)
-    stamp(folder, PROJECT_AGE, now)
     # For the reason `examples.build_folder` gives.
-    git(folder, "update-index", "-q", "--refresh", env=env)
+    git(folder, "update-index", "-q", "--refresh")
     return folder
 
 
@@ -273,19 +277,21 @@ def main(argv: list[str]) -> int:
     need("yazi", "git")
     try:
         blocks = setup_blocks(README.read_text())
+        named = flavors(blocks.get(THEME, ""))
     except ValueError as error:
         refuse(f"readme: README.md: {error}")
-    for name in sorted(set(REQUIRE.findall(blocks[INIT])) - {"supaline"}):
+    plugins = set(REQUIRE.findall(blocks[INIT])) - {"supaline"}
+    for name in sorted(plugins):
         if not installed(name).is_dir():
             refuse(
                 f"readme: the setup requires {name}, and there is no "
                 f"{installed(name)} to link it from: `ya pkg add` it"
             )
-    for name in sorted(flavors(blocks.get(THEME, ""))):
-        if not (FLAVORS / f"{name}.yazi").is_dir():
+    for name in sorted(named):
+        if not flavor(name).is_dir():
             refuse(
                 f"readme: the setup names the flavor {name}, and there is no "
-                f"{FLAVORS / name}.yazi to link it from: `ya pkg add` it"
+                f"{flavor(name)} to link it from: `ya pkg add` it"
             )
     if os.environ.get("TMUX"):
         print("readme: inside tmux -- its status bar would be in the picture")
@@ -296,18 +302,21 @@ def main(argv: list[str]) -> int:
     fixture.clear(DIR)
     DIR.mkdir()
     (DIR / fixture.MARKER).touch()
-    # The scratch home as HOME for git as well as for Yazi, so the folder is
-    # built under the configuration git.yazi then reads it with.
-    home = {"HOME": str(DIR), "XDG_CONFIG_HOME": str(DIR / ".config")}
     try:
-        configure(DIR, blocks)
-        folder = build_folder(DIR, home)
+        configure(DIR, blocks, plugins, named)
+        folder = build_folder(DIR)
         try:
             wait_for_window()
         except KeyboardInterrupt:
             print()
             return 130
-        env = {**os.environ, **yazi_env(DIR, "state"), **GIT_ENV, **home}
+        env = {
+            **os.environ,
+            **yazi_env(DIR, "state"),
+            **GIT_ENV,
+            "HOME": str(DIR),
+            "XDG_CONFIG_HOME": str(DIR / ".config"),
+        }
         done = subprocess.run(
             ["yazi", str(folder)], cwd=folder, env=env, check=False
         )
