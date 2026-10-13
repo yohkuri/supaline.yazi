@@ -92,8 +92,9 @@ desc     = "supaline: go to the folder that breaks a `refresh`"
 # them worth comparing against.
 #
 # The order climbs: `m 0` to `m 2` are the built-in columns at increasing
-# richness, `m 3` to `m 5` the layout decisions, `m 6` to `m 8` and `m e` the
-# panes, `m 9` extensibility, and `m t` the state the toggles act on.
+# richness and `m d` the times `m 2` has no room for, `m 3` to `m 5` the layout
+# decisions, `m 6` to `m 8` and `m e` the panes, `m 9` extensibility, and `m t`
+# the state the toggles act on. `m d` is a letter Yazi's own `m` leaves free.
 
 [[case]]
 id       = "plain"
@@ -115,6 +116,13 @@ key      = "m 2"
 folder   = "data"
 linemode = "everything"
 desc     = "supaline: every built-in column"
+
+[[case]]
+id       = "times"
+key      = "m d"
+folder   = "data"
+linemode = "times"
+desc     = "supaline: mtime, btime, atime and ctime"
 
 [[case]]
 id       = "widths"

@@ -370,6 +370,40 @@ class Cuts(unittest.TestCase):
         self.assertTrue(sc.is_cut_of("yohkuri:staff", "yohkuri:sta"))
 
 
+class Times(unittest.TestCase):
+    """`m d` draws four time cells after the name, in both of their forms."""
+
+    def test_both_forms_are_read_in_order(self):
+        shot = capture(
+            row(" a", " large.bin  01/02  2020 03/04  2019 10/13 23:11", "v"),
+        )
+        self.assertEqual(
+            sc.time_cells(shot, "large.bin"),
+            ["01/02  2020", "03/04  2019", "10/13 23:11"],
+        )
+
+    def test_the_row_is_the_one_naming_the_file(self):
+        shot = capture(
+            row("", " huge.bin   05/06  2024", ""),
+            row("", " large.bin  01/02  2020", ""),
+        )
+        self.assertEqual(sc.time_cells(shot, "large.bin"), ["01/02  2020"])
+
+    def test_a_longer_name_holding_it_is_not_that_row(self):
+        shot = capture(row("", " xlarge.bin.txt 01/02  2020", ""))
+        self.assertIsNone(sc.time_cells(shot, "large.bin"))
+
+    def test_another_pane_is_not_read(self):
+        shot = capture(row(" large.bin  01/02  2020", " other", "v"))
+        self.assertIsNone(sc.time_cells(shot, "large.bin"))
+
+    def test_a_blank_cell_is_not_a_time(self):
+        # `ctime` draws nothing where it is not a change time, so a row can
+        # carry fewer cells than columns; the caller counts them.
+        shot = capture(row("", " large.bin  01/02  2020            ", ""))
+        self.assertEqual(sc.time_cells(shot, "large.bin"), ["01/02  2020"])
+
+
 class Scales(unittest.TestCase):
     """`c_scale` draws one size twice, log then linear, either side of U+250A."""
 

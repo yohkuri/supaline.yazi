@@ -105,6 +105,7 @@ comparing against.
 | `m 0` | `plain`      | One column. The baseline for `m s`.               |
 | `m 1` | `default`    | size + mtime — the everyday case                  |
 | `m 2` | `everything` | Every built-in column                             |
+| `m d` | `times`      | mtime, btime, atime and ctime                     |
 | `m 3` | `widths`     | Stated width vs `"auto"` vs `max_width`           |
 | `m i` | `widths`     | The same, in `nested/`                            |
 | `m 4` | `overflow`   | `ellipsis` vs `clip` vs `grow`, string and Line   |
@@ -202,6 +203,21 @@ Every row ends with a size, right-aligned in seven cells.
 - `count` is blank for files and a number for directories.
 - The file name loses characters to make room. That is Yazi sizing the name
   against the linemode, not supaline overflowing.
+
+### `m d` — the four times
+
+```text
+ large.bin       01/02  2020 03/04  2019 06/07  2021 10/13 23:11
+ huge.bin        05/06  2024 05/06  2024 05/06  2024 10/13 23:11
+```
+
+- `mtime`, `btime`, `atime` and `ctime`, in that order, eleven cells each.
+- `large.bin` is given four different dates: modified in 2020, born in 2019,
+  accessed in 2021, and changed when the fixture was stamped, this year. Every
+  other file carries one date in its first three columns.
+- `ctime` is the moment `setup.py` ran, so it is the same down the column and
+  differs from run to run. `e2e.py` holds `large.bin`'s four cells against
+  `lstat`, so this one is covered rather than yours.
 
 ### `m 3` — widths
 
