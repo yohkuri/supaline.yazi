@@ -876,7 +876,7 @@ test("style: an empty string in the theme is nothing written, and only there", f
 	eq(ctx.style.fg, "cyan", "the definition's colour survives it")
 	eq(ctx.style.bold, true)
 	eq(ctx.fg_written, true)
-	throws(function() prepare { "blank", style = "" } end, "is not a colour Yazi accepts")
+	throws(function() prepare { "blank", style = "" } end, "an empty string is not a colour Yazi accepts")
 end)
 
 test("style: a value that fails says which column and which writer", function()
