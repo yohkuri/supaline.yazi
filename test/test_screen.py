@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import io
 import re
+import time
 import unittest
 
 # First, because importing it is what refuses too old a Python, and `screen`
@@ -385,6 +386,13 @@ class Times(unittest.TestCase):
     def test_the_row_is_the_one_naming_the_file(self):
         shot = capture(
             row("", " huge.bin   05/06  2024", ""),
+            row("", " \U000f0219 large.bin  01/02  2020", ""),
+        )
+        self.assertEqual(sc.time_cells(shot, "large.bin"), ["01/02  2020"])
+
+    def test_a_link_pointing_at_it_is_not_its_row(self):
+        shot = capture(
+            row("", " link-ok -> large.bin  12/25  2023", ""),
             row("", " large.bin  01/02  2020", ""),
         )
         self.assertEqual(sc.time_cells(shot, "large.bin"), ["01/02  2020"])
@@ -392,6 +400,11 @@ class Times(unittest.TestCase):
     def test_a_longer_name_holding_it_is_not_that_row(self):
         shot = capture(row("", " xlarge.bin.txt 01/02  2020", ""))
         self.assertIsNone(sc.time_cells(shot, "large.bin"))
+
+    def test_a_row_below_the_first_seven_is_read(self):
+        # Found by name, so where `data/` happens to sort it does not matter.
+        shot = capture(*[row("", f" f{n}  01/02  2020", "") for n in range(12)])
+        self.assertEqual(sc.time_cells(shot, "f11"), ["01/02  2020"])
 
     def test_another_pane_is_not_read(self):
         shot = capture(row(" large.bin  01/02  2020", " other", "v"))
@@ -402,6 +415,19 @@ class Times(unittest.TestCase):
         # carry fewer cells than columns; the caller counts them.
         shot = capture(row("", " large.bin  01/02  2020            ", ""))
         self.assertEqual(sc.time_cells(shot, "large.bin"), ["01/02  2020"])
+
+    def test_this_year_draws_a_time_of_day_and_any_other_the_year(self):
+        at = time.mktime((2020, 1, 2, 3, 4, 0, 0, 0, -1))
+        self.assertEqual(sc.drawn_time(at, 2020), "01/02 03:04")
+        self.assertEqual(sc.drawn_time(at, 2021), "01/02  2020")
+
+    def test_what_it_draws_is_what_the_cells_are_read_as(self):
+        at = time.mktime((2020, 1, 2, 3, 4, 0, 0, 0, -1))
+        for year in (2020, 2021):
+            with self.subTest(year=year):
+                self.assertRegex(
+                    sc.drawn_time(at, year), rf"^{sc.TIME_RE.pattern}$"
+                )
 
 
 class Scales(unittest.TestCase):
@@ -590,6 +616,13 @@ class TheFixtureItReads(unittest.TestCase):
         low, high = fixture.binding(self.init, "COOL")
         self.assertRegex(low, self.HEX)
         self.assertRegex(high, self.HEX)
+
+    def test_the_times_linemode_lists_the_four_time_columns(self):
+        # `check_times` holds each cell against the field its column names.
+        self.assertCountEqual(
+            fixture.time_columns(self.init),
+            ["mtime", "btime", "atime", "ctime"],
+        )
 
     def test_the_columns_broken_on_purpose_are_found_by_name(self):
         # The quietest empty answer: a run that found no broken column presses

@@ -367,7 +367,8 @@ supaline:setup {
 		-- m1: the everyday case, and the README's quick start.
 		default = { "size", "mtime" },
 
-		-- m2: every built-in column at its own default width.
+		-- m2: every built-in column at its own default width, but the three times
+		-- under md.
 		everything = { "permissions", "owner", "user", "group", "size", "mtime", "count" },
 
 		-- md: the four time columns, which `m 2` has no room for.
