@@ -91,7 +91,11 @@ import screen as sc
 
 def _terminated(number: int, frame: FrameType | None) -> NoReturn:
     """Exit as a process the signal `number` ended does, as a shell reports
-    it: 128 plus the signal, so 143 for a SIGTERM and 129 for a SIGHUP."""
+    it: 128 plus the signal, so 143 for a SIGTERM and 129 for a SIGHUP.
+    Both are ignored from here on, so a second one -- a terminal can send a
+    SIGTERM after its SIGHUP -- does not cut the teardown short."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
     raise SystemExit(128 + number)
 
 
@@ -102,11 +106,13 @@ def catch_term() -> None:
     Python's default handling ends the process without raising, so the
     `finally` never runs, and a tmux session and a scratch directory named
     after this run's PID are left for nothing to clear. A SIGHUP is what
-    closing the terminal a run is in sends. SIGINT needs nothing: Python
+    closing the terminal a run is in sends, unless the run was started under
+    `nohup`, which ignores it and is left to. SIGINT needs nothing: Python
     raises `KeyboardInterrupt` for it already.
     """
     signal.signal(signal.SIGTERM, _terminated)
-    signal.signal(signal.SIGHUP, _terminated)
+    if signal.getsignal(signal.SIGHUP) is not signal.SIG_IGN:
+        signal.signal(signal.SIGHUP, _terminated)
 
 
 def run(

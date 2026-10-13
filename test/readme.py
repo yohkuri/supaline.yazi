@@ -18,7 +18,8 @@ take the picture on the flavor's background, `#1e1e2e` for Catppuccin Mocha,
 with a Nerd Font, and at a font size that gives the picture its resolution --
 the PNG in `docs/images/` is 2019 pixels wide. This waits for the window to
 reach the width the README says the picture is, and the height that holds the
-folder, then opens Yazi with `assets` hovered. Take the screenshot, quit, and the scratch home is removed.
+folder, then opens Yazi with `assets` hovered. Take the screenshot, quit,
+and the scratch home is removed.
 
 Not in CI, for the reason `e2e.py` is not, and not checked against the PNG:
 retake the picture when what the setup draws changes.
@@ -33,6 +34,7 @@ import sys
 import tempfile
 import time
 import tomllib
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -42,6 +44,7 @@ import harness  # noqa: F401
 import setup as fixture
 from e2e import troubles
 from examples import (
+    FILES,
     GIT_ENV,
     INIT,
     PLUGINS,
@@ -115,7 +118,7 @@ FILES_BY_AGE = [
 
 #: The moment the ages count back from, as `MMDDhhmm` of this year: when the
 #: PNG was taken.
-TAKEN = "10131330"
+TAKEN = "10131319"
 
 #: The executables, so `permissions` has an `x` to draw.
 EXECUTABLE = {"install.sh"}
@@ -141,10 +144,12 @@ GIT = {
 def setup_blocks(text: str) -> dict[str, str]:
     """The blocks under `SECTION` in the README, by the file each names.
 
-    Refused when the section is missing, holds no `init.lua` block, or holds
-    two blocks for one file, since which of them is the setup would be a
-    guess; and when a `.toml` block does not parse, since Yazi drops a
-    `theme.toml` that does not, whole, without a word on the screen.
+    Refused when the section is missing, lacks a block for any of `FILES` --
+    one whose first line is misspelled is read as prose, and the setup would
+    open without it -- or holds two blocks for one file, since which of them
+    is the setup would be a guess; and when a `.toml` block does not parse,
+    since Yazi drops a `theme.toml` that does not, whole, without a word on
+    the screen.
     """
     lines = text.splitlines()
     try:
@@ -170,8 +175,9 @@ def setup_blocks(text: str) -> dict[str, str]:
                     ) from None
             blocks[name] = block
         i = end + 1
-    if INIT not in blocks:
-        raise ValueError(f"no `{INIT}` block under `{SECTION}`")
+    if missing := [name for name in FILES if name not in blocks]:
+        named = ", ".join(f"`{name}`" for name in missing)
+        raise ValueError(f"no {named} block under `{SECTION}`")
     return blocks
 
 
@@ -202,11 +208,13 @@ def configure(
         (config / "flavors" / f"{name}.yazi").symlink_to(flavor(name))
 
 
-def stamp(path: Path, age: int, now: float) -> None:
-    """Date `path` `age` seconds back, plus a few minutes taken from its
-    name, so the ages above do not all print the same minute."""
+def stamp(path: Path, age: int, now: datetime) -> None:
+    """Date `path` `age` seconds back on the wall clock, plus a few minutes
+    taken from its name, so the ages above do not all print the same minute.
+    The wall clock, so a clock change between the two dates moves nothing
+    `mtime` draws."""
     age += sum(path.name.encode()) % 47 * 60
-    fixture.stamp(path, now - age)
+    fixture.stamp(path, (now - timedelta(seconds=age)).timestamp())
 
 
 def build_folder(home: Path) -> Path:
@@ -232,8 +240,11 @@ def build_folder(home: Path) -> Path:
 
     # After everything is created, because creating an entry moves its
     # directory's mtime: the deepest first, for the same reason. A directory,
-    # the project included, is as old as its newest entry.
-    now = fixture.epoch(f"{time.localtime().tm_year}{TAKEN}")
+    # the project included, takes the age of its newest entry, and the
+    # minutes `stamp` adds from its own name.
+    # Naive on purpose: the arithmetic in `stamp` is on the wall clock.
+    taken = f"{time.localtime().tm_year}{TAKEN}"
+    now = datetime.strptime(taken, "%Y%m%d%H%M")  # noqa: DTZ007
     newest: dict[Path, int] = {}
     for name, _, age in FILES_BY_AGE:
         stamp(folder / name, age, now)

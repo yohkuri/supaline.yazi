@@ -99,9 +99,10 @@ of these checks can do, are in `landing-a-change`.
 ## Target platform
 
 Yazi **26.9.1**, and not "or newer": nothing here runs against a later one,
-because `test/e2e.py` is the only thing that starts a Yazi at all and it is
-deliberately not in CI. A newer release is untested rather than supported, so
-a claim about one is a measurement somebody still has to take.
+because nothing that starts a Yazi at all is in CI: the harnesses under
+[Commands](#commands) that do are kept out of it on purpose. A newer release is
+untested rather than supported, so a claim about one is a measurement somebody
+still has to take.
 
 Start every Lua file with `--- @since 26.9.1` — Yazi enforces the annotation,
 and an older Yazi refuses to load the plugin outright.
