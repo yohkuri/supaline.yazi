@@ -10,18 +10,18 @@ It is drawn from the [recommended setup](#recommended-setup), and
 [the examples](docs/examples/README.md) show more, each with the configuration
 that draws it.
 
-- **Columns side by side** — size, timestamps, permissions, owner and more,
-  in the order you list them.
-- **Styles** — colour, bold, italic, underline and the rest, per column. A
+- 📊 **Columns side by side** — size, timestamps, permissions, owner and
+  more, in the order you list them.
+- 🎨 **Styles** — colour, bold, italic, underline and the rest, per column. A
   colour can be a gradient from the smallest value in the folder to the
   largest. Set it in `init.lua` or in your `theme.toml`.
-- **One key to show and hide** — Yazi's own `linemode` switches and never
+- 🧩 **Columns of your own** — a few lines of Lua, through the interface the
+  built-in columns use.
+- 🪟 **Different columns per pane** — the parent and preview panes can show
+  columns too.
+- 👀 **One key to show and hide** — Yazi's own `linemode` switches and never
   back; `toggle` brings the columns up and puts them away again, and can do
   the same for another plugin's sign, such as git.yazi's.
-- **Columns of your own** — a few lines of Lua, through the interface the
-  built-in columns use.
-- **Different columns per pane** — the parent and preview panes can show
-  columns too.
 
 ## Requirements
 
