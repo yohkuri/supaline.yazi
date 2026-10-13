@@ -219,3 +219,7 @@ A rejected alternative is the one piece of history worth keeping, because the
 next reader will propose it again: write it as the reason it fails rather than
 the day it did. Tests are held to the same rule — a spec's comment says what
 its assertion protects, not which regression first made someone write it.
+
+A judgement by eye of how readable a particular colour is on a particular
+ground is not a measurement. Leave it out of comments and documents alike, and
+point at the picture or `test/ramp.lua`, where the next reader can look.
