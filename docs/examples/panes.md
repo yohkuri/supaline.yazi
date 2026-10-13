@@ -7,11 +7,10 @@ pictures are drawn is in [the index](README.md).
 ## Different columns per pane
 
 A linemode that names a pane draws columns there, and a pane it leaves out
-draws none. Under Yazi's own `ratio` the parent pane is an eighth of the
-terminal, 15 cells at the 120 columns drawn here and 21 at 170. Four of them
-are a margin, the two ends of the hovered row and the space before the
-columns, a file icon takes two more where Yazi draws one, and what the columns
-take comes out of the names. Here the parent pane has a column of your own, a
+draws none. The parent pane is narrow, 15 cells at the 120 columns drawn here,
+and what the columns take comes out of the names;
+[Different columns per pane](../configuration.md#different-columns-per-pane)
+has the arithmetic. Here the parent pane has a column of your own, a
 dot for when each entry was last modified, one colour spread across a
 lightness range the way
 [a built-in can be](styles.md#one-colour-across-a-lightness-range): the most
