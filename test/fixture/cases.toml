@@ -115,7 +115,7 @@ id       = "everything"
 key      = "m 2"
 folder   = "data"
 linemode = "everything"
-desc     = "supaline: every built-in column"
+desc     = "supaline: every built-in column but three of the times"
 
 [[case]]
 id       = "times"

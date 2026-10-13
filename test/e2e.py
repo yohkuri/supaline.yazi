@@ -44,6 +44,7 @@ from harness import (
     Driver,
     catch_term,
     need,
+    yazi_data,
     yazi_log,
     yazi_version,
 )
@@ -356,14 +357,16 @@ def check_rows_present(
     )
 
 
-def check_columns(k: Checks, shots: dict[str, str], dir: Path) -> None:
+def check_columns(
+    k: Checks, shots: dict[str, str], dir: Path, init: str
+) -> None:
     k.section("columns")
     k.holds(shots["plain"], "87.9M", "plain: size")
     k.holds(shots["default"], "87.9M 05/06  2024", "default: size + mtime")
     k.holds(shots["everything"], "drwxr-xr-x", "everything: permissions")
 
     check_owner(k, shots["everything"])
-    check_times(k, shots["times"], dir)
+    check_times(k, shots["times"], dir, init)
     check_overflow(k, shots["overflow"])
 
     # widths: `size` stated at 10 beside `size` measured. In `data/` the widest
@@ -551,46 +554,52 @@ def check_owner(k: Checks, capture: str) -> None:
         )
 
 
-def drawn_time(t: float) -> str:
-    """What a time column with no `format` draws for `t`, as `builtin.lua`'s
-    `smart` spells it: a time of day this year, the year otherwise."""
-    at = time.localtime(t)
-    if at.tm_year == time.localtime().tm_year:
-        return time.strftime("%m/%d %H:%M", at)
-    return time.strftime("%m/%d  %Y", at)
-
-
-def check_times(k: Checks, capture: str, dir: Path) -> None:
-    """`mtime`, `btime`, `atime` and `ctime` each against its own field.
+def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
+    """Each column `times` lists against the field it names.
 
     The cells come off `large.bin`'s row and are held against what `lstat`
-    says of the file here, read after the capture. `setup.py` gives the file
-    four different dates, so a column reading another's field draws the wrong
-    one -- and when this machine would not give them, the check says it cannot
-    tell the columns apart rather than passing over four equal answers.
+    says of the file here, in the order `init.lua` lists the columns.
+    `setup.py` gives the file four different dates, so a column reading
+    another's field draws the wrong one -- and when this machine would not
+    give them, the check says it cannot tell the columns apart rather than
+    passing over equal answers.
     """
     name = "large.bin"
-    st = (dir / "fixture" / "data" / name).lstat()
-    fields = ("mtime", "btime", "atime", "ctime")
-    want = [
-        drawn_time(t)
-        for t in (st.st_mtime, st.st_birthtime, st.st_atime, st.st_ctime)
-    ]
+    st = (yazi_data(dir) / name).lstat()
+    field = {
+        "mtime": st.st_mtime,
+        # macOS and the BSDs alone, among the platforms this runs on.
+        "btime": getattr(st, "st_birthtime", None),
+        "atime": st.st_atime,
+        "ctime": st.st_ctime,
+    }
+    columns = fixture.time_columns(init) or []
+    year = time.localtime().tm_year
+    unknown = [c for c in columns if c not in field]
+    # Empty unless every column has a field to read, so nothing below holds
+    # the screen against a list with a hole in it.
+    t = [field.get(c) for c in columns]
+    want = [sc.drawn_time(v, year) for v in t] if None not in t else []
     got = sc.time_cells(capture, name)
     alike = [
         f"{a} and {b}"
-        for i, a in enumerate(fields)
-        for b, w in zip(fields[i + 1 :], want[i + 1 :])
+        for i, a in enumerate(columns[: len(want)])
+        for b, w in zip(columns[i + 1 :], want[i + 1 :])
         if w == want[i]
     ]
     k.verdict(
         f"times: each column draws its own field of {name}",
+        not columns and "times: no `times` linemode in init.lua to read",
+        unknown and f"times: no field to hold {', '.join(unknown)} against",
+        field["btime"] is None
+        and "times: `lstat` here carries no birth time to hold btime against",
         got is None and f"times: no current-pane row names {name}",
+        got is not None
+        and want
+        and got != want
+        and f"times: {name} drew {got}, `lstat` says {want} for {' '.join(columns)}",
         alike
         and f"times: {', '.join(alike)} are the same here, so a column cannot be told from another",
-        got is not None
-        and got != want
-        and f"times: {name} drew {got}, `lstat` says {want} for {' '.join(fields)}",
     )
 
 
@@ -1149,7 +1158,7 @@ def main(argv: list[str]) -> int:
             k, yazi_log(r.dir, "state-broken"), r.shots["broken"], init
         )
         check_rows_present(k, r.shots, r.listing)
-        check_columns(k, r.shots, r.dir)
+        check_columns(k, r.shots, r.dir, init)
         check_panes(k, r.shots)
         check_toggle(k, r.shots, r.listing, init)
         check_ramp(k, r.shots, init, r.dir)

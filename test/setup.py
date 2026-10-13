@@ -155,7 +155,7 @@ def build_fixture(root: Path) -> None:
     current pane is the one that matters. `fixture/` holds a few siblings so
     the parent pane has rows of its own, and `nested/` gives the preview one.
 
-    Sizes span five orders of magnitude, times run from 2020 to this year, and
+    Sizes span five orders of magnitude, times run from 2019 to next year, and
     the names are the ones that break width arithmetic: CJK, emoji, and one far
     too long.
     """
@@ -193,7 +193,8 @@ def build_fixture(root: Path) -> None:
 
     # Every entry carries a date chosen here, so the pane reads the same on any
     # machine and on any day of a year -- what `gallery.py` compares against an
-    # approval is that pane. Most of them are this year's, which `mtime` draws
+    # approval is that pane. `ctime` alone is the moment this ran, and `m d`
+    # is the one case that draws it. Most of them are this year's, which `mtime` draws
     # as a time of day: both of its forms have to be on screen, and a date in
     # a fixed past year would leave only the other. The time of day is
     # `large.bin`'s, so the two forms sit one above the other on the same
@@ -207,24 +208,27 @@ def build_fixture(root: Path) -> None:
     }
     this_year = f"{time.localtime().tm_year}01020304"
     times = {when: epoch(when) for when in {this_year, *older.values()}}
-    # `large.bin` is the row `m d` reads, so its four times are four different
-    # dates: a column reading its neighbour's field then draws the wrong one.
-    # Measured on macOS 26 on APFS, an mtime set earlier than the birth time
-    # takes the birth time with it and a later one leaves it be, so stamping
-    # 2019 first is what makes `btime` say 2019. `ctime` is the moment of
-    # stamping, this year, and the atime is set last because the stamp below
-    # sets it too.
-    large = data / "large.bin"
-    stamp(large, epoch("201903040506"))
     for path in data.rglob("*"):
         stamp(
             path, times[older.get(path.relative_to(data).as_posix(), this_year)]
         )
-    os.utime(
-        large,
-        (epoch("202106070809"), large.lstat().st_mtime),
-        follow_symlinks=False,
-    )
+
+    # `large.bin` is the row `m d` reads, so its four times are four different
+    # dates and a column reading its neighbour's field draws the wrong one.
+    # Measured on macOS 26 on APFS: an mtime set earlier than the birth time
+    # drags the birth time with it, and a later one leaves it, so stamping 2019
+    # and then the file's own date is what makes `btime` say 2019. Where a birth
+    # time cannot be moved, `check_times` says it cannot tell the columns apart.
+    # The atime is next year's, because a read moves an atime no later than
+    # the mtime on APFS (measured) and one no later than the ctime under
+    # Linux's relatime (its documented rule, not run), and Yazi's mime fetcher
+    # reads the file. `ctime` is the moment of the last stamp.
+    large = data / "large.bin"
+    modified = times[older["large.bin"]]
+    stamp(large, epoch("201903040506"))
+    stamp(large, modified)
+    next_year = f"{time.localtime().tm_year + 1}06070809"
+    os.utime(large, (epoch(next_year), modified), follow_symlinks=False)
 
     (root / "sibling-one").mkdir()
     (root / "sibling-two").mkdir()
@@ -957,6 +961,17 @@ def linemode_block(init: str, name: str) -> str | None:
     """
     block = re.search(rf"\b{name} = \{{.*?\n\t\t\}},", init, re.DOTALL)
     return block.group(0) if block else None
+
+
+def time_columns(init: str) -> list[str] | None:
+    """The columns `times` lists, in its order, or `None` if the line is gone.
+
+    A one-line table, so `linemode_block` -- which wants the table to close on
+    a line of its own -- cannot find it. Anchored on stylua's indentation all
+    the same: two tabs, as every linemode under `linemodes` has.
+    """
+    line = re.search(r"\n\t\ttimes = \{ (.*?) \},\n", init)
+    return re.findall(r'"([a-z]+)"', line.group(1)) if line else None
 
 
 def c_bg_grounds(init: str) -> list[str] | None:
