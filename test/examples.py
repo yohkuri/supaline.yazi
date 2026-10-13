@@ -502,8 +502,9 @@ def build_folder(root: Path) -> Path:
 GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
 
-def git(folder: Path, *args: str) -> None:
-    """Run git on `folder`'s repository, as nobody."""
+def git(folder: Path, *args: str, env: dict[str, str] | None = None) -> None:
+    """Run git on `folder`'s repository, as nobody, with `env` set over
+    `GIT_ENV`."""
     run(
         [
             "git",
@@ -515,7 +516,7 @@ def git(folder: Path, *args: str) -> None:
             "user.email=supaline@example.invalid",
             *args,
         ],
-        env=GIT_ENV,
+        env={**GIT_ENV, **(env or {})},
     )
 
 

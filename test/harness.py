@@ -48,7 +48,8 @@ WIDTH, HEIGHT = 170, 40
 REFUSED = 2
 
 #: What it exits with when something outside it asked it to stop -- what a
-#: shell reports for a process SIGTERM ended.
+#: shell reports for a process SIGTERM ended. A hang-up exits 129, by the same
+#: arithmetic.
 TERMINATED = 143
 
 #: How long a Yazi just started gets to list its folder, longer than any other
@@ -94,18 +95,21 @@ import screen as sc
 
 
 def _terminated(number: int, frame: FrameType | None) -> NoReturn:
-    raise SystemExit(TERMINATED)
+    raise SystemExit(128 + number)
 
 
 def catch_term() -> None:
-    """Make a SIGTERM raise, so the teardown a `finally` holds still runs.
+    """Make a SIGTERM or a SIGHUP raise, so the teardown a `finally` holds
+    still runs.
 
     Python's default handling ends the process without raising, so the
     `finally` never runs, and a tmux session and a scratch directory named
-    after this run's PID are left for nothing to clear. SIGINT needs nothing:
-    Python raises `KeyboardInterrupt` for it already.
+    after this run's PID are left for nothing to clear. A SIGHUP is what
+    closing the terminal a run is in sends. SIGINT needs nothing: Python
+    raises `KeyboardInterrupt` for it already.
     """
     signal.signal(signal.SIGTERM, _terminated)
+    signal.signal(signal.SIGHUP, _terminated)
 
 
 def run(
