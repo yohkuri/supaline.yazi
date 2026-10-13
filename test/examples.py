@@ -510,13 +510,24 @@ def build_folder(root: Path) -> Path:
 
 
 #: Git run with nobody's configuration, so a redraw does not depend on whose
-#: machine it is on: a global hook or signing would fail the commit.
-GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+#: machine it is on: a global hook or signing would fail the commit. The
+#: ignore and attributes files are named too, because git reads the default
+#: ones under `~/.config/git` with `GIT_CONFIG_GLOBAL` set -- measured on git
+#: 2.54: a `*.mp4` there kept a file out of the commit, and git.yazi then drew
+#: it as untracked.
+GIT_ENV = {
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "core.excludesFile",
+    "GIT_CONFIG_VALUE_0": os.devnull,
+    "GIT_CONFIG_KEY_1": "core.attributesFile",
+    "GIT_CONFIG_VALUE_1": os.devnull,
+}
 
 
-def git(folder: Path, *args: str, env: dict[str, str] | None = None) -> None:
-    """Run git on `folder`'s repository, as nobody, with `env` set over
-    `GIT_ENV`."""
+def git(folder: Path, *args: str) -> None:
+    """Run git on `folder`'s repository, as nobody."""
     run(
         [
             "git",
@@ -528,17 +539,12 @@ def git(folder: Path, *args: str, env: dict[str, str] | None = None) -> None:
             "user.email=supaline@example.invalid",
             *args,
         ],
-        env={**GIT_ENV, **(env or {})},
+        env=GIT_ENV,
     )
 
 
-def repository(
-    folder: Path,
-    states: dict[str, str] = GIT,
-    env: dict[str, str] | None = None,
-) -> None:
-    """Make `folder` a repository holding `states`, git run with `env`:
-    everything else committed, an ignored file written into `.gitignore`, a
+def repository(folder: Path, states: dict[str, str] = GIT) -> None:
+    """Make `folder` a repository holding `states`: everything else committed, an ignored file written into `.gitignore`, a
     file `added` if one is named, and each change one byte, so no size moves.
     Hidden files are not listed, so `.git` and `.gitignore` are on no
     picture."""
@@ -547,19 +553,21 @@ def repository(
         with (folder / name).open("r+b") as f:
             f.write(b"x")
 
-    held = [
-        states["untracked"],
-        *([states["added"]] if "added" in states else []),
-    ]
+    added = [states["added"]] if "added" in states else []
     (folder / ".gitignore").write_text(states["ignored"] + "\n")
-    git(folder, "init", "-q", env=env)
-    git(folder, "add", "--all", "--", ".", *(f":!{n}" for n in held), env=env)
-    git(folder, "commit", "-q", "-m", "the folder", env=env)
-    if "added" in states:
-        git(folder, "add", "--", states["added"], env=env)
+    git(folder, "init", "-q")
+    git(
+        folder,
+        "add",
+        "--all",
+        "--",
+        ".",
+        *(f":!{name}" for name in [states["untracked"], *added]),
+    )
+    git(folder, "commit", "-q", "-m", "the folder")
     touched(states["unstaged"])
     touched(states["staged"])
-    git(folder, "add", "--", states["staged"], env=env)
+    git(folder, "add", "--", states["staged"], *added)
 
 
 # --- taking the picture ------------------------------------------------------
