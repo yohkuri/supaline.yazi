@@ -42,16 +42,15 @@ import harness  # noqa: F401
 import setup as fixture
 from e2e import troubles
 from examples import (
-    FENCE,
-    FILES,
     GIT_ENV,
     INIT,
     REQUIRE,
     THEME,
-    closing,
+    file_block,
+    git,
     installed,
+    repository,
 )
-from examples import git as examples_git
 from harness import (
     ROOT,
     catch_term,
@@ -154,19 +153,15 @@ def setup_blocks(text: str) -> dict[str, str]:
         raise ValueError(f"no `{SECTION}` heading") from None
     blocks: dict[str, str] = {}
     while i < len(lines) and not ENDS.match(lines[i]):
-        fence = FENCE.match(lines[i].rstrip())
-        if not fence:
+        found = file_block(lines, i)
+        if not found:
             i += 1
             continue
-        end = closing(lines, i, fence.group(1))
-        if end is None:
-            raise ValueError(f"line {i + 1}: a block that never closes")
-        body = lines[i + 1 : end]
-        if body and body[0] in FILES:
-            if body[0] in blocks:
-                raise ValueError(f"line {i + 1}: a second `{body[0]}` block")
-            block = "\n".join(body) + "\n"
-            if body[0] != INIT:
+        end, name, block = found
+        if name:
+            if name in blocks:
+                raise ValueError(f"line {i + 1}: a second `{name}` block")
+            if name != INIT:
                 try:
                     parsed = tomllib.loads(block)
                 except tomllib.TOMLDecodeError as error:
@@ -175,7 +170,7 @@ def setup_blocks(text: str) -> dict[str, str]:
                     ) from None
                 if not isinstance(parsed.get("flavor", {}), dict):
                     raise ValueError(f"line {i + 1}: `flavor` is not a table")
-            blocks[body[0]] = block
+            blocks[name] = block
         i = end + 1
     if INIT not in blocks:
         raise ValueError(f"no `{INIT}` block under `{SECTION}`")
@@ -219,10 +214,6 @@ def build_folder(home: Path, env: dict[str, str]) -> Path:
     git given `env`, the HOME Yazi runs under: git reads an ignore file from
     the real one even with `GIT_CONFIG_GLOBAL` set, so a `*.mp4` there would
     leave a file uncommitted that git.yazi then draws as untracked."""
-
-    def git(*args: str) -> None:
-        examples_git(folder, *args, env=env)
-
     work = home / "work"
     folder = work / "project"
     was = os.umask(0o022)
@@ -236,27 +227,7 @@ def build_folder(home: Path, env: dict[str, str]) -> Path:
             fixture.sized(path, size)
             if name in EXECUTABLE:
                 path.chmod(0o755)
-
-        def touched(name: str) -> None:
-            # One byte overwritten, so no size moves.
-            with (folder / name).open("r+b") as f:
-                f.write(b"x")
-
-        (folder / ".gitignore").write_text(GIT["ignored"] + "\n")
-        git("init", "-q")
-        git(
-            "add",
-            "--all",
-            "--",
-            ".",
-            f":!{GIT['untracked']}",
-            f":!{GIT['added']}",
-        )
-        git("commit", "-q", "-m", "the folder")
-        git("add", "--", GIT["added"])
-        touched(GIT["staged"])
-        git("add", "--", GIT["staged"])
-        touched(GIT["unstaged"])
+        repository(folder, GIT, env)
     finally:
         os.umask(was)
 
@@ -272,7 +243,7 @@ def build_folder(home: Path, env: dict[str, str]) -> Path:
         stamp(work / name, age, now)
     stamp(folder, PROJECT_AGE, now)
     # For the reason `examples.build_folder` gives.
-    git("update-index", "-q", "--refresh")
+    git(folder, "update-index", "-q", "--refresh", env=env)
     return folder
 
 

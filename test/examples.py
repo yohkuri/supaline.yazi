@@ -229,6 +229,23 @@ def closing(lines: list[str], start: int, fence: str) -> int | None:
     return None
 
 
+def file_block(lines: list[str], i: int) -> tuple[int, str, str] | None:
+    """The fenced block opening on line `i`, if one does: the line it closes
+    on, the file its first line names -- empty when it names none of
+    `FILES` -- and its text, that first line included. Refused when it never
+    closes, since everything after it would be read as its body."""
+    fence = FENCE.match(lines[i].rstrip())
+    if not fence:
+        return None
+    end = closing(lines, i, fence.group(1))
+    if end is None:
+        raise ValueError(f"line {i + 1}: a block that never closes")
+    body = lines[i + 1 : end]
+    if not body or body[0] not in FILES:
+        return end, "", ""
+    return end, body[0], "\n".join(body) + "\n"
+
+
 def toml_problem(block: str) -> str | None:
     """Why a `.toml` block cannot be drawn, if it cannot."""
     body = "\n".join(block.splitlines()[1:])
@@ -284,22 +301,17 @@ def examples(text: str) -> list[Example]:
     i = 0
     while i < len(lines):
         line = lines[i].rstrip()
-        fence = FENCE.match(line)
-        if fence:
-            end = closing(lines, i, fence.group(1))
-            if end is None:
-                raise ValueError(f"line {i + 1}: a block that never closes")
-            body = lines[i + 1 : end]
-            if body and body[0] in FILES:
-                if body[0] in blocks:
+        if fenced := file_block(lines, i):
+            end, name, block = fenced
+            if name:
+                if name in blocks:
                     raise ValueError(
-                        f"line {i + 1}: a second `{body[0]}` block before "
+                        f"line {i + 1}: a second `{name}` block before "
                         "the picture the first one is for"
                     )
-                block = "\n".join(body) + "\n"
-                if body[0] != INIT and (problem := toml_problem(block)):
+                if name != INIT and (problem := toml_problem(block)):
                     raise ValueError(f"line {i + 1}: the block {problem}")
-                blocks[body[0]] = block
+                blocks[name] = block
             i = end + 1
             continue
         if HEADING.match(line):
@@ -520,23 +532,34 @@ def git(folder: Path, *args: str, env: dict[str, str] | None = None) -> None:
     )
 
 
-def repository(folder: Path) -> None:
-    """Make `folder` a repository holding `GIT`'s states: everything else
-    committed, an ignored file written into `.gitignore`, and each change
-    one byte, so no size moves. Hidden files are not listed, so `.git` and
-    `.gitignore` are on no picture."""
+def repository(
+    folder: Path,
+    states: dict[str, str] = GIT,
+    env: dict[str, str] | None = None,
+) -> None:
+    """Make `folder` a repository holding `states`, git run with `env`:
+    everything else committed, an ignored file written into `.gitignore`, a
+    file `added` if one is named, and each change one byte, so no size moves.
+    Hidden files are not listed, so `.git` and `.gitignore` are on no
+    picture."""
 
     def touched(name: str) -> None:
         with (folder / name).open("r+b") as f:
             f.write(b"x")
 
-    (folder / ".gitignore").write_text(GIT["ignored"] + "\n")
-    git(folder, "init", "-q")
-    git(folder, "add", "--all", "--", ".", f":!{GIT['untracked']}")
-    git(folder, "commit", "-q", "-m", "the folder")
-    touched(GIT["unstaged"])
-    touched(GIT["staged"])
-    git(folder, "add", "--", GIT["staged"])
+    held = [
+        states["untracked"],
+        *([states["added"]] if "added" in states else []),
+    ]
+    (folder / ".gitignore").write_text(states["ignored"] + "\n")
+    git(folder, "init", "-q", env=env)
+    git(folder, "add", "--all", "--", ".", *(f":!{n}" for n in held), env=env)
+    git(folder, "commit", "-q", "-m", "the folder", env=env)
+    if "added" in states:
+        git(folder, "add", "--", states["added"], env=env)
+    touched(states["unstaged"])
+    touched(states["staged"])
+    git(folder, "add", "--", states["staged"], env=env)
 
 
 # --- taking the picture ------------------------------------------------------
