@@ -83,9 +83,9 @@ function M.colour(value, at)
 		return rgb
 	elseif not accepted(value) then
 		at:refuse(
-			"`%s` is not a colour Yazi accepts. Write `#rrggbb`, a name such as `cyan`, a 256-colour "
+			"%s is not a colour Yazi accepts. Write `#rrggbb`, a name such as `cyan`, a 256-colour "
 				.. "index as a string such as `129`, or `reset`",
-			value
+			schema.as_written(value)
 		)
 	end
 	return nil
