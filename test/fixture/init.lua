@@ -364,7 +364,7 @@ supaline:setup {
 		-- m0: one column, so `m s` is a fair comparison.
 		plain = { "size" },
 
-		-- m1: the everyday case, and the one the README opens with.
+		-- m1: the everyday case, and the README's quick start.
 		default = { "size", "mtime" },
 
 		-- m2: every built-in column at its own default width.

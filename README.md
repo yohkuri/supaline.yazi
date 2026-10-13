@@ -140,9 +140,10 @@ and options of your own.
 The picture at the top, in Ghostty on the
 [Catppuccin Mocha](https://github.com/yazi-rs/flavors) flavor, with
 [git.yazi](https://github.com/yazi-rs/plugins/tree/main/git.yazi) beside
-supaline. git.yazi's signs and the file icons are Nerd Font glyphs. Each of
-`size` and `mtime` is one colour spread across a lightness range, and so is
-`mark`, a column of your own in the parent pane:
+supaline, installed with `ya pkg add yazi-rs/plugins:git`. git.yazi's signs
+and the file icons are Nerd Font glyphs. Each of `size` and `mtime` is one
+colour spread across a lightness range, and so is `mark`, a column of your own
+in the parent pane:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -220,6 +221,8 @@ desc = "Toggle git.yazi's sign"
 `m d` shows and hides the columns, and `m g` git.yazi's sign, which `toggles`
 names by the `order` it was added at. The two signs in `theme.toml` keep the
 columns lined up on the rows git.yazi has nothing to say about.
+[Toggling from a key](docs/configuration.md#toggling-from-a-key) and
+[Alongside git.yazi](docs/configuration.md#alongside-gityazi) say more.
 
 ## Documentation
 
