@@ -87,7 +87,18 @@ test(
 )
 
 test("times: a `format` `os.date` cannot draw is refused where it is written", function()
-	for _, name in ipairs { "mtime", "btime", "atime", "ctime" } do
+	-- Every column that takes a `format`, read off the registry, so a time
+	-- column added tomorrow is covered.
+	local names = {}
+	for name, def in pairs(definitions) do
+		for _, option in ipairs(def.options or {}) do
+			if option == "format" then
+				names[#names + 1] = name
+			end
+		end
+	end
+	assert(#names > 0, "no built-in takes a `format`")
+	for _, name in ipairs(names) do
 		for _, case in ipairs {
 			{ {}, "spec.format: must be an `os.date` format string, got a table" },
 			{ "%Q", "spec.format: is not an `os.date` format: invalid conversion specifier '%Q'" },
@@ -106,6 +117,17 @@ test("btime, atime and ctime read their own fields", function()
 	eq(render("btime", stub.file { btime = OLD, mtime = RECENT }), "12/25  2020")
 	eq(render("atime", stub.file { atime = OLD, mtime = RECENT }), "12/25  2020")
 	eq(render("ctime", stub.file { ctime = OLD, mtime = RECENT }), "12/25  2020")
+end)
+
+test("ctime: blank where the field is not a change time", function()
+	-- An SFTP upload stamps the moment it finished, and the Windows Recycle Bin
+	-- keeps a fingerprint in the field. Taking `ya.user_name` away is what a
+	-- spec has instead of a Windows machine, as the owner columns' spec says.
+	eq(render("ctime", stub.file { ctime = OLD, url_kind = "search" }), "12/25  2020")
+	eq(render("ctime", stub.file { ctime = OLD, url_kind = "sftp" }), "           ")
+	ya.user_name = nil
+	eq(render("ctime", stub.file { ctime = OLD }), "           ")
+	eq(render("mtime", stub.file { mtime = OLD }), "12/25  2020", "and the other times are not asked")
 end)
 
 -- --- permissions -----------------------------------------------------------

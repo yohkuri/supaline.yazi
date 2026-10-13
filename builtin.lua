@@ -25,7 +25,7 @@
 --- What they do differ in is `stats`, and there the difference is
 --- load-bearing: `appearance.lua` refuses a gradient on a column that declares none,
 --- so declaring one is the whole of what lets a user write a gradient over
---- that column. `size` and the three time columns do. `count` does not, and
+--- that column. `size` and the four time columns do. `count` does not, and
 --- cannot honestly -- `entries` below answers `-` for a directory Yazi has
 --- never listed, so a folder's extremes would depend on where the user had
 --- already been, and the same listing would colour differently on a second
@@ -164,9 +164,13 @@ function M.definitions()
 	end
 
 	---@param field "mtime"|"btime"|"atime"|"ctime"
-	local function register_time(field)
+	---@param real (fun(file: supaline.File): boolean)? whether the field holds a time for this file
+	local function register_time(field, real)
 		---@param file supaline.File
 		local get = function(file)
+			if real and not real(file) then
+				return nil
+			end
 			local t = file.cha[field]
 			return t and math.floor(t) or nil
 		end
@@ -202,7 +206,15 @@ function M.definitions()
 	register_time("mtime")
 	register_time("btime")
 	register_time("atime")
-	register_time("ctime")
+	-- `ctime` is a time only where Yazi read it off a local inode. Off Unix,
+	-- 26.9.1's `yazi-fs` leaves it nil but for the Windows Recycle Bin, where it
+	-- stores a fingerprint of the bin's contents in the field; and on a virtual
+	-- file the SFTP listing leaves it nil while an upload stamps the moment it
+	-- finished, until the next listing takes it away again. Neither is a change
+	-- time, so both draw blank. The platform is asked as `register_half` below
+	-- asks it, by whether the `#[cfg(unix)]` lookups exist, and read per row for
+	-- the same reason. Read off the source; no Windows machine was run.
+	register_time("ctime", function(file) return ya.user_name ~= nil and not file.url.spec.is_virtual end)
 
 	--- The `[status]` style Yazi draws each permission character in, and the one
 	--- everything else takes -- the type character, whatever letter it turns out
@@ -372,7 +384,7 @@ function M.definitions()
 	--- anyway, and the virtual test comes first.
 	--- Registers the column that draws one half on its own, and hands the
 	--- resolution back for `owner` to reuse -- the shape `register_time` above
-	--- uses for the three time columns, which is why the width and the alignment
+	--- uses for the four time columns, which is why the width and the alignment
 	--- of a half are written once rather than once per column.
 	---
 	--- Eight is the traditional passwd limit rather than a measurement, and a
