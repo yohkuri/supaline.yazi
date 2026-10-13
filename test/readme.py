@@ -3,7 +3,7 @@
 
     test/readme.py  build the folder, wait for the window, and open it
 
-The configuration is the README's own: the blocks under `My favourite setup`,
+The configuration is the README's own: the blocks under `Recommended setup`,
 each naming its file on its first line the way the pages in `docs/examples/`
 spell them, written out as they stand. The folder is built here, under a
 scratch home that Yazi is given as `HOME`, so its header reads
@@ -16,7 +16,7 @@ is not found that way, and Yazi would run without it.
 Nothing here sets the terminal up, since nothing could for every terminal:
 take the picture on the flavor's background, `#1e1e2e` for Catppuccin Mocha,
 with a Nerd Font, and at a font size that gives the picture its resolution --
-the PNG in `docs/images/` is 2019 pixels wide. This waits for the window to
+the PNG in `docs/images/` is 1967 pixels wide. This waits for the window to
 reach the width the README says the picture is, and the height that holds the
 folder, then opens Yazi with `assets` hovered. Take the screenshot, quit,
 and the scratch home is removed.
@@ -67,7 +67,7 @@ from harness import (
 )
 
 README = ROOT / "README.md"
-SECTION = "## My favourite setup"
+SECTION = "## Recommended setup"
 #: A heading that ends the section: one at its own level or above, so a
 #: `###` inside it does not cut its blocks off.
 ENDS = re.compile(r"^#{1,2}\s")

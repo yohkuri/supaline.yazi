@@ -4,9 +4,9 @@
 mtime, or permissions. supaline is a plugin that turns it into as many columns
 as you like, in any order, at any width, each styled its own way.
 
-![Yazi with permissions, an italic user, size in red and mtime in blue, each lighter the larger or the newer it is, beside git.yazi's signs; a blue dot by mtime in the parent pane, and size and mtime in the preview pane](docs/images/readme.png)
+![Yazi with permissions, an italic user, size in blue and mtime in yellow, each lighter the larger or the newer it is, beside git.yazi's signs; a yellow dot by mtime in the parent pane, and size and mtime in the preview pane](docs/images/readme.png)
 
-It is drawn from [My favourite setup](#my-favourite-setup), and
+It is drawn from the [recommended setup](#recommended-setup), and
 [the examples](docs/examples/README.md) show more, each with the configuration
 that draws it.
 
@@ -135,7 +135,7 @@ supaline:setup {
 [Writing a column](docs/columns.md) covers per-folder statistics, gradients
 and options of your own.
 
-## My favourite setup
+## Recommended setup
 
 The picture at the top, in Ghostty 140 columns wide, on the
 [Catppuccin Mocha](https://github.com/yazi-rs/flavors) flavor, with
@@ -144,8 +144,9 @@ supaline. Both are installed with `ya pkg add yazi-rs/flavors:catppuccin-mocha`
 and `ya pkg add yazi-rs/plugins:git`. The file list's columns and git.yazi's
 sign take about 40 cells, so a much narrower terminal leaves little room for
 the names. git.yazi's signs and the file icons are Nerd Font glyphs. Each of
-`size` and `mtime` is one colour spread across a lightness range, and so is
-`mark`, a column of your own in the parent pane:
+`size` and `mtime` is one of the flavor's own colours, blue and yellow, spread
+across a lightness range, and so is `mark`, a column of your own in the parent
+pane, in mtime's yellow:
 
 ```lua
 -- ~/.config/yazi/init.lua
@@ -155,7 +156,7 @@ local function mtime(file) return file.cha.mtime or 0 end
 
 supaline.column("mark", {
   width = 1,
-  style = "#3b82f6 <->",
+  style = "#f9e2af <->",
   stats = supaline.extremes(mtime),
   render = function(file, ctx)
     return "●", ctx.style_at(ctx.ratio(mtime(file)))
@@ -204,8 +205,8 @@ dark  = "catppuccin-mocha"
 light = "catppuccin-mocha"
 
 [supaline]
-size  = "#ef4444 <->"
-mtime = "#3b82f6 <->"
+size  = "#89b4fa <->"
+mtime = "#f9e2af <->"
 
 [git]
 clean_sign   = "  "
