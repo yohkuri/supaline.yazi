@@ -14,7 +14,6 @@ parser here returning nothing.
 from __future__ import annotations
 
 import re
-import time
 import unicodedata
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
@@ -374,30 +373,30 @@ def is_cut_of(name: str, cell: str) -> bool:
 TIME_RE = re.compile(r"\d\d/\d\d(?: \d\d:\d\d|  \d{4})")
 
 
-def drawn_time(t: float, year: int) -> str:
-    """What a time column with no `format` draws for `t` in `year`, as
-    `builtin.lua`'s `smart` spells it -- the two forms `TIME_RE` reads."""
-    at = time.localtime(t)
-    if at.tm_year == year:
-        return time.strftime("%m/%d %H:%M", at)
-    return time.strftime("%m/%d  %Y", at)
+def row_named(capture: str, name: str) -> str | None:
+    """The current-pane field of the row naming `name`, or `None`.
 
-
-def time_cells(capture: str, name: str) -> list[str] | None:
-    """The time cells on the current-pane row naming `name`, left to right.
-
-    `None` when no row names it, which is a different fault from a row that
-    drew no times. The name is the row's first word after the icon, so a
-    symlink pointing at it is not its row. Every line is read, as the row is
-    found by name rather than by where it sits.
+    The name is the row's first word after the icon, so a symlink pointing at
+    it is not its row. Every line is read, as the row is found by name rather
+    than by where it sits.
     """
     for field in current_fields(capture):
         words = field.split()
         if words and len(words[0]) == 1 and not words[0].isascii():
             words = words[1:]
         if words and words[0] == name:
-            return TIME_RE.findall(field)
+            return field
     return None
+
+
+def time_cells(capture: str, name: str) -> list[str] | None:
+    """The time cells on the row naming `name`, left to right.
+
+    `None` when no row names it, which is a different fault from a row that
+    drew no times.
+    """
+    field = row_named(capture, name)
+    return None if field is None else TIME_RE.findall(field)
 
 
 def is_size(cell: str) -> bool:

@@ -106,13 +106,27 @@ def epoch(when: str) -> float:
     return time.mktime(time.strptime(when, "%Y%m%d%H%M"))
 
 
-def stamp(path: Path, at: float) -> None:
-    """Set an mtime without following a symlink.
+def stamp(
+    path: Path,
+    at: float,
+    *,
+    atime: float | None = None,
+    born: float | None = None,
+) -> None:
+    """Set an mtime without following a symlink, and the atime and the birth
+    time where they are asked for; the atime is the mtime otherwise.
 
     A symlink is stamped itself rather than through to its target: `link-broken`
     has no target to stamp, and `link-ok`'s would move `medium.bin`'s date.
+
+    No call sets a birth time, so `born` is stamped as an mtime first: measured
+    on macOS 26 on APFS, an mtime set earlier than the birth time drags the
+    birth time with it, and a later one leaves it. Where a birth time cannot be
+    moved, as on Linux, this leaves it where it was.
     """
-    os.utime(path, (at, at), follow_symlinks=False)
+    if born is not None:
+        os.utime(path, (born, born), follow_symlinks=False)
+    os.utime(path, (at if atime is None else atime, at), follow_symlinks=False)
 
 
 def sized(path: Path, length: int) -> None:
@@ -193,10 +207,10 @@ def build_fixture(root: Path) -> None:
 
     # Every entry carries a date chosen here, so the pane reads the same on any
     # machine and on any day of a year -- what `gallery.py` compares against an
-    # approval is that pane. `ctime` alone is the moment this ran, and `m d`
-    # is the one case that draws it. Most of them are this year's, which `mtime` draws
-    # as a time of day: both of its forms have to be on screen, and a date in
-    # a fixed past year would leave only the other. The time of day is
+    # approval is that pane. `ctime` alone is the moment this ran, and `m d` is
+    # the one case that draws it. Most of them are this year's, which `mtime`
+    # draws as a time of day: both of its forms have to be on screen, and a
+    # date in a fixed past year would leave only the other. The time of day is
     # `large.bin`'s, so the two forms sit one above the other on the same
     # `01/02` and can be compared cell for cell. Stamp after all entries have
     # been created, because creating contents moves a directory's mtime.
@@ -206,29 +220,24 @@ def build_fixture(root: Path) -> None:
         "huge.bin": "202405060708",
         "nested/inner-a.txt": "202312250000",
     }
-    this_year = f"{time.localtime().tm_year}01020304"
+    year = time.localtime().tm_year
+    this_year = f"{year}01020304"
     times = {when: epoch(when) for when in {this_year, *older.values()}}
-    for path in data.rglob("*"):
-        stamp(
-            path, times[older.get(path.relative_to(data).as_posix(), this_year)]
-        )
-
     # `large.bin` is the row `m d` reads, so its four times are four different
     # dates and a column reading its neighbour's field draws the wrong one.
-    # Measured on macOS 26 on APFS: an mtime set earlier than the birth time
-    # drags the birth time with it, and a later one leaves it, so stamping 2019
-    # and then the file's own date is what makes `btime` say 2019. Where a birth
-    # time cannot be moved, `check_times` says it cannot tell the columns apart.
     # The atime is next year's, because a read moves an atime no later than
     # the mtime on APFS (measured) and one no later than the ctime under
     # Linux's relatime (its documented rule, not run), and Yazi's mime fetcher
-    # reads the file. `ctime` is the moment of the last stamp.
-    large = data / "large.bin"
-    modified = times[older["large.bin"]]
-    stamp(large, epoch("201903040506"))
-    stamp(large, modified)
-    next_year = f"{time.localtime().tm_year + 1}06070809"
-    os.utime(large, (epoch(next_year), modified), follow_symlinks=False)
+    # reads the file. `ctime` is the moment of the stamp.
+    apart = {
+        "large.bin": {
+            "born": epoch("201903040506"),
+            "atime": epoch(f"{year + 1}06070809"),
+        },
+    }
+    for path in data.rglob("*"):
+        name = path.relative_to(data).as_posix()
+        stamp(path, times[older.get(name, this_year)], **apart.get(name, {}))
 
     (root / "sibling-one").mkdir()
     (root / "sibling-two").mkdir()
@@ -963,15 +972,16 @@ def linemode_block(init: str, name: str) -> str | None:
     return block.group(0) if block else None
 
 
-def time_columns(init: str) -> list[str] | None:
-    """The columns `times` lists, in its order, or `None` if the line is gone.
+def linemode_columns(init: str, name: str) -> list[str] | None:
+    """The built-in columns a one-line linemode lists, in its order, or `None`
+    if the line is gone.
 
-    A one-line table, so `linemode_block` -- which wants the table to close on
-    a line of its own -- cannot find it. Anchored on stylua's indentation all
-    the same: two tabs, as every linemode under `linemodes` has.
+    `linemode_block` wants a table that closes on a line of its own, which a
+    one-line linemode does not. Anchored on stylua's indentation all the same:
+    two tabs, as every linemode under `linemodes` has.
     """
-    line = re.search(r"\n\t\ttimes = \{ (.*?) \},\n", init)
-    return re.findall(r'"([a-z]+)"', line.group(1)) if line else None
+    line = re.search(rf"\n\t\t{name} = \{{ (.*?) \}},\n", init)
+    return re.findall(r'"([a-z_]+)"', line.group(1)) if line else None
 
 
 def c_bg_grounds(init: str) -> list[str] | None:
