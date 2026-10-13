@@ -207,10 +207,24 @@ def build_fixture(root: Path) -> None:
     }
     this_year = f"{time.localtime().tm_year}01020304"
     times = {when: epoch(when) for when in {this_year, *older.values()}}
+    # `large.bin` is the row `m d` reads, so its four times are four different
+    # dates: a column reading its neighbour's field then draws the wrong one.
+    # Measured on macOS 26 on APFS, an mtime set earlier than the birth time
+    # takes the birth time with it and a later one leaves it be, so stamping
+    # 2019 first is what makes `btime` say 2019. `ctime` is the moment of
+    # stamping, this year, and the atime is set last because the stamp below
+    # sets it too.
+    large = data / "large.bin"
+    stamp(large, epoch("201903040506"))
     for path in data.rglob("*"):
         stamp(
             path, times[older.get(path.relative_to(data).as_posix(), this_year)]
         )
+    os.utime(
+        large,
+        (epoch("202106070809"), large.lstat().st_mtime),
+        follow_symlinks=False,
+    )
 
     (root / "sibling-one").mkdir()
     (root / "sibling-two").mkdir()

@@ -370,6 +370,9 @@ supaline:setup {
 		-- m2: every built-in column at its own default width.
 		everything = { "permissions", "owner", "user", "group", "size", "mtime", "count" },
 
+		-- md: the four time columns, which `m 2` has no room for.
+		times = { "mtime", "btime", "atime", "ctime" },
+
 		-- m3: the same value stated, measured, and measured with a cap. The
 		-- stated width is deliberately wider than any size in the fixture, so the
 		-- measured column beside it is visibly narrower from the first frame.

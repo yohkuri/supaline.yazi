@@ -356,13 +356,14 @@ def check_rows_present(
     )
 
 
-def check_columns(k: Checks, shots: dict[str, str]) -> None:
+def check_columns(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("columns")
     k.holds(shots["plain"], "87.9M", "plain: size")
     k.holds(shots["default"], "87.9M 05/06  2024", "default: size + mtime")
     k.holds(shots["everything"], "drwxr-xr-x", "everything: permissions")
 
     check_owner(k, shots["everything"])
+    check_times(k, shots["times"], dir)
     check_overflow(k, shots["overflow"])
 
     # widths: `size` stated at 10 beside `size` measured. In `data/` the widest
@@ -548,6 +549,49 @@ def check_owner(k: Checks, capture: str) -> None:
             not sc.is_cut_of(want_group, got_group)
             and f"everything: `{got_group}` is not a cut of `{want_group}`",
         )
+
+
+def drawn_time(t: float) -> str:
+    """What a time column with no `format` draws for `t`, as `builtin.lua`'s
+    `smart` spells it: a time of day this year, the year otherwise."""
+    at = time.localtime(t)
+    if at.tm_year == time.localtime().tm_year:
+        return time.strftime("%m/%d %H:%M", at)
+    return time.strftime("%m/%d  %Y", at)
+
+
+def check_times(k: Checks, capture: str, dir: Path) -> None:
+    """`mtime`, `btime`, `atime` and `ctime` each against its own field.
+
+    The cells come off `large.bin`'s row and are held against what `lstat`
+    says of the file here, read after the capture. `setup.py` gives the file
+    four different dates, so a column reading another's field draws the wrong
+    one -- and when this machine would not give them, the check says it cannot
+    tell the columns apart rather than passing over four equal answers.
+    """
+    name = "large.bin"
+    st = (dir / "fixture" / "data" / name).lstat()
+    fields = ("mtime", "btime", "atime", "ctime")
+    want = [
+        drawn_time(t)
+        for t in (st.st_mtime, st.st_birthtime, st.st_atime, st.st_ctime)
+    ]
+    got = sc.time_cells(capture, name)
+    alike = [
+        f"{a} and {b}"
+        for i, a in enumerate(fields)
+        for b, w in zip(fields[i + 1 :], want[i + 1 :])
+        if w == want[i]
+    ]
+    k.verdict(
+        f"times: each column draws its own field of {name}",
+        got is None and f"times: no current-pane row names {name}",
+        alike
+        and f"times: {', '.join(alike)} are the same here, so a column cannot be told from another",
+        got is not None
+        and got != want
+        and f"times: {name} drew {got}, `lstat` says {want} for {' '.join(fields)}",
+    )
 
 
 def check_overflow(k: Checks, capture: str) -> None:
@@ -1105,7 +1149,7 @@ def main(argv: list[str]) -> int:
             k, yazi_log(r.dir, "state-broken"), r.shots["broken"], init
         )
         check_rows_present(k, r.shots, r.listing)
-        check_columns(k, r.shots)
+        check_columns(k, r.shots, r.dir)
         check_panes(k, r.shots)
         check_toggle(k, r.shots, r.listing, init)
         check_ramp(k, r.shots, init, r.dir)

@@ -368,6 +368,25 @@ def is_cut_of(name: str, cell: str) -> bool:
     return name.startswith(cell.removesuffix("…"))
 
 
+#: A time cell as the built-in columns draw one with no `format`: this year's
+#: as a time of day, any other year's as the year, two spaces before it.
+TIME_RE = re.compile(r"\d\d/\d\d(?: \d\d:\d\d|  \d{4})")
+
+
+def time_cells(capture: str, name: str) -> list[str] | None:
+    """The time cells on the current-pane row naming `name`, left to right.
+
+    `None` when no row names it, which is a different fault from a row that
+    drew no times. Found by shape rather than by position, as a cell carries
+    a space of its own and the name before them is padded to whatever Yazi
+    left it.
+    """
+    for row in current_of(capture):
+        if f" {name} " in row:
+            return TIME_RE.findall(row)
+    return None
+
+
 def is_size(cell: str) -> bool:
     """Whether a size cell holds a size, as against a count or a `-`.
 
