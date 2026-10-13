@@ -170,14 +170,11 @@ supaline:setup {
       current = {
         "permissions",
         { "user", style = { italic = true } },
-        { "size", style = "#ef4444 <->" },
-        { "mtime", style = "#3b82f6 <->" },
+        "size",
+        "mtime",
       },
       parent  = { "mark" },
-      preview = {
-        { "size", style = "#ef4444 <->" },
-        { "mtime", style = "#3b82f6 <->" },
-      },
+      preview = { "size", "mtime" },
     },
   },
   toggles = { git = 1500 },
@@ -205,6 +202,10 @@ group = "git"
 [flavor]
 dark  = "catppuccin-mocha"
 light = "catppuccin-mocha"
+
+[supaline]
+size  = "#ef4444 <->"
+mtime = "#3b82f6 <->"
 
 [git]
 clean_sign   = "  "
