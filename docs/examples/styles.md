@@ -215,8 +215,8 @@ require("supaline"):setup {
 
 > [!IMPORTANT]
 > No range is defined for you. A `<->` with no range under `lightness` behind it
-> is refused, and the message carries the recommended pair to paste, in the
-> dark terminal's order: on a light one, reverse it.
+> is refused, and for a spread under `fg` the message carries the recommended
+> pair to paste, in the dark terminal's order: on a light one, reverse it.
 
 What the spread does with the colour you wrote, and how a column asks for a
 range by another name, are in
