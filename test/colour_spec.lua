@@ -562,6 +562,23 @@ test("ranges: the refusal carries the pair to paste and says nothing is defined"
 	)
 end)
 
+test("ranges: a spread under `bg` is refused without the pair, which is for text on the ground", function()
+	-- The recommended pair is a claim about text on the ground, and a `bg` is
+	-- drawn beneath text instead. Offering it there would hand a reader the
+	-- one pair the documents say does not apply.
+	local msg = throws(
+		function() paint.stops("#7fd4ff <->", X, {}, "bg") end,
+		"nothing defines `bg`",
+		"lightness = { bg = { from = ..., to = ... } }",
+		"recommends no pair",
+		"test/ramp.lua"
+	)
+	lacks(msg, "0.40", "0.90")
+	-- What decides is where the spread is drawn, not what the range is called.
+	lacks(throws(function() paint.stops("#7fd4ff <-> dim", X, {}, "bg") end, "nothing defines `dim`"), "0.40")
+	throws(function() paint.stops("#7fd4ff <-> bg", X, {}, "fg") end, "lightness = { bg = { from = 0.40, to = 0.90 } }")
+end)
+
 test("ranges: the refusal lists what is defined, which is where a typo shows up", function()
 	-- No sweep can refuse `bgg`, because every name is a name somebody may have
 	-- meant; this list, read at the use site, stands in for one.

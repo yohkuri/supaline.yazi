@@ -262,16 +262,30 @@ function M.stops(value, at, ranges, fallback)
 		local wanted = name or fallback
 		local range = ranges[wanted]
 		if not range then
+			-- The recommended pair is a claim about text on the ground. A spread
+			-- under `bg` is drawn beneath the row's own text instead, so it is
+			-- offered no pair rather than that one.
+			local key = schema.as_key(wanted)
+			local paste = fallback == "bg"
+					and string.format(
+						"A `bg` is drawn beneath the row's own text, so both of its ends have to keep that text "
+							.. "readable, and supaline recommends no pair for one. Put `lightness = { %s = { from = ..., "
+							.. "to = ... } }` in `setup` and choose both ends on your own screen;",
+						key
+					)
+				or string.format(
+					"Put `lightness = { %s = %s }` in `setup` and move it to suit your terminal;",
+					key,
+					RECOMMENDED_AS_WRITTEN
+				)
 			at:refuse(
 				"`%s` asks for a lightness range and nothing defines `%s`. Both ends of a range are "
 					.. "lightnesses the ground it is drawn on decides, and supaline cannot see that ground -- so "
-					.. "there is no pair to fall back to. Put `lightness = { %s = %s }` in `setup` and move it to "
-					.. "suit your terminal; "
-					.. "`lua test/ramp.lua` draws a pair before you keep it. %s",
+					.. "there is no pair to fall back to. %s `test/ramp.lua`, run with `lua` from a clone of "
+					.. "supaline's repository, draws a pair before you keep it. %s",
 				value,
 				wanted,
-				schema.as_key(wanted),
-				RECOMMENDED_AS_WRITTEN,
+				paste,
 				defined_in(ranges)
 			)
 		end
