@@ -21,10 +21,8 @@ a linemode, a column, or a style. Nothing else would say so; a plugin-wide
 `scale` written `scal` is read by nobody and every column goes on scaling the
 way it did.
 
-A value none of them takes is refused the same way, and for the same reason.
-`scale = "LOG"` is spelled right and means nothing, and until it was refused it
-reached every column and scaled none of them — a wrong value was accepted by
-being ignored, which is the quieter half of the same mistake.
+A value none of them takes is refused the same way: `scale = "LOG"` is spelled
+right and means nothing.
 
 A linemode name is 1 to 20 bytes, which Yazi counts rather than characters, so
 a CJK name has room for six. Yazi keeps its `Linemode` component's
@@ -58,8 +56,7 @@ linemodes = {
 
 Those columns are drawn in the **current pane**, which is all Yazi itself ever
 does. Whatever else the linemode carries has to be a pane's name or that
-option: a key that is neither — `parnet`, `separatorr` — is refused by name
-rather than quietly ignored.
+option: a key that is neither — `parnet`, `separatorr` — is refused by name.
 
 ### Different columns per pane
 
@@ -83,27 +80,9 @@ left beside it is refused rather than drawn nowhere.
 `mark` there is a column of your own rather than one supaline ships, as
 narrow as you make it: every built-in is at least 5 cells, and how many the
 parent pane can spare depends on the terminal's width, which the note below is
-about. A few lines register one a single cell wide, a dot for when each entry
-was last modified, on one colour spread across a lightness range:
-
-```lua
-local function mtime(file) return file.cha.mtime or 0 end
-
-supaline.column("mark", {
-  width  = 1,
-  style  = "#ef4444 <->",
-  stats  = supaline.extremes(mtime),
-  render = function(file, ctx)
-    return "●", ctx.style_at(ctx.ratio(mtime(file)))
-  end,
-})
-```
-
-`<->` takes its two ends from a range under `lightness`, which `setup` has to
-name; [One colour across a lightness range](styles.md#one-colour-across-a-lightness-range)
-says why there is none until you do.
-
-[Writing a column](columns.md) has the rest of what one may do.
+about. [Different columns per pane](examples/panes.md#different-columns-per-pane)
+registers one a single cell wide, and [Writing a column](columns.md) has the
+rest of what one may do.
 
 Two panes can share one set of columns. Write the list once and hand it to
 both: a spec is only ever read, so the same table is safe in two places, and one
@@ -251,16 +230,12 @@ and a definition that names itself alike.
 Any other key is refused by name, on a definition and on a spec alike, and so
 is one of those written where it is not read — `options` or `validate` at a use
 site, `name` on a definition `register` has already named, an entry at `[1]`
-that is not a column's name beside a `render`. Nothing else would say so: a
-misspelled `max_widht` is read by nobody, and the column draws at its natural
-width without a word about why.
+that is not a column's name beside a `render`.
 
-So is a value the key does not take. `align = "centre"` is spelled right and
-means nothing, and `render`, `stats` and `refresh` are *called* rather than
-read, so anything but a function written there is turned away while `setup` can
-still say so. Left to itself a `stats = 42` reaches you at the first row as this
-column throwing from its `stats` — about a function you never wrote — and a
-`refresh = 42` reaches you as every linemode drawn on screen as its own name.
+So is a value the key does not take: `align = "centre"` is spelled right and
+means nothing, and anything but a function under `render`, `stats` or
+`refresh` is turned away while `setup` can still say so, rather than at the
+first row.
 
 `width = "auto"` measures every file in the folder, as often as a
 [`stats` would run](columns.md#how-often-stats-runs), and takes the widest
@@ -270,10 +245,9 @@ costs nothing.
 extremes.
 
 `refresh` is for a column that caches something across rows which is not a
-property of any file — the built-in timestamp columns hold the current year, so
-`smart` can decide its format with an integer comparison instead of an
-`os.date` per cell. Nothing about the folder is passed in, because nothing
-about the folder is what changed.
+property of any file — the built-in timestamp columns hold the current year.
+Nothing about the folder is passed in, because nothing about the folder is what
+changed.
 
 ## Built-in columns
 
@@ -309,10 +283,12 @@ that off rather than layering over it: `style = "cyan"` in the spec or
 the characters stop being coloured apart. A `bold` or a `bg` is not a colour,
 and goes over the characters, whose own colours survive it -- the style going
 over them has none, because a colour written for the column would have turned
-the per-character painting off in the first place. What it cannot do is take
-one of those `[status]` colours *away*: `style = { bg = false }` is a
-background this column does not write rather than one it removes, for the
-reason [`style`](styles.md#style) gives.
+the per-character painting off in the first place. Over rather than under, so
+that the key you wrote wins the way it does everywhere else: a flavor that
+writes `bold` on `perm_read` would otherwise take a `style = { bold = false }`
+back off you. What it cannot do is take one of those `[status]` colours
+*away*: `style = { bg = false }` is a background this column does not write
+rather than one it removes, for the reason [`style`](styles.md#style) gives.
 
 `user` and `group` are the two halves of `owner`, each drawn on its own, for a
 listing where only one of them is worth the cells. Eight cells is the
@@ -333,13 +309,9 @@ trusted them would draw `0:0` down the whole listing, which is what Yazi's own
 linemode does. A remote file still shows its numbers there: those came off the
 server.
 
-Widths are stated rather than measured, so none of them renders the folder
-twice. Set `width = "auto"` on any of them to have it fit instead.
-
-`size` and the three times each declare `stats`, and a column that declares
-`stats` takes one pass over the listing each time a folder is
-[measured](columns.md#how-often-stats-runs) — cheap next to what Yazi has
-already done to list it, and the same pass a gradient reads from.
+The built-ins' widths are stated rather than measured; `width = "auto"` on any
+of them fits it instead. `size` and the three times each declare `stats`, so
+they are the built-ins a gradient can be written on.
 
 ## Alongside git.yazi
 

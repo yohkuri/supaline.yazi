@@ -6,9 +6,6 @@ configuration above it in Yazi 26.9.1, so the two say the same thing; Yazi's
 file icons are switched off for the pictures, since an image cannot rely on its
 viewer having a Nerd Font.
 
-Each example on those pages ends with a link to the part of the documentation
-that explains it, for what the picture leaves out.
-
 ## Layout
 
 [Layout](layout.md): the columns a linemode draws, from the quick start to an

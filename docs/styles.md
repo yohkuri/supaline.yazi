@@ -73,9 +73,7 @@ it, in Yazi's own spelling of the colours — so `ui.Style():fg("cyan"):bold()`
 and `{ fg = "cyan", bold = true }` are one style. Mind that its attribute
 methods take a removal flag rather than the value: `bold()` adds, and
 `bold(true)` takes off. `ui.Style` without the call, and a table with nothing
-in it, are both refused, because neither says anything; a list of colours is
-refused as a table of keys nobody claims, because a gradient is
-[one string](#a-gradient).
+in it, are both refused, because neither says anything.
 
 `false` is nothing at all: no colour of the column's own, and nothing from the
 theme or from the column's definition either. The cell is drawn in whatever
@@ -172,10 +170,6 @@ lightness = { fg = { from = 0.40, to = 0.90 }, bg = { from = 0.15, to = 0.40 } }
 { "size", style = "#7fd4ff <-> bg" }                            -- the `bg` one under `fg`
 ```
 
-**A `<->` with no range behind it is refused**, and under `fg` the message
-carries a pair to paste. Nothing is filled in for you — see
-[`lightness`](#lightness) for why.
-
 **The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
 axis as the colour you wrote, so every step between them does too. As far as
 the display allows, that ray is walked by scaling lightness and the two colour
@@ -227,15 +221,12 @@ require("supaline"):setup {
 ```
 
 `from` is what ratio 0 draws and `to` what ratio 1 draws, so each pair carries
-its own direction. Names hold lowercase letters, digits and `_` — the same
-characters a column's name holds, so there is one shape to learn rather than
-two. The length limit on a column's name is not here, because that one is
-Yazi's field parser and nothing parses a range name. `from` and `to` are a
-range's own keys and cannot be a range's name.
+its own direction. Names hold lowercase letters, digits and `_`, as a column's
+do, with no limit on length. `from` and `to` are a range's own keys and cannot
+be a range's name.
 
-`fg` and `bg` are ordinary names with one convenience: they are what the two
-style keys are called, so a `<->` written under `fg` asks for `fg` without
-saying so. Any other name is asked for after the marker, `"#7fd4ff <-> dim"`.
+`fg` and `bg` are ordinary names, not built in: a `<->` asks for one of them
+unnamed only because they are what the two style keys are called.
 
 **Nothing is defined for you.** A `<->` with no range behind it is refused,
 and for a spread under `fg` the message carries a pair to paste:
@@ -302,9 +293,7 @@ it is refused without one — `ramp.lua` and your own screen are the whole of
 the method.
 
 Nothing checks the two ends against each other: two ends at one lightness draw
-sixty-four steps of one colour, which is what a flat colour already is, and
-supaline takes it rather than guessing you did not mean it — a pair a hair
-apart draws the same column and no comparison of two numbers tells them apart.
+sixty-four steps of one colour, which is a flat colour, and supaline takes it.
 
 ## `scale`
 
@@ -367,9 +356,9 @@ want in a file a flavor also writes. That spelling is the theme's alone. In a
 spec `style = ""` is a colour Yazi does not accept and is refused as one, since
 a spec that wants no colour has `false` and has leaving the key out.
 
-Field names may hold lowercase letters, digits and underscores only. `my-col`
-and `MyCol` are refused, and the refusal costs the whole `theme.toml`, so a
-column you want themed needs a name of that shape.
+Field names follow the rule a column's name does, in
+[Column specs](configuration.md#column-specs): `my-col` and `MyCol` are refused,
+and the refusal costs the whole `theme.toml`.
 
 Two spellings are worth getting right, because neither is refused. It is
 `reversed`, where the `ui.Style` method of the same effect is `reverse()`; and
@@ -402,28 +391,19 @@ named after it reaches the colour it chose, exactly as one reaches a column
 
 `false` under a key is written, and wins like any value: `fg = false` is no
 colour whatever the theme said, and `bold = false` is the attribute taken off
-whatever the theme or the row put on. `style = false` is the whole style off
-— neither a colour of the column's own nor anything the theme or the
-definition wrote — and is not the same as eleven `false`s: an attribute
-written `false` strips the row's own, where `style = false` leaves the row as
-it is.
+whatever the theme or the row put on. `style = false` is not the same as
+eleven `false`s: an attribute written `false` strips the row's own, where
+`style = false` leaves the row as it is.
 
 A function counts as whichever of the three wrote it saying whatever it
-returns, `false` included; `nil` from one is nothing written. It is called
-once per column each time the styles are built — at `setup`, and again on
-every theme reload — never per row.
+returns, `false` included.
 
 `ctx.fg_written` is the one piece of this a column can ask about: whether any
 of the three wrote `fg`, `false` included. Which of them wrote it is not there,
 because that answer names a file to go and edit and `render` has nothing to do
-with one. `permissions` is the column that asks. It colours each character out
-of your theme's `[status]` section and steps aside the moment an `fg` is
-written for it, wherever it was written — a flat colour for the whole cell, or
-no colour — while a `bold` or a `bg` written for it goes over the ten
-characters, which keep the reds and greens because the style going over them
-carries no colour at all. Over rather than under, so that the key you wrote
-wins the way it does everywhere else: a flavor that writes `bold` on
-`perm_read` would otherwise take a `style = { bold = false }` back off you.
+with one. `permissions` is the column that asks, and
+[Built-in columns](configuration.md#built-in-columns) says what it does with
+the answer.
 
 ## A coloured separator
 

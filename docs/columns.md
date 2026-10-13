@@ -146,20 +146,17 @@ supaline.column("initials", {
 })
 ```
 
-`options` may not name a key a column already takes, which is why the example
-calls its option `between` rather than `separator`. Any of the keys in
-[Column specs](configuration.md#column-specs) is refused there, and the
-refusal says which one.
+`options` names the keys the column reads, not the keys supaline reads, so it
+may not name one a column already takes — which is why the example calls its
+option `between` rather than `separator`. Any of the keys in
+[Column specs](configuration.md#column-specs) is refused there, and so is
+`fetch`, which supaline answers for itself
+([Asynchronous state](#asynchronous-state)); the refusal says which one.
 
 `ctx.opts` holds those names and nothing else the spec was written with. A
 column's effective width is `ctx.width` rather than `ctx.opts.width`, and the
 style it draws in is `ctx.style` rather than `ctx.opts.style`, which would be
 the one layer the use site wrote rather than the three merged.
-
-`options` names the keys the column reads, not the keys supaline reads: one
-that is a column key already is refused, and so is one supaline answers for
-itself — declaring `fetch` would buy the column an option nobody needs and
-turn off the refusal below.
 
 It is a plain list, and is checked as one. A gap in it, or a name written as a
 key rather than as an entry, is refused rather than read as far as the gap and
