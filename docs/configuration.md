@@ -10,12 +10,12 @@ Everything supaline reads, in the order you are likely to need it. The
 | ----------- | ----------- | ---------------------------------------------------- |
 | `linemodes` | —           | Required. Map of linemode name to a list of columns. |
 | `separator` | `" "`       | Drawn between columns, unless a column opts out. A table carries a colour; see [A coloured separator](styles.md#a-coloured-separator). |
-| `scale`     | `"linear"`  | Normalisation for columns that take a range. Outranks a column definition's own; see [`scale`](styles.md#scale). |
+| `scale`     | —           | Normalisation for columns that take a range: `"linear"` or `"log"`. Outranks a column definition's own, and a column's spec outranks it; see [`scale`](styles.md#scale). |
 | `lightness` | —           | The lightness ranges a `<->` may ask for, by name. Nothing is defined by default, so a `<->` with no range behind it is refused; see [`lightness`](styles.md#lightness). |
 | `order`     | `1400`      | Where the parent/preview child sits among `Linemode`'s children, as a whole number. |
 | `toggles`   | —           | Another plugin's `Linemode` child by name, as the `order` it sits at, for a key to hide; see [Toggling from a key](#toggling-from-a-key). |
 
-Those six are the whole of it: a key that is none of them — `scal`, `bnad`,
+Those six are the whole of it: a key that is none of them — `scal`, `ligthness`,
 `seperator` — is refused by name rather than quietly ignored, as one is inside
 a linemode, a column, or a style. Nothing else would say so; a plugin-wide
 `scale` written `scal` is read by nobody and every column goes on scaling the
@@ -33,7 +33,7 @@ on that table is refused — `new`, `redraw`, `padding`, `children_add`,
 `children_remove`, `solo` — as is anything beginning with `_`, and `none`,
 which is Yazi's name for no linemode at all. The
 exception is Yazi's own linemodes: naming one `size`, `mtime`, `btime`,
-`atime`, `permissions` or `owner` replaces it, which is allowed.
+`permissions` or `owner` replaces it, which is allowed.
 
 ## Linemode options
 
@@ -242,16 +242,18 @@ and a definition that names itself alike.
 | `align`     | `"right"`    | `"right"` or `"left"`, within the column's width.        |
 | `overflow`  | `"ellipsis"` | `"ellipsis"`, `"clip"`, or `"grow"`.                      |
 | `style`     | `nil`        | A colour, a gradient, a style table, a `ui.Style`, `false`, or a function returning one. See [Styles](styles.md). |
-| `scale`     | from `setup` | `"linear"` or `"log"`. See [`scale`](styles.md#scale).             |
+| `scale`     | from `setup` | `"linear"` or `"log"`. Failing the spec and `setup`, the definition's own, and failing that `"linear"`. See [`scale`](styles.md#scale). |
 | `separator` | `nil`        | `false` drops the separator before this column; a string or a table replaces it. See [A coloured separator](styles.md#a-coloured-separator). |
 | `options`   | `nil`        | The definition's alone: the names of the extra keys it reads off `ctx.opts`, each of which it may also default. See [Options of its own](columns.md#options-of-its-own). |
 | `validate`  | `nil`        | The definition's alone: a check per declared option, `function(value)`, run by `column` and `setup` on each value of it written. See [Options of its own](columns.md#options-of-its-own). |
+| `name`      | `nil`        | An inline definition's alone: what its `[supaline]` field and its notifications call it. Without one the theme cannot reach it, and a notification calls it `?`. |
 
 Any other key is refused by name, on a definition and on a spec alike, and so
 is one of those written where it is not read — `options` or `validate` at a use
 site, `name` on a definition `register` has already named, an entry at `[1]`
-beside a `render`. Nothing else would say so: a misspelled `max_widht` is read by
-nobody, and the column draws at its natural width without a word about why.
+that is not a column's name beside a `render`. Nothing else would say so: a
+misspelled `max_widht` is read by nobody, and the column draws at its natural
+width without a word about why.
 
 So is a value the key does not take. `align = "centre"` is spelled right and
 means nothing, and `render`, `stats` and `refresh` are *called* rather than
@@ -278,17 +280,18 @@ about the folder is what changed.
 | Column        | Width | Align | Notes                                            |
 | ------------- | ----- | ----- | ------------------------------------------------ |
 | `size`        | 7     | right | `scale = "log"` by default. Falls back to the entry count for a directory Yazi has already listed. |
-| `mtime`       | 11    | right | `ctx.opts.format` takes an `os.date` format; the default is Yazi's own. |
-| `btime`       | 11    | right | Birth time.                                       |
-| `atime`       | 11    | right | Access time.                                      |
+| `mtime`       | 11    | right | Modification time. `format` takes an `os.date` format, `{ "mtime", format = "%Y-%m-%d" }`; the default is Yazi's own. |
+| `btime`       | 11    | right | Birth time, and `format` as `mtime` takes it.     |
+| `atime`       | 11    | right | Access time, and `format` as `mtime` takes it.    |
 | `permissions` | 10    | left  | Unix only. Coloured from your theme, a character at a time. |
 | `owner`       | 12    | left  | `user:group`. Unix only; numeric off this machine. |
 | `user`        | 8     | left  | The owning user alone, under the same rule.       |
 | `group`       | 8     | left  | The owning group alone, under the same rule.      |
 | `count`       | 5     | right | Entry count, directories only.                    |
 
-There is no `ctime` column: Yazi's `Cha` exposes `atime`, `btime` and `mtime`
-only.
+There is no built-in `ctime` column, though Yazi has the field: on Unix
+`file.cha.ctime` is the inode's change time, and a column of your own can read
+it as the three above read theirs. Off Unix it is `nil`.
 
 None of them names a colour. A built-in column leaves its cell unstyled, so it
 is drawn in whatever colour your flavor already gives the file row -- the same

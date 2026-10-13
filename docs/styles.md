@@ -94,8 +94,9 @@ theme:
 Write that one as a value and it comes out wrong, in a way nothing reports.
 Yazi merges a flavor *after* your `init.lua` has run, so `th.status.perm_read`
 read there is Yazi's preset rather than your flavor's colour — and it stays
-the preset, because a spec is re-read on `app:theme` and never evaluated
-again.
+the preset, because a value in a spec is read once, at `setup`: `app:theme`
+re-reads your theme and calls a style function again, but never evaluates a
+value again.
 
 ## A gradient
 
@@ -171,8 +172,9 @@ lightness = { fg = { from = 0.40, to = 0.90 }, bg = { from = 0.15, to = 0.40 } }
 { "size", style = "#7fd4ff <-> bg" }                            -- the `bg` one under `fg`
 ```
 
-**A `<->` with no range behind it is refused**, and the message carries a pair
-to paste. Nothing is filled in for you — see [`lightness`](#lightness) for why.
+**A `<->` with no range behind it is refused**, and under `fg` the message
+carries a pair to paste. Nothing is filled in for you — see
+[`lightness`](#lightness) for why.
 
 **The hue never moves.** Both ends sit on the same ray out of Oklab's lightness
 axis as the colour you wrote, so every step between them does too. As far as
@@ -236,7 +238,7 @@ style keys are called, so a `<->` written under `fg` asks for `fg` without
 saying so. Any other name is asked for after the marker, `"#7fd4ff <-> dim"`.
 
 **Nothing is defined for you.** A `<->` with no range behind it is refused,
-and the message carries a pair to paste:
+and for a spread under `fg` the message carries a pair to paste:
 
 ```lua
 lightness = { fg = { from = 0.40, to = 0.90 } }
@@ -262,9 +264,13 @@ recommends it, and you write it.
 
 ### Adjusting it
 
-Look at a pair before you keep it. This needs no Yazi and no restart:
+Look at a pair before you keep it. This needs no Yazi and no restart, but it
+does need a clone of this repository and a standalone `lua` to run it with:
+`ya pkg` installs the plugin without its `test/` directory.
 
 ```sh
+git clone https://github.com/yohkuri/supaline.yazi
+cd supaline.yazi
 lua test/ramp.lua --lightness 0.40,0.90 "#0b3d91 <->"
 ```
 
@@ -291,8 +297,9 @@ red, orange and yellow together.
 A range under `bg` wants a different pair rather than a reversed one: it is
 drawn *beneath* the row's own text, so both of its ends have to keep that text
 readable, and supaline can see neither the text nor the ground. There is no
-recommendation for that one at all — `ramp.lua` and your own screen are the
-whole of the method.
+recommendation for that one at all, and a `<->` under `bg` with no range behind
+it is refused without one — `ramp.lua` and your own screen are the whole of
+the method.
 
 Nothing checks the two ends against each other: two ends at one lightness draw
 sixty-four steps of one colour, which is what a flat colour already is, and
@@ -381,10 +388,10 @@ keeps the theme's `bold` and the definition's `bg`; a theme that writes
 `{ bold = true }` alone keeps the colour the definition gave.
 
 A column written inline **is** its own definition, so its style is the
-farthest of the three and a `[supaline]` field named after it reaches the
-colour it chose, exactly as one reaches a column `register` declared. Only a
-use of a column defined elsewhere, `"size"` or `{ "size", ... }`, writes the
-nearest layer.
+farthest of the three and, once it gives itself a `name`, a `[supaline]` field
+named after it reaches the colour it chose, exactly as one reaches a column
+`register` declared. Only a use of a column defined elsewhere, `"size"` or
+`{ "size", ... }`, writes the nearest layer.
 
 ```lua
 -- with `size = "#0b3d91 -> #7fd4ff"` in your theme:

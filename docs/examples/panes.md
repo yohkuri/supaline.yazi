@@ -12,8 +12,8 @@ terminal, 15 cells at the 120 columns drawn here and 21 at 170. Four of them
 are a margin, the two ends of the hovered row and the space before the
 columns, a file icon takes two more where Yazi draws one, and what the columns
 take comes out of the names. Here the parent pane has a column of your own, a
-dot for when each entry was last modified, spread across one colour's
-lightness the way
+dot for when each entry was last modified, one colour spread across a
+lightness range the way
 [a built-in can be](styles.md#one-colour-across-a-lightness-range): the most
 recent is the lightest. The preview pane shows the hovered directory with the
 sizes in it:

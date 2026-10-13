@@ -39,7 +39,7 @@ the old one.
 | `ctx.style_at(r)` | The style for that position on the column's gradient; `ctx.style` when there is none, and for `nil`. |
 | `ctx.ratio(v)`    | Where `v` sits between the extremes, 0 to 1, or `nil`. `1` when every value in the folder is the same. |
 | `ctx.stats`       | Whatever `stats(files)` returned for the folder being drawn. |
-| `ctx.width`       | The width this cell is laid out in, `max_width` already applied, or `nil` for a column that states none. |
+| `ctx.width`       | The width this cell is laid out in, `max_width` already applied, or `nil` for a column that states none. Also `nil` while `width = "auto"` is being measured, since that pass is what decides it. |
 | `ctx.opts`        | The options this column declared in `options`, taken from the spec and falling back to the definition. Nothing else the spec carries. |
 | `ctx.fg_written`  | Whether any of the three writers put an `fg` there, `false` included. Only a column that paints its own characters needs it; see [How the three combine](styles.md#how-the-three-combine). |
 
