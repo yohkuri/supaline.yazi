@@ -6,9 +6,9 @@ as you like, in any order, at any width, each styled its own way.
 
 ![Yazi with permissions, an italic user, size in red and mtime in blue, each lighter the larger or the newer it is, beside git.yazi's signs; a blue dot by mtime in the parent pane, and size and mtime in the preview pane](docs/images/readme.png)
 
-The configuration behind it is under [The picture above](#the-picture-above),
-and [the examples](docs/examples/README.md) show more, each with the
-configuration that draws it.
+It is drawn from [My favourite setup](#my-favourite-setup), and
+[the examples](docs/examples/README.md) show more, each with the configuration
+that draws it.
 
 - **Columns side by side** — size, timestamps, permissions, owner and more,
   in the order you list them.
@@ -135,9 +135,9 @@ supaline:setup {
 [Writing a column](docs/columns.md) covers per-folder statistics, gradients
 and options of your own.
 
-## The picture above
+## My favourite setup
 
-Drawn in Ghostty, on the
+The picture at the top, in Ghostty on the
 [Catppuccin Mocha](https://github.com/yazi-rs/flavors) flavor, with
 [git.yazi](https://github.com/yazi-rs/plugins/tree/main/git.yazi) beside
 supaline. git.yazi's signs and the file icons are Nerd Font glyphs. Each of
@@ -177,6 +177,7 @@ supaline:setup {
       },
     },
   },
+  toggles = { git = 1500 },
 }
 ```
 
@@ -203,10 +204,22 @@ clean_sign   = "  "
 unknown_sign = "  "
 ```
 
-The two signs in `theme.toml` keep the columns lined up on the rows git.yazi
-has nothing to say about;
-[Panes and keys](docs/examples/panes.md#alongside-gityazi) shows them without
-it.
+```toml
+# ~/.config/yazi/keymap.toml
+[[mgr.prepend_keymap]]
+on   = [ "m", "d" ]
+run  = "plugin supaline -- toggle detail"
+desc = "Toggle supaline's columns"
+
+[[mgr.prepend_keymap]]
+on   = [ "m", "g" ]
+run  = "plugin supaline -- toggle git"
+desc = "Toggle git.yazi's sign"
+```
+
+`m d` shows and hides the columns, and `m g` git.yazi's sign, which `toggles`
+names by the `order` it was added at. The two signs in `theme.toml` keep the
+columns lined up on the rows git.yazi has nothing to say about.
 
 ## Documentation
 
