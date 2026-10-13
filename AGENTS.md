@@ -64,6 +64,9 @@ subject of 50 characters or fewer is preferred; going over is a warning rather
 than a refusal, because a style point is not worth rewriting published history
 for.
 
+Keep emoji out of the documents too, except at the head of each point in the
+README's opening list.
+
 ## Landing a change
 
 Work reaches `main` through a pull request. A commit that reaches it any other
