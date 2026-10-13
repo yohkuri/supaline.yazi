@@ -512,9 +512,9 @@ def build_folder(root: Path) -> Path:
 #: Git run with nobody's configuration, so a redraw does not depend on whose
 #: machine it is on: a global hook or signing would fail the commit. The
 #: ignore and attributes files are named too, because git reads the default
-#: ones under `~/.config/git` with `GIT_CONFIG_GLOBAL` set -- measured on git
-#: 2.54: a `*.mp4` there kept a file out of the commit, and git.yazi then drew
-#: it as untracked.
+#: ones under `~/.config/git` with `GIT_CONFIG_GLOBAL` set, measured on git
+#: 2.54 -- so whoever redraws would decide which files are committed, and
+#: which sign git.yazi draws beside each.
 GIT_ENV = {
     "GIT_CONFIG_GLOBAL": os.devnull,
     "GIT_CONFIG_NOSYSTEM": "1",
@@ -544,10 +544,10 @@ def git(folder: Path, *args: str) -> None:
 
 
 def repository(folder: Path, states: dict[str, str] = GIT) -> None:
-    """Make `folder` a repository holding `states`: everything else committed, an ignored file written into `.gitignore`, a
-    file `added` if one is named, and each change one byte, so no size moves.
-    Hidden files are not listed, so `.git` and `.gitignore` are on no
-    picture."""
+    """Make `folder` a repository holding `states`: everything else
+    committed, an ignored file written into `.gitignore`, a file `added` if
+    one is named, and each change one byte, so no size moves. Hidden files
+    are not listed, so `.git` and `.gitignore` are on no picture."""
 
     def touched(name: str) -> None:
         with (folder / name).open("r+b") as f:
