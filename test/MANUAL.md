@@ -518,8 +518,7 @@ have to be indistinguishable, and `e2e.py` reads both with one check.
   find out what to write instead.
 - **A light terminal instead.** Then the spread is upside down rather than
   slightly wrong, and the pair goes backwards:
-  `lightness = { fg = { from = 0.90, to = 0.40 } }`. On a light screen 0.90 reads
-  only narrowly, and 0.85 is where to move `from` if it does not.
+  `lightness = { fg = { from = 0.90, to = 0.40 } }`.
 - **The top.** It climbs past where `c r` ends and gives up chroma to get
   there, so it is paler than the navy it came from and paler than `c r`'s own
   last row. Whether that reads as the same colour or as a different one is the

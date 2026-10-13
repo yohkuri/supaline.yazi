@@ -245,13 +245,10 @@ how much contrast your eyes want at that size are all yours as well.
 
 The pair above is what supaline measured, and measuring it took a population
 rather than a person: 0.40 clears the lightest of five common dark backgrounds
-by a tenth of the lightness scale — merely lighter than the ground is not
-enough, and a navy step at 0.35 sinks into Solarized dark's blue — and 0.90 was
-chosen by looking at nine hues on those five: at 0.95 red, orange and yellow
-pale into one another. That makes it a good place to start and a poor thing to
-apply to someone who never asked for it — a column would be drawn at a pair
-nobody chose, and nothing on screen would say it was a knob. So supaline
-recommends it, and you write it.
+by a tenth of the lightness scale. That makes it a good place to start and a
+poor thing to apply to someone who never asked for it — a column would be
+drawn at a pair nobody chose, and nothing on screen would say it was a knob. So
+supaline recommends it, and you write it.
 
 ### Adjusting it
 
@@ -280,10 +277,7 @@ lightness = { fg = { from = 0.90, to = 0.40 } }
 ```
 
 Ratio 0 is then the pale end and ratio 1 the dark one, and nothing else
-changes: these are the dark pair's sixty-four colours in the other order. On
-white and on Solarized light, 0.90 reads, though narrowly — 0.85 reads easily,
-and is where to move `from` if 0.90 does not — and 0.35 at the dark end muddies
-red, orange and yellow together.
+changes: these are the dark pair's sixty-four colours in the other order.
 
 A range under `bg` wants a different pair rather than a reversed one: it is
 drawn *beneath* the row's own text, so both of its ends have to keep that text

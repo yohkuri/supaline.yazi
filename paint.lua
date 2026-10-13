@@ -33,14 +33,10 @@ local BOTH = "<->"
 -- The pair every refusal of an undefined range quotes, and applies to nobody.
 --
 -- 0.40 clears the lightest of five common dark grounds, One Dark at 0.293, by
--- a tenth of the scale. Merely lighter than the ground is not enough: 0.35 is,
--- and a navy row at 0.35 sinks into Solarized dark, whose ground is as blue as
--- the row, judged by eye on that ground. 0.90 was judged by eye against
--- 0.95 over nine hues on those five grounds: 0.95 still parts from white text,
--- but red, orange and yellow pale into one another there. A light terminal
--- wants this pair backwards, `{ from = 0.90, to = 0.40 }` -- the same 64
--- colours in the other order. supaline cannot see the ground a range is drawn
--- on, so this is a recommendation to paste and move rather than a default.
+-- a tenth of the scale. A light terminal wants this pair backwards,
+-- `{ from = 0.90, to = 0.40 }` -- the same 64 colours in the other order.
+-- supaline cannot see the ground a range is drawn on, so this is a
+-- recommendation to paste and move rather than a default.
 ---@type supaline.LightnessRange
 local RECOMMENDED = { from = 0.40, to = 0.90 }
 
