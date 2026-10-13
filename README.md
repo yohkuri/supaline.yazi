@@ -70,6 +70,7 @@ desc = "Toggle supaline's columns"
 | `mtime`       | Modified time                  |
 | `btime`       | Created time                   |
 | `atime`       | Accessed time                  |
+| `ctime`       | Metadata changed time; Unix only |
 | `permissions` | `drwxr-xr-x`, coloured from your theme |
 | `owner`       | `user:group`                   |
 | `user`        | Owning user                    |
