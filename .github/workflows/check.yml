@@ -817,10 +817,10 @@ jobs:
           exit $rc
 
 # `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py` and
-# `test/readme.py` are deliberately not here. They need a real Yazi binary and a real terminal, and
-# what they check -- rendering, and how wide a cell came out -- is not what a
-# runner is good at. Run them locally before saying that anything about the
-# screen works.
+# `test/readme.py` are deliberately not here. They need a real Yazi binary and
+# a real terminal, and what they are for -- rendering, how wide a cell came
+# out, and a picture someone takes by hand -- is not what a runner is good at.
+# Run them locally before saying that anything about the screen works.
 #
 # What *is* here is the half of `e2e.py` that needs neither: `test/screen.py`
 # reads a capture and is tested by `test/test_screen.py` in the `Unit tests`

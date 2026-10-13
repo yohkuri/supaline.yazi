@@ -179,10 +179,9 @@ repository.
 
 `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py` and
 `test/readme.py` need a real Yazi and a real terminal and are deliberately not
-in CI. Run them
-yourself before claiming anything about the screen — and a green exit is worth
-more than the screen looking right, because a broken fetcher shows up nowhere
-on it.
+in CI. Run them yourself before claiming anything about the screen — and a
+green exit is worth more than the screen looking right, because a broken
+fetcher shows up nowhere on it.
 
 Anything else about these is in `annotate-supaline`, `verify-supaline`, or the
 comment beside the step in `.github/workflows/check.yml`.

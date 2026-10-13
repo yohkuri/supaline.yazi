@@ -8,15 +8,17 @@ each naming its file on its first line the way the pages in `docs/examples/`
 spell them, written out as they stand. The folder is built here, under a
 scratch home that Yazi is given as `HOME`, so its header reads
 `~/work/project` and nothing of your own configuration reaches it -- Yazi's
-or git's. supaline is this checkout; every other plugin the setup requires,
-and every flavor it names, is linked from where `ya pkg add` put yours.
+or git's. supaline is this checkout; every other plugin its `init.lua`
+requires, and every flavor its `theme.toml` names, is linked from where
+`ya pkg add` put yours. A plugin named only in `yazi.toml` or `keymap.toml`
+is not found that way, and Yazi would run without it.
 
 Nothing here sets the terminal up, since nothing could for every terminal:
 take the picture on the flavor's background, `#1e1e2e` for Catppuccin Mocha,
 with a Nerd Font, and at a font size that gives the picture its resolution --
 the PNG in `docs/images/` is 2019 pixels wide. This waits for the window to
-reach the size the README says the picture is, then opens Yazi with `assets`
-hovered. Take the screenshot, quit, and the scratch home is removed.
+reach the width the README says the picture is, and the height that holds the
+folder, then opens Yazi with `assets` hovered. Take the screenshot, quit, and the scratch home is removed.
 
 Not in CI, for the reason `e2e.py` is not, and not checked against the PNG:
 retake the picture when what the setup draws changes.
@@ -25,15 +27,13 @@ retake the picture when what the setup draws changes.
 from __future__ import annotations
 
 import os
-import signal
+import re
 import subprocess
 import sys
 import tempfile
 import time
 import tomllib
 from pathlib import Path
-from types import FrameType
-from typing import NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -45,17 +45,15 @@ from examples import (
     FENCE,
     FILES,
     GIT_ENV,
-    HEADING,
     INIT,
     REQUIRE,
     THEME,
     closing,
-    git,
     installed,
 )
+from examples import git as examples_git
 from harness import (
     ROOT,
-    TERMINATED,
     catch_term,
     need,
     refuse,
@@ -66,15 +64,16 @@ from harness import (
 
 README = ROOT / "README.md"
 SECTION = "## My favourite setup"
+#: A heading that ends the section: one at its own level or above, so a
+#: `###` inside it does not cut its blocks off.
+ENDS = re.compile(r"^#{1,2}\s")
 
-#: The window the picture is taken in: the width the section says it is, and
-#: the height that holds the folder's 13 entries with the header and the
-#: status bar.
-COLS, ROWS = 140, 15
+#: The width the section says the picture is.
+COLS = 140
 
-#: One fixed scratch home, as `manual.py` keeps, so a run that died before
-#: removing it leaves it for the next run to clear rather than for nobody.
-DIR = Path(tempfile.gettempdir()) / "supaline-readme"
+#: The scratch home, named after the run, so a second run started while one
+#: is open builds its own rather than clearing the first one's.
+DIR = Path(tempfile.gettempdir()) / f"supaline-readme.{os.getpid()}"
 
 #: Where a flavor the setup names is linked from: where `ya pkg add` puts it,
 #: beside the plugins `examples.installed` links.
@@ -87,7 +86,10 @@ DAY = 24 * HOUR
 #: seconds. The ages run from minutes to over a year, so each gradient spans
 #: its whole range, and `assets` -- the entry Yazi hovers first -- holds sizes
 #: and ages as far apart as the list's, for the preview pane to show them too.
-#: Sparse, as `setup.sized` says why.
+#: Sparse, as `setup.sized` says why. The ages count back from `TAKEN` rather
+#: than from now: `mtime` draws a date of this year with its time of day and
+#: an older one with its year, so counted from now, a picture retaken in
+#: February would show years where the PNG shows times.
 FILES_BY_AGE = [
     ("assets/hero.png", 1_468_006, 2 * HOUR),
     ("assets/logo.svg", 6_349, 3 * DAY),
@@ -111,12 +113,20 @@ FILES_BY_AGE = [
 ]
 DIRS = {"assets": 2 * HOUR, "docs": 5 * DAY, "src": 1 * HOUR}
 
+#: The moment the ages count back from, as `MMDDhhmm` of this year: when the
+#: PNG was taken.
+TAKEN = "10131330"
+
 #: The executables, so `permissions` has an `x` to draw.
 EXECUTABLE = {"install.sh"}
 
 #: The project's siblings, for the parent pane's dots, with their ages.
 SIBLINGS = {"dotfiles": 2 * DAY, "scratch": 300 * DAY, "website": 33 * DAY}
 PROJECT_AGE = 20 * 60
+
+#: The window's height: a row for each of the project's entries, with the
+#: header and the status bar, so none of them scrolls off the picture.
+ROWS = len({name.split("/")[0] for name, _, _ in FILES_BY_AGE}) + 2
 
 #: The entry git says each state of, for those not committed and clean, so
 #: git.yazi has a sign to draw for each one it has.
@@ -143,7 +153,7 @@ def setup_blocks(text: str) -> dict[str, str]:
     except ValueError:
         raise ValueError(f"no `{SECTION}` heading") from None
     blocks: dict[str, str] = {}
-    while i < len(lines) and not HEADING.match(lines[i]):
+    while i < len(lines) and not ENDS.match(lines[i]):
         fence = FENCE.match(lines[i].rstrip())
         if not fence:
             i += 1
@@ -158,11 +168,13 @@ def setup_blocks(text: str) -> dict[str, str]:
             block = "\n".join(body) + "\n"
             if body[0] != INIT:
                 try:
-                    tomllib.loads(block)
+                    parsed = tomllib.loads(block)
                 except tomllib.TOMLDecodeError as error:
                     raise ValueError(
                         f"line {i + 1}: the block does not parse: {error}"
                     ) from None
+                if not isinstance(parsed.get("flavor", {}), dict):
+                    raise ValueError(f"line {i + 1}: `flavor` is not a table")
             blocks[body[0]] = block
         i = end + 1
     if INIT not in blocks:
@@ -200,10 +212,17 @@ def stamp(path: Path, age: int, now: float) -> None:
     fixture.stamp(path, now - age)
 
 
-def build_folder(home: Path) -> Path:
+def build_folder(home: Path, env: dict[str, str]) -> Path:
     """The folder the picture is of, under `home`, as a repository holding
     `GIT`'s states. Built under the umask `setup.build` states, so
-    `permissions` draws the same modes whoever retakes the picture."""
+    `permissions` draws the same modes whoever retakes the picture, and with
+    git given `env`, the HOME Yazi runs under: git reads an ignore file from
+    the real one even with `GIT_CONFIG_GLOBAL` set, so a `*.mp4` there would
+    leave a file uncommitted that git.yazi then draws as untracked."""
+
+    def git(*args: str) -> None:
+        examples_git(folder, *args, env=env)
+
     work = home / "work"
     folder = work / "project"
     was = os.umask(0o022)
@@ -224,9 +243,8 @@ def build_folder(home: Path) -> Path:
                 f.write(b"x")
 
         (folder / ".gitignore").write_text(GIT["ignored"] + "\n")
-        git(folder, "init", "-q")
+        git("init", "-q")
         git(
-            folder,
             "add",
             "--all",
             "--",
@@ -234,17 +252,17 @@ def build_folder(home: Path) -> Path:
             f":!{GIT['untracked']}",
             f":!{GIT['added']}",
         )
-        git(folder, "commit", "-q", "-m", "the folder")
-        git(folder, "add", "--", GIT["added"])
+        git("commit", "-q", "-m", "the folder")
+        git("add", "--", GIT["added"])
         touched(GIT["staged"])
-        git(folder, "add", "--", GIT["staged"])
+        git("add", "--", GIT["staged"])
         touched(GIT["unstaged"])
     finally:
         os.umask(was)
 
     # After everything is created, because creating an entry moves its
     # directory's mtime: the deepest first, for the same reason.
-    now = time.time()
+    now = fixture.epoch(f"{time.localtime().tm_year}{TAKEN}")
     for name, _, age in FILES_BY_AGE:
         stamp(folder / name, age, now)
     for name, age in DIRS.items():
@@ -254,7 +272,7 @@ def build_folder(home: Path) -> Path:
         stamp(work / name, age, now)
     stamp(folder, PROJECT_AGE, now)
     # For the reason `examples.build_folder` gives.
-    git(folder, "update-index", "-q", "--refresh")
+    git("update-index", "-q", "--refresh")
     return folder
 
 
@@ -273,10 +291,6 @@ def wait_for_window() -> None:
             flush=True,
         )
         time.sleep(0.2)
-
-
-def _hung_up(number: int, frame: FrameType | None) -> NoReturn:
-    raise SystemExit(TERMINATED)
 
 
 def main(argv: list[str]) -> int:
@@ -307,37 +321,44 @@ def main(argv: list[str]) -> int:
 
     print(f"readme: Yazi {yazi_version()}")
     catch_term()
-    # Closing the window hangs the run up, and the `finally` below runs only
-    # if that raises.
-    signal.signal(signal.SIGHUP, _hung_up)
 
     fixture.clear(DIR)
     DIR.mkdir()
     (DIR / fixture.MARKER).touch()
+    # The scratch home as HOME for git as well as for Yazi, so the folder is
+    # built under the configuration git.yazi then reads it with.
+    home = {"HOME": str(DIR), "XDG_CONFIG_HOME": str(DIR / ".config")}
     try:
         configure(DIR, blocks)
-        folder = build_folder(DIR)
+        folder = build_folder(DIR, home)
         try:
             wait_for_window()
         except KeyboardInterrupt:
             print()
             return 130
-        env = {
-            **os.environ,
-            **yazi_env(DIR, "state"),
-            **GIT_ENV,
-            "HOME": str(DIR),
-            "XDG_CONFIG_HOME": str(DIR / ".config"),
-        }
-        subprocess.run(["yazi", str(folder)], cwd=folder, env=env, check=False)
+        env = {**os.environ, **yazi_env(DIR, "state"), **GIT_ENV, **home}
+        done = subprocess.run(
+            ["yazi", str(folder)], cwd=folder, env=env, check=False
+        )
+        # Read before the scratch home goes, and every line of it, since the
+        # log goes with it.
         log = yazi_log(DIR, "state")
-        trouble = troubles(log.read_text()) if log.exists() else []
-        if trouble:
+        if not log.exists():
             print(
-                "readme: Yazi logged trouble, which the picture may show:\n"
-                + "\n".join(f"  {line.strip()}" for line in trouble[:5]),
+                "readme: Yazi wrote no log, so nothing says the columns drew "
+                "without error",
                 file=sys.stderr,
             )
+            return 1
+        if trouble := troubles(log.read_text()):
+            print(
+                "readme: Yazi logged trouble, which the picture may show:\n"
+                + "\n".join(f"  {line.strip()}" for line in trouble),
+                file=sys.stderr,
+            )
+            return 1
+        if done.returncode != 0:
+            print(f"readme: Yazi exited {done.returncode}", file=sys.stderr)
             return 1
     finally:
         fixture.clear(DIR)
