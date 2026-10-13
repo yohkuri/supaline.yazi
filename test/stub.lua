@@ -833,6 +833,7 @@ function M.file(t)
 			mtime = t.mtime,
 			btime = t.btime,
 			atime = t.atime,
+			ctime = t.ctime,
 			uid = id_of(t, "uid"),
 			gid = id_of(t, "gid"),
 			perm = function() return perm end,

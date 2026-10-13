@@ -18,6 +18,10 @@
 
 --- `perm` is a method here and a `string?` upstream.
 ---@class supaline.Cha : Cha
+--- The inode's change time, in seconds since the epoch. Read off 26.9.1's
+--- `yazi-fs`: Unix alone, and nil elsewhere but for the Windows Recycle Bin's
+--- fingerprint. `types.yazi` does not declare it.
+---@field ctime number?
 ---@field perm fun(self: self): string?
 
 --- The exposed complement of Yazi's internal `AuthKind::is_local()`. Upstream

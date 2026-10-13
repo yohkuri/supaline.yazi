@@ -257,15 +257,21 @@ changed.
 | `mtime`       | 11    | right | Modification time. `format` takes an `os.date` format, `{ "mtime", format = "%Y-%m-%d" }`; the default is Yazi's own. |
 | `btime`       | 11    | right | Birth time, and `format` as `mtime` takes it.     |
 | `atime`       | 11    | right | Access time, and `format` as `mtime` takes it.    |
+| `ctime`       | 11    | right | The inode's change time, not its creation: see below. |
 | `permissions` | 10    | left  | Unix only. Coloured from your theme, a character at a time. |
 | `owner`       | 12    | left  | `user:group`. Unix only; numeric off this machine. |
 | `user`        | 8     | left  | The owning user alone, under the same rule.       |
 | `group`       | 8     | left  | The owning group alone, under the same rule.      |
 | `count`       | 5     | right | Entry count, directories only.                    |
 
-There is no built-in `ctime` column, though Yazi has the field: on Unix
-`file.cha.ctime` is the inode's change time, and a column of your own can read
-it as the three above read theirs. Off Unix it is `nil`.
+`ctime` is when the file's metadata last changed -- a rename, a `chmod`, a new
+link, or a write -- so it moves whenever `mtime` does and also when `mtime` is
+kept: a file unpacked from an archive, or copied with `cp -p`, keeps its old
+`mtime` and shows when it arrived here in `ctime`. Creation is `btime`. Yazi
+has `ctime` on Unix alone, so off Unix the column is blank -- except in the
+Windows Recycle Bin, where Yazi keeps a fingerprint of the bin's contents in
+the field rather than a time, and the column draws it as a date that means
+nothing. That much is read off 26.9.1's source and was not seen on screen.
 
 None of them names a colour. A built-in column leaves its cell unstyled, so it
 is drawn in whatever colour your flavor already gives the file row -- the same

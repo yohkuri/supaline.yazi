@@ -163,7 +163,7 @@ function M.definitions()
 		end
 	end
 
-	---@param field "mtime"|"btime"|"atime"
+	---@param field "mtime"|"btime"|"atime"|"ctime"
 	local function register_time(field)
 		---@param file supaline.File
 		local get = function(file)
@@ -202,6 +202,7 @@ function M.definitions()
 	register_time("mtime")
 	register_time("btime")
 	register_time("atime")
+	register_time("ctime")
 
 	--- The `[status]` style Yazi draws each permission character in, and the one
 	--- everything else takes -- the type character, whatever letter it turns out
