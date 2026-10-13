@@ -56,7 +56,6 @@ local OVERRIDABLE = {
 	permissions = true,
 	btime = true,
 	mtime = true,
-	atime = true,
 	owner = true,
 }
 
