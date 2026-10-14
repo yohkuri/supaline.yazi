@@ -129,14 +129,15 @@ def main(argv: list[str]) -> int:
 
     # The environment is `harness.yazi_env` and the folder is `yazi_data`,
     # which say why each is what it is. Here rather than written out, so what
-    # a person opens and what `e2e.py` asserts on are the same Yazi. A child
+    # a person opens and what `e2e.py` asserts on are the same Yazi, but for
+    # the runtime directory `yazi_env` says it keeps for a person. A child
     # rather than an `execve`, so this is still here to print the verdicts once
     # Yazi has gone; and with no deadline, because a person is driving it.
     yazi = shutil.which("yazi")
     assert yazi is not None  # `need` above has already said so
     done = subprocess.run(
         [yazi, str(yazi_data(DIR))],
-        env={**os.environ, **yazi_env(DIR, "state")},
+        env={**os.environ, **yazi_env(DIR, "state", headless=False)},
         check=False,
     )
     print_verdicts(verdicts, "manual")

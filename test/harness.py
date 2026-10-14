@@ -170,8 +170,9 @@ def yazi_version() -> str:
     return version
 
 
-def yazi_env(dir: Path, state: str) -> dict[str, str]:
-    """The environment both harnesses open the fixture's Yazi in.
+def yazi_env(dir: Path, state: str, *, headless: bool) -> dict[str, str]:
+    """The environment every harness opens a Yazi in, under the scratch
+    directory `dir`.
 
     `YAZI_LOG` because a report is two halves and only the shorter one is a
     notification, and there is no log at all unless this is set before Yazi
@@ -180,12 +181,71 @@ def yazi_env(dir: Path, state: str) -> dict[str, str]:
     takes the log with it, and it is named because `e2e.py` gives its two runs
     one each: the clean run's log is read for the absence of the errors the
     broken run is full of.
+
+    `XDG_RUNTIME_DIR` is `own_socket`'s, for a headless Yazi always. A Yazi
+    opened for a person keeps the user's when there is one, because what that
+    Yazi starts -- an editor, a clipboard -- finds the session's own sockets
+    through it, Wayland's on Linux among them; with none to keep,
+    as on macOS, it is given one of its own too. `headless` has no default, so
+    a harness says which it is rather than getting the shared socket by
+    leaving it out.
     """
-    return {
+    env = {
         "YAZI_CONFIG_HOME": str(dir / "config"),
         "XDG_STATE_HOME": str(dir / state),
         "YAZI_LOG": "debug",
     }
+    if headless or "XDG_RUNTIME_DIR" not in os.environ:
+        env |= own_socket(dir)
+    return env
+
+
+#: The most a socket's path may hold, the NUL after it included: the size of
+#: `sun_path`, 108 bytes on Linux and 104 on macOS and the BSDs.
+SUN_PATH = 108 if sys.platform.startswith("linux") else 104
+
+
+def own_socket(dir: Path) -> dict[str, str]:
+    """`XDG_RUNTIME_DIR`, a directory under `dir` that no other Yazi is given.
+
+    Yazi binds its DDS socket under that directory, or under the temp
+    directory when it is unset or relative, read off 26.9.1's
+    `yazi-fs/src/xdg.rs` and `yazi-dds/src/stream.rs`. Two Yazis alive at once
+    with the same one race to bind it, and the loser logs `Could not connect to
+    or start a new DDS server`, which `e2e.py`, `examples.py` and `readme.py`
+    count as a failure. They are alive at once more often than they look:
+    26.9.1 outlives `kill-session` by the rest of its five seconds after `q`,
+    measured, so consecutive Yazis of one run overlap, besides two runs at once
+    and a Yazi open elsewhere. One directory per run is not enough for the
+    first of those, which is why it is one per Yazi.
+
+    The first number under `dir/run` that `mkdir` can take, rather than a count
+    this process keeps: `gallery.py` and `manual.py` keep one scratch directory
+    from run to run, so a count would hand a run started again at once the
+    `run/0` whose Yazi has not gone yet.
+
+    A path too long for `sun_path` is refused here rather than left to Yazi,
+    which logs only `path must be shorter than SUN_LEN`, measured, and only
+    once the run has waited out its startup. Measured at three digits rather
+    than at this Yazi's own number, so a run near the limit is refused at its
+    first Yazi rather than at its tenth, with the earlier pictures written.
+    """
+    run = dir.absolute() / "run"
+    run.mkdir(parents=True, exist_ok=True)
+    n = 0
+    while True:
+        try:
+            (run / str(n)).mkdir()
+            break
+        except FileExistsError:
+            n += 1
+    socket = run / f"{n:03}" / f"yazi+{os.getuid()}" / ".dds.sock"
+    if len(os.fsencode(socket)) >= SUN_PATH:
+        refuse(
+            f"{socket} is longer than the {SUN_PATH - 1} bytes a socket's path "
+            "may be: run this with a shorter TMPDIR"
+        )
+    return {"XDG_RUNTIME_DIR": str(run / str(n))}
 
 
 def yazi_log(dir: Path, state: str) -> Path:
@@ -327,6 +387,12 @@ class Session:
 
     def __init__(self, name: str) -> None:
         self.name = name
+        #: What every command after `new-session` names it by. A bare name is a
+        #: prefix to tmux, so `supaline-e2e-123` reaches `supaline-e2e-1234` once
+        #: its own session has gone; `=` makes it exact, and the `:` lets
+        #: `send-keys` and `capture-pane` take it too, which refuse `=name`
+        #: alone with `can't find pane`, measured on tmux 3.8.
+        self.target = f"={name}:"
         self.started = False
 
     def tmux(
@@ -372,7 +438,7 @@ class Session:
         """
         if not self.started:
             return
-        self.tmux("kill-session", "-t", self.name, check=False)
+        self.tmux("kill-session", "-t", self.target, check=False)
         self.started = False
 
     def alive(self) -> bool:
@@ -381,7 +447,7 @@ class Session:
         A session that has gone is the answer here rather than a failure, so
         the exit status is read rather than refused.
         """
-        done = self.tmux("has-session", "-t", self.name, check=False)
+        done = self.tmux("has-session", "-t", self.target, check=False)
         return done.returncode == 0
 
     def quit(self, *keys: str, grace: float = 1.0) -> None:
@@ -408,14 +474,14 @@ class Session:
     def capture(self, *, colour: bool = False) -> str:
         """The screen, by a `tmux` process per read: `settle` says what a
         persistent `tmux -C` client would cost it."""
-        args = ["capture-pane", "-t", self.name, "-p"]
+        args = ["capture-pane", "-t", self.target, "-p"]
         if colour:
             args.append("-e")
         return self.tmux(*args).stdout
 
     def keys(self, *keys: str) -> None:
         """Send keys literally, so a `-` or a digit is a keystroke not a flag."""
-        self.tmux("send-keys", "-t", self.name, "-l", *keys)
+        self.tmux("send-keys", "-t", self.target, "-l", *keys)
 
     def wait_for(
         self,
@@ -611,7 +677,7 @@ class Driver:
         """Start Yazi on `data/`, with a state directory of its own."""
         self.session.start(
             ["yazi", str(yazi_data(self.dir))],
-            env=yazi_env(self.dir, state),
+            env=yazi_env(self.dir, state, headless=True),
             width=WIDTH,
             height=HEIGHT,
         )

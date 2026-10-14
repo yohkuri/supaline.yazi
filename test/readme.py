@@ -323,7 +323,7 @@ def main(argv: list[str]) -> int:
             return 130
         env = {
             **os.environ,
-            **yazi_env(DIR, "state"),
+            **yazi_env(DIR, "state", headless=False),
             **GIT_ENV,
             "HOME": str(DIR),
             "XDG_CONFIG_HOME": str(DIR / ".config"),
