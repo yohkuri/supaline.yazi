@@ -627,7 +627,7 @@ def capture(
     session.start(
         ["yazi", str(folder)],
         # Git with nobody's configuration, for git.yazi's `git status`.
-        env={**yazi_env(root, state), **GIT_ENV},
+        env={**yazi_env(root, state, headless=True), **GIT_ENV},
         width=example.width or WIDTH,
         height=HEIGHT,
     )

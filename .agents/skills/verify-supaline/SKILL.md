@@ -250,6 +250,11 @@ hand by whoever moved the step, agent or not.
   guarantee rather than one: `Session.quit` waits for the session to go
   instead of the screen to settle, because a `capture-pane` against a session
   that has gone exits non-zero and the harness reports that as a refusal to
-  start.
+  start. Killing the session sooner does not take the process with it: it sits
+  out the rest, measured, and the next Yazi a run starts races it for the DDS
+  socket the two would share, the loser logging `Could not connect to or start
+  a new DDS server`. So each headless Yazi is given a runtime directory of its
+  own, and `harness.own_socket` says why.
 
-All three are already handled inside `e2e.py`. They matter when you change it.
+All three are already handled, in `e2e.py` and in the `harness.py` it shares
+with `examples.py` and `gallery.py`. They matter when you change any of them.
