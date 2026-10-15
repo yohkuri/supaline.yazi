@@ -219,33 +219,42 @@ def own_socket(dir: Path) -> dict[str, str]:
     and a Yazi open elsewhere. One directory per run is not enough for the
     first of those, which is why it is one per Yazi.
 
-    The first number under `dir/run` that `mkdir` can take, so the claim is
-    the directory itself and no count in this process has to agree with the
-    disk. A count would do as well for every harness today, since each clears
-    `dir` before its first Yazi.
+    The first number directly under `dir` that `mkdir` can take, so the claim
+    is the directory itself and no count in this process has to agree with
+    the disk. A count would do as well for every harness today, since each
+    clears `dir` before its first Yazi. Directly under `dir` rather than in a
+    `run/` inside it, since those four bytes are what lets `examples.py` and
+    `readme.py` fit a ten-digit uid under macOS's default TMPDIR, computed
+    rather than run under one; nothing else a harness puts in `dir` is named
+    with digits alone. Under `dir` at all rather than in a short directory of
+    their own under `/tmp`, which would take TMPDIR out of the length, since
+    `--clean` and each harness's clearing of `dir` take these with the rest:
+    one outside it would need removing by every harness on every way out.
 
     A path too long for `sun_path` is refused here rather than left to Yazi,
     which logs only `path must be shorter than SUN_LEN`, measured, and only
-    once the run has waited out its startup. Measured at three digits rather
-    than at this Yazi's own number, so a run near the limit is refused at its
-    first Yazi rather than at its eleventh, with the earlier pictures written.
+    once the run has waited out its startup. The number has three digits at
+    least, so the first thousand Yazis share a length and a run near the limit
+    is refused at its first. Named with the bare number, the eleventh's path
+    would be a byte longer than the first's, and a run that fitted ten would
+    stop there with their pictures written.
     """
-    run = dir.absolute() / "run"
-    run.mkdir(parents=True, exist_ok=True)
+    dir = dir.absolute()
     n = 0
     while True:
+        runtime = dir / f"{n:03}"
         try:
-            (run / str(n)).mkdir()
+            runtime.mkdir(parents=True)
             break
         except FileExistsError:
             n += 1
-    socket = run / f"{n:03}" / f"yazi+{os.getuid()}" / ".dds.sock"
+    socket = runtime / f"yazi+{os.getuid()}" / ".dds.sock"
     if len(os.fsencode(socket)) >= SUN_PATH:
         refuse(
             f"{socket} is longer than the {SUN_PATH - 1} bytes a socket's path "
             "may be: run this with a shorter TMPDIR"
         )
-    return {"XDG_RUNTIME_DIR": str(run / str(n))}
+    return {"XDG_RUNTIME_DIR": str(runtime)}
 
 
 def yazi_log(dir: Path, state: str) -> Path:
