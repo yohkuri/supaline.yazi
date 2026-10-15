@@ -26,7 +26,18 @@ draws. Drawing needs a Yazi and a terminal, and is not in CI, for the reason
 The pictures switch Yazi's file icons off. They are Nerd Font glyphs, which an
 SVG cannot draw unless its viewer has the font, and a picture full of empty
 boxes says the plugin is broken. The two half-discs Yazi draws at either end of
-the hovered row are drawn as shapes instead, since they are the cursor.
+the hovered row are drawn as shapes instead, since they are the cursor. The rest
+of that row is Yazi's as it draws it: the preset `hovered` style, which no
+example overrides, reverses the row on 26.9.1, as `screen.misdrawn` records,
+so a separator's colour, an empty `ext` cell and a `bg` gradient turn into
+solid blocks there, as the pictures show.
+
+`user` draws the name of whoever redraws the pictures, and the pictures keep
+it rather than writing another over the capture, since what they show is what
+the column drew. The git.yazi examples stay, for the reader who wants its sign
+beside supaline's columns, at a cost: every redraw needs git.yazi installed,
+because a missing plugin is refused before any picture is drawn, and git,
+which builds the repository those pictures are of.
 """
 
 from __future__ import annotations
@@ -586,7 +597,13 @@ def installed(name: str) -> Path:
 
 
 def required(found: list[Example]) -> set[str]:
-    """The plugins the examples require besides supaline."""
+    """The plugins the examples require besides supaline.
+
+    Read out of each `init.lua`, so a plugin missing from `PLUGINS` is
+    refused before any Yazi starts. A plugin named only in a `run =` of
+    `yazi.toml` or the keymap, or required only by another plugin, is not
+    found this way and is not linked.
+    """
     return {
         name for example in found for name in REQUIRE.findall(example.init)
     } - {"supaline"}

@@ -109,7 +109,8 @@ One consequence is worth stating, since it is not visible from inside the file
 you are editing: a rule that lives only under `.claude/rules/` reaches Claude
 Code and no one else. Those files are pointers by design — path-scoped offers
 that fire on the file rather than waiting to be asked for — and a pointer is
-not a place to keep the only copy of a rule.
+not a place to keep the only copy of a rule. `references/behind-these-rules.md`
+has why `.claude/rules/lua.md` restates what this says about pointers.
 
 ### What the index takes, and how long it may run
 
@@ -186,9 +187,9 @@ resolves a colour" does that work, and "I can help with themes" none of it.
 The limits are the specification's rather than a preference, and the step above
 refuses all of them. What is worth knowing in advance is only what breaking the
 1024-character cap costs: a strict client refuses the skill and a lenient one
-truncates, taking job 2 first because it is written second. Treat it as
+truncates it. Treat it as
 reachable rather than as headroom — `references/behind-these-rules.md` has how
-close the descriptions here have come.
+close the descriptions here have come, and why none is trimmed back.
 
 Keep a literal `---` out of the description, annotation names included: it
 truncates the listing an agent sees, silently, at the first one.

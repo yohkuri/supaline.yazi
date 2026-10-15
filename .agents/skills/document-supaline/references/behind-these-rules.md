@@ -12,6 +12,7 @@ asks you to make.
 - How the index reached 381 lines
 - A `---` in a description truncates the listing
 - How close a description has come to the 1024-character cap
+- What a length audit flags that stays
 - What a test cannot pin, and why some rules are greps
 - What made `.claude/skills` one link per file
 
@@ -71,12 +72,23 @@ deciding whether to open the file does not need the spelling.
 ## How close a description has come to the 1024-character cap
 
 `SKILL.md` says to treat the cap as reachable. Two measurements say how
-reachable: one description in this tree stands five characters under 1024, and
-another reached 1083 and was refused by the step — which is also what says the
-limit is enforced here rather than only written down. Both got there the same
-way, while a pointer to a `references/` file was added to a description that
-already said everything else it needed to. The cap is reached by the last
-sentence, not by the first.
+reachable: the longest description in this tree is within a sentence of
+1024, and another reached 1083 and was refused by the step — which is also
+what says the limit is enforced here rather than only written down. Both got
+there the same way, while a pointer to a `references/` file was added to a
+description that already said everything else it needed to. The cap is reached
+by the last sentence, not by the first.
+
+## What a length audit flags that stays
+
+Read for length, these documents show two things that agree with everything
+else and look cuttable, and both stay. `.claude/rules/lua.md` closes by
+restating what `SKILL.md` says about a rule being a pointer: that file is what
+fires on a Lua file, as it says itself, and this skill is not, so the
+restatement is the copy a Lua edit meets. The descriptions run close to the
+cap and stay as they are: trimming one in advance buys room nothing needs
+yet, and when one has to give way, the sentence to take is the one added
+last, which is how the two above got there.
 
 ## What a test cannot pin, and why some rules are greps
 
