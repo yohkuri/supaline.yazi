@@ -230,7 +230,10 @@ def capture(r: Driver, shown: Shown) -> None:
     reloads 0.23-0.74s after the press, measured on 26.9.1, so `Driver.theme`
     needs a colour only that theme draws -- one per theme, to be chosen and
     kept in step with the files, against the half-second the second Yazi
-    costs. Killed rather than quit, since nothing here reads its log.
+    costs. Killed rather than quit, since nothing here reads its log. A
+    Yazi killed is gone 0.011s after `kill-session`, measured on 26.9.1,
+    rather than living out the five seconds `own_socket` describes after
+    `q`, so a run started straight after this one meets none of its Yazis.
     """
     by_theme: dict[str, list[tuple[int, fixture.Step]]] = defaultdict(list)
     for n, step in shown.items():
