@@ -19,11 +19,11 @@ from unittest import mock
 
 # First, because importing it is what refuses too old a Python.
 import harness  # noqa: F401
-from harness import SUN_PATH, Session, own_socket, yazi_env
+from harness import REFUSED, SUN_PATH, Session, own_socket, yazi_env
 
-#: What `own_socket` puts after the scratch directory, at the three digits it
-#: measures the path at.
-TAIL = f"/run/000/yazi+{os.getuid()}/.dds.sock"
+#: What `own_socket` puts after the scratch directory for its first Yazi, as
+#: long as what it puts there for any of its first thousand.
+TAIL = f"/000/yazi+{os.getuid()}/.dds.sock"
 
 
 class Sockets(unittest.TestCase):
@@ -37,7 +37,29 @@ class Sockets(unittest.TestCase):
     def padded(self, length: int) -> Path:
         """A scratch directory that puts the socket's path at `length` bytes."""
         pad = length - len(os.fsencode(self.dir)) - len(TAIL) - 1
+        # Joining an empty name leaves the directory as it was, so a pad of
+        # none or less leaves every spec below about a path it does not say.
+        self.assertGreater(pad, 0, "the temp directory is too long")
         return self.dir / ("d" * pad)
+
+    def claimed(self, dir: Path, count: int) -> Path:
+        """`dir`, with the first `count` runtime directories already taken."""
+        # Made here rather than claimed through `own_socket`, whose scan from
+        # zero would make a thousand claims take seconds.
+        for n in range(count):
+            (dir / f"{n:03}").mkdir(parents=True)
+        return dir
+
+    def refused(self, dir: Path) -> str:
+        """What `own_socket` said, having refused `dir` as a harness does."""
+        with (
+            contextlib.redirect_stderr(io.StringIO()) as said,
+            self.assertRaises(SystemExit) as stopped,
+        ):
+            own_socket(dir)
+        self.assertEqual(stopped.exception.code, REFUSED)
+        self.assertIn("shorter TMPDIR", said.getvalue())
+        return said.getvalue()
 
     def test_every_yazi_gets_a_runtime_directory_of_its_own(self) -> None:
         dirs = {own_socket(self.dir)["XDG_RUNTIME_DIR"] for _ in range(3)}
@@ -46,9 +68,8 @@ class Sockets(unittest.TestCase):
     def test_a_directory_still_there_is_not_handed_out(self) -> None:
         # The claim is read off the disk, as `own_socket` says: a count kept
         # in this process passes the spec above and fails this one.
-        (self.dir / "run" / "0").mkdir(parents=True)
-        runtime = own_socket(self.dir)["XDG_RUNTIME_DIR"]
-        self.assertEqual(runtime, str(self.dir / "run" / "1"))
+        runtime = own_socket(self.claimed(self.dir, 1))["XDG_RUNTIME_DIR"]
+        self.assertEqual(runtime, str(self.dir / "001"))
 
     def test_a_relative_scratch_directory_is_made_absolute(self) -> None:
         # Yazi ignores a relative `XDG_RUNTIME_DIR` and goes back to the
@@ -58,24 +79,30 @@ class Sockets(unittest.TestCase):
         self.assertTrue(os.path.isabs(runtime))
 
     def test_a_path_past_sun_path_is_refused_at_the_first_yazi(self) -> None:
-        # At the first Yazi's one digit the path is two bytes short of this,
-        # and still refused, rather than at the 101st, the first with three.
-        with (
-            contextlib.redirect_stderr(io.StringIO()) as said,
-            self.assertRaises(SystemExit),
-        ):
-            own_socket(self.padded(SUN_PATH))
-        self.assertIn("shorter TMPDIR", said.getvalue())
+        # At the first Yazi, whose path is as long as the thousandth's.
+        said = self.refused(self.padded(SUN_PATH))
+        self.assertIn("/000/yazi+", said)
 
     def test_a_path_inside_sun_path_is_handed_over(self) -> None:
+        # A byte short, so a first directory named `0000` would refuse it.
         dir = self.padded(SUN_PATH - 1)
         runtime = own_socket(dir)["XDG_RUNTIME_DIR"]
-        self.assertEqual(runtime, str(dir / "run" / "0"))
+        self.assertEqual(runtime, str(dir / "000"))
+
+    def test_the_thousandth_yazi_fits_where_the_first_did(self) -> None:
+        dir = self.claimed(self.padded(SUN_PATH - 1), 999)
+        runtime = own_socket(dir)["XDG_RUNTIME_DIR"]
+        self.assertEqual(runtime, str(dir / "999"))
+
+    def test_the_1001st_yazi_is_measured_at_its_own_number(self) -> None:
+        # Past three digits the path grows, so the number itself has to fit.
+        said = self.refused(self.claimed(self.padded(SUN_PATH - 1), 1000))
+        self.assertIn("/1000/yazi+", said)
 
     def test_a_headless_yazi_never_shares_the_users_socket(self) -> None:
         with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/1"}):
             env = yazi_env(self.dir, "state", headless=True)
-        self.assertEqual(env["XDG_RUNTIME_DIR"], str(self.dir / "run" / "0"))
+        self.assertEqual(env["XDG_RUNTIME_DIR"], str(self.dir / "000"))
 
     def test_a_persons_yazi_keeps_the_users_runtime_directory(self) -> None:
         with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/1"}):
@@ -86,7 +113,7 @@ class Sockets(unittest.TestCase):
         with mock.patch.dict(os.environ):
             os.environ.pop("XDG_RUNTIME_DIR", None)
             env = yazi_env(self.dir, "state", headless=False)
-        self.assertEqual(env["XDG_RUNTIME_DIR"], str(self.dir / "run" / "0"))
+        self.assertEqual(env["XDG_RUNTIME_DIR"], str(self.dir / "000"))
 
 
 class Targets(unittest.TestCase):
