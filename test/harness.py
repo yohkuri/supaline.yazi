@@ -219,16 +219,16 @@ def own_socket(dir: Path) -> dict[str, str]:
     and a Yazi open elsewhere. One directory per run is not enough for the
     first of those, which is why it is one per Yazi.
 
-    The first number under `dir/run` that `mkdir` can take, rather than a count
-    this process keeps: `gallery.py` and `manual.py` keep one scratch directory
-    from run to run, so a count would hand a run started again at once the
-    `run/0` whose Yazi has not gone yet.
+    The first number under `dir/run` that `mkdir` can take, so the claim is
+    the directory itself and no count in this process has to agree with the
+    disk. A count would do as well for every harness today, since each clears
+    `dir` before its first Yazi.
 
     A path too long for `sun_path` is refused here rather than left to Yazi,
     which logs only `path must be shorter than SUN_LEN`, measured, and only
     once the run has waited out its startup. Measured at three digits rather
     than at this Yazi's own number, so a run near the limit is refused at its
-    first Yazi rather than at its tenth, with the earlier pictures written.
+    first Yazi rather than at its eleventh, with the earlier pictures written.
     """
     run = dir.absolute() / "run"
     run.mkdir(parents=True, exist_ok=True)

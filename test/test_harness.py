@@ -43,8 +43,9 @@ class Sockets(unittest.TestCase):
         dirs = {own_socket(self.dir)["XDG_RUNTIME_DIR"] for _ in range(3)}
         self.assertEqual(len(dirs), 3)
 
-    def test_a_directory_another_run_left_is_not_handed_out(self) -> None:
-        # `gallery.py` and `manual.py` keep one scratch directory between runs.
+    def test_a_directory_still_there_is_not_handed_out(self) -> None:
+        # The claim is read off the disk, as `own_socket` says: a count kept
+        # in this process passes the spec above and fails this one.
         (self.dir / "run" / "0").mkdir(parents=True)
         runtime = own_socket(self.dir)["XDG_RUNTIME_DIR"]
         self.assertEqual(runtime, str(self.dir / "run" / "1"))
@@ -58,7 +59,7 @@ class Sockets(unittest.TestCase):
 
     def test_a_path_past_sun_path_is_refused_at_the_first_yazi(self) -> None:
         # At the first Yazi's one digit the path is two bytes short of this,
-        # and still refused, rather than at the tenth.
+        # and still refused, rather than at the 101st, the first with three.
         with (
             contextlib.redirect_stderr(io.StringIO()) as said,
             self.assertRaises(SystemExit),
