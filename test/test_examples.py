@@ -138,8 +138,15 @@ class Reading(unittest.TestCase):
             "require 'full-border'\n"
             'require("supaline"):setup {}\n'
         )
-        found = [examples.Example("images/a.svg", "a", init)]
-        self.assertEqual(examples.required(found), {"git", "full-border"})
+        self.assertEqual(examples.required(init), {"git", "full-border"})
+
+    def test_every_init_passed_is_read_for_its_plugins(self):
+        # `main` passes one per example, and a plugin only a later one
+        # requires would otherwise be drawn without.
+        self.assertEqual(
+            examples.required('require("git")\n', 'require("full-border")\n'),
+            {"git", "full-border"},
+        )
 
     def test_a_block_belongs_to_one_picture_only(self):
         [first, second] = examples.examples(INIT + THEME + IMAGE + INIT + IMAGE)
@@ -227,10 +234,35 @@ class Reading(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "`\\[icon\\]`"):
             examples.examples(INIT + icons + IMAGE)
 
+    def test_only_a_picture_refuses_a_theme_that_themes_icons(self):
+        # `readme.py` asks `toml_problem`, and the README's picture is taken
+        # with its icons.
+        icons = "# ~/.config/yazi/theme.toml\n[icon]\ndirs = []\n"
+        self.assertIsNone(examples.toml_problem(icons))
+        self.assertIn("`[icon]`", examples.picture_problem(icons) or "")
+
+    def test_a_mgr_that_is_no_table_is_refused_rather_than_raised(self):
+        # Every caller catches `ValueError` alone, so a raise here would be
+        # a traceback where a refusal belongs.
+        for mgr in ("mgr = 1", 'mgr = "linemode"'):
+            with self.subTest(mgr):
+                self.assertIn(
+                    "no `[mgr] linemode`",
+                    examples.toml_problem(f"{examples.YAZI}\n{mgr}\n") or "",
+                )
+
     def test_a_theme_that_does_not_parse_is_refused(self):
         broken = "```toml\n# ~/.config/yazi/theme.toml\n[supaline\n```\n"
         with self.assertRaisesRegex(ValueError, "does not parse"):
             examples.examples(INIT + broken + IMAGE)
+
+    def test_a_parse_error_names_the_line_on_the_page(self):
+        # Rather than one counted from the block, which a reader would have
+        # to add to the fence's line and get wrong by one either way.
+        page = INIT + "```toml\n# ~/.config/yazi/theme.toml\n[supaline\n```\n"
+        at = page.splitlines().index("[supaline") + 1
+        with self.assertRaisesRegex(ValueError, f"at line {at},"):
+            examples.examples(page + IMAGE)
 
     def test_two_asking_lines_for_one_picture_are_refused(self):
         # Which of the two the picture is drawn on would be a guess.
