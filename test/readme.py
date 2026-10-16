@@ -48,12 +48,13 @@ from examples import (
     GIT_ENV,
     INIT,
     PLUGINS,
-    REQUIRE,
     THEME,
     file_block,
     git,
     installed,
     repository,
+    required,
+    toml_problem,
 )
 from examples import configure as examples_configure
 from harness import (
@@ -147,9 +148,8 @@ def setup_blocks(text: str) -> dict[str, str]:
     Refused when the section is missing, lacks a block for any of `FILES` --
     one whose first line is misspelled is read as prose, and the setup would
     open without it -- or holds two blocks for one file, since which of them
-    is the setup would be a guess; and when a `.toml` block does not parse,
-    since Yazi drops a `theme.toml` that does not, whole, without a word on
-    the screen.
+    is the setup would be a guess; and when `examples.toml_problem` refuses
+    a `.toml` block, saying why.
     """
     lines = text.splitlines()
     try:
@@ -166,13 +166,8 @@ def setup_blocks(text: str) -> dict[str, str]:
         if name:
             if name in blocks:
                 raise ValueError(f"line {i + 1}: a second `{name}` block")
-            if name != INIT:
-                try:
-                    tomllib.loads(block)
-                except tomllib.TOMLDecodeError as error:
-                    raise ValueError(
-                        f"line {i + 1}: the block does not parse: {error}"
-                    ) from None
+            if name != INIT and (problem := toml_problem(block, i + 2)):
+                raise ValueError(f"line {i + 1}: the block {problem}")
             blocks[name] = block
         i = end + 1
     if missing := [name for name in FILES if name not in blocks]:
@@ -291,7 +286,7 @@ def main(argv: list[str]) -> int:
         named = flavors(blocks.get(THEME, ""))
     except ValueError as error:
         refuse(f"readme: README.md: {error}")
-    plugins = set(REQUIRE.findall(blocks[INIT])) - {"supaline"}
+    plugins = required(blocks[INIT])
     for name in sorted(plugins):
         if not installed(name).is_dir():
             refuse(

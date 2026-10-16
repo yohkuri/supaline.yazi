@@ -257,20 +257,40 @@ def file_block(lines: list[str], i: int) -> tuple[int, str, str] | None:
     return end, body[0], "\n".join(body) + "\n"
 
 
-def toml_problem(block: str) -> str | None:
-    """Why a `.toml` block cannot be drawn, if it cannot."""
-    body = "\n".join(block.splitlines()[1:])
+def toml_problem(block: str, line: int = 1) -> str | None:
+    """Why a `.toml` block cannot set up a Yazi that draws the columns, if it
+    cannot. `readme.py` asks it of the README's blocks as well.
+
+    One that does not parse is refused because Yazi meets it by discarding
+    the whole file and running on its preset, after a prompt -- measured on
+    26.9.1 for a `theme.toml`. `line` is where the block's first line sits
+    on its page, so a parse error names the line there rather than one
+    counted from the block.
+    """
     try:
-        parsed = tomllib.loads(body)
+        parsed = tomllib.loads("\n" * (line - 1) + block)
     except tomllib.TOMLDecodeError as error:
         return f"does not parse: {error}"
-    if block.startswith(THEME) and "icon" in parsed:
-        return "themes `[icon]`, which the pictures switch off themselves"
-    if block.startswith(YAZI) and "linemode" not in parsed.get("mgr", {}):
+    # `mgr = 1` parses too, and `in` would raise on it rather than refuse.
+    mgr = parsed.get("mgr")
+    if block.startswith(YAZI) and (
+        not isinstance(mgr, dict) or "linemode" not in mgr
+    ):
         return (
-            "sets no `[mgr] linemode`, and replaces the one that does, so "
-            "nothing would be drawn in the columns"
+            "sets no `[mgr] linemode`, which leaves Yazi's preset `none`, "
+            "so nothing would be drawn in the columns"
         )
+    return None
+
+
+def picture_problem(block: str, line: int = 1) -> str | None:
+    """Why a `.toml` block cannot be drawn, if it cannot: what `toml_problem`
+    says, or a theme with `[icon]`, which only the pictures refuse -- the
+    README's is taken with a Nerd Font, icons and all."""
+    if problem := toml_problem(block, line):
+        return problem
+    if block.startswith(THEME) and "icon" in tomllib.loads(block):
+        return "themes `[icon]`, which the pictures switch off themselves"
     return None
 
 
@@ -320,7 +340,7 @@ def examples(text: str) -> list[Example]:
                         f"line {i + 1}: a second `{name}` block before "
                         "the picture the first one is for"
                     )
-                if name != INIT and (problem := toml_problem(block)):
+                if name != INIT and (problem := picture_problem(block, i + 2)):
                     raise ValueError(f"line {i + 1}: the block {problem}")
                 blocks[name] = block
             i = end + 1
@@ -596,17 +616,20 @@ def installed(name: str) -> Path:
     return PLUGINS / f"{name}.yazi"
 
 
-def required(found: list[Example]) -> set[str]:
-    """The plugins the examples require besides supaline.
+def required(*inits: str) -> set[str]:
+    """The plugins these `init.lua`s require besides supaline.
 
-    Read out of each `init.lua`, so a plugin missing from `PLUGINS` is
-    refused before any Yazi starts. A plugin named only in a `run =` of
+    Read before any Yazi starts, so a plugin missing from `PLUGINS` is
+    refused rather than drawn without. A plugin named only in a `run =` of
     `yazi.toml` or the keymap, or required only by another plugin, is not
     found this way and is not linked.
+
+    Each text is its own argument, since a bare `str` in place of a list
+    of them would be read a character at a time, and require nothing.
     """
-    return {
-        name for example in found for name in REQUIRE.findall(example.init)
-    } - {"supaline"}
+    return {name for init in inits for name in REQUIRE.findall(init)} - {
+        "supaline"
+    }
 
 
 def configure(root: Path, plugins: set[str]) -> None:
@@ -932,7 +955,7 @@ def main(argv: list[str]) -> int:
         refuse(f"examples: {PAGES.relative_to(ROOT)}/{error}")
     if not found:
         refuse(f"examples: no picture in {PAGES.relative_to(ROOT)}")
-    plugins = required(found)
+    plugins = required(*(example.init for example in found))
     for name in sorted(plugins):
         if not installed(name).is_dir():
             refuse(
