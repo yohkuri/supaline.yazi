@@ -42,20 +42,20 @@ bar. Its heading says where you are, the step's own key and the title of its
 section here — `walk 3/18  c r — one row per step` — and, on the right, a mark
 for every step: `✓` looks right, `✗` looks wrong, `·` not answered yet, with
 the step on show reversed. Under the heading is the question, in bold, then
-that section of this document, and the keys on the guide's last row. The key
-is also the section's heading, and pressing it by hand puts you back in the
-same state. A step puts its theme in place as well as its case, so it reads the
+what to look at to answer it, and the keys on the guide's last row. Why each
+of those is worth looking at is in that section of this document. The key is
+also the section's heading, and pressing it by hand puts you back in the same
+state. A step puts its theme in place as well as its case, so it reads the
 same whether you came to it forwards, backwards or after pressing a theme key
 yourself. A verdict you have given is shown in the heading.
 
 The guide takes a third of the screen and never more than twelve rows, since
 the rows it takes are rows of the case being judged. What does not fit is cut
-off with a line saying so; `W d` opens the section whole, code blocks and all,
-at its heading — `q` brings Yazi back. On a screen too short for that third to
-hold four rows the guide is its heading and the question. `W h` puts it away
-and gives the file list its rows back, which is how to judge a case by its
-height, such as the whole of `c r`; the status bar then says which step you are
-on.
+off with a line saying so. `W d` opens the step's section, at its heading —
+`q` brings Yazi back. On a screen too short for that third to hold four rows
+the guide is its heading and the question. `W h` puts it away and gives the
+file list its rows back, which is how to judge a case by its height, such as
+the whole of `c r`; the status bar then says which step you are on.
 
 `W x` opens a box asking what looks wrong. What you type is written down beside
 the verdict; Enter alone writes the verdict with nothing beside it, and Escape
