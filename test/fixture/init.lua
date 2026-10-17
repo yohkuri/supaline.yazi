@@ -78,6 +78,26 @@ local GROUND = "#8b0045"
 -- might be read on.
 local LINE_GROUND = "#007a00"
 
+-- A ground under each of `m 4`'s four columns, so a reader sees where each
+-- cell starts and ends: the case is about widths, and four names in the
+-- terminal's own colour run together into one. Each carries `#ffffff` over it,
+-- so how its text reads is the fixture's to say rather than the terminal's:
+-- 5.00, 4.73, 6.98 and 4.50 to 1, in the order below, each at least 4.5.
+--
+-- Measured as `GROUND` was, against the seven terminal grounds above and,
+-- since `c_bg` is the screen a reader turns to next, its two grounds as well:
+-- 0.265, 0.401, 0.350 and 0.396 from the nearest terminal; 0.224, 0.242,
+-- 0.314 and 0.224 from `GROUND` or `LINE_GROUND`; 0.225, 0.227, 0.225 and
+-- 0.264 from each other. The search maximised the smallest of all of those
+-- over an RGB grid, with the contrast as a floor, and refined at the top of
+-- it. Left to the terminals alone it put a green 0.049 from `LINE_GROUND`.
+local CUT_GROUNDS = {
+	ellipsis = { fg = "#ffffff", bg = "#3074a9" },
+	clip = { fg = "#ffffff", bg = "#cc00cc" },
+	line = { fg = "#ffffff", bg = "#6600ff" },
+	grow = { fg = "#ffffff", bg = "#ee0700" },
+}
+
 -- User columns, registered through the same entry point the built-ins use.
 supaline.column("ext", {
 	width = 5,
@@ -387,10 +407,10 @@ supaline:setup {
 		-- clipped cells have to come out identical -- one is cut as a string and
 		-- the other as a Line.
 		overflow = {
-			{ "name", overflow = "ellipsis" },
-			{ "name", overflow = "clip" },
-			{ "name_line", overflow = "clip" },
-			{ "name", overflow = "grow" },
+			{ "name", overflow = "ellipsis", style = CUT_GROUNDS.ellipsis },
+			{ "name", overflow = "clip", style = CUT_GROUNDS.clip },
+			{ "name_line", overflow = "clip", style = CUT_GROUNDS.line },
+			{ "name", overflow = "grow", style = CUT_GROUNDS.grow },
 		},
 
 		-- m5: the default separator, none at all, and one of your own -- the
