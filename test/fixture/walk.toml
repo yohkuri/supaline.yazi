@@ -39,141 +39,141 @@
 
 [[step]]
 case = "plain"
-ask  = "hover never-opened: does its - turn to 1?"
+ask  = "Hover over never-opened. Does its - turn into 1?"
 look = [
-	"a directory shows an entry count: nested is 2",
-	"m s: Yazi's own size draws the same numbers",
+	"Directories show how many entries they hold, so nested shows 2.",
+	"Press m s: Yazi's own size linemode should show the same numbers.",
 ]
 
 [[step]]
 case = "overflow"
-ask  = "do the CJK and emoji rows line up with the rest?"
+ask  = "Do the Japanese and emoji names line up with the other rows?"
 look = [
-	"only the first column carries an ellipsis",
-	"no half character, and no cell a column short",
-	"the fourth runs past twelve and pushes the name over",
+	"Only the first column ends a cut name with an ellipsis.",
+	"No character is cut in half, and no column is a cell short.",
+	"The fourth column runs past twelve cells and pushes the name over.",
 ]
 
 [[step]]
 case    = "c_ramp"
 gallery = true
-ask     = "does it climb evenly, with no flat run or jump?"
+ask     = "Does the colour climb evenly, with no flat stretch or jump?"
 look    = [
-	"the two cells on a row are one colour",
-	"scroll: the ramp is 64 rows",
+	"The two cells on a row should always be the same colour.",
+	"The ramp is 64 rows long, so scroll to see all of it.",
 ]
 
 [[step]]
 case    = "c_spread"
 gallery = true
-ask     = "are the first rows readable on your ground?"
+ask     = "Can you read the first rows against your terminal's background?"
 look    = [
-	"the two columns look the same",
-	"a gradient, not 64 shades of one colour",
+	"The two columns should look exactly the same.",
+	"The rows should read as a gradient, not as 64 shades of one colour.",
 ]
 
 [[step]]
 case    = "c_hue"
 gallery = true
-ask     = "does the grey-green middle read as a colour?"
-look    = ["both ends readable as well"]
+ask     = "Does the grey-green in the middle still read as a colour?"
+look    = ["Both ends should be easy to read as well."]
 
 [[step]]
 case    = "c_bg"
 gallery = true
-ask     = "columns 2-4 full width, column 2's date readable?"
+ask     = "Do columns 2 to 4 fill their width, and can you read column 2's date?"
 look    = [
-	"every band on every row, wider than its text",
-	"the fourth column's text need not read",
+	"Every row should carry the same background, wider than its text.",
+	"The text in the fourth column does not need to be readable.",
 ]
 
 [[step]]
 case = "c_bold"
-ask  = "is the bold pair one colour, one heavier?"
+ask  = "Are the first two columns one colour, with the left one heavier?"
 look = [
-	"permissions keeps its reds and greens",
-	"a bold drawn brighter is your terminal, not supaline",
+	"The permissions column should keep its reds and greens.",
+	"If your terminal draws bold brighter rather than heavier, that is not a bug.",
 ]
 
 [[step]]
 case = "c_attrs"
-ask  = "does each word look like what it says?"
+ask  = "Does each word look like what it says?"
 look = [
-	"hidden is six empty cells",
-	"blink and blink_rapid may blink alike",
-	"a word drawn plain may be your terminal declining it",
+	"hidden should show as six empty cells.",
+	"blink and blink_rapid may blink at the same rate.",
+	"A word drawn plain may be your terminal not supporting it.",
 ]
 
 [[step]]
 case    = "c_scale"
 gallery = true
-ask     = "does the left column read as a gradient?"
-look    = ["the right: one colour, a few bright rows at the bottom"]
+ask     = "Does the left column read as a gradient?"
+look    = ["The right one should be one colour, with a few bright rows at the bottom."]
 
 # Not in the gallery: `e2e.py` holds these colours to the theme, and the ramp
 # is `c_ramp`'s, already drawn on every ground. What a reader needs it for is
 # the step after, which asks whether all of it changed.
 [[step]]
 case = "c_theme"
-ask  = "size orange, mtime a blue ramp, ext magenta?"
+ask  = "Is size orange, mtime a blue ramp, and ext magenta?"
 look = [
-	"mtime bold as well",
-	"T reloads the theme, and nothing moves",
+	"mtime should be bold as well.",
+	"Press T to reload the theme; nothing should change.",
 ]
 
 [[step]]
 case  = "c_theme"
 theme = "alt"
-ask   = "did every column take the new colours at once?"
+ask   = "Did every column take its new colour as soon as the theme changed?"
 look  = [
-	"the ramp changed as well as the flat colours",
-	"mtime still bold",
+	"The ramp should change too, not only the flat colours.",
+	"mtime should still be bold.",
 ]
 
 [[step]]
 case    = "c_theme"
 theme   = "bg"
 gallery = true
-ask     = "size and ext on grounds, and mtime not?"
+ask     = "Do size and ext now have a background, while mtime does not?"
 
 [[step]]
 case = "b_render"
-ask  = "does the box name the column the !s are in?"
+ask  = "Does the notification name the column filled with !s?"
 look = [
-	"six !s rather than a blank cell",
-	"size and mtime keep their places",
+	"The cell should be six !s rather than left blank.",
+	"size and mtime should stay where they were.",
 ]
 
 [[step]]
 case = "b_stats"
-ask  = "nothing on the row: does the box say what threw?"
-look = ["the box names the column"]
+ask  = "The row looks normal. Does the notification say what threw?"
+look = ["The notification should name the column."]
 
 [[step]]
 case = "b_width"
-ask  = "does the box say the width function threw?"
+ask  = "Does the notification say the width function threw?"
 look = [
-	"the column unpadded: dir in 3 cells, file in 4",
-	"mtime holds its place, and size takes the slack",
+	"The column is unpadded: dir takes 3 cells and file takes 4.",
+	"mtime stays in its place, and size takes up the difference.",
 ]
 
 [[step]]
 case = "b_zero"
-ask  = "same cells: does this box read unlike b w's?"
-look = ["this one is supaline refusing a 0, not a throw"]
+ask  = "The cells look like b w's. Does this notification read differently?"
+look = ["This time supaline refused a width of 0; nothing threw."]
 
 [[step]]
 case = "b_range"
-ask  = "does the box say what stats has to return?"
+ask  = "Does the notification say what stats has to return?"
 look = [
-	"the left column climbs, the right stays one colour",
-	"four dashes on the right rather than a number",
+	"The left column climbs, while the right one stays a single colour.",
+	"The right column shows four dashes instead of a number.",
 ]
 
 [[step]]
 case = "b_tick"
-ask  = "press g 1: does the right counter alone climb?"
+ask  = "Press g 1. Does only the right counter go up?"
 look = [
-	"the left counter frozen",
-	"g 1 and g 2: no notification comes back",
+	"The left counter should stay where it was.",
+	"Moving between g 1 and g 2 should not bring the notification back.",
 ]
