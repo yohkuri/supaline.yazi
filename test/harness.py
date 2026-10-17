@@ -189,12 +189,18 @@ def yazi_env(dir: Path, state: str, *, headless: bool) -> dict[str, str]:
     as on macOS, it is given one of its own too. `headless` has no default, so
     a harness says which it is rather than getting the shared socket by
     leaving it out.
+
+    `LESS` is emptied for a headless Yazi, because `e2e.py` reads the walk's
+    `W d` by the first row `less` draws, and an option such as `-N` moves it.
+    A person keeps their own.
     """
     env = {
         "YAZI_CONFIG_HOME": str(dir / "config"),
         "XDG_STATE_HOME": str(dir / state),
         "YAZI_LOG": "debug",
     }
+    if headless:
+        env["LESS"] = ""
     if headless or "XDG_RUNTIME_DIR" not in os.environ:
         env |= own_socket(dir)
     return env

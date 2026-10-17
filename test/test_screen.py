@@ -787,8 +787,8 @@ class TheFixtureItReads(unittest.TestCase):
             "a field that is not a string": self.step(
                 extra='theme = ["alt"]\n'
             ),
-            # Written into a Lua string, unescaped.
-            "a question that would need escaping": self.step(ask='a\\"b'),
+            # Drawn on one row.
+            "a question over two lines": self.step(ask="a\\nb"),
             # The character `e2e.py` splits a line on to find the panes.
             "a question carrying a pane divider": self.step(ask="a │ b"),
             "a flag that is not a boolean": self.step(

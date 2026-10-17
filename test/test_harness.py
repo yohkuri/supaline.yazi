@@ -109,6 +109,15 @@ class Sockets(unittest.TestCase):
             env = yazi_env(self.dir, "state", headless=False)
         self.assertNotIn("XDG_RUNTIME_DIR", env)
 
+    def test_only_a_headless_yazi_has_less_options_taken_away(self) -> None:
+        with mock.patch.dict(os.environ, {"LESS": "-N"}):
+            self.assertEqual(
+                yazi_env(self.dir, "state", headless=True)["LESS"], ""
+            )
+            self.assertNotIn(
+                "LESS", yazi_env(self.dir, "state", headless=False)
+            )
+
     def test_a_persons_yazi_with_none_to_keep_gets_its_own(self) -> None:
         with mock.patch.dict(os.environ):
             os.environ.pop("XDG_RUNTIME_DIR", None)
