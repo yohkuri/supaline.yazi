@@ -169,7 +169,8 @@ def clean_run(r: Run, init: str) -> None:
     # section opened in `less` and closed. After the theme's captures, because
     # a step puts its own theme in place. Its working steps come first, so
     # this run logs nothing for it. The guide is left put away, so the
-    # captures after this one have the screen Yazi would draw.
+    # captures after this one have the panes Yazi would draw, with the walk's
+    # one line at the right of the status bar.
     n = len(r.steps)
 
     def shows(*want: str) -> Callable[[str], bool]:
@@ -1191,7 +1192,7 @@ def check_theme(k: Checks, shots: dict[str, str], dir: Path) -> None:
 
 
 def main(argv: list[str]) -> int:
-    need("tmux", "yazi")
+    need("tmux", "yazi", "less")
     # Before there is anything to clean up, so the `finally` below runs on a
     # SIGTERM as well.
     catch_term()

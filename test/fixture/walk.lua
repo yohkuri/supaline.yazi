@@ -38,9 +38,13 @@ local VERDICTS = "@DIR@/" .. LISTED.verdicts
 --- rows of one ramp, and every row the guide takes is one fewer of those.
 local SHARE, TALLEST = 3, 12
 
---- Below this many rows the guide is its heading alone, since a question
---- with no room for the section under it is what the heading already says.
+--- Below this many rows the guide is its heading and the question, with no
+--- room for the section under it; `W d` still opens that.
 local SHORTEST = 4
+
+--- The cells the heading keeps for the step's title before it gives up the
+--- marks, and then the count, on its right.
+local TITLED = 24
 
 --- What the last row of the guide says, at every step, and the same keys bare
 --- where the screen is too narrow for that.
@@ -61,6 +65,11 @@ local function go(st, by)
 	local step = STEPS[st.i]
 	ya.emit("plugin", { "case", "theme " .. step.theme })
 	ya.emit("plugin", { "case", "show " .. step.case })
+	-- Each step's guide is its own height. A layout drawn from Lua changes
+	-- nothing Yazi scrolls by until a resize, read off 26.9.1's
+	-- `yazi-actor/src/app/resize.rs`, so a pane the guide shrank would leave
+	-- the hovered row below its last.
+	ya.emit("app:resize", {})
 end
 
 local move = ya.sync(go)
@@ -85,6 +94,8 @@ local mark = ya.sync(function(st, said)
 		if i < #STEPS then
 			go(st, 1)
 		end
+		-- On the last step nothing else draws the mark it just got.
+		ui.render()
 	end
 	return i
 end)
@@ -95,7 +106,7 @@ local current = ya.sync(function(st) return st.i end)
 
 local toggle = ya.sync(function(st)
 	st.hidden = not st.hidden
-	ui.render()
+	ya.emit("app:resize", {})
 end)
 
 --- How many steps were answered each way, and how many are left.
@@ -116,7 +127,9 @@ end
 --- The heading row: where the walk is on its left, and on its right a mark
 --- per step -- `✓` looks right, `✗` looks wrong, `·` not answered -- with the
 --- step on show reversed. One line padded between the two, because two lines
---- drawn over one row do not share a background.
+--- drawn over one row do not share a background. Where the row is too narrow
+--- for all of it, the marks go first and then the count, and the title is cut
+--- to what is left.
 ---@param st table
 ---@param width integer
 ---@return ui.Line
@@ -137,11 +150,21 @@ local function heading(st, width)
 
 	-- Measured as strings: a `Line` takes the spans it is given, so one built
 	-- only to be measured leaves nothing to draw.
-	local gap = width - ui.width(chip .. title .. count .. table.concat(marks) .. " ")
+	local left = width - ui.width(chip)
+	if left - ui.width(count .. table.concat(marks) .. " ") < TITLED then
+		marks = {}
+	end
+	if left - ui.width(count .. " ") < TITLED then
+		count = ""
+	end
+	local right = ui.width(count .. table.concat(marks) .. " ")
+	-- A cell short, so a title that was cut still has a space after it.
+	title = ui.truncate(title, { max = math.max(0, left - right - 1) })
+
 	local spans = {
 		ui.Span(chip):style(th.mode.normal_main),
 		ui.Span(title),
-		ui.Span(string.rep(" ", math.max(1, gap)) .. count),
+		ui.Span(string.rep(" ", left - right - ui.width(title)) .. count),
 	}
 	for i, mark in ipairs(marks) do
 		spans[#spans + 1] = i == st.i and ui.Span(mark):reverse() or ui.Span(mark)
@@ -169,42 +192,56 @@ local function wrap(text, width)
 	return lines
 end
 
+--- A guide row: its text, and whether it is drawn bold.
+---@alias walk.Row { [1]: string, [2]: boolean }
+
+--- Step `i`'s rows, by the width they were wrapped to.
+---@type table<string, walk.Row[]>
+local wrapped = {}
+
 --- The guide's rows between its heading and its keys, wrapped to `width`: the
 --- question in bold, then the step's section of `MANUAL.md`, each list item
---- hanging under its dash.
----@param step table
+--- hanging under its dash. Kept as text, and once per step and width, because
+--- `measure` runs on every frame and a section runs to hundreds of words, of
+--- which a dozen rows are drawn.
+---@param i integer
 ---@param width integer
----@return ui.Line[]
-local function body(step, width)
-	local rows = {}
+---@return walk.Row[]
+local function body(i, width)
+	local key = i .. ":" .. width
+	if wrapped[key] then
+		return wrapped[key]
+	end
+	local step, rows = STEPS[i], {}
 	for _, line in ipairs(wrap(step.ask, width)) do
-		rows[#rows + 1] = ui.Line(line):bold()
+		rows[#rows + 1] = { line, true }
 	end
 	for _, text in ipairs(step.guide) do
 		local item = text:match("^%- (.*)$")
 		for n, line in ipairs(wrap(item or text, item and width - 2 or width)) do
-			rows[#rows + 1] = ui.Line(item and (n == 1 and "- " or "  ") .. line or line)
+			rows[#rows + 1] = { item and (n == 1 and "- " or "  ") .. line or line, false }
 		end
 	end
+	wrapped[key] = rows
 	return rows
 end
 
 --- The guide's height in `area`, and the rows it holds: nothing before the
---- walk has begun or while it is put away, its heading alone where the screen
---- is short, and otherwise as much of the section as fits.
+--- walk has begun or while it is put away, its heading and the question where
+--- the screen is short, and otherwise as much of the section as fits.
 ---@param st table
 ---@param area ui.Rect
 ---@return integer
----@return ui.Line[]
+---@return walk.Row[]
 local function measure(st, area)
 	if not st.i or st.hidden then
 		return 0, {}
 	end
 	local room = math.min(TALLEST, area.h // SHARE)
 	if room < SHORTEST then
-		return 1, {}
+		return math.max(1, math.min(2, room)), {}
 	end
-	local rows = body(STEPS[st.i], area.w - 2)
+	local rows = body(st.i, area.w - 2)
 	return math.min(room, #rows + 2), rows
 end
 
@@ -214,7 +251,7 @@ local Guide = { _id = "walk" }
 
 ---@param area ui.Rect
 ---@param st table
----@param rows ui.Line[]
+---@param rows walk.Row[]
 function Guide:new(area, st, rows) return setmetatable({ _area = area, _st = st, _rows = rows }, { __index = self }) end
 
 function Guide:reflow() return { self } end
@@ -238,14 +275,18 @@ function Guide:draw()
 	-- `area` is declared to answer a `Rect` as well, so this is any element.
 	---@type any[]
 	local drawn = { heading(self._st, a.w):area(row(0)) }
-	if a.h == 1 then
+	if #self._rows == 0 then
+		if a.h > 1 then
+			drawn[2] = ui.Line(" " .. STEPS[self._st.i].ask):bold():area(row(1))
+		end
 		return drawn
 	end
 
 	local room = a.h - 2
 	local shown = {}
 	for i = 1, math.min(#self._rows, room) do
-		shown[i] = self._rows[i]
+		local text, bold = table.unpack(self._rows[i])
+		shown[i] = bold and ui.Line(text):bold() or ui.Line(text)
 	end
 	if #self._rows > room then
 		shown[room] = ui.Line("… W d reads the whole section"):dim()
@@ -275,6 +316,9 @@ function M:setup()
 
 	function root:layout()
 		local ok, height, rows = pcall(measure, st, self._area)
+		if not ok then
+			ya.err("walk: the guide could not be measured: " .. tostring(height))
+		end
 		if not ok or height == 0 then
 			self._guide = nil
 			return layout(self)
@@ -321,11 +365,16 @@ end
 
 --- The step's section of `MANUAL.md`, whole, in `less` -- code blocks and
 --- all, which the guide leaves out -- with Yazi put away until it quits.
+--- With `LESS` and `LESSOPEN` emptied, since an option such as `-N` moves the
+--- heading off the first column and a preprocessor that reformats Markdown
+--- moves it off the line `setup.py` read it on.
 ---@param i integer
 local function more(i)
 	local permit = ui.hide()
 	local done, err = Command("less")
 		:arg({ "+" .. STEPS[i].line .. "g", LISTED.manual })
+		:env("LESS", "")
+		:env("LESSOPEN", "")
 		:stdin(Command.INHERIT)
 		:stdout(Command.INHERIT)
 		:stderr(Command.INHERIT)
@@ -350,12 +399,10 @@ function M:entry(job)
 		return move(1)
 	elseif verb == "back" then
 		return move(-1)
-	elseif verb == "hide" then
-		return toggle()
 	end
 
 	local said = (verb == "yes" or verb == "no") and verb
-	if not said and verb ~= "more" then
+	if not said and verb ~= "more" and verb ~= "hide" then
 		return
 	end
 	local on = current()
@@ -363,6 +410,8 @@ function M:entry(job)
 		return ya.notify { title = "walk", content = "W n starts the walk; there is no step yet", timeout = 5 }
 	elseif verb == "more" then
 		return more(on)
+	elseif verb == "hide" then
+		return toggle()
 	end
 
 	-- What looks wrong, in the reader's words, kept beside the verdict. Escape
