@@ -86,7 +86,7 @@ class Run(Driver):
         )
         self.keep = keep
         self.steps = fixture.read_walk(listing)
-        self.guides = fixture.read_guides(listing, self.steps)
+        self.sections = fixture.read_sections(listing, self.steps)
 
     def setup(self) -> None:
         """Imported and called rather than run, so its own refusal is the one
@@ -194,7 +194,7 @@ def clean_run(r: Run, init: str) -> None:
         "W", "h", until=shows("W h shows the guide"), what="the guide away"
     )
     r.shot("walk-hidden")
-    heading = WALK_MANUAL[r.guides[1].line - 1]
+    heading = WALK_MANUAL[r.sections[1].line - 1]
     r.session.press(
         "W",
         "d",
@@ -1076,7 +1076,7 @@ def check_walk(
     dir: Path,
     listing: fixture.Cases,
     steps: list[fixture.Step],
-    guides: list[fixture.Guide],
+    sections: list[fixture.Section],
 ) -> None:
     k.section("walk")
     n = len(steps)
@@ -1088,7 +1088,9 @@ def check_walk(
     # on its last row. The status bar is Yazi's alone.
     shot = shots["walk-first"].splitlines()
     top = next((i for i, line in enumerate(shot) if f"walk 1/{n} " in line), 0)
-    k.holds(shot[top], f"walk 1/{n}  {guides[0].title}", "the guide's heading")
+    k.holds(
+        shot[top], f"walk 1/{n}  {sections[0].title}", "the guide's heading"
+    )
     k.same(shot[top + 1].strip(), first.ask, "the question under the heading")
     # Guarded, since a first step that looks at nothing reads zero rows.
     look = [f"- {item}" for item in first.look]
@@ -1136,7 +1138,7 @@ def check_walk(
     )
     k.same(
         shots["walk-more"].splitlines()[0].rstrip(),
-        WALK_MANUAL[guides[1].line - 1],
+        WALK_MANUAL[sections[1].line - 1],
         "W d opens the step's section of MANUAL.md at its heading",
     )
 
@@ -1224,7 +1226,7 @@ def main(argv: list[str]) -> int:
         check_ramp(k, r.shots, init, r.dir)
         check_attributes(k, r.shots["colour-c_attrs"], init)
         check_theme(k, r.shots, r.dir)
-        check_walk(k, r.shots, r.dir, r.listing, r.steps, r.guides)
+        check_walk(k, r.shots, r.dir, r.listing, r.steps, r.sections)
 
         print()
         for row in sc.rows(r.shots["pane_par"], 2, 7):
