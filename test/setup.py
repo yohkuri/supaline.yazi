@@ -40,6 +40,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import screen as sc
 from harness import ROOT, refuse
 
 #: Left behind in a directory this script built, and asked for before anything
@@ -532,7 +533,7 @@ def lua_string(text: str) -> str:
 
 
 def write_cases(
-    target: Path, listing: Cases, steps: list[Step], guides: list[Guide]
+    target: Path, listing: Cases, steps: list[Step], sections: list[Section]
 ) -> None:
     """The keymap bindings and the plugins' table, out of `cases.toml` and
     `walk.toml`.
@@ -547,8 +548,9 @@ def write_cases(
     that in front of a folder or a theme itself, from the `@DIR@` it was
     copied with, so neither Yazi's own argument parser nor a string written
     here ever has to quote one. What both carry is names `cases` has already
-    held to what needs no quoting -- but for each step's section of
-    `MANUAL.md`, which is prose and goes through `lua_string`.
+    held to what needs no quoting -- but for each step's question, what it
+    looks at and its section's title, which are prose and go through
+    `lua_string`.
     """
     blocks = [
         "",
@@ -587,14 +589,14 @@ def write_cases(
         bind(theme.key, f"plugin case -- theme {theme.name}", theme.desc)
         table.append(f'\t\t["{theme.name}"] = true,')
     table.extend(["\t},", "\tsteps = {"])
-    for step, guide in zip(steps, guides, strict=True):
+    for step, section in zip(steps, sections, strict=True):
         fields = [
             f'case = "{step.case}"',
             f'key = "{listing.cases[step.case].key}"',
             f'theme = "{step.theme}"',
             f"ask = {lua_string(step.ask)}",
-            f"title = {lua_string(guide.title)}",
-            f"line = {guide.line}",
+            f"title = {lua_string(section.title)}",
+            f"line = {section.line}",
         ]
         look = ", ".join(map(lua_string, step.look))
         table.append(f"\t\t{{ {', '.join(fields)}, look = {{ {look} }} }},")
@@ -865,9 +867,10 @@ class Step:
 #: row.
 ASK = re.compile(r"[^│\x00-\x1f\x7f]+")
 
-#: The characters that row holds: the guide's width on an 80-column terminal,
-#: less its margin either side and the dash an item of `look` hangs under.
-ROW = 80 - 2 - 2
+#: The cells that row holds on an 80-column terminal: the guide less its margin
+#: either side, `a.w - 2` in `walk.lua`'s `draw`. An item of `look` hangs under
+#: a dash, `width - 2` in its `body`, so it has two fewer.
+ROW = 80 - 2
 
 #: The most things a step has the reader look at. The guide is a checklist to
 #: take in at a glance, and what is past it -- the why -- is in the section
@@ -919,15 +922,15 @@ def walk(text: str, listing: Cases) -> list[Step]:
                 f"step `{case}` has {len(look)} things to look at, past "
                 f"{LOOKS}: the rest belongs in its section of MANUAL.md"
             )
-        for said in (ask, *look):
+        for said, room in ((ask, ROW), *((item, ROW - 2) for item in look)):
             if not isinstance(said, str) or not ASK.fullmatch(said):
                 raise ValueError(
                     f"step `{case}` says {said!r}, which `{ASK.pattern}` refuses"
                 )
-            if len(said) > ROW:
+            if sum(map(sc.width, said)) > room:
                 raise ValueError(
-                    f"step `{case}` says {said!r}, past the {ROW} characters "
-                    "of a row of the guide"
+                    f"step `{case}` says {said!r}, past the {room} cells it "
+                    "has on a row of the guide"
                 )
         broken = listing.cases[case].broken
         gallery = row.get("gallery", False)
@@ -985,7 +988,7 @@ def goes_to(manual: str) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class Guide:
+class Section:
     """A step's section of `MANUAL.md`, as the walk's guide names it: the
     heading, and the line `W d` opens it at."""
 
@@ -1010,10 +1013,10 @@ def closing(lines: list[str], start: int, fence: str) -> int | None:
 
 
 #: A section heading, and the part of it before the dash that names its keys.
-GUIDE_HEADING = re.compile(r"^### (.*?)(?: — .*)?$")
+HEADING = re.compile(r"^### (.*?)(?: — .*)?$")
 
 
-def guide(manual: str, key: str) -> Guide | None:
+def section(manual: str, key: str) -> Section | None:
     """The `###` section of `MANUAL.md` whose heading names `key`, or `None`.
 
     Its heading with the code markers off, which a terminal has no use for. A
@@ -1029,13 +1032,13 @@ def guide(manual: str, key: str) -> Guide | None:
             n = len(lines) if end is None else end + 1
             continue
         n += 1
-        head = GUIDE_HEADING.match(line)
+        head = HEADING.match(line)
         if head and f"`{key}`" in head.group(1):
-            return Guide(line.removeprefix("### ").replace("`", ""), n)
+            return Section(line.removeprefix("### ").replace("`", ""), n)
     return None
 
 
-def read_guides(listing: Cases, steps: list[Step]) -> list[Guide]:
+def read_sections(listing: Cases, steps: list[Step]) -> list[Section]:
     """Each step's section, or a refusal naming the key that has none.
 
     A step whose key no heading names would draw a guide with no title, and
@@ -1045,10 +1048,10 @@ def read_guides(listing: Cases, steps: list[Step]) -> list[Guide]:
     found = []
     for step in steps:
         key = listing.cases[step.case].key
-        section = guide(manual, key)
-        if section is None:
+        heading = section(manual, key)
+        if heading is None:
             refuse(f"setup: test/MANUAL.md has no ### section naming `{key}`")
-        found.append(section)
+        found.append(heading)
     return found
 
 
@@ -1161,7 +1164,7 @@ def build(target: Path) -> None:
     # its own sentence rather than half a fixture.
     listing = read_cases()
     steps = read_walk(listing)
-    guides = read_guides(listing, steps)
+    sections = read_sections(listing, steps)
 
     # Stated, so the fixture carries the same modes whoever builds it. `e2e.py`
     # greps the permissions column for `drwxr-xr-x`, and under `umask 077` the
@@ -1178,7 +1181,7 @@ def build(target: Path) -> None:
         build_broken(target / "fixture")
         write_ramps(target)
         check_cases(target, listing)
-        write_cases(target, listing, steps, guides)
+        write_cases(target, listing, steps, sections)
     finally:
         os.umask(was)
 

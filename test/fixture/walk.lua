@@ -261,7 +261,7 @@ function Guide:draw()
 		shown[i] = bold and ui.Line(text):bold() or ui.Line(text)
 	end
 	if #rows > room then
-		shown[room] = ui.Line("… W d reads the section"):dim()
+		shown[room] = ui.Line("… W d reads the whole section"):dim()
 	end
 	drawn[#drawn + 1] = ui.Text(shown):area(ui.Rect { x = a.x + 1, y = a.y + 1, w = a.w - 2, h = room })
 	local keys = ui.width(KEYS) + 2 <= a.w and KEYS or BARE

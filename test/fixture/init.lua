@@ -91,11 +91,12 @@ local LINE_GROUND = "#007a00"
 -- 0.264 from each other. The search maximised the smallest of all of those
 -- over an RGB grid, with the contrast as a floor, and refined at the top of
 -- it. Left to the terminals alone it put a green 0.049 from `LINE_GROUND`.
+local function on(bg) return { fg = "#ffffff", bg = bg } end
 local CUT_GROUNDS = {
-	ellipsis = { fg = "#ffffff", bg = "#3074a9" },
-	clip = { fg = "#ffffff", bg = "#cc00cc" },
-	line = { fg = "#ffffff", bg = "#6600ff" },
-	grow = { fg = "#ffffff", bg = "#ee0700" },
+	ellipsis = on("#3074a9"),
+	clip = on("#cc00cc"),
+	line = on("#6600ff"),
+	grow = on("#ee0700"),
 }
 
 -- User columns, registered through the same entry point the built-ins use.
