@@ -530,7 +530,7 @@ supaline:setup {
 		-- its own cell: its ten characters take their colours from the theme's
 		-- `[status]` section, and a bold written for the column is patched into
 		-- each of those styles rather than replacing any of them. Bold there
-		-- with the theme's own reds and greens still on it is the whole claim.
+		-- with the theme's own colours still on it is the whole claim.
 		--
 		-- `┊` for the same reason `c_scale` uses it: the two ratio columns hold
 		-- the same number and would read as one, and `e2e.py` splits a capture

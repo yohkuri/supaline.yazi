@@ -645,11 +645,13 @@ colour: the columns here are meant to differ in exactly one way.
 - The two ratio columns have to be the **same colour on every row** and differ
   only in weight. A pair that disagrees on the colour is the bold having got
   into the ramp rather than sitting beside it.
-- `permissions` has to keep its reds and greens. It is the only column that
-  paints its own cell, so a bold written for it reaches the characters as the
-  Line's style under their own rather than inside any of them — a cell that
-  came back in one flat colour is the column having stepped aside for
-  something that is not a colour.
+- `permissions` has to keep its own colours, in bold: under Yazi's preset,
+  which `manual.py` keeps for the rows, a grey `-`, a yellow `r` and a red `w`
+  on every file here. It is the only column that paints its own cell, so a
+  bold written for it reaches the characters as the Line's style under their
+  own rather than inside any of them — a cell that came back in one flat
+  colour is the column having stepped aside for something that is not a
+  colour.
 - Whether bold is **legible** here is the reader's question and the reason this
   is a manual case. A terminal that draws bold as a brighter colour rather than
   a heavier face turns one column of the pair into a different step of the
