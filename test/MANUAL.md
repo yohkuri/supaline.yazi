@@ -16,7 +16,9 @@ the way your own Yazi draws it in the same terminal, rather than in Yazi's
 preset, whose colours are names your terminal's palette decides. The file rows
 are not: each theme also carries the preset's colours for them and for the
 `permissions` column, so they and every column without a style of its own look
-as they do in the headless run.
+as they do in the headless run. Those colours are the status bar's
+permissions too, and the flavor keeps the icons and, if it sets one, the
+hovered row's `[indicator]`.
 
 Quit with `q`. `test/manual.py --clean` throws the fixture away.
 
@@ -53,7 +55,8 @@ The guide takes a third of the screen and never more than twelve rows, since
 the rows it takes are rows of the case being judged. What does not fit is cut
 off with a line saying so. `W d` opens the step's section, at its heading —
 `q` brings Yazi back. On a screen too short for that third to hold four rows
-the guide is its heading and the question. `W h` puts it away and gives the
+the guide is its heading and the question; its heading alone where the third
+is one row, and nothing where it is none. `W h` puts it away and gives the
 file list its rows back, which is how to judge a case by its height, such as
 the whole of `c r`; the status bar then says which step you are on.
 

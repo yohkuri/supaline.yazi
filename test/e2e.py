@@ -63,9 +63,6 @@ SCALE_FLOOR = 16
 WALK_NOTE = "e2e says no"
 WALK_ASKS = "What looks wrong?"
 
-#: What `W d` opens, by line.
-WALK_MANUAL = fixture.MANUAL.read_text().splitlines()
-
 #: What counts as an error in a Yazi log, on either side of the run.
 TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
 
@@ -194,7 +191,7 @@ def clean_run(r: Run, init: str) -> None:
         "W", "h", until=shows("W h shows the guide"), what="the guide away"
     )
     r.shot("walk-hidden")
-    heading = WALK_MANUAL[r.sections[1].line - 1]
+    heading = r.sections[1].heading
     r.session.press(
         "W",
         "d",
@@ -1138,7 +1135,7 @@ def check_walk(
     )
     k.same(
         shots["walk-more"].splitlines()[0].rstrip(),
-        WALK_MANUAL[sections[1].line - 1],
+        sections[1].heading,
         "W d opens the step's section of MANUAL.md at its heading",
     )
 

@@ -136,8 +136,11 @@ def carry_flavor(target: Path) -> str:
     of its own is drawn in its row's colour (`docs/configuration.md`), so each
     theme also gets `PRESET_ROWS`. A theme's own tables are laid over its
     flavor's, and a `[filetype]`'s rules replace the flavor's whole, read off
-    26.9.1's `yazi-config/src/lib.rs`, so the rows keep the colours they have
-    headless.
+    26.9.1's `yazi-config/src/lib.rs`, so the names and `permissions` keep the
+    colours they have headless. Two things stay the flavor's: the icons, and
+    the hovered row's `[indicator]` if it sets one. And the `perm_*` styles
+    are the status bar's too, so its permissions are drawn as the column's
+    are rather than as your own Yazi draws them.
 
     Every theme, because a `c` key copies one over `theme.toml` and a theme
     without the tables takes them away with it. A table a theme already has is
@@ -148,12 +151,17 @@ def carry_flavor(target: Path) -> str:
     fails the whole theme, read off the same file.
     """
     source = your_config()
+    theme = source / "theme.toml"
     try:
-        flavor = tomllib.loads((source / "theme.toml").read_text()).get(
-            "flavor", {}
-        )
-    except (OSError, tomllib.TOMLDecodeError):
+        flavor = tomllib.loads(theme.read_text()).get("flavor", {})
+    except FileNotFoundError:
         flavor = {}
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        # Said rather than taken for no flavor at all, which the verdicts'
+        # header would then record as what the run was drawn in.
+        print(f"  note: {theme} could not be read here, so your flavor is not")
+        print(f"        carried: {error}")
+        return "flavor   unread, Yazi's preset"
     if not isinstance(flavor, dict):
         flavor = {}
     slots = {}

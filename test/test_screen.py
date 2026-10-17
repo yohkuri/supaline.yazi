@@ -861,7 +861,9 @@ class TheFixtureItReads(unittest.TestCase):
     def test_a_section_is_its_heading_without_code_and_the_line_it_is_on(self):
         self.assertEqual(
             fixture.section(self.PAGE, "c r"),
-            fixture.Section("c r — one row per step", 7),
+            fixture.Section(
+                "c r — one row per step", 7, "### `c r` — one row per step"
+            ),
         )
 
     def test_a_section_is_found_by_any_key_its_heading_names(self):
