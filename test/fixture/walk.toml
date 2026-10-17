@@ -51,7 +51,7 @@ ask  = "Do the Japanese and emoji names line up with the other rows?"
 look = [
 	"Only the first column ends a cut name with an ellipsis.",
 	"No character is cut in half, and no column is a cell short.",
-	"The fourth column runs past twelve cells and pushes the name over.",
+	"The fourth column is never cut, so its width changes from row to row.",
 ]
 
 [[step]]
@@ -91,7 +91,7 @@ look    = [
 case = "c_bold"
 ask  = "Are the first two columns one colour, with the left one heavier?"
 look = [
-	"The permissions column should keep its reds and greens.",
+	"The permissions column keeps its grey, yellow and red, in bold.",
 	"If your terminal draws bold brighter rather than heavier, that is not a bug.",
 ]
 
