@@ -95,7 +95,7 @@ def carry_flavor(target: Path) -> str:
     and the line the verdicts' header says it with.
 
     The fixture's themes carry no `[flavor]`, so Yazi draws everything but the
-    columns -- the status bar, where the walk asks its questions, above all --
+    columns -- the walk's guide and the status bar under it among them --
     from its preset, and which preset is the terminal's answer to being asked
     whether it is light, read off 26.9.1's `yazi-config/src/lib.rs`. A
     terminal can answer light over a dark background -- Ghostty answers with
@@ -187,8 +187,9 @@ def main(argv: list[str]) -> int:
     print("supaline manual test")
     print(rule)
     print("  W n starts the walk through the cases only a real terminal can")
-    print("  judge, one question each, asked in the status bar. Every key, and")
-    print("  what to look for under each, is in test/MANUAL.md.")
+    print("  judge, one question each, asked in a guide above the status bar")
+    print("  that quotes what test/MANUAL.md says to look for. Every key is")
+    print("  in test/MANUAL.md, and the guide's own on its last row.")
     print()
     print("  What a report says past its one sentence -- what the fault cost,")
     print("  and the whole of what was thrown -- goes to the log rather than")

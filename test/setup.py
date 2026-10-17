@@ -517,7 +517,23 @@ def toml_string(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
-def write_cases(target: Path, listing: Cases, steps: list[Step]) -> None:
+def lua_string(text: str) -> str:
+    """`text` as a Lua string literal.
+
+    A control character as a decimal escape, three digits so a digit after it
+    cannot be read as part of it; everything else as the UTF-8 it is, which a
+    Lua string holds byte for byte.
+    """
+    body = "".join(
+        f"\\{ord(c):03d}" if ord(c) < 0x20 or ord(c) == 0x7F else c
+        for c in text.replace("\\", "\\\\").replace('"', '\\"')
+    )
+    return f'"{body}"'
+
+
+def write_cases(
+    target: Path, listing: Cases, steps: list[Step], guides: list[Guide]
+) -> None:
     """The keymap bindings and the plugins' table, out of `cases.toml` and
     `walk.toml`.
 
@@ -531,7 +547,8 @@ def write_cases(target: Path, listing: Cases, steps: list[Step]) -> None:
     that in front of a folder or a theme itself, from the `@DIR@` it was
     copied with, so neither Yazi's own argument parser nor a string written
     here ever has to quote one. What both carry is names `cases` has already
-    held to what needs no quoting.
+    held to what needs no quoting -- but for each step's section of
+    `MANUAL.md`, which is prose and goes through `lua_string`.
     """
     blocks = [
         "",
@@ -554,6 +571,7 @@ def write_cases(target: Path, listing: Cases, steps: list[Step]) -> None:
         "-- Written by test/setup.py from test/fixture/cases.toml.",
         "return {",
         f'\tverdicts = "{VERDICTS}",',
+        f"\tmanual = {lua_string(str(MANUAL))},",
         "\tcases = {",
     ]
     for folder in listing.folders.values():
@@ -569,14 +587,18 @@ def write_cases(target: Path, listing: Cases, steps: list[Step]) -> None:
         bind(theme.key, f"plugin case -- theme {theme.name}", theme.desc)
         table.append(f'\t\t["{theme.name}"] = true,')
     table.extend(["\t},", "\tsteps = {"])
-    for step in steps:
+    for step, guide in zip(steps, guides, strict=True):
         fields = [
             f'case = "{step.case}"',
             f'key = "{listing.cases[step.case].key}"',
             f'theme = "{step.theme}"',
             f'ask = "{step.ask}"',
+            f"title = {lua_string(guide.title)}",
+            f"line = {guide.line}",
         ]
-        table.append(f"\t\t{{ {', '.join(fields)} }},")
+        table.append(f"\t\t{{ {', '.join(fields)}, guide = {{")
+        table.extend(f"\t\t\t{lua_string(text)}," for text in guide.text)
+        table.append("\t\t} },")
     table.extend(["\t},", "}"])
 
     keymap = target / "config" / "keymap.toml"
@@ -840,13 +862,9 @@ class Step:
 
 
 #: What a question may be spelled with. It goes into the plugins' table as a Lua
-#: string, so nothing that string escapes; and it is drawn in the status bar,
-#: where `e2e.py` splits a line on `│` to find the panes, so not that either.
+#: string, so nothing that string escapes; and it is drawn on the screen `e2e.py`
+#: splits a line of on `│` to find the panes, so not that either.
 ASK = re.compile(r'[^"\\│\x00-\x1f\x7f]+')
-
-#: The longest question, in characters. The status bar holds Yazi's own parts
-#: either side of it, and a question cut off at the edge is a question unasked.
-ASK_LONGEST = 50
 
 
 def walk(text: str, listing: Cases) -> list[Step]:
@@ -890,10 +908,6 @@ def walk(text: str, listing: Cases) -> list[Step]:
         if not ASK.fullmatch(ask):
             raise ValueError(
                 f"step `{case}` asks {ask!r}, which `{ASK.pattern}` refuses"
-            )
-        if len(ask) > ASK_LONGEST:
-            raise ValueError(
-                f"step `{case}` asks {len(ask)} characters, over {ASK_LONGEST}"
             )
         broken = listing.cases[case].broken
         gallery = row.get("gallery", False)
@@ -947,6 +961,81 @@ def goes_to(manual: str) -> dict[str, str]:
         if key in found:
             raise ValueError(f"MANUAL.md sends `{key}` to two folders")
         found[key] = folder
+    return found
+
+
+@dataclass(frozen=True)
+class Guide:
+    """A step's section of `MANUAL.md`, as the walk's guide draws it: the
+    heading, the line it is on, and the prose under it."""
+
+    title: str
+    line: int
+    text: list[str]
+
+
+#: A section heading, and the part of it before the dash that names its keys.
+GUIDE_HEADING = re.compile(r"^### (.*?)(?: — .*)?$")
+
+
+def plain(markdown: str) -> str:
+    """One line of prose with the markup taken off: a link down to its text,
+    and the bold and code markers dropped, which a terminal has no use for."""
+    text = re.sub(r"\[([^]]*)\]\([^)]*\)", r"\1", markdown)
+    return text.replace("**", "").replace("`", "")
+
+
+def guide(manual: str, key: str) -> Guide | None:
+    """The `###` section of `MANUAL.md` whose heading names `key`, or `None`.
+
+    Its paragraphs and list items, each joined onto one line for the walk to
+    wrap at whatever width it is drawn at. Code blocks are left out: what
+    they show is the screen the guide is drawn under, and `W d` opens the
+    section whole. Ends at the next heading of any level.
+    """
+    lines = manual.splitlines()
+    for n, line in enumerate(lines):
+        head = GUIDE_HEADING.match(line)
+        if head and f"`{key}`" in head.group(1):
+            break
+    else:
+        return None
+
+    text: list[str] = []
+    fenced = False
+    joining = False
+    for line in lines[n + 1 :]:
+        if line.startswith("#") and not fenced:
+            break
+        if line.startswith("```"):
+            fenced = not fenced
+            joining = False
+        elif fenced or not line.strip():
+            joining = False
+        elif joining and not re.match(r"(?:- |\d+\. )", line):
+            text[-1] += " " + line.strip()
+        else:
+            text.append(line.strip())
+            joining = True
+    return Guide(
+        plain(lines[n].removeprefix("### ")), n + 1, list(map(plain, text))
+    )
+
+
+def read_guides(listing: Cases, steps: list[Step]) -> list[Guide]:
+    """Each step's section, or a refusal naming the key that has none.
+
+    A step whose key no heading names would draw a guide with nothing to read
+    under the question, and the reader would have no section to turn to.
+    """
+    manual = MANUAL.read_text()
+    found = []
+    for step in steps:
+        key = listing.cases[step.case].key
+        section = guide(manual, key)
+        if section is None:
+            refuse(f"setup: test/MANUAL.md has no ### section naming `{key}`")
+        found.append(section)
     return found
 
 
@@ -1059,6 +1148,7 @@ def build(target: Path) -> None:
     # its own sentence rather than half a fixture.
     listing = read_cases()
     steps = read_walk(listing)
+    guides = read_guides(listing, steps)
 
     # Stated, so the fixture carries the same modes whoever builds it. `e2e.py`
     # greps the permissions column for `drwxr-xr-x`, and under `umask 077` the
@@ -1075,7 +1165,7 @@ def build(target: Path) -> None:
         build_broken(target / "fixture")
         write_ramps(target)
         check_cases(target, listing)
-        write_cases(target, listing, steps)
+        write_cases(target, listing, steps, guides)
     finally:
         os.umask(was)
 

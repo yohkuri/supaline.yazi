@@ -25,8 +25,8 @@ run  = "plugin supaline -- toggle switch"
 desc = "supaline: switch to none, or back"
 
 # The walk through `walk.toml`, under a leader Yazi binds nothing to. Not
-# states either: each moves through the list, or records what the reader said
-# about the step it is on.
+# states either: each moves through the list, records what the reader said
+# about the step it is on, or changes what the guide shows of it.
 [[mgr.prepend_keymap]]
 on   = [ "W", "n" ]
 run  = "plugin walk -- next"
@@ -45,4 +45,14 @@ desc = "walk: looks right, and go on"
 [[mgr.prepend_keymap]]
 on   = [ "W", "x" ]
 run  = "plugin walk -- no"
-desc = "walk: looks wrong, and go on"
+desc = "walk: looks wrong, say what, and go on"
+
+[[mgr.prepend_keymap]]
+on   = [ "W", "d" ]
+run  = "plugin walk -- more"
+desc = "walk: the step's whole section of MANUAL.md"
+
+[[mgr.prepend_keymap]]
+on   = [ "W", "h" ]
+run  = "plugin walk -- hide"
+desc = "walk: put the guide away, or bring it back"

@@ -59,6 +59,13 @@ RAMP_FLOOR = 24
 #: 40-row window: what would drop it is a column that stopped drawing.
 SCALE_FLOOR = 16
 
+#: The note `W x` is given, and the title of the box it is typed into.
+WALK_NOTE = "e2e says no"
+WALK_ASKS = "What looks wrong?"
+
+#: What `W d` opens, by line.
+WALK_MANUAL = fixture.MANUAL.read_text().splitlines()
+
 #: What counts as an error in a Yazi log, on either side of the run.
 TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
 
@@ -79,6 +86,7 @@ class Run(Driver):
         )
         self.keep = keep
         self.steps = fixture.read_walk(listing)
+        self.guides = fixture.read_guides(listing, self.steps)
 
     def setup(self) -> None:
         """Imported and called rather than run, so its own refusal is the one
@@ -155,24 +163,45 @@ def clean_run(r: Run, init: str) -> None:
     )
     r.shot("theme-after")
 
-    # The walk, three keys of it: the first step, a verdict that goes on to the
-    # second, and back to the first to find that verdict shown. After the
-    # theme's captures, because a step puts its own theme in place. Its working
-    # steps come first, so this run logs nothing for it.
+    # The walk, every key of it: the first step, a yes that goes on to the
+    # second, a no there with a note that goes on to the third, back to the
+    # second to find that verdict shown, the guide put away, and the step's
+    # section opened in `less` and closed. After the theme's captures, because
+    # a step puts its own theme in place. Its working steps come first, so
+    # this run logs nothing for it. The guide is left put away, so the
+    # captures after this one have the screen Yazi would draw.
     n = len(r.steps)
 
-    def status(want: str) -> Callable[[str], bool]:
-        return lambda s: want in s.splitlines()[-1]
+    def shows(*want: str) -> Callable[[str], bool]:
+        return lambda s: all(w in s for w in want)
 
-    r.session.press("W", "n", until=status(f"walk 1/{n} "), what="the walk")
+    r.session.press("W", "n", until=shows(f"walk 1/{n} "), what="the walk")
     r.session.wait_for(
         r.here(r.listing.cases[r.steps[0].case].folder), "step 1"
     )
     r.session.settle()
     r.shot("walk-first")
-    r.session.press("W", "y", until=status(f"walk 2/{n} "), what="step 2")
-    r.session.press("W", "p", until=status("[yes]"), what="the verdict")
+    r.session.press("W", "y", until=shows(f"walk 2/{n} "), what="step 2")
+    r.session.press("W", "x", until=shows(WALK_ASKS), what="the note's box")
+    r.session.keys(WALK_NOTE)
+    r.session.press("\r", until=shows(f"walk 3/{n} "), what="step 3")
+    r.session.press(
+        "W", "p", until=shows(f"walk 2/{n} ", "[no]"), what="the verdict"
+    )
     r.shot("walk-back")
+    r.session.press(
+        "W", "h", until=shows("W h shows the guide"), what="the guide away"
+    )
+    r.shot("walk-hidden")
+    heading = WALK_MANUAL[r.guides[1].line - 1]
+    r.session.press(
+        "W",
+        "d",
+        until=lambda s: s.splitlines()[0].rstrip() == heading,
+        what="the section in less",
+    )
+    r.shot("walk-more")
+    r.session.press("q", until=shows(f"walk 2/{n} "), what="Yazi again")
 
     # Last, because it replaces `theme.toml` wholesale. A theme key runs a
     # script through a `shell` template, the one part of either harness that
@@ -1046,15 +1075,27 @@ def check_walk(
     dir: Path,
     listing: fixture.Cases,
     steps: list[fixture.Step],
+    guides: list[fixture.Guide],
 ) -> None:
     k.section("walk")
-    first = steps[0]
+    n = len(steps)
+    first, second = steps[:2]
     case = listing.cases[first.case]
 
-    # The status bar is the walk's only screen, so its line is read whole: the
-    # step, the key that is the section of `MANUAL.md` to read, the question.
-    line = f"walk 1/{len(steps)} · {case.key} · {first.ask}"
-    k.holds(shots["walk-first"].splitlines()[-1], line, line)
+    # The guide sits between the panes and the status bar: its heading, the
+    # question on the row under it, the step's section of `MANUAL.md` below
+    # that, and the keys on its last row. The status bar is Yazi's alone.
+    shot = shots["walk-first"].splitlines()
+    top = next((i for i, line in enumerate(shot) if f"walk 1/{n} " in line), 0)
+    k.holds(shot[top], f"walk 1/{n}  {guides[0].title}", "the guide's heading")
+    k.same(shot[top + 1].strip(), first.ask, "the question under the heading")
+    opening = guides[0].text[0][:40]
+    k.that(
+        any(opening in line for line in shot[top + 2 :]),
+        f"the guide quotes the step's section ({opening!r})",
+    )
+    k.that("W y looks right" in shot[-2], "the guide ends on its keys")
+    k.that("walk" not in shot[-1], "the status bar carries no walk")
     k.that(
         any(
             listing.folders[case.folder].landmark in f
@@ -1063,19 +1104,36 @@ def check_walk(
         f"the first step puts Yazi in {first.case}'s folder",
     )
 
-    # What `manual.py` prints, written by `fs.write` from inside Yazi. One
-    # line, because one verdict was given.
+    # What `manual.py` prints, written by `fs.write` from inside Yazi: a line
+    # per verdict, and the note `W x` was given after its own.
     verdicts = dir / fixture.VERDICTS
     said = verdicts.read_text().splitlines() if verdicts.exists() else []
     k.same(
-        said,
-        [f"1\t{first.case}\t{first.theme}\tyes"],
-        f"W y writes the verdict to {fixture.VERDICTS}",
+        [line for line in said if not line.startswith("#")],
+        [
+            f"1\t{first.case}\t{first.theme}\tyes",
+            f"2\t{second.case}\t{second.theme}\tno\t{WALK_NOTE}",
+        ],
+        f"W y and W x write their verdicts to {fixture.VERDICTS}",
     )
-    back = shots["walk-back"].splitlines()[-1]
+    back = next(
+        (s for s in shots["walk-back"].splitlines() if f"walk 2/{n} " in s), ""
+    )
     k.that(
-        f"walk 1/{len(steps)} " in back and "[yes]" in back,
-        "W p goes back, with the verdict shown beside the question",
+        "[no]" in back and "✓✗·" in back,
+        "W p goes back, with the verdict and the marks in the heading",
+    )
+
+    hidden = shots["walk-hidden"].splitlines()
+    k.that(
+        f"walk 2/{n} · {listing.cases[second.case].key} · " in hidden[-1]
+        and not any("W y looks right" in line for line in hidden),
+        "W h puts the guide away, and the status bar says where the walk is",
+    )
+    k.same(
+        shots["walk-more"].splitlines()[0].rstrip(),
+        WALK_MANUAL[guides[1].line - 1],
+        "W d opens the step's section of MANUAL.md at its heading",
     )
 
 
@@ -1162,7 +1220,7 @@ def main(argv: list[str]) -> int:
         check_ramp(k, r.shots, init, r.dir)
         check_attributes(k, r.shots["colour-c_attrs"], init)
         check_theme(k, r.shots, r.dir)
-        check_walk(k, r.shots, r.dir, r.listing, r.steps)
+        check_walk(k, r.shots, r.dir, r.listing, r.steps, r.guides)
 
         print()
         for row in sc.rows(r.shots["pane_par"], 2, 7):
