@@ -68,9 +68,11 @@ local GROUND = "#8b0045"
 -- the first thing a reader does. They are 0.331 apart, further than either
 -- sits from anything named above.
 --
--- Against the same three sets: 0.276, 0.250, 0.243, each of them further than
+-- Against the same three sets: 0.276, 0.250, 0.224, each of them further than
 -- `GROUND`'s own 0.207, 0.242 and 0.113. The search maximised the smallest of
--- the three over an RGB grid and refined at the top of it.
+-- the three over an RGB grid and refined at the top of it, when the third was
+-- 0.243; `m 4`'s blue below, picked after it and clear of it in turn, is the
+-- 0.224.
 --
 -- That third set is not decoration. The first search returned `#fe00fe`, and
 -- this fixture draws `ext` in `magenta`: what a ground has to stand clear of

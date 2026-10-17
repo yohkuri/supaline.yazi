@@ -40,6 +40,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+# First, because importing it is what refuses too old a Python, and `screen`
+# cannot be read by one.
+import harness  # noqa: F401
 import screen as sc
 from harness import ROOT, refuse
 
@@ -739,7 +742,10 @@ def fields(
     for name, value in row.items():
         wanted = allowed[name]
         if not isinstance(value, wanted) or value == "":
-            raise ValueError(f"[[{kind}]] `{name}` is not a {said[wanted]}")
+            raise ValueError(
+                f"[[{kind}]] `{name}` is not a "
+                + said.get(wanted, wanted.__name__)
+            )
 
 
 def cases(text: str) -> Cases:
@@ -963,7 +969,8 @@ def read_walk(listing: Cases) -> list[Step]:
         refuse(f"setup: test/fixture/walk.toml: {error}")
 
 
-#: What a person reads beside the screen, which `goes_to` and `guide` read.
+#: What a person reads beside the screen. `goes_to` and `section` read it, and
+#: the walk's `W d` opens it in `less` at the line `section` found.
 MANUAL = ROOT / "test" / "MANUAL.md"
 
 
@@ -989,11 +996,12 @@ def goes_to(manual: str) -> dict[str, str]:
 
 @dataclass(frozen=True)
 class Section:
-    """A step's section of `MANUAL.md`, as the walk's guide names it: the
-    heading, and the line `W d` opens it at."""
+    """A step's section of `MANUAL.md`, as the walk's guide names it: its
+    title, the line `W d` opens it at, and that line as `less` shows it."""
 
     title: str
     line: int
+    heading: str
 
 
 #: A fenced code block's opening run, once the line's indent is off.
@@ -1034,7 +1042,7 @@ def section(manual: str, key: str) -> Section | None:
         n += 1
         head = HEADING.match(line)
         if head and f"`{key}`" in head.group(1):
-            return Section(line.removeprefix("### ").replace("`", ""), n)
+            return Section(line.removeprefix("### ").replace("`", ""), n, line)
     return None
 
 

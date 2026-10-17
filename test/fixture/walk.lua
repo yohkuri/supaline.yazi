@@ -39,7 +39,7 @@ local VERDICTS = "@DIR@/" .. LISTED.verdicts
 local SHARE, TALLEST = 3, 12
 
 --- Below this many rows the guide is its heading and the question, with no
---- room for what to look at under it.
+--- room for what to look at under it -- and below two, its heading alone.
 local SHORTEST = 4
 
 --- The cells the heading keeps for the step's title before it gives up the
@@ -84,10 +84,19 @@ local move = ya.sync(go)
 --- entries happen to start in: the same burst swaps them about half the time,
 --- and keys 5ms apart did not. A write that then fails is told in a
 --- notification, with the walk moved on regardless.
+---
+--- `on` is the step a `no` was asked about. Its box is open for as long as
+--- the reader types, and a key handled meanwhile can move the walk, so a
+--- `no` that would land on a step the reader was not looking at lands nowhere
+--- and returns `nil`. A `yes` waits on nothing and passes none.
 ---@param said string
----@return integer
-local mark = ya.sync(function(st, said)
+---@param on integer?
+---@return integer?
+local mark = ya.sync(function(st, said, on)
 	local i = st.i
+	if on and on ~= i then
+		return nil
+	end
 	st.said[i] = said
 	if i < #STEPS then
 		go(st, 1)
@@ -199,9 +208,10 @@ local function body(i, width)
 	return rows
 end
 
---- The guide's height in `area`: nothing before the walk has begun or while
---- it is put away, its heading and the question where the screen is short,
---- and otherwise as much of what to look at as fits.
+--- The guide's height in `area`: nothing before the walk has begun, while it
+--- is put away, or on a screen whose third is no row at all; its heading and
+--- the question where the screen is short; and otherwise as much of what to
+--- look at as fits.
 ---@param st table
 ---@param area ui.Rect
 ---@return integer
@@ -211,7 +221,7 @@ local function measure(st, area)
 	end
 	local room = math.min(TALLEST, area.h // SHARE)
 	if room < SHORTEST then
-		return math.max(1, math.min(2, room))
+		return math.min(2, room)
 	end
 	return math.min(room, #body(st.i, area.w - 2) + 2)
 end
@@ -295,7 +305,9 @@ function M:setup()
 			ya.err("walk: the guide could not be measured: " .. tostring(height))
 		end
 		self._guide = nil
-		if ok and height > 0 then
+		-- Held to the tab, so a guide never reaches into the status bar.
+		height = ok and math.min(height, self._chunks[3].h) or 0
+		if height > 0 then
 			-- In 26.9.1 and missing from `types.yazi`.
 			---@diagnostic disable-next-line: undefined-field
 			local vertical = ui.Layout.VERTICAL
@@ -325,14 +337,14 @@ end
 
 --- The step's section of `MANUAL.md`, whole, in `less` -- why each thing the
 --- guide names is worth looking at -- with Yazi put away until it quits.
---- With `LESSOPEN` emptied, since a preprocessor that reformats Markdown
---- moves the heading off the line `setup.py` read it on.
+--- With `-L`, since a preprocessor that reformats Markdown moves the heading
+--- off the line `setup.py` read it on. An empty `LESSOPEN` would not do: less
+--- 668 still takes one set under `#env` in a lesskey file, and not with `-L`.
 ---@param i integer
 local function more(i)
 	local permit = ui.hide()
 	local done, err = Command("less")
-		:arg({ "+" .. STEPS[i].line .. "g", LISTED.manual })
-		:env("LESSOPEN", "")
+		:arg({ "-L", "+" .. STEPS[i].line .. "g", LISTED.manual })
 		:stdin(Command.INHERIT)
 		:stdout(Command.INHERIT)
 		:stderr(Command.INHERIT)
@@ -384,7 +396,15 @@ function M:entry(job)
 
 	-- Appended, so a step answered twice is two lines and the later one wins
 	-- when the file is read, rather than the first answer vanishing.
-	local i = mark(verb)
+	local i = mark(verb, verb == "no" and on or nil)
+	if not i then
+		return ya.notify {
+			title = "walk",
+			content = string.format("the walk left step %d while you typed, so nothing was written; W p goes back", on),
+			timeout = 10,
+			level = "warn",
+		}
+	end
 	local step = STEPS[i]
 	local line = string.format("%d\t%s\t%s\t%s", i, step.case, step.theme, verb)
 	if note ~= "" then
