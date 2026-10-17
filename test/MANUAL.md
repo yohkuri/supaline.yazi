@@ -278,7 +278,9 @@ a cap of 8.
 
 ### `m 4` — overflow
 
-The same name, four ways, against a column of twelve.
+The same name, four ways, against a column of twelve. Each column is drawn in
+white on a ground of its own — blue, magenta, violet, red — so where one cell
+ends and the next begins is on the screen rather than counted.
 
 ```text
  exactly-1k.bin      exactly-1k.… exactly-1k.b exactly-1k.b exactly-1k.bin
