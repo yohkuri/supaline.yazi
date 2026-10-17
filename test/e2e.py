@@ -1084,16 +1084,19 @@ def check_walk(
     case = listing.cases[first.case]
 
     # The guide sits between the panes and the status bar: its heading, the
-    # question on the row under it, the step's section of `MANUAL.md` below
-    # that, and the keys on its last row. The status bar is Yazi's alone.
+    # question on the row under it, what to look at below that, and the keys
+    # on its last row. The status bar is Yazi's alone.
     shot = shots["walk-first"].splitlines()
     top = next((i for i, line in enumerate(shot) if f"walk 1/{n} " in line), 0)
     k.holds(shot[top], f"walk 1/{n}  {guides[0].title}", "the guide's heading")
     k.same(shot[top + 1].strip(), first.ask, "the question under the heading")
-    opening = guides[0].text[0][:40]
-    k.that(
-        any(opening in line for line in shot[top + 2 :]),
-        f"the guide quotes the step's section ({opening!r})",
+    # Guarded, since a first step that looks at nothing reads zero rows.
+    look = [f"- {item}" for item in first.look]
+    k.that(bool(look), f"{first.case}'s step names something to look at")
+    k.same(
+        [line.strip() for line in shot[top + 2 : top + 2 + len(look)]],
+        look,
+        "what to look at under the question",
     )
     k.that("W y looks right" in shot[-2], "the guide ends on its keys")
     k.that("walk" not in shot[-1], "the status bar carries no walk")

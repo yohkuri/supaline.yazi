@@ -5,8 +5,8 @@
 # what no capture can: how a terminal draws a wide character or a bold, whether
 # a colour can be read against the reader's own ground, whether a report reads
 # right against the cells it is about. `MANUAL.md` has the whole of each, in the
-# section its key names, which the walk's guide quotes under the question; a
-# step is the question that section ends on.
+# section its key names; a step is the question that section ends on, and what
+# to look at to answer it.
 #
 # `W n` goes to the next step and `W p` back, putting Yazi in the step's case
 # under the step's theme. `W y` and `W x` record a verdict on it and go on,
@@ -15,8 +15,13 @@
 # `case` is a `[[case]]` id in `cases.toml`, and `theme` a `[[theme]]` name,
 # `default` when it is left out: the walk puts the theme in place at every
 # step, so a step reads the same whether it was reached forwards, backwards, or
-# after a theme key pressed by hand. `ask` is drawn in bold under the guide's
-# heading, and `setup.py` refuses a step whose key no section heading names.
+# after a theme key pressed by hand. `setup.py` refuses a step whose key no
+# section heading names.
+#
+# `ask` is drawn in bold under the guide's heading and `look`, when there is
+# one, under it, an item to a row: what the reader checks, and none of why --
+# the section has that, and is `W d` away. So `setup.py` holds each to a row
+# of the guide on an 80-column terminal, and `look` to three items.
 #
 # `gallery = true` puts a step in `gallery.py` as well, which draws its capture
 # on seven terminal grounds at once and asks the same question. Only a step a
@@ -35,43 +40,75 @@
 [[step]]
 case = "plain"
 ask  = "hover never-opened: does its - turn to 1?"
+look = [
+	"a directory shows an entry count: nested is 2",
+	"m s: Yazi's own size draws the same numbers",
+]
 
 [[step]]
 case = "overflow"
 ask  = "do the CJK and emoji rows line up with the rest?"
+look = [
+	"only the first column carries an ellipsis",
+	"no half character, and no cell a column short",
+	"the fourth runs past twelve and pushes the name over",
+]
 
 [[step]]
 case    = "c_ramp"
 gallery = true
 ask     = "does it climb evenly, with no flat run or jump?"
+look    = [
+	"the two cells on a row are one colour",
+	"scroll: the ramp is 64 rows",
+]
 
 [[step]]
 case    = "c_spread"
 gallery = true
 ask     = "are the first rows readable on your ground?"
+look    = [
+	"the two columns look the same",
+	"a gradient, not 64 shades of one colour",
+]
 
 [[step]]
 case    = "c_hue"
 gallery = true
 ask     = "does the grey-green middle read as a colour?"
+look    = ["both ends readable as well"]
 
 [[step]]
 case    = "c_bg"
 gallery = true
 ask     = "columns 2-4 full width, column 2's date readable?"
+look    = [
+	"every band on every row, wider than its text",
+	"the fourth column's text need not read",
+]
 
 [[step]]
 case = "c_bold"
 ask  = "is the bold pair one colour, one heavier?"
+look = [
+	"permissions keeps its reds and greens",
+	"a bold drawn brighter is your terminal, not supaline",
+]
 
 [[step]]
 case = "c_attrs"
 ask  = "does each word look like what it says?"
+look = [
+	"hidden is six empty cells",
+	"blink and blink_rapid may blink alike",
+	"a word drawn plain may be your terminal declining it",
+]
 
 [[step]]
 case    = "c_scale"
 gallery = true
 ask     = "does the left column read as a gradient?"
+look    = ["the right: one colour, a few bright rows at the bottom"]
 
 # Not in the gallery: `e2e.py` holds these colours to the theme, and the ramp
 # is `c_ramp`'s, already drawn on every ground. What a reader needs it for is
@@ -79,11 +116,19 @@ ask     = "does the left column read as a gradient?"
 [[step]]
 case = "c_theme"
 ask  = "size orange, mtime a blue ramp, ext magenta?"
+look = [
+	"mtime bold as well",
+	"T reloads the theme, and nothing moves",
+]
 
 [[step]]
 case  = "c_theme"
 theme = "alt"
 ask   = "did every column take the new colours at once?"
+look  = [
+	"the ramp changed as well as the flat colours",
+	"mtime still bold",
+]
 
 [[step]]
 case    = "c_theme"
@@ -94,23 +139,41 @@ ask     = "size and ext on grounds, and mtime not?"
 [[step]]
 case = "b_render"
 ask  = "does the box name the column the !s are in?"
+look = [
+	"six !s rather than a blank cell",
+	"size and mtime keep their places",
+]
 
 [[step]]
 case = "b_stats"
 ask  = "nothing on the row: does the box say what threw?"
+look = ["the box names the column"]
 
 [[step]]
 case = "b_width"
 ask  = "does the box say the width function threw?"
+look = [
+	"the column unpadded: dir in 3 cells, file in 4",
+	"mtime holds its place, and size takes the slack",
+]
 
 [[step]]
 case = "b_zero"
 ask  = "same cells: does this box read unlike b w's?"
+look = ["this one is supaline refusing a 0, not a throw"]
 
 [[step]]
 case = "b_range"
 ask  = "does the box say what stats has to return?"
+look = [
+	"the left column climbs, the right stays one colour",
+	"four dashes on the right rather than a number",
+]
 
 [[step]]
 case = "b_tick"
 ask  = "press g 1: does the right counter alone climb?"
+look = [
+	"the left counter frozen",
+	"g 1 and g 2: no notification comes back",
+]

@@ -765,12 +765,14 @@ class TheFixtureItReads(unittest.TestCase):
         # The premise under the refusals below.
         listing = fixture.cases(self.LISTED)
         steps = fixture.walk(
-            self.step(extra="gallery = true\n") + self.step("bad"), listing
+            self.step(extra='gallery = true\nlook = ["a", "b"]\n')
+            + self.step("bad"),
+            listing,
         )
         self.assertEqual(
             steps,
             [
-                fixture.Step("ok", "default", "is it right?", True),
+                fixture.Step("ok", "default", "is it right?", True, ("a", "b")),
                 fixture.Step("bad", "default", "is it right?", False),
             ],
         )
@@ -791,6 +793,23 @@ class TheFixtureItReads(unittest.TestCase):
             "a question over two lines": self.step(ask="a\\nb"),
             # The character `e2e.py` splits a line on to find the panes.
             "a question carrying a pane divider": self.step(ask="a │ b"),
+            "a question past a row": self.step(ask="a" * (fixture.ROW + 1)),
+            "a look that is not a list": self.step(extra='look = "a"\n'),
+            "a thing to look at that is not a string": self.step(
+                extra="look = [1]\n"
+            ),
+            "a thing to look at over two lines": self.step(
+                extra='look = ["a\\nb"]\n'
+            ),
+            "a thing to look at past a row": self.step(
+                extra=f'look = ["{"a" * (fixture.ROW + 1)}"]\n'
+            ),
+            # The rest is the section's, which `W d` opens.
+            "more things to look at than the guide lists": self.step(
+                extra=f"look = {['a'] * (fixture.LOOKS + 1)}\n".replace(
+                    "'", '"'
+                )
+            ),
             "a flag that is not a boolean": self.step(
                 extra='gallery = "yes"\n'
             ),
@@ -817,61 +836,40 @@ class TheFixtureItReads(unittest.TestCase):
         self.assertEqual(len(fixture.read_guides(listing, steps)), len(steps))
 
     #: A page of `MANUAL.md` in miniature: a section to find, one beside it
-    #: that names two keys, and what each has under it -- code at the margin
-    #: and indented under an item, a heading inside the code, and an item
-    #: nested under another.
+    #: that names two keys, and a heading inside code, at the margin and
+    #: indented under an item.
     PAGE = (
         "## Colour\n"
         "\n"
-        "### `c r` — one row per step\n"
-        "\n"
-        "In `g 3`. Sixty-four\n"
-        "files.\n"
-        "\n"
         "```text\n"
-        " step-00.txt\n"
-        "# not a heading\n"
         "### `c x` — not a section\n"
         "```\n"
         "\n"
-        "- **Every row** carries the\n"
-        "  *same* text.\n"
+        "### `c r` — one row per step\n"
+        "\n"
+        "- Every row carries the same text.\n"
         "\n"
         "  ```text\n"
-        "  - not an item\n"
+        "  ### `c y` — not one either\n"
         "  ```\n"
         "\n"
-        "  - Nested under it,\n"
-        "    on two lines.\n"
-        "- See [the walk](#the-walk), not `*.md`.\n"
-        "\n"
         "### `m 6` to `m 8` — panes\n"
-        "\n"
-        "Three panes.\n"
     )
 
-    def test_a_section_is_read_as_its_prose_without_its_code(self):
+    def test_a_section_is_its_heading_without_code_and_the_line_it_is_on(self):
         self.assertEqual(
             fixture.guide(self.PAGE, "c r"),
-            fixture.Guide(
-                "c r — one row per step",
-                3,
-                [
-                    "In g 3. Sixty-four files.",
-                    "- Every row carries the same text.",
-                    "- Nested under it, on two lines.",
-                    "- See the walk, not *.md.",
-                ],
-            ),
+            fixture.Guide("c r — one row per step", 7),
         )
 
     def test_a_section_is_found_by_any_key_its_heading_names(self):
         found = fixture.guide(self.PAGE, "m 8")
-        self.assertEqual((found and found.text), ["Three panes."])
+        self.assertEqual(found and found.line, 15)
         # Named only by the range, so no heading spells it.
         self.assertIsNone(fixture.guide(self.PAGE, "m 7"))
         # Spelled, but inside a code block.
         self.assertIsNone(fixture.guide(self.PAGE, "c x"))
+        self.assertIsNone(fixture.guide(self.PAGE, "c y"))
 
     def test_text_becomes_a_lua_string_that_escapes_what_lua_would_read(self):
         self.assertEqual(

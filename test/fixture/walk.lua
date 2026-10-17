@@ -39,7 +39,7 @@ local VERDICTS = "@DIR@/" .. LISTED.verdicts
 local SHARE, TALLEST = 3, 12
 
 --- Below this many rows the guide is its heading and the question, with no
---- room for the section under it; `W d` still opens that.
+--- room for what to look at under it.
 local SHORTEST = 4
 
 --- The cells the heading keeps for the step's title before it gives up the
@@ -158,8 +158,8 @@ end
 
 --- `text` broken between words into lines no wider than `width` cells. A word
 --- wider than that has a line to itself, and is cut where it is drawn.
---- Not `ui.lines`, which returns `Line`s: those are spent when drawn, and the
---- rows here are kept from one frame to the next.
+--- Here rather than by `ui.Text:wrap` as it is drawn, because `measure` sizes
+--- the guide by these rows before anything is.
 ---@param text string
 ---@param width integer
 ---@return string[]
@@ -180,42 +180,28 @@ end
 --- A guide row: its text, and whether it is drawn bold.
 ---@alias walk.Row { [1]: string, [2]: boolean }
 
---- Each step's rows at the width last drawn at.
----@type { width: integer?, [integer]: walk.Row[] }
-local wrapped = {}
-
 --- The guide's rows between its heading and its keys, wrapped to `width`: the
---- question in bold, then the step's section of `MANUAL.md`, each list item
---- hanging under its dash. Kept as text, and once per step until the width
---- changes, because the guide is drawn on every frame and a section runs to
---- hundreds of words, of which a dozen rows are drawn.
+--- question in bold, then what to look at, each item hanging under its dash.
+--- Kept as text, because `measure` counts them before `draw` draws them.
 ---@param i integer
 ---@param width integer
 ---@return walk.Row[]
 local function body(i, width)
-	if wrapped.width ~= width then
-		wrapped = { width = width }
-	end
-	if wrapped[i] then
-		return wrapped[i]
-	end
 	local step, rows = STEPS[i], {}
 	for _, line in ipairs(wrap(step.ask, width)) do
 		rows[#rows + 1] = { line, true }
 	end
-	for _, text in ipairs(step.guide) do
-		local item = text:match("^%- (.*)$")
-		for n, line in ipairs(wrap(item or text, item and width - 2 or width)) do
-			rows[#rows + 1] = { item and (n == 1 and "- " or "  ") .. line or line, false }
+	for _, item in ipairs(step.look) do
+		for n, line in ipairs(wrap(item, width - 2)) do
+			rows[#rows + 1] = { (n == 1 and "- " or "  ") .. line, false }
 		end
 	end
-	wrapped[i] = rows
 	return rows
 end
 
 --- The guide's height in `area`: nothing before the walk has begun or while
 --- it is put away, its heading and the question where the screen is short,
---- and otherwise as much of the section as fits.
+--- and otherwise as much of what to look at as fits.
 ---@param st table
 ---@param area ui.Rect
 ---@return integer
@@ -275,7 +261,7 @@ function Guide:draw()
 		shown[i] = bold and ui.Line(text):bold() or ui.Line(text)
 	end
 	if #rows > room then
-		shown[room] = ui.Line("… W d reads the whole section"):dim()
+		shown[room] = ui.Line("… W d reads the section"):dim()
 	end
 	drawn[#drawn + 1] = ui.Text(shown):area(ui.Rect { x = a.x + 1, y = a.y + 1, w = a.w - 2, h = room })
 	local keys = ui.width(KEYS) + 2 <= a.w and KEYS or BARE
@@ -337,8 +323,8 @@ function M:setup()
 	end, 500, status.RIGHT)
 end
 
---- The step's section of `MANUAL.md`, whole, in `less` -- code blocks and
---- all, which the guide leaves out -- with Yazi put away until it quits.
+--- The step's section of `MANUAL.md`, whole, in `less` -- why each thing the
+--- guide names is worth looking at -- with Yazi put away until it quits.
 --- With `LESSOPEN` emptied, since a preprocessor that reformats Markdown
 --- moves the heading off the line `setup.py` read it on.
 ---@param i integer

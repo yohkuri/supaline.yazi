@@ -596,9 +596,8 @@ def write_cases(
             f"title = {lua_string(guide.title)}",
             f"line = {guide.line}",
         ]
-        table.append(f"\t\t{{ {', '.join(fields)}, guide = {{")
-        table.extend(f"\t\t\t{lua_string(text)}," for text in guide.text)
-        table.append("\t\t} },")
+        look = ", ".join(map(lua_string, step.look))
+        table.append(f"\t\t{{ {', '.join(fields)}, look = {{ {look} }} }},")
     table.extend(["\t},", "}"])
 
     keymap = target / "config" / "keymap.toml"
@@ -734,13 +733,11 @@ def fields(
             + (f" and may have {sorted(may)}" if may else "")
         )
     allowed = {**want, **may}
+    said = {bool: "boolean", list: "list", str: "non-empty string"}
     for name, value in row.items():
         wanted = allowed[name]
         if not isinstance(value, wanted) or value == "":
-            raise ValueError(
-                f"[[{kind}]] `{name}` is not a "
-                + ("boolean" if wanted is bool else "non-empty string")
-            )
+            raise ValueError(f"[[{kind}]] `{name}` is not a {said[wanted]}")
 
 
 def cases(text: str) -> Cases:
@@ -853,17 +850,29 @@ VERDICTS = "verdicts.txt"
 @dataclass(frozen=True)
 class Step:
     """A `[[step]]` of `walk.toml`: a case, the theme it is shown under, the
-    question asked about it, and whether `gallery.py` asks it too."""
+    question asked about it, whether `gallery.py` asks it too, and what to look
+    at to answer it."""
 
     case: str
     theme: str
     ask: str
     gallery: bool
+    look: tuple[str, ...] = ()
 
 
-#: What a question may be spelled with: it is drawn on the screen `e2e.py`
-#: splits a line of on `│` to find the panes, and on one row.
+#: What a question, or a thing to look at, may be spelled with: it is drawn on
+#: the screen `e2e.py` splits a line of on `│` to find the panes, and on one
+#: row.
 ASK = re.compile(r"[^│\x00-\x1f\x7f]+")
+
+#: The characters that row holds: the guide's width on an 80-column terminal,
+#: less its margin either side and the dash an item of `look` hangs under.
+ROW = 80 - 2 - 2
+
+#: The most things a step has the reader look at. The guide is a checklist to
+#: take in at a glance, and what is past it -- the why -- is in the section
+#: `W d` opens.
+LOOKS = 3
 
 
 def walk(text: str, listing: Cases) -> list[Step]:
@@ -896,18 +905,30 @@ def walk(text: str, listing: Cases) -> list[Step]:
             "step",
             row,
             {"case": str, "ask": str},
-            {"theme": str, "gallery": bool},
+            {"theme": str, "gallery": bool, "look": list},
         )
         case, ask = row["case"], row["ask"]
         theme = row.get("theme", "default")
+        look = tuple(row.get("look", ()))
         if case not in listing.cases:
             raise ValueError(f"a step shows `{case}`, which no [[case]] is")
         if theme not in listing.themes:
             raise ValueError(f"a step puts `{theme}` in, which no [[theme]] is")
-        if not ASK.fullmatch(ask):
+        if len(look) > LOOKS:
             raise ValueError(
-                f"step `{case}` asks {ask!r}, which `{ASK.pattern}` refuses"
+                f"step `{case}` has {len(look)} things to look at, past "
+                f"{LOOKS}: the rest belongs in its section of MANUAL.md"
             )
+        for said in (ask, *look):
+            if not isinstance(said, str) or not ASK.fullmatch(said):
+                raise ValueError(
+                    f"step `{case}` says {said!r}, which `{ASK.pattern}` refuses"
+                )
+            if len(said) > ROW:
+                raise ValueError(
+                    f"step `{case}` says {said!r}, past the {ROW} characters "
+                    "of a row of the guide"
+                )
         broken = listing.cases[case].broken
         gallery = row.get("gallery", False)
         if broken and case in shown:
@@ -924,7 +945,7 @@ def walk(text: str, listing: Cases) -> list[Step]:
         shown.add(case)
         if gallery:
             judged.add((case, theme))
-        steps.append(Step(case, theme, ask, gallery))
+        steps.append(Step(case, theme, ask, gallery, look))
 
     if not steps:
         raise ValueError("no [[step]] at all")
@@ -965,15 +986,13 @@ def goes_to(manual: str) -> dict[str, str]:
 
 @dataclass(frozen=True)
 class Guide:
-    """A step's section of `MANUAL.md`, as the walk's guide draws it: the
-    heading, the line it is on, and the prose under it."""
+    """A step's section of `MANUAL.md`, as the walk's guide names it: the
+    heading, and the line `W d` opens it at."""
 
     title: str
     line: int
-    text: list[str]
 
 
-#: A section heading, and the part of it before the dash that names its keys.
 #: A fenced code block's opening run, once the line's indent is off.
 FENCE = re.compile(r"^(`{3,}|~{3,})")
 
@@ -990,67 +1009,37 @@ def closing(lines: list[str], start: int, fence: str) -> int | None:
     return None
 
 
+#: A section heading, and the part of it before the dash that names its keys.
 GUIDE_HEADING = re.compile(r"^### (.*?)(?: — .*)?$")
-
-
-def plain(markdown: str) -> str:
-    """One line of prose with the markup taken off: a link down to its text,
-    and the bold, emphasis and code markers dropped, which a terminal has no
-    use for. Only a `*` that opens and closes a word is emphasis, so a glob
-    such as `*.md` keeps its star."""
-    text = re.sub(r"\[([^]]*)\]\([^)]*\)", r"\1", markdown)
-    text = text.replace("**", "")
-    text = re.sub(r"(?<![\w*])\*(\S(?:[^*]*\S)?)\*(?![\w*])", r"\1", text)
-    return text.replace("`", "")
 
 
 def guide(manual: str, key: str) -> Guide | None:
     """The `###` section of `MANUAL.md` whose heading names `key`, or `None`.
 
-    Its paragraphs and list items, each joined onto one line for the walk to
-    wrap at whatever width it is drawn at. Code blocks are left out, however
-    far a list item indents them: what they show is the screen the guide is
-    drawn under, and `W d` opens the section whole. An item nested under
-    another is one more item. Ends at the next heading of any level, and a
-    heading inside a code block is not one.
+    Its heading with the code markers off, which a terminal has no use for. A
+    heading inside a code block is not one, however far a list item indents
+    the block.
     """
     lines = manual.splitlines()
-    found = None
-    text: list[str] = []
-    joining = False
     n = 0
     while n < len(lines):
         line = lines[n]
         if fence := FENCE.match(line.strip()):
             end = closing(lines, n, fence.group(1))
             n = len(lines) if end is None else end + 1
-            joining = False
             continue
         n += 1
-        if found is None:
-            head = GUIDE_HEADING.match(line)
-            if head and f"`{key}`" in head.group(1):
-                found = n
-        elif line.startswith("#"):
-            break
-        elif not line.strip():
-            joining = False
-        elif joining and not re.match(r"\s*(?:- |\d+\. )", line):
-            text[-1] += " " + line.strip()
-        else:
-            text.append(line.strip())
-            joining = True
-    if found is None:
-        return None
-    title = plain(lines[found - 1].removeprefix("### "))
-    return Guide(title, found, list(map(plain, text)))
+        head = GUIDE_HEADING.match(line)
+        if head and f"`{key}`" in head.group(1):
+            return Guide(line.removeprefix("### ").replace("`", ""), n)
+    return None
 
 
 def read_guides(listing: Cases, steps: list[Step]) -> list[Guide]:
     """Each step's section, or a refusal naming the key that has none.
 
-    A step whose key no heading names would draw a guide with nothing to read
-    under the question, and the reader would have no section to turn to.
+    A step whose key no heading names would draw a guide with no title, and
+    the reader would have no section to turn to.
     """
     manual = MANUAL.read_text()
     found = []
