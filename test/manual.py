@@ -6,7 +6,8 @@
 
 The configuration and the fixture come from `test/setup.py`, which `e2e.py`
 also uses, so what you see here is what the headless run asserts on. Your own
-Yazi configuration is not read and not touched.
+Yazi configuration is not touched, and its `[flavor]` is the one thing read
+from it -- `carry_flavor` says why.
 
 What you answer on the walk is printed when Yazi quits, because the next run
 rebuilds the directory it was written in.
@@ -19,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -75,6 +77,82 @@ def print_ramps(target: Path) -> None:
         )
 
 
+def your_config() -> Path:
+    """Where your own Yazi reads its configuration from.
+
+    The order 26.9.1's `yazi-fs/src/xdg.rs` resolves it in: `YAZI_CONFIG_HOME`,
+    then `XDG_CONFIG_HOME`, each only when absolute, then `~/.config`.
+    """
+    for name, under in (("YAZI_CONFIG_HOME", ""), ("XDG_CONFIG_HOME", "yazi")):
+        value = Path(os.environ.get(name, ""))
+        if value.is_absolute():
+            return value / under
+    return Path.home() / ".config" / "yazi"
+
+
+def carry_flavor(target: Path) -> str:
+    """Your own `[flavor]`, put under every theme the fixture can switch to,
+    and the line the verdicts' header says it with.
+
+    The fixture's themes carry no `[flavor]`, so Yazi draws everything but the
+    columns -- the status bar, where the walk asks its questions, above all --
+    from its preset, and which preset is the terminal's answer to being asked
+    whether it is light, read off 26.9.1's `yazi-config/src/lib.rs`. A
+    terminal can answer light over a dark background -- Ghostty answers with
+    macOS's appearance rather than its own colours -- and the light preset
+    on a dark background is unreadable. Your own `[flavor]` is what your own
+    Yazi draws that chrome with in the same terminal. The headless harnesses
+    never get an answer and stay on the dark preset, so this is for the run a
+    person looks at and no other.
+
+    Every theme, because a `c` key copies one over `theme.toml` and a theme
+    without the table takes the flavor away with it. Only the flavor is
+    carried: the `[supaline]` styles under it are the fixture's, and they are
+    what the walk is about. A flavor named but not installed is left out,
+    since one Yazi cannot read fails the whole theme, read off the same file.
+    """
+    source = your_config()
+    try:
+        flavor = tomllib.loads((source / "theme.toml").read_text()).get(
+            "flavor", {}
+        )
+    except (OSError, tomllib.TOMLDecodeError):
+        flavor = {}
+    if not isinstance(flavor, dict):
+        flavor = {}
+    slots = {
+        slot: name
+        for slot in ("dark", "light")
+        if isinstance(name := flavor.get(slot), str) and name
+    }
+    for slot, name in list(slots.items()):
+        found = source / "flavors" / f"{name}.yazi"
+        if not (found / "flavor.toml").is_file():
+            print(
+                f"  note: your {slot} flavor `{name}` is not in {found.parent}"
+            )
+            del slots[slot]
+            continue
+        dest = target / "config" / "flavors" / found.name
+        if not dest.exists():
+            shutil.copytree(found, dest)
+    if not slots:
+        return "flavor   none, Yazi's preset"
+
+    table = "\n[flavor]\n" + "".join(
+        f'{slot} = "{name}"\n' for slot, name in slots.items()
+    )
+    for theme in (target / "themes").glob("*.toml"):
+        # A second `[flavor]` would be a parse error, and Yazi would discard
+        # the whole file for it; a theme that names its own keeps it.
+        if "flavor" in tomllib.loads(theme.read_text()):
+            continue
+        with theme.open("a") as out:
+            out.write(table)
+    fixture.put_theme(target, "default")
+    return "flavor   " + ", ".join(f"{s} {n}" for s, n in slots.items())
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["--clean"]:
         # `setup.py` owns the marker file and the "is this ours" guard, so it
@@ -85,6 +163,7 @@ def main(argv: list[str]) -> int:
 
     need("yazi")
     fixture.main([str(DIR)])
+    flavor = carry_flavor(DIR)
     verdicts = DIR / fixture.VERDICTS
     # The terminal, which is the one thing a headless run never has and the
     # reason the walk exists.
@@ -96,6 +175,7 @@ def main(argv: list[str]) -> int:
         verdicts,
         "supaline manual walk: step, case, theme, verdict",
         f"terminal {term or 'unknown'} (TERM={os.environ.get('TERM', '')})",
+        flavor,
     )
 
     # Where to start and where the rest is written down, and no list of keys:

@@ -3,8 +3,9 @@
 # from here to know what to replace, so recolouring this file is enough.
 #
 # One field is a style table and the other two are strings, because the
-# custom theme section accepts either shape and both have to resolve. Add a
-# `[flavor]` here if you want to see the columns against a real flavour.
+# custom theme section accepts either shape and both have to resolve. There is
+# no `[flavor]`: `manual.py` adds your own to every theme, and the headless
+# harnesses draw on Yazi's preset.
 #
 # `mtime` is a ramp rather than a colour, which a theme can only say as a
 # string: Yazi refuses an array in a custom section and takes the whole file

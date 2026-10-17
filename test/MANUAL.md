@@ -10,7 +10,10 @@ test/manual.py
 
 It builds a throwaway configuration and fixture with `test/setup.py` — the same
 ones `e2e.py` uses, so what you see here is what the headless run checks — and
-opens Yazi on them. Your own Yazi configuration is neither read nor touched.
+opens Yazi on them. Your own Yazi configuration is not touched, and only its
+`[flavor]` is read: the fixture's themes carry it, so the status bar is drawn
+the way your own Yazi draws it in the same terminal, rather than in a preset
+the terminal may have picked wrong.
 
 Quit with `q`. `test/manual.py --clean` throws the fixture away.
 
