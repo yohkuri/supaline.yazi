@@ -62,6 +62,7 @@ local M = {}
 ---@param by integer
 local function go(st, by)
 	st.i = math.max(1, math.min(#STEPS, (st.i or 0) + by))
+	st.said = st.said or {}
 	local step = STEPS[st.i]
 	ya.emit("plugin", { "case", "theme " .. step.theme })
 	ya.emit("plugin", { "case", "show " .. step.case })
@@ -74,29 +75,25 @@ end
 
 local move = ya.sync(go)
 
---- The step a verdict is about, or `nil` before the walk has begun, with the
---- verdict recorded where the guide reads it and the walk already on to the
---- next step. Both in this one call rather than the move after the write,
---- because entries run concurrently and the write yields: measured on 26.9.1,
---- `W y W x` sent in one burst put both verdicts on one step, skipped the next,
---- and wrote them in the reverse order. What is left is which of the two
---- reaches this first, the order the entries happen to start in: the same
---- burst swaps them about half the time, and keys 5ms apart did not. A write
---- that then fails is told in a notification, with the walk moved on
---- regardless.
+--- The step a verdict is about, with the verdict recorded where the guide
+--- reads it and the walk already on to the next step. Both in this one call
+--- rather than the move after the write, because entries run concurrently and
+--- the write yields: measured on 26.9.1, `W y W x` sent in one burst put both
+--- verdicts on one step, skipped the next, and wrote them in the reverse
+--- order. What is left is which of the two reaches this first, the order the
+--- entries happen to start in: the same burst swaps them about half the time,
+--- and keys 5ms apart did not. A write that then fails is told in a
+--- notification, with the walk moved on regardless.
 ---@param said string
----@return integer?
+---@return integer
 local mark = ya.sync(function(st, said)
 	local i = st.i
-	if i then
-		st.said = st.said or {}
-		st.said[i] = said
-		if i < #STEPS then
-			go(st, 1)
-		end
-		-- On the last step nothing else draws the mark it just got.
-		ui.render()
+	st.said[i] = said
+	if i < #STEPS then
+		go(st, 1)
 	end
+	-- On the last step nothing else draws the mark it just got.
+	ui.render()
 	return i
 end)
 
@@ -109,62 +106,48 @@ local toggle = ya.sync(function(st)
 	ya.emit("app:resize", {})
 end)
 
---- How many steps were answered each way, and how many are left.
----@param st table
----@return integer yes
----@return integer no
----@return integer left
-local function tally(st)
-	local yes, no = 0, 0
-	for i = 1, #STEPS do
-		local said = st.said and st.said[i]
-		yes = yes + (said == "yes" and 1 or 0)
-		no = no + (said == "no" and 1 or 0)
-	end
-	return yes, no, #STEPS - yes - no
-end
-
---- The heading row: where the walk is on its left, and on its right a mark
---- per step -- `✓` looks right, `✗` looks wrong, `·` not answered -- with the
---- step on show reversed. One line padded between the two, because two lines
---- drawn over one row do not share a background. Where the row is too narrow
---- for all of it, the marks go first and then the count, and the title is cut
---- to what is left.
+--- The heading row: where the walk is on its left, and on its right how many
+--- steps were answered each way and a mark per step -- `✓` looks right, `✗`
+--- looks wrong, `·` not answered -- with the step on show reversed. One line
+--- padded between the two, because two lines drawn over one row do not share
+--- a background. Where the row is too narrow for all of it, the marks go
+--- first and then the count, and the title is cut to what is left.
 ---@param st table
 ---@param width integer
 ---@return ui.Line
 local function heading(st, width)
-	local step = STEPS[st.i]
-	local said = st.said and st.said[st.i]
+	local said = st.said[st.i]
 	local chip = string.format(" walk %d/%d ", st.i, #STEPS)
-	local title = " " .. step.title .. " " .. (said and ("[" .. said .. "] ") or "")
+	local title = " " .. STEPS[st.i].title .. " " .. (said and ("[" .. said .. "] ") or "")
 
-	local yes, no, left = tally(st)
-	local count = left == 0 and string.format("all answered: %d yes, %d no  ", yes, no)
-		or string.format("%d yes · %d no · %d to go  ", yes, no, left)
-	local marks = {}
+	local marks, yes, no = {}, 0, 0
 	for i = 1, #STEPS do
-		local s = st.said and st.said[i]
+		local s = st.said[i]
+		yes, no = yes + (s == "yes" and 1 or 0), no + (s == "no" and 1 or 0)
 		marks[i] = s == "yes" and "✓" or s == "no" and "✗" or "·"
 	end
+	local left = #STEPS - yes - no
+	local count = left == 0 and string.format("all answered: %d yes, %d no  ", yes, no)
+		or string.format("%d yes · %d no · %d to go  ", yes, no, left)
 
 	-- Measured as strings: a `Line` takes the spans it is given, so one built
 	-- only to be measured leaves nothing to draw.
-	local left = width - ui.width(chip)
-	if left - ui.width(count .. table.concat(marks) .. " ") < TITLED then
+	local room = width - ui.width(chip)
+	local function right() return ui.width(count .. table.concat(marks) .. " ") end
+	if room - right() < TITLED then
 		marks = {}
 	end
-	if left - ui.width(count .. " ") < TITLED then
+	if room - right() < TITLED then
 		count = ""
 	end
-	local right = ui.width(count .. table.concat(marks) .. " ")
+	room = room - right()
 	-- A cell short, so a title that was cut still has a space after it.
-	title = ui.truncate(title, { max = math.max(0, left - right - 1) })
+	title = ui.truncate(title, { max = math.max(0, room - 1) })
 
 	local spans = {
 		ui.Span(chip):style(th.mode.normal_main),
 		ui.Span(title),
-		ui.Span(string.rep(" ", left - right - ui.width(title)) .. count),
+		ui.Span(string.rep(" ", room - ui.width(title)) .. count),
 	}
 	for i, mark in ipairs(marks) do
 		spans[#spans + 1] = i == st.i and ui.Span(mark):reverse() or ui.Span(mark)
@@ -175,6 +158,8 @@ end
 
 --- `text` broken between words into lines no wider than `width` cells. A word
 --- wider than that has a line to itself, and is cut where it is drawn.
+--- Not `ui.lines`, which returns `Line`s: those are spent when drawn, and the
+--- rows here are kept from one frame to the next.
 ---@param text string
 ---@param width integer
 ---@return string[]
@@ -195,22 +180,24 @@ end
 --- A guide row: its text, and whether it is drawn bold.
 ---@alias walk.Row { [1]: string, [2]: boolean }
 
---- Step `i`'s rows, by the width they were wrapped to.
----@type table<string, walk.Row[]>
+--- Each step's rows at the width last drawn at.
+---@type { width: integer?, [integer]: walk.Row[] }
 local wrapped = {}
 
 --- The guide's rows between its heading and its keys, wrapped to `width`: the
 --- question in bold, then the step's section of `MANUAL.md`, each list item
---- hanging under its dash. Kept as text, and once per step and width, because
---- `measure` runs on every frame and a section runs to hundreds of words, of
---- which a dozen rows are drawn.
+--- hanging under its dash. Kept as text, and once per step until the width
+--- changes, because the guide is drawn on every frame and a section runs to
+--- hundreds of words, of which a dozen rows are drawn.
 ---@param i integer
 ---@param width integer
 ---@return walk.Row[]
 local function body(i, width)
-	local key = i .. ":" .. width
-	if wrapped[key] then
-		return wrapped[key]
+	if wrapped.width ~= width then
+		wrapped = { width = width }
+	end
+	if wrapped[i] then
+		return wrapped[i]
 	end
 	local step, rows = STEPS[i], {}
 	for _, line in ipairs(wrap(step.ask, width)) do
@@ -222,27 +209,25 @@ local function body(i, width)
 			rows[#rows + 1] = { item and (n == 1 and "- " or "  ") .. line or line, false }
 		end
 	end
-	wrapped[key] = rows
+	wrapped[i] = rows
 	return rows
 end
 
---- The guide's height in `area`, and the rows it holds: nothing before the
---- walk has begun or while it is put away, its heading and the question where
---- the screen is short, and otherwise as much of the section as fits.
+--- The guide's height in `area`: nothing before the walk has begun or while
+--- it is put away, its heading and the question where the screen is short,
+--- and otherwise as much of the section as fits.
 ---@param st table
 ---@param area ui.Rect
 ---@return integer
----@return walk.Row[]
 local function measure(st, area)
 	if not st.i or st.hidden then
-		return 0, {}
+		return 0
 	end
 	local room = math.min(TALLEST, area.h // SHARE)
 	if room < SHORTEST then
-		return math.max(1, math.min(2, room)), {}
+		return math.max(1, math.min(2, room))
 	end
-	local rows = body(st.i, area.w - 2)
-	return math.min(room, #rows + 2), rows
+	return math.min(room, #body(st.i, area.w - 2) + 2)
 end
 
 --- The guide, as Yazi's components are: a table with an `_id`, an area, and
@@ -251,8 +236,7 @@ local Guide = { _id = "walk" }
 
 ---@param area ui.Rect
 ---@param st table
----@param rows walk.Row[]
-function Guide:new(area, st, rows) return setmetatable({ _area = area, _st = st, _rows = rows }, { __index = self }) end
+function Guide:new(area, st) return setmetatable({ _area = area, _st = st }, { __index = self }) end
 
 function Guide:reflow() return { self } end
 
@@ -268,27 +252,29 @@ function Guide:redraw()
 	return { ui.Line("walk: the guide could not be drawn: " .. tostring(drawn)):area(self._area) }
 end
 
+--- Its heading, and then either the question alone where `measure` left no
+--- room for more -- the only height under three it gives -- or the rows that
+--- fit and the keys.
 function Guide:draw()
-	local a = self._area
+	local a, st = self._area, self._st
 	local function row(y) return ui.Rect { x = a.x, y = a.y + y, w = a.w, h = 1 } end
 
 	-- `area` is declared to answer a `Rect` as well, so this is any element.
 	---@type any[]
-	local drawn = { heading(self._st, a.w):area(row(0)) }
-	if #self._rows == 0 then
-		if a.h > 1 then
-			drawn[2] = ui.Line(" " .. STEPS[self._st.i].ask):bold():area(row(1))
+	local drawn = { heading(st, a.w):area(row(0)) }
+	if a.h < 3 then
+		if a.h == 2 then
+			drawn[2] = ui.Line(" " .. STEPS[st.i].ask):bold():area(row(1))
 		end
 		return drawn
 	end
 
-	local room = a.h - 2
-	local shown = {}
-	for i = 1, math.min(#self._rows, room) do
-		local text, bold = table.unpack(self._rows[i])
+	local rows, room, shown = body(st.i, a.w - 2), a.h - 2, {}
+	for i = 1, math.min(#rows, room) do
+		local text, bold = table.unpack(rows[i])
 		shown[i] = bold and ui.Line(text):bold() or ui.Line(text)
 	end
-	if #self._rows > room then
+	if #rows > room then
 		shown[room] = ui.Line("… W d reads the whole section"):dim()
 	end
 	drawn[#drawn + 1] = ui.Text(shown):area(ui.Rect { x = a.x + 1, y = a.y + 1, w = a.w - 2, h = room })
@@ -304,54 +290,42 @@ end
 --- there takes the whole screen with it. Before `W n` neither draws, so
 --- `e2e.py` reads the screen Yazi would.
 ---
---- `Root:layout` and `Root:build` are 26.9.1's own, with one more chunk.
 --- Below rather than beside the panes, because the columns are what is being
 --- judged and a guide beside them would narrow every pane it sits next to.
+--- Wrapped around 26.9.1's own `Root:layout` and `Root:build` rather than
+--- written over them, so all this leans on is the tab being the third chunk
+--- and the modal the last child, read off its `components/root.lua`.
 function M:setup()
 	local st = self
 	-- Yazi's components, which `types.yazi` declares no global for.
 	---@diagnostic disable-next-line: undefined-global
-	local root, tabs, tab, status, header, backdrop, modal = Root, Tabs, Tab, Status, Header, Backdrop, Modal
+	local root, status = Root, Status
 	local layout, build = root.layout, root.build
 
 	function root:layout()
-		local ok, height, rows = pcall(measure, st, self._area)
+		layout(self)
+		local ok, height = pcall(measure, st, self._area)
 		if not ok then
 			ya.err("walk: the guide could not be measured: " .. tostring(height))
 		end
-		if not ok or height == 0 then
-			self._guide = nil
-			return layout(self)
+		self._guide = nil
+		if ok and height > 0 then
+			-- In 26.9.1 and missing from `types.yazi`.
+			---@diagnostic disable-next-line: undefined-field
+			local vertical = ui.Layout.VERTICAL
+			local split = ui.Layout()
+				:direction(vertical)
+				:constraints({ ui.Constraint.Fill(1), ui.Constraint.Length(height) })
+				:split(self._chunks[3])
+			self._chunks[3], self._guide = split[1], split[2]
 		end
-		self._guide = rows
-		-- In 26.9.1 and missing from `types.yazi`, as `ui.lines` is.
-		---@diagnostic disable-next-line: undefined-field
-		local vertical = ui.Layout.VERTICAL
-		self._chunks = ui.Layout()
-			:direction(vertical)
-			:constraints({
-				ui.Constraint.Length(1),
-				ui.Constraint.Length(tabs.height()),
-				ui.Constraint.Fill(1),
-				ui.Constraint.Length(height),
-				ui.Constraint.Length(1),
-			})
-			:split(self._area)
 	end
 
 	function root:build()
-		if not self._guide then
-			return build(self)
+		build(self)
+		if self._guide then
+			table.insert(self._children, #self._children, Guide:new(self._guide, st))
 		end
-		self._children = {
-			backdrop:new(self._area),
-			header:new(self._chunks[1], cx.active),
-			tabs:new(self._chunks[2]),
-			tab:new(self._chunks[3], cx.active),
-			Guide:new(self._chunks[4], st, self._guide),
-			status:new(self._chunks[5], cx.active),
-			modal:new(self._area),
-		}
 	end
 
 	status:children_add(function()
@@ -365,15 +339,13 @@ end
 
 --- The step's section of `MANUAL.md`, whole, in `less` -- code blocks and
 --- all, which the guide leaves out -- with Yazi put away until it quits.
---- With `LESS` and `LESSOPEN` emptied, since an option such as `-N` moves the
---- heading off the first column and a preprocessor that reformats Markdown
---- moves it off the line `setup.py` read it on.
+--- With `LESSOPEN` emptied, since a preprocessor that reformats Markdown
+--- moves the heading off the line `setup.py` read it on.
 ---@param i integer
 local function more(i)
 	local permit = ui.hide()
 	local done, err = Command("less")
 		:arg({ "+" .. STEPS[i].line .. "g", LISTED.manual })
-		:env("LESS", "")
 		:env("LESSOPEN", "")
 		:stdin(Command.INHERIT)
 		:stdout(Command.INHERIT)
@@ -399,12 +371,10 @@ function M:entry(job)
 		return move(1)
 	elseif verb == "back" then
 		return move(-1)
-	end
-
-	local said = (verb == "yes" or verb == "no") and verb
-	if not said and verb ~= "more" and verb ~= "hide" then
+	elseif verb ~= "yes" and verb ~= "no" and verb ~= "more" and verb ~= "hide" then
 		return
 	end
+
 	local on = current()
 	if not on then
 		return ya.notify { title = "walk", content = "W n starts the walk; there is no step yet", timeout = 5 }
@@ -417,7 +387,7 @@ function M:entry(job)
 	-- What looks wrong, in the reader's words, kept beside the verdict. Escape
 	-- gives no verdict at all, so a `W x` pressed by mistake costs nothing.
 	local note = ""
-	if said == "no" then
+	if verb == "no" then
 		local value, event =
 			ya.input { title = "What looks wrong? (Enter alone to say nothing)", pos = { "center", w = 60 } }
 		if event ~= 1 then
@@ -426,15 +396,11 @@ function M:entry(job)
 		note = tostring(value or ""):gsub("[%c]", " ")
 	end
 
-	local i = mark(said)
-	if not i then
-		return
-	end
-
 	-- Appended, so a step answered twice is two lines and the later one wins
 	-- when the file is read, rather than the first answer vanishing.
+	local i = mark(verb)
 	local step = STEPS[i]
-	local line = string.format("%d\t%s\t%s\t%s", i, step.case, step.theme, said)
+	local line = string.format("%d\t%s\t%s\t%s", i, step.case, step.theme, verb)
 	if note ~= "" then
 		line = line .. "\t" .. note
 	end

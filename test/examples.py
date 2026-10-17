@@ -180,7 +180,6 @@ IMAGE = re.compile(r"^!\[([^\]]+)\]\((images/[a-z0-9-]+\.svg)\)$")
 #: line meant as one and spelled as none is refused rather than ignored.
 ASKING = re.compile(r"^\s*<!--(?:\s*drawn\b|.*\bground)", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s")
-FENCE = re.compile(r"^(`{3,}|~{3,})")
 
 #: The attribute the digest is written in, on the SVG's root element.
 SOURCE = "data-source"
@@ -228,27 +227,15 @@ class Example:
         return hashlib.sha256("\0".join(fields).encode()).hexdigest()
 
 
-def closing(lines: list[str], start: int, fence: str) -> int | None:
-    """The line that closes the block `fence` opens on line `start`: the same
-    character, at least as many of it, and nothing else -- so a block quoting
-    a shorter fence inside a longer one is read whole, the way CommonMark
-    reads it."""
-    for j in range(start + 1, len(lines)):
-        run = lines[j].strip()
-        if len(run) >= len(fence) and run == fence[0] * len(run):
-            return j
-    return None
-
-
 def file_block(lines: list[str], i: int) -> tuple[int, str, str] | None:
     """The fenced block opening on line `i`, if one does: the line it closes
     on, the file its first line names -- empty when it names none of
     `FILES` -- and its text, that first line included. Refused when it never
     closes, since everything after it would be read as its body."""
-    fence = FENCE.match(lines[i].rstrip())
+    fence = fixture.FENCE.match(lines[i].rstrip())
     if not fence:
         return None
-    end = closing(lines, i, fence.group(1))
+    end = fixture.closing(lines, i, fence.group(1))
     if end is None:
         raise ValueError(f"line {i + 1}: a block that never closes")
     body = lines[i + 1 : end]

@@ -16,7 +16,6 @@ rebuilds the directory it was written in.
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -91,33 +90,34 @@ def your_config() -> Path:
     return Path.home() / ".config" / "yazi"
 
 
-#: The tables a flavor styles the file rows with rather than what is around
-#: them.
-ROW_TABLES = ("filetype", "icon")
-
-
-def chrome_only(flavor: str) -> str | None:
-    """`flavor.toml` without the tables that style the rows, or `None` where
-    they cannot be cut out cleanly.
-
-    Cut as text, from a table's header to the next header, since nothing in
-    the standard library writes TOML. The result is parsed back and held
-    against the original less those tables, so a header this misreads is a
-    `None` rather than a flavor quietly missing something else.
-    """
-    kept, keep = [], True
-    for line in flavor.splitlines(keepends=True):
-        if head := re.match(r"\[\[?\s*([\w-]+)", line):
-            keep = head.group(1) not in ROW_TABLES
-        if keep:
-            kept.append(line)
-    text = "".join(kept)
-    try:
-        whole, cut = tomllib.loads(flavor), tomllib.loads(text)
-    except tomllib.TOMLDecodeError:
-        return None
-    rest = {k: v for k, v in whole.items() if k not in ROW_TABLES}
-    return text if cut == rest else None
+#: What 26.9.1's dark preset, `yazi-config/preset/theme-dark.toml`, colours
+#: the file rows and the `permissions` column with, by table: the colours a
+#: headless run draws them in.
+PRESET_ROWS = {
+    "filetype": """
+[filetype]
+rules = [
+\t{ mime = "**/image/*", fg = "yellow" },
+\t{ mime = "**/{audio,video}/*", fg = "magenta" },
+\t{ mime = "**/application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "red" },
+\t{ mime = "**/application/{pdf,doc,rtf}", fg = "cyan" },
+\t{ mime = "vfs/{absent,stale}", fg = "gray" },
+\t{ url = "*", is = "orphan", bg = "red" },
+\t{ url = "*", is = "exec", fg = "green" },
+\t{ url = "*", is = "dummy", bg = "red" },
+\t{ url = "*/", is = "dummy", bg = "red" },
+\t{ url = "*/", fg = "blue" },
+]
+""",
+    "status": """
+[status]
+perm_sep = { fg = "darkgray" }
+perm_type = { fg = "green" }
+perm_read = { fg = "yellow" }
+perm_write = { fg = "red" }
+perm_exec = { fg = "cyan" }
+""",
+}
 
 
 def carry_flavor(target: Path) -> str:
@@ -126,26 +126,26 @@ def carry_flavor(target: Path) -> str:
 
     The fixture's themes carry no `[flavor]`, so Yazi draws what is around the
     file rows -- the walk's guide and the status bar under it among them --
-    from its preset, and which preset is the terminal's answer to being asked
-    whether it is light, read off 26.9.1's `yazi-config/src/lib.rs`. A
-    terminal can answer light over a dark background -- Ghostty answers with
-    macOS's appearance rather than its own colours -- and then that chrome is
-    drawn in colours meant for the other ground. Your own `[flavor]` is what
-    your own Yazi draws it with in the same terminal. The headless harnesses
-    never get an answer and stay on the dark preset, so this is for the run a
-    person looks at and no other.
+    from its preset, which names its colours rather than spelling them: what
+    they look like is the terminal's palette. Your own `[flavor]` is what your
+    own Yazi draws that chrome with in the same terminal. The headless
+    harnesses stay on the preset, so this is for the run a person looks at and
+    no other.
 
-    Only the chrome. A flavor's `ROW_TABLES` colour the rows, and a column
-    with no style of its own is drawn in its row's colour
-    (`docs/configuration.md`), so they are cut from the copy and the rows keep
-    the preset's, as they do headless. A flavor `chrome_only` cannot cut is
-    carried whole, and said so.
+    Only the chrome. A flavor colours the rows too, and a column with no style
+    of its own is drawn in its row's colour (`docs/configuration.md`), so each
+    theme also gets `PRESET_ROWS`. A theme's own tables are laid over its
+    flavor's, and a `[filetype]`'s rules replace the flavor's whole, read off
+    26.9.1's `yazi-config/src/lib.rs`, so the rows keep the colours they have
+    headless.
 
     Every theme, because a `c` key copies one over `theme.toml` and a theme
-    without the table takes the flavor away with it. Only the flavor is
-    carried: the `[supaline]` styles under it are the fixture's, and they are
-    what the walk is about. A flavor named but not installed is left out,
-    since one Yazi cannot read fails the whole theme, read off the same file.
+    without the tables takes them away with it. A table a theme already has is
+    left as it is, since a second one would be a parse error and Yazi would
+    discard the whole file for it. Nothing else is carried: the `[supaline]`
+    styles under it are the fixture's, and they are what the walk is about. A
+    flavor named but not installed is left out, since one Yazi cannot read
+    fails the whole theme, read off the same file.
     """
     source = your_config()
     try:
@@ -156,45 +156,36 @@ def carry_flavor(target: Path) -> str:
         flavor = {}
     if not isinstance(flavor, dict):
         flavor = {}
-    slots = {
-        slot: name
-        for slot in ("dark", "light")
-        if isinstance(name := flavor.get(slot), str) and name
-    }
-    for slot, name in list(slots.items()):
+    slots = {}
+    for slot in ("dark", "light"):
+        name = flavor.get(slot)
+        if not isinstance(name, str) or not name:
+            continue
         found = source / "flavors" / f"{name}.yazi"
         if not (found / "flavor.toml").is_file():
             print(
                 f"  note: your {slot} flavor `{name}` is not in {found.parent}"
             )
-            del slots[slot]
             continue
+        slots[slot] = name
         dest = target / "config" / "flavors" / found.name
-        if dest.exists():
-            continue
-        shutil.copytree(found, dest)
-        chrome = chrome_only((found / "flavor.toml").read_text())
-        if chrome is None:
-            print(f"  note: your {slot} flavor `{name}` colours the rows here")
-        else:
-            # Replaced rather than written through, because the copy keeps
-            # the original's mode and a package manager installs it read-only.
-            (dest / "flavor.toml").unlink()
-            (dest / "flavor.toml").write_text(chrome)
+        if not dest.exists():
+            shutil.copytree(found, dest)
     if not slots:
         return "flavor   none, Yazi's preset"
 
-    table = "\n[flavor]\n" + "".join(
-        f"{slot} = {fixture.toml_string(name)}\n"
-        for slot, name in slots.items()
-    )
+    tables = {
+        "flavor": "\n[flavor]\n"
+        + "".join(
+            f"{slot} = {fixture.toml_string(name)}\n"
+            for slot, name in slots.items()
+        ),
+        **PRESET_ROWS,
+    }
     for theme in (target / "themes").glob("*.toml"):
-        # A second `[flavor]` would be a parse error, and Yazi would discard
-        # the whole file for it; a theme that names its own keeps it.
-        if "flavor" in tomllib.loads(theme.read_text()):
-            continue
+        has = tomllib.loads(theme.read_text())
         with theme.open("a") as out:
-            out.write(table)
+            out.write("".join(t for k, t in tables.items() if k not in has))
     fixture.put_theme(target, "default")
     return "flavor   " + ", ".join(f"{s} {n}" for s, n in slots.items())
 

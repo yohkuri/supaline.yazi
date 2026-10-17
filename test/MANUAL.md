@@ -12,10 +12,11 @@ It builds a throwaway configuration and fixture with `test/setup.py` — the sam
 ones `e2e.py` uses, so what you see here is what the headless run checks — and
 opens Yazi on them. Your own Yazi configuration is not touched, and only its
 `[flavor]` is read: the fixture's themes carry it, so the status bar is drawn
-the way your own Yazi draws it in the same terminal, rather than in a preset
-the terminal may have picked wrong. The file rows are not: what your flavor
-colours them with is left out, so they and every column without a style of
-its own keep the preset's colours, as they have in the headless run.
+the way your own Yazi draws it in the same terminal, rather than in Yazi's
+preset, whose colours are names your terminal's palette decides. The file rows
+are not: each theme also carries the preset's colours for them and for the
+`permissions` column, so they and every column without a style of its own look
+as they do in the headless run.
 
 Quit with `q`. `test/manual.py --clean` throws the fixture away.
 

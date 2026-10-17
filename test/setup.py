@@ -592,7 +592,7 @@ def write_cases(
             f'case = "{step.case}"',
             f'key = "{listing.cases[step.case].key}"',
             f'theme = "{step.theme}"',
-            f'ask = "{step.ask}"',
+            f"ask = {lua_string(step.ask)}",
             f"title = {lua_string(guide.title)}",
             f"line = {guide.line}",
         ]
@@ -861,10 +861,9 @@ class Step:
     gallery: bool
 
 
-#: What a question may be spelled with. It goes into the plugins' table as a Lua
-#: string, so nothing that string escapes; and it is drawn on the screen `e2e.py`
-#: splits a line of on `│` to find the panes, so not that either.
-ASK = re.compile(r'[^"\\│\x00-\x1f\x7f]+')
+#: What a question may be spelled with: it is drawn on the screen `e2e.py`
+#: splits a line of on `│` to find the panes, and on one row.
+ASK = re.compile(r"[^│\x00-\x1f\x7f]+")
 
 
 def walk(text: str, listing: Cases) -> list[Step]:
@@ -940,7 +939,7 @@ def read_walk(listing: Cases) -> list[Step]:
         refuse(f"setup: test/fixture/walk.toml: {error}")
 
 
-#: What a person reads beside the screen, which `goes_to` reads.
+#: What a person reads beside the screen, which `goes_to` and `guide` read.
 MANUAL = ROOT / "test" / "MANUAL.md"
 
 
@@ -975,6 +974,22 @@ class Guide:
 
 
 #: A section heading, and the part of it before the dash that names its keys.
+#: A fenced code block's opening run, once the line's indent is off.
+FENCE = re.compile(r"^(`{3,}|~{3,})")
+
+
+def closing(lines: list[str], start: int, fence: str) -> int | None:
+    """The line that closes the block `fence` opens on line `start`: the same
+    character, at least as many of it, and nothing else -- so a block quoting
+    a shorter fence inside a longer one is read whole, the way CommonMark
+    reads it."""
+    for j in range(start + 1, len(lines)):
+        run = lines[j].strip()
+        if len(run) >= len(fence) and run == fence[0] * len(run):
+            return j
+    return None
+
+
 GUIDE_HEADING = re.compile(r"^### (.*?)(?: — .*)?$")
 
 
@@ -993,41 +1008,42 @@ def guide(manual: str, key: str) -> Guide | None:
     """The `###` section of `MANUAL.md` whose heading names `key`, or `None`.
 
     Its paragraphs and list items, each joined onto one line for the walk to
-    wrap at whatever width it is drawn at. Code blocks are left out: what
-    they show is the screen the guide is drawn under, and `W d` opens the
-    section whole. Ends at the next heading of any level. A fence counts
-    however far a list item has indented it, and so does an item nested
-    under another one, which the guide draws as one more item.
+    wrap at whatever width it is drawn at. Code blocks are left out, however
+    far a list item indents them: what they show is the screen the guide is
+    drawn under, and `W d` opens the section whole. An item nested under
+    another is one more item. Ends at the next heading of any level, and a
+    heading inside a code block is not one.
     """
     lines = manual.splitlines()
-    fenced = False
-    for n, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-        head = None if fenced else GUIDE_HEADING.match(line)
-        if head and f"`{key}`" in head.group(1):
-            break
-    else:
-        return None
-
+    found = None
     text: list[str] = []
     joining = False
-    for line in lines[n + 1 :]:
-        if line.startswith("#") and not fenced:
-            break
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
+    n = 0
+    while n < len(lines):
+        line = lines[n]
+        if fence := FENCE.match(line.strip()):
+            end = closing(lines, n, fence.group(1))
+            n = len(lines) if end is None else end + 1
             joining = False
-        elif fenced or not line.strip():
+            continue
+        n += 1
+        if found is None:
+            head = GUIDE_HEADING.match(line)
+            if head and f"`{key}`" in head.group(1):
+                found = n
+        elif line.startswith("#"):
+            break
+        elif not line.strip():
             joining = False
         elif joining and not re.match(r"\s*(?:- |\d+\. )", line):
             text[-1] += " " + line.strip()
         else:
             text.append(line.strip())
             joining = True
-    return Guide(
-        plain(lines[n].removeprefix("### ")), n + 1, list(map(plain, text))
-    )
+    if found is None:
+        return None
+    title = plain(lines[found - 1].removeprefix("### "))
+    return Guide(title, found, list(map(plain, text)))
 
 
 def read_guides(listing: Cases, steps: list[Step]) -> list[Guide]:
