@@ -980,9 +980,13 @@ GUIDE_HEADING = re.compile(r"^### (.*?)(?: — .*)?$")
 
 def plain(markdown: str) -> str:
     """One line of prose with the markup taken off: a link down to its text,
-    and the bold and code markers dropped, which a terminal has no use for."""
+    and the bold, emphasis and code markers dropped, which a terminal has no
+    use for. Only a `*` that opens and closes a word is emphasis, so a glob
+    such as `*.md` keeps its star."""
     text = re.sub(r"\[([^]]*)\]\([^)]*\)", r"\1", markdown)
-    return text.replace("**", "").replace("`", "")
+    text = text.replace("**", "")
+    text = re.sub(r"(?<![\w*])\*(\S(?:[^*]*\S)?)\*(?![\w*])", r"\1", text)
+    return text.replace("`", "")
 
 
 def guide(manual: str, key: str) -> Guide | None:
@@ -991,28 +995,32 @@ def guide(manual: str, key: str) -> Guide | None:
     Its paragraphs and list items, each joined onto one line for the walk to
     wrap at whatever width it is drawn at. Code blocks are left out: what
     they show is the screen the guide is drawn under, and `W d` opens the
-    section whole. Ends at the next heading of any level.
+    section whole. Ends at the next heading of any level. A fence counts
+    however far a list item has indented it, and so does an item nested
+    under another one, which the guide draws as one more item.
     """
     lines = manual.splitlines()
+    fenced = False
     for n, line in enumerate(lines):
-        head = GUIDE_HEADING.match(line)
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        head = None if fenced else GUIDE_HEADING.match(line)
         if head and f"`{key}`" in head.group(1):
             break
     else:
         return None
 
     text: list[str] = []
-    fenced = False
     joining = False
     for line in lines[n + 1 :]:
         if line.startswith("#") and not fenced:
             break
-        if line.startswith("```"):
+        if line.lstrip().startswith("```"):
             fenced = not fenced
             joining = False
         elif fenced or not line.strip():
             joining = False
-        elif joining and not re.match(r"(?:- |\d+\. )", line):
+        elif joining and not re.match(r"\s*(?:- |\d+\. )", line):
             text[-1] += " " + line.strip()
         else:
             text.append(line.strip())

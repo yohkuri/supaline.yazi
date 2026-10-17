@@ -13,7 +13,9 @@ ones `e2e.py` uses, so what you see here is what the headless run checks — and
 opens Yazi on them. Your own Yazi configuration is not touched, and only its
 `[flavor]` is read: the fixture's themes carry it, so the status bar is drawn
 the way your own Yazi draws it in the same terminal, rather than in a preset
-the terminal may have picked wrong.
+the terminal may have picked wrong. The file rows are not: what your flavor
+colours them with is left out, so they and every column without a style of
+its own keep the preset's colours, as they have in the headless run.
 
 Quit with `q`. `test/manual.py --clean` throws the fixture away.
 
@@ -49,9 +51,10 @@ The guide takes a third of the screen and never more than twelve rows, since
 the rows it takes are rows of the case being judged. What does not fit is cut
 off with a line saying so; `W d` opens the section whole, code blocks and all,
 at its heading — `q` brings Yazi back. On a screen too short for that third to
-hold four rows the guide is its heading alone. `W h` puts it away and gives the
-file list its rows back, which is how to judge a case by its height, such as
-the whole of `c r`; the status bar then says which step you are on.
+hold four rows the guide is its heading and the question. `W h` puts it away
+and gives the file list its rows back, which is how to judge a case by its
+height, such as the whole of `c r`; the status bar then says which step you are
+on.
 
 `W x` opens a box asking what looks wrong. What you type is written down beside
 the verdict; Enter alone writes the verdict with nothing beside it, and Escape

@@ -817,7 +817,9 @@ class TheFixtureItReads(unittest.TestCase):
         self.assertEqual(len(fixture.read_guides(listing, steps)), len(steps))
 
     #: A page of `MANUAL.md` in miniature: a section to find, one beside it
-    #: that names two keys, and what each has under it.
+    #: that names two keys, and what each has under it -- code at the margin
+    #: and indented under an item, a heading inside the code, and an item
+    #: nested under another.
     PAGE = (
         "## Colour\n"
         "\n"
@@ -829,11 +831,19 @@ class TheFixtureItReads(unittest.TestCase):
         "```text\n"
         " step-00.txt\n"
         "# not a heading\n"
+        "### `c x` — not a section\n"
         "```\n"
         "\n"
         "- **Every row** carries the\n"
-        "  same text.\n"
-        "- See [the walk](#the-walk).\n"
+        "  *same* text.\n"
+        "\n"
+        "  ```text\n"
+        "  - not an item\n"
+        "  ```\n"
+        "\n"
+        "  - Nested under it,\n"
+        "    on two lines.\n"
+        "- See [the walk](#the-walk), not `*.md`.\n"
         "\n"
         "### `m 6` to `m 8` — panes\n"
         "\n"
@@ -849,7 +859,8 @@ class TheFixtureItReads(unittest.TestCase):
                 [
                     "In g 3. Sixty-four files.",
                     "- Every row carries the same text.",
-                    "- See the walk.",
+                    "- Nested under it, on two lines.",
+                    "- See the walk, not *.md.",
                 ],
             ),
         )
@@ -859,6 +870,8 @@ class TheFixtureItReads(unittest.TestCase):
         self.assertEqual((found and found.text), ["Three panes."])
         # Named only by the range, so no heading spells it.
         self.assertIsNone(fixture.guide(self.PAGE, "m 7"))
+        # Spelled, but inside a code block.
+        self.assertIsNone(fixture.guide(self.PAGE, "c x"))
 
     def test_text_becomes_a_lua_string_that_escapes_what_lua_would_read(self):
         self.assertEqual(

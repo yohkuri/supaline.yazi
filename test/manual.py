@@ -16,6 +16,7 @@ rebuilds the directory it was written in.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -90,20 +91,55 @@ def your_config() -> Path:
     return Path.home() / ".config" / "yazi"
 
 
+#: The tables a flavor styles the file rows with rather than what is around
+#: them.
+ROW_TABLES = ("filetype", "icon")
+
+
+def chrome_only(flavor: str) -> str | None:
+    """`flavor.toml` without the tables that style the rows, or `None` where
+    they cannot be cut out cleanly.
+
+    Cut as text, from a table's header to the next header, since nothing in
+    the standard library writes TOML. The result is parsed back and held
+    against the original less those tables, so a header this misreads is a
+    `None` rather than a flavor quietly missing something else.
+    """
+    kept, keep = [], True
+    for line in flavor.splitlines(keepends=True):
+        if head := re.match(r"\[\[?\s*([\w-]+)", line):
+            keep = head.group(1) not in ROW_TABLES
+        if keep:
+            kept.append(line)
+    text = "".join(kept)
+    try:
+        whole, cut = tomllib.loads(flavor), tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return None
+    rest = {k: v for k, v in whole.items() if k not in ROW_TABLES}
+    return text if cut == rest else None
+
+
 def carry_flavor(target: Path) -> str:
     """Your own `[flavor]`, put under every theme the fixture can switch to,
     and the line the verdicts' header says it with.
 
-    The fixture's themes carry no `[flavor]`, so Yazi draws everything but the
-    columns -- the walk's guide and the status bar under it among them --
+    The fixture's themes carry no `[flavor]`, so Yazi draws what is around the
+    file rows -- the walk's guide and the status bar under it among them --
     from its preset, and which preset is the terminal's answer to being asked
     whether it is light, read off 26.9.1's `yazi-config/src/lib.rs`. A
     terminal can answer light over a dark background -- Ghostty answers with
-    macOS's appearance rather than its own colours -- and the light preset
-    on a dark background is unreadable. Your own `[flavor]` is what your own
-    Yazi draws that chrome with in the same terminal. The headless harnesses
+    macOS's appearance rather than its own colours -- and then that chrome is
+    drawn in colours meant for the other ground. Your own `[flavor]` is what
+    your own Yazi draws it with in the same terminal. The headless harnesses
     never get an answer and stay on the dark preset, so this is for the run a
     person looks at and no other.
+
+    Only the chrome. A flavor's `ROW_TABLES` colour the rows, and a column
+    with no style of its own is drawn in its row's colour
+    (`docs/configuration.md`), so they are cut from the copy and the rows keep
+    the preset's, as they do headless. A flavor `chrome_only` cannot cut is
+    carried whole, and said so.
 
     Every theme, because a `c` key copies one over `theme.toml` and a theme
     without the table takes the flavor away with it. Only the flavor is
@@ -134,13 +170,23 @@ def carry_flavor(target: Path) -> str:
             del slots[slot]
             continue
         dest = target / "config" / "flavors" / found.name
-        if not dest.exists():
-            shutil.copytree(found, dest)
+        if dest.exists():
+            continue
+        shutil.copytree(found, dest)
+        chrome = chrome_only((found / "flavor.toml").read_text())
+        if chrome is None:
+            print(f"  note: your {slot} flavor `{name}` colours the rows here")
+        else:
+            # Replaced rather than written through, because the copy keeps
+            # the original's mode and a package manager installs it read-only.
+            (dest / "flavor.toml").unlink()
+            (dest / "flavor.toml").write_text(chrome)
     if not slots:
         return "flavor   none, Yazi's preset"
 
     table = "\n[flavor]\n" + "".join(
-        f'{slot} = "{name}"\n' for slot, name in slots.items()
+        f"{slot} = {fixture.toml_string(name)}\n"
+        for slot, name in slots.items()
     )
     for theme in (target / "themes").glob("*.toml"):
         # A second `[flavor]` would be a parse error, and Yazi would discard
@@ -173,7 +219,7 @@ def main(argv: list[str]) -> int:
     ).strip()
     begin_verdicts(
         verdicts,
-        "supaline manual walk: step, case, theme, verdict",
+        "supaline manual walk: step, case, theme, verdict, and a note on a no",
         f"terminal {term or 'unknown'} (TERM={os.environ.get('TERM', '')})",
         flavor,
     )
