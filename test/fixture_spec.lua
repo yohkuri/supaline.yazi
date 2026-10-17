@@ -118,8 +118,8 @@ local function case_field(field, blocks)
 end
 
 -- `e2e.py` is deliberately not compared against the keys either file binds.
--- It presses every folder and case by what it is, `T`, three of the walk's
--- keys, and of the themes `alt` alone, because a theme key replaces
+-- It presses every folder and case by what it is, `T`, the walk's keys, and
+-- of the themes `alt` alone, because a theme key replaces
 -- `theme.toml` wholesale and a run can afford one swap, so a check there would
 -- need a list of exempt keys -- another place naming the set.
 

@@ -25,26 +25,44 @@ wide character or a bold, whether a colour can be read against your own ground,
 and whether a report reads right against the cells it is about. The walk takes
 you through those cases in order and asks one question about each.
 
-| Key   | What it does                                          |
-| ----- | ----------------------------------------------------- |
-| `W n` | The next step, or the first                           |
-| `W p` | The step before                                       |
-| `W y` | Looks right — write that down, and go to the next     |
-| `W x` | Looks wrong — write that down, and go to the next     |
+| Key   | What it does                                                    |
+| ----- | --------------------------------------------------------------- |
+| `W n` | The next step, or the first                                     |
+| `W p` | The step before                                                 |
+| `W y` | Looks right — write that down, and go to the next               |
+| `W x` | Looks wrong — say what, write both down, and go to the next     |
+| `W d` | The step's whole section of this document, in `less`            |
+| `W h` | Put the guide away, or bring it back                            |
 
-The status bar shows where you are, the step's own key and the question:
-`walk 3/18 · c r · does it climb evenly, with no flat run or jump?`. The key is the
-section of this document that has the whole of what to look for, and pressing
-it by hand puts you back in the same state. A step puts its theme in place as
-well as its case, so it reads the same whether you came to it forwards,
-backwards or after pressing a theme key yourself. A verdict you have given is
-shown beside the question.
+Once the walk has begun, a guide sits between the file list and the status
+bar. Its heading says where you are, the step's own key and the title of its
+section here — `walk 3/18  c r — one row per step` — and, on the right, a mark
+for every step: `✓` looks right, `✗` looks wrong, `·` not answered yet, with
+the step on show reversed. Under the heading is the question, in bold, then
+that section of this document, and the keys on the guide's last row. The key
+is also the section's heading, and pressing it by hand puts you back in the
+same state. A step puts its theme in place as well as its case, so it reads the
+same whether you came to it forwards, backwards or after pressing a theme key
+yourself. A verdict you have given is shown in the heading.
+
+The guide takes a third of the screen and never more than twelve rows, since
+the rows it takes are rows of the case being judged. What does not fit is cut
+off with a line saying so; `W d` opens the section whole, code blocks and all,
+at its heading — `q` brings Yazi back. On a screen too short for that third to
+hold four rows the guide is its heading alone. `W h` puts it away and gives the
+file list its rows back, which is how to judge a case by its height, such as
+the whole of `c r`; the status bar then says which step you are on.
+
+`W x` opens a box asking what looks wrong. What you type is written down beside
+the verdict; Enter alone writes the verdict with nothing beside it, and Escape
+— twice, the first leaving the box's insert mode — writes nothing at all and
+stays on the step.
 
 Each verdict is a line in `verdicts.txt`, beside the fixture, under a header
-`manual.py` writes before Yazi opens: the commit, the Yazi and the terminal.
-Answer a step again and the later line is the one that counts. `manual.py`
-prints the file when Yazi quits, because the next run rebuilds the directory it
-is in.
+`manual.py` writes before Yazi opens: the commit, the Yazi, the terminal and
+the flavor. Answer a step again and the later line is the one that counts.
+`manual.py` prints the file when Yazi quits, because the next run rebuilds the
+directory it is in.
 
 The steps are `test/fixture/walk.toml`. The broken cases come last and each is
 shown once: a report comes once a session, so going back to one of them shows

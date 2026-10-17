@@ -630,9 +630,10 @@ supaline:setup {
 	},
 }
 
--- The walk `manual.py` offers, which draws its step in the status bar. It adds
--- that part here, at load, because a `require` from inside a status bar child
--- raises until the plugin has been loaded -- on every frame, measured on
--- 26.9.1 -- and one that raises there takes the whole screen with it. Before
--- `W n` the part is empty, so `e2e.py` reads the status bar Yazi would draw.
+-- The walk `manual.py` offers, which draws its step in a guide above the
+-- status bar. It adds the guide here, at load, because a `require` from inside
+-- a component raises until the plugin has been loaded -- on every frame,
+-- measured on 26.9.1 -- and one that raises there takes the whole screen with
+-- it. Before `W n` there is no guide, so `e2e.py` reads the screen Yazi would
+-- draw.
 require("walk"):setup()

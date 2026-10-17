@@ -787,8 +787,6 @@ class TheFixtureItReads(unittest.TestCase):
             "a field that is not a string": self.step(
                 extra='theme = ["alt"]\n'
             ),
-            # Drawn in the status bar, cut off at its edge.
-            "a question too long to draw": self.step(ask="x" * 51),
             # Written into a Lua string, unescaped.
             "a question that would need escaping": self.step(ask='a\\"b'),
             # The character `e2e.py` splits a line on to find the panes.
@@ -812,6 +810,61 @@ class TheFixtureItReads(unittest.TestCase):
         for reason, text in spoiled.items():
             with self.subTest(reason), self.assertRaises(ValueError):
                 fixture.walk(text, listing)
+
+    def test_every_step_s_key_names_a_section_of_the_manual(self):
+        listing = fixture.read_cases()
+        steps = fixture.read_walk(listing)
+        self.assertEqual(len(fixture.read_guides(listing, steps)), len(steps))
+
+    #: A page of `MANUAL.md` in miniature: a section to find, one beside it
+    #: that names two keys, and what each has under it.
+    PAGE = (
+        "## Colour\n"
+        "\n"
+        "### `c r` — one row per step\n"
+        "\n"
+        "In `g 3`. Sixty-four\n"
+        "files.\n"
+        "\n"
+        "```text\n"
+        " step-00.txt\n"
+        "# not a heading\n"
+        "```\n"
+        "\n"
+        "- **Every row** carries the\n"
+        "  same text.\n"
+        "- See [the walk](#the-walk).\n"
+        "\n"
+        "### `m 6` to `m 8` — panes\n"
+        "\n"
+        "Three panes.\n"
+    )
+
+    def test_a_section_is_read_as_its_prose_without_its_code(self):
+        self.assertEqual(
+            fixture.guide(self.PAGE, "c r"),
+            fixture.Guide(
+                "c r — one row per step",
+                3,
+                [
+                    "In g 3. Sixty-four files.",
+                    "- Every row carries the same text.",
+                    "- See the walk.",
+                ],
+            ),
+        )
+
+    def test_a_section_is_found_by_any_key_its_heading_names(self):
+        found = fixture.guide(self.PAGE, "m 8")
+        self.assertEqual((found and found.text), ["Three panes."])
+        # Named only by the range, so no heading spells it.
+        self.assertIsNone(fixture.guide(self.PAGE, "m 7"))
+
+    def test_text_becomes_a_lua_string_that_escapes_what_lua_would_read(self):
+        self.assertEqual(
+            fixture.lua_string('a "b" \\ c\n\td — é'),
+            '"a \\"b\\" \\\\ c\\010\\009d — é"',
+        )
 
     def test_the_terminal_grounds_are_read_off_the_comment_above_ground(self):
         # The comment says seven, and the gallery draws a tile per ground.

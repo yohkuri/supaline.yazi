@@ -4,17 +4,19 @@
 # `e2e.py` already holds every case to what a capture can show. What is left is
 # what no capture can: how a terminal draws a wide character or a bold, whether
 # a colour can be read against the reader's own ground, whether a report reads
-# right against the cells it is about. `MANUAL.md` has the whole of each; a
-# step is the question that section ends on, short enough for the status bar.
+# right against the cells it is about. `MANUAL.md` has the whole of each, in the
+# section its key names, which the walk's guide quotes under the question; a
+# step is the question that section ends on.
 #
 # `W n` goes to the next step and `W p` back, putting Yazi in the step's case
-# under the step's theme. `W y` and `W x` record a verdict on it and go on.
+# under the step's theme. `W y` and `W x` record a verdict on it and go on,
+# `W d` opens the section whole, and `W h` puts the guide away.
 #
 # `case` is a `[[case]]` id in `cases.toml`, and `theme` a `[[theme]]` name,
 # `default` when it is left out: the walk puts the theme in place at every
 # step, so a step reads the same whether it was reached forwards, backwards, or
-# after a theme key pressed by hand. `ask` is drawn in the status bar beside
-# the step's number and key, which is why `setup.py` holds it to a length.
+# after a theme key pressed by hand. `ask` is drawn in bold under the guide's
+# heading, and `setup.py` refuses a step whose key no section heading names.
 #
 # `gallery = true` puts a step in `gallery.py` as well, which draws its capture
 # on seven terminal grounds at once and asks the same question. Only a step a
