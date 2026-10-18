@@ -368,6 +368,22 @@ def is_cut_of(name: str, cell: str) -> bool:
     return name.startswith(cell.removesuffix("…"))
 
 
+def clipped(name: str, cells: int) -> str:
+    """`name` as a `clip` column of `cells` draws it, aligned left.
+
+    Cut after the last character that ends inside the column and padded to
+    it, so a wide character that would straddle the edge goes whole. Counted
+    with `width`, which has no zero-width characters: a name carrying a
+    cluster is past what this can say.
+    """
+    out, used = "", 0
+    for ch in name:
+        if used + width(ch) > cells:
+            break
+        out, used = out + ch, used + width(ch)
+    return out + " " * (cells - used)
+
+
 #: A time cell as the built-in columns draw one with no `format`: this year's
 #: as a time of day, any other year's as the year, two spaces before it.
 TIME_RE = re.compile(r"\d\d/\d\d(?: \d\d:\d\d|  \d{4})")
@@ -812,6 +828,15 @@ def current_cells(capture: str) -> list[list[Cell]]:
         if bars:
             rows.append(cells[bars[0] + 1 : bars[1] if len(bars) > 1 else None])
     return rows
+
+
+def drawn_on(cells: list[Cell], ground: str) -> str:
+    """The text a row of `current_cells` draws on `ground`, left to right.
+
+    A column with a background of its own is found by it, wherever the
+    columns before it put it.
+    """
+    return "".join(ch for ch, pen in cells if pen.bg == ground)
 
 
 #: The `Pen` fields that are attributes rather than colours.

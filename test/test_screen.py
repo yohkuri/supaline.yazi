@@ -369,6 +369,15 @@ class Cuts(unittest.TestCase):
         # without marking the cut answers true here, and that is a fault.
         self.assertTrue(sc.is_cut_of("yohkuri:staff", "yohkuri:sta"))
 
+    def test_a_clip_keeps_what_ends_inside_the_column_and_pads_it(self):
+        self.assertEqual(sc.clipped("read-only.txt", 12), "read-only.tx")
+        self.assertEqual(sc.clipped("tiny.txt", 12), "tiny.txt    ")
+
+    def test_a_wide_character_across_the_edge_goes_whole(self):
+        # The cell it would have half filled is padding instead.
+        self.assertEqual(sc.clipped("日本語のファイル名", 5), "日本 ")
+        self.assertEqual(sc.clipped("絵文字🎨のなまえ", 8), "絵文字🎨")
+
 
 class Times(unittest.TestCase):
     """`m d` draws four time cells after the name, in both of their forms."""
@@ -922,6 +931,23 @@ class TheFixtureItReads(unittest.TestCase):
         assert grounds is not None
         self.assertLessEqual({"GROUND", "LINE_GROUND"}, set(grounds))
 
+    def test_overflow_names_a_ground_of_its_own_under_each_cut(self):
+        # `check_clip` finds the clipped renderable and `grow` by these.
+        grounds = fixture.cut_grounds(self.init)
+        self.assertEqual(set(grounds), {"ellipsis", "clip", "line", "grow"})
+        for name, ground in grounds.items():
+            with self.subTest(cut=name):
+                self.assertRegex(ground, self.HEX)
+        self.assertEqual(len(set(grounds.values())), 4)
+
+    def test_cut_grounds_written_in_another_shape_answer_nothing(self):
+        self.assertEqual(
+            fixture.cut_grounds(
+                'local CUT_GROUNDS = { line = on("#6600ff") }\n'
+            ),
+            {},
+        )
+
     def test_a_file_with_no_c_bg_block_is_told_from_one_with_no_grounds(self):
         self.assertIsNone(fixture.c_bg_grounds('local GROUND = "#112233"\n'))
 
@@ -1022,6 +1048,22 @@ class Cells(unittest.TestCase):
             [["a", "b"], ["c", "d"]],
         )
         self.assertEqual(rows[0][0][1], sc.Pen(fg="p1"))
+
+    def test_a_column_is_read_by_the_ground_under_it(self):
+        # Spaces on the ground count, since a clip pads on it; the same text
+        # on another ground or on none is another column's.
+        line, grow = "#6600ff", "#ee0700"
+        text = capture(
+            row(
+                "p",
+                cell(line, "ab  ", 48) + "\x1b[49m " + cell(grow, "ab", 48),
+                "x",
+            )
+        )
+        (cells,) = sc.current_cells(text)
+        self.assertEqual(sc.drawn_on(cells, line), "ab  ")
+        self.assertEqual(sc.drawn_on(cells, grow), "ab")
+        self.assertEqual(sc.drawn_on(cells, "#112233"), "")
 
     def test_the_cells_of_a_pane_spell_the_field_plain_text_finds(self):
         # Two readings of one rule, `field_of` over plain text and this over

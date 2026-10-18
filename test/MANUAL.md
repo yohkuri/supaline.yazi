@@ -293,8 +293,10 @@ ends and the next begins is on the screen rather than counted.
 - The **second** is a hard cut — twelve cells, no ellipsis, nothing appended.
 - The **third** is that same cut of a column that hands back a `ui.Line`
   instead of a string, and has to read **identically** to the second. Yazi
-  cuts a Line one character shorter than it cuts a string, so this column read
-  `exactly-1k.` until the cell asked for that cell back.
+  cuts a Line one character shorter than it cuts a string, and one exactly a
+  cell over not at all, so `layout.lua` lengthens the line by a cell before
+  each cut. `read-only.txt`, thirteen cells, is the row that shows it:
+  `read-only.tx` in both. `e2e.py` holds this column to the name on every row.
 - The **fourth** runs past twelve and pushes the file name over.
 - Every truncating column must land on a character boundary; half a character,
   or a column one cell short, is a bug. `e2e.py` asserts that on both wide
