@@ -135,17 +135,29 @@ local function fit(text, limit, pad, align, overflow)
 end
 
 --- Cut a renderable to `width` cells. `Line:truncate` is the only way in, and
---- measured on 26.9.1 it differs from `Line:width` twice over: with
---- `ellipsis = ""` it still drops the character landing on `max`, so one cell
---- more is asked for; and a cluster wider than its characters can come back
---- wider than `max`, so it is cut again with a smaller one until it fits.
---- `max = 0` empties any line, so the loop ends.
+--- measured on 26.9.1 it differs from `Line:width` twice over.
+---
+--- With `ellipsis = ""` it still drops the character landing on `max`, so one
+--- cell more is asked for. That alone leaves a line exactly one cell over
+--- whole, since it fits `width + 1`, while `width` drops a character too many:
+--- no `max` gives `width` from that length. So the line is lengthened by a
+--- cell first, which the cut always takes off. Putting a Line inside another
+--- moves its style onto each of its spans, read off 26.9.1's
+--- `yazi-binding/src/elements/line.rs`, so a style the line carries survives.
+---
+--- And a cluster wider than its characters can come back wider than `max`, so
+--- it is cut again with a smaller one until it fits. `max = 0` empties any
+--- line, so the loop ends.
 ---@param line supaline.Line
 ---@param width integer
 ---@param ellipsis string? `""` to cut without a mark, nil for Yazi's own
 ---@return supaline.Line
 local function cut(line, width, ellipsis)
-	local max = ellipsis == "" and width + 1 or width
+	local max = width
+	if ellipsis == "" then
+		line = (ui.Line { line, " " }) --[[@as supaline.Line]]
+		max = width + 1
+	end
 	while max >= 0 do
 		line = line:truncate { max = max, ellipsis = ellipsis }
 		if line:width() <= width then

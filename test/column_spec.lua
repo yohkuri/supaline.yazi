@@ -599,7 +599,31 @@ test("cell: a renderable is cut to the width a string would be", function()
 		end
 	end
 	eq(cell { render = function() return ui.Line("abcdefgh") end, width = 4 }, "abc…")
-	eq(cell { render = function() return ui.Line("abcdefgh") end, width = 4, overflow = "clip" }, "abcd")
+	-- From one cell over, where no `max` an empty ellipsis is given comes back
+	-- at the width, to a length that leaves nothing of the cut to chance.
+	for n = 5, 8 do
+		local s = ("abcdefgh"):sub(1, n)
+		eq(cell { render = function() return ui.Line(s) end, width = 4, overflow = "clip" }, "abcd", s)
+	end
+end)
+
+test("cell: a renderable cut by clip keeps its style on every part", function()
+	-- The cut lengthens the line by a part of its own first, so the style
+	-- `cell` sets on the line has to come through that as well as the cut.
+	for n = 5, 6 do
+		local s = ("abcdef"):sub(1, n)
+		local col = prepare {
+			render = function(_, ctx) return ui.Line(s), ctx.style end,
+			width = 4,
+			overflow = "clip",
+			style = { bg = "#112233" },
+		}
+		local out = cases.cell(col)
+		eq(text_of(out), "abcd", s)
+		for i, style in ipairs(stub.drawn_styles(out)) do
+			eq(style and style.bg, "#112233", string.format("%s, part %d", s, i))
+		end
+	end
 end)
 
 test("cell: a renderable's padding is inside the column's style", function()
