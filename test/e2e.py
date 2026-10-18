@@ -628,12 +628,13 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
 
 
 def check_overflow(k: Checks, capture: str, dir: Path) -> None:
-    """`overflow` puts every name in `data/` through ellipsis, clip and grow.
+    """`overflow` puts each name through ellipsis, clip and grow.
 
-    Three rows must each carry all four renderings of their name -- Yazi truncates long
-    names in the parent pane by itself, and that ellipsis would satisfy a
-    looser check -- and the cells are matched as one string, padding and all,
-    so a cell that came back one short moves every space after it.
+    Three rows must each carry all four renderings of their name -- Yazi
+    truncates long names in the parent pane by itself, and that ellipsis
+    would satisfy a looser check -- and every name in `data/` must carry the
+    clipped renderable and grow. The cells are matched as one string, padding
+    and all, so a cell that came back one short moves every space after it.
     """
 
     def row(label: str, name: str, cells: str) -> None:
