@@ -245,10 +245,11 @@ Every row ends with a size, right-aligned in seven cells.
 - `large.bin` is given four different dates: modified in 2020, born in 2019,
   accessed next year, and changed when the fixture was stamped. The atime is
   in the future on purpose, as one that a read of the file does not move.
-  Every other file's `mtime` and `atime` agree.
+  Every other file's `mtime` and `atime` agree. Linux cannot move a birth
+  time, so there `btime` is the moment the fixture was made.
 - `ctime` is the moment `setup.py` ran, so it is the same down the column and
-  differs from run to run. `e2e.py` holds `large.bin`'s four cells against
-  `lstat`, so this one is covered rather than yours.
+  differs from run to run. `e2e.py` holds `large.bin`'s cells against
+  `lstat`, `btime` on macOS alone, so this one is covered rather than yours.
 
 ### `m 3` — widths
 

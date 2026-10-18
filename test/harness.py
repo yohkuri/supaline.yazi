@@ -284,7 +284,10 @@ MACHINE = (
     re.compile(r"yazi_emulator::mux: .*invalid option: input-buffer-size\n"),
     # `file -bL --mime-type` 5.45 answers `cannot open` for a link to nothing,
     # where 5.41 on macOS answers `inode/symlink`, and the fixture holds one.
-    re.compile(r"fetcher 'mime\.local':\n.*MIME type for `[^`]*/link-broken`"),
+    re.compile(
+        r"yazi_scheduler::fetch::fetch: Error when running fetcher 'mime\.local':\n"
+        r".*MIME type for `[^`]*/link-broken`"
+    ),
 )
 
 

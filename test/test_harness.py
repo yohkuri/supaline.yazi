@@ -171,6 +171,19 @@ class Logs(unittest.TestCase):
         )
         self.assertEqual(troubles(f"{MACHINE_LOG}{mine}\n"), [mine])
 
+    def test_a_plugins_error_just_before_one_is_kept(self) -> None:
+        # Each pattern is held against a line and the one after it, so one
+        # that stopped at the end of its own line would take the line before.
+        mine = (
+            "  2026-10-18T13:39:05.440974Z ERROR yazi_plugin::utils::log: "
+            '"supaline: column `torn_render` threw from its `render`."'
+        )
+        for entry in MACHINE_LOG.split("\n\n  "):
+            with self.subTest(entry=entry[:60]):
+                self.assertEqual(
+                    troubles(f"{mine}\n  {entry.lstrip()}"), [mine]
+                )
+
     def test_a_mime_failure_on_any_other_file_is_kept(self) -> None:
         # The pattern names the fixture's one link to nothing, so the fetcher
         # failing on a file that exists still fails the run.
