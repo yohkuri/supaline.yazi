@@ -137,33 +137,48 @@ end
 --- Cut a renderable to `width` cells. `Line:truncate` is the only way in, and
 --- measured on 26.9.1 it differs from `Line:width` twice over.
 ---
---- With `ellipsis = ""` it still drops the character landing on `max`, so one
---- cell more is asked for. That alone leaves a line exactly one cell over
---- whole, since it fits `width + 1`, while `width` drops a character too many:
---- no `max` gives `width` from that length. So the line is lengthened by a
---- cell first, which the cut always takes off. Putting a Line inside another
---- moves its style onto each of its spans, read off 26.9.1's
+--- A cluster wider than its characters can come back wider than `max`, so a
+--- line is cut again with a smaller one until it fits. `max = 0` empties any
+--- line, so the loop ends.
+---
+--- And with `ellipsis = ""` it still drops the character landing on `max`, so
+--- a clip asks for one cell more. That alone leaves a line exactly one cell
+--- over by its own count whole at `width + 1` and a character short at
+--- `width`, and `❤️`, two cells and one character to it, puts a line back at
+--- that length after its first cut. So every cut is of the line lengthened by
+--- a cell. The cell stays on only when the line comes back whole, wider by it,
+--- and only that lowers `max`: a cut that took something off goes again at
+--- the same one, since what it took may have been a zero-width character
+--- standing on `max` behind the one it belongs to. Putting a Line inside
+--- another moves its style onto each of its spans, read off 26.9.1's
 --- `yazi-binding/src/elements/line.rs`, so a style the line carries survives.
 ---
---- And a cluster wider than its characters can come back wider than `max`, so
---- it is cut again with a smaller one until it fits. `max = 0` empties any
---- line, so the loop ends.
+--- What no `max` steers around is that cut itself: a cluster across the edge
+--- keeps its first character, so `❤️` there comes back as `❤`, drawn so by
+--- 26.9.1 in a column of 12 for `abcdefghijk❤️l`.
 ---@param line supaline.Line
 ---@param width integer
 ---@param ellipsis string? `""` to cut without a mark, nil for Yazi's own
 ---@return supaline.Line
 local function cut(line, width, ellipsis)
-	local max = width
-	if ellipsis == "" then
-		line = (ui.Line { line, " " }) --[[@as supaline.Line]]
-		max = width + 1
-	end
-	while max >= 0 do
-		line = line:truncate { max = max, ellipsis = ellipsis }
-		if line:width() <= width then
-			break
+	if ellipsis ~= "" then
+		for max = width, 0, -1 do
+			line = line:truncate { max = max, ellipsis = ellipsis }
+			if line:width() <= width then
+				break
+			end
 		end
-		max = max - 1
+		return line
+	end
+	local max, w = width + 1, line:width()
+	while w > width do
+		line = (ui.Line { line, " " }) --[[@as supaline.Line]]
+		line = line:truncate { max = max, ellipsis = "" }
+		local now = line:width()
+		if now > w then
+			max = max - 1
+		end
+		w = now
 	end
 	return line
 end

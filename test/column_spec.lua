@@ -599,11 +599,28 @@ test("cell: a renderable is cut to the width a string would be", function()
 		end
 	end
 	eq(cell { render = function() return ui.Line("abcdefgh") end, width = 4 }, "abc…")
-	-- From one cell over, where no `max` an empty ellipsis is given comes back
-	-- at the width, to a length that leaves nothing of the cut to chance.
-	for n = 5, 8 do
-		local s = ("abcdefgh"):sub(1, n)
-		eq(cell { render = function() return ui.Line(s) end, width = 4, overflow = "clip" }, "abcd", s)
+	eq(cell { render = function() return ui.Line("abcdefgh") end, width = 4, overflow = "clip" }, "abcd")
+end)
+
+test("cell: a clipped renderable reads as the clipped string does", function()
+	-- One to three cells over, in ASCII and with `❤️` at every position: two
+	-- cells, and one character to `Line:truncate`, so a line carrying it is
+	-- one cell over again after the first cut. Compared text for text, since
+	-- a cell short is padded back to the width. Not across the column's edge,
+	-- where the Line keeps the heart's first character without its selector:
+	-- a cluster cut in two, which no `max` steers around.
+	local heart = "\u{2764}\u{FE0F}"
+	for cells = 5, 7 do
+		local shapes = { ("abcdefg"):sub(1, cells) }
+		for at = 0, cells - 2 do
+			if at ~= 3 then
+				shapes[#shapes + 1] = ("abcdefg"):sub(1, at) .. heart .. ("abcdefg"):sub(at + 1, cells - 2)
+			end
+		end
+		for _, s in ipairs(shapes) do
+			local want = cell { render = function() return s end, width = 4, overflow = "clip" }
+			eq(cell { render = function() return ui.Line(s) end, width = 4, overflow = "clip" }, want, s)
+		end
 	end
 end)
 
