@@ -268,6 +268,44 @@ def yazi_log(dir: Path, state: str) -> Path:
     return dir / state / "yazi" / "yazi.log"
 
 
+#: What counts as an error in a Yazi log, on either side of the run.
+TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
+
+#: What Yazi logs about the machine rather than about a plugin, matched on a
+#: troubled line and the one after it, since a fetcher's error names its file
+#: only there. 26.9.1 logged each in Ubuntu 24.04 under Docker and none on
+#: macOS. Each names Yazi's own source and message, and a plugin's error is
+#: logged by `yazi_plugin`, or a fetcher's under its own name, so none of
+#: these can match one.
+MACHINE = (
+    # A container has no `/dev/disk`.
+    re.compile(r"yazi_fs::mounts::linux: Cannot read /dev/disk/by-label\n"),
+    # tmux 3.4 has no `input-buffer-size`; 3.8 does.
+    re.compile(r"yazi_emulator::mux: .*invalid option: input-buffer-size\n"),
+    # `file -bL --mime-type` 5.45 answers `cannot open` for a link to nothing,
+    # where 5.41 on macOS answers `inode/symlink`, and the fixture holds one.
+    re.compile(r"fetcher 'mime\.local':\n.*MIME type for `[^`]*/link-broken`"),
+)
+
+
+def read_log(body: str) -> tuple[list[str], list[str]]:
+    """The lines of a log that report an error, and apart from them the ones
+    `MACHINE` names, so a run can say how many it left out."""
+    lines = body.splitlines()
+    kept: list[str] = []
+    machine: list[str] = []
+    for line, after in zip(lines, [*lines[1:], ""]):
+        if TROUBLE.search(line):
+            about = any(p.search(f"{line}\n{after}") for p in MACHINE)
+            (machine if about else kept).append(line)
+    return kept, machine
+
+
+def troubles(body: str) -> list[str]:
+    """The lines of a log that report an error, less what `MACHINE` names."""
+    return read_log(body)[0]
+
+
 def yazi_data(dir: Path) -> Path:
     """The folder both harnesses open that Yazi on, inside the fixture."""
     return dir / "fixture" / "data"

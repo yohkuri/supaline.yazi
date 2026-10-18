@@ -60,7 +60,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harness  # noqa: F401
 import screen as sc
 import setup as fixture
-from e2e import troubles
 from gallery import SCHEMES, Scheme, scheme
 from harness import (
     ROOT,
@@ -70,6 +69,7 @@ from harness import (
     need,
     refuse,
     run,
+    troubles,
     yazi_env,
     yazi_log,
     yazi_version,

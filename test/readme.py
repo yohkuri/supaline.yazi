@@ -42,7 +42,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # First, because importing it is what refuses too old a Python.
 import harness  # noqa: F401
 import setup as fixture
-from e2e import troubles
 from examples import (
     FILES,
     GIT_ENV,
@@ -62,6 +61,7 @@ from harness import (
     catch_term,
     need,
     refuse,
+    troubles,
     yazi_env,
     yazi_log,
     yazi_version,
