@@ -124,6 +124,13 @@ line it decides already fits comes back **wider** than `max`: `❤️abc` at
 line to four, which is why `layout.cell` asks for one cell more than the column
 has and then cuts again while the result is still too wide.
 
+Asking for one more leaves a line exactly one cell over whole, and asking for
+the width drops a character too many, so no `max` cuts `abcde` to four either.
+`layout.cell` lengthens a line it clips by a cell before cutting, and the cut
+takes that cell off. A Line put inside another keeps its style, moved onto its
+spans: read off 26.9.1's `line.rs`, and seen on screen as `m 4`'s clipped Line
+column keeping its ground.
+
 Two more things it does, worth knowing before reaching for it: it mutates the
 line it is called on and hands the same one back, and the spans of a Line
 cannot be read from Lua at all, so this is the only way in.
@@ -134,7 +141,8 @@ the right thing would let the correction be deleted with the suite still green
 -- and `test/column_spec.lua` pins the corrected cut in both directions. On the
 screen side, `test/e2e.py` runs one column that hands back a string and one
 that hands back a Line through the same name and width, and fails unless the
-two read identically.
+two read identically -- and holds the Line's clip against every name in
+`data/`, one exactly a cell over among them.
 
 ## Every module must return a table
 

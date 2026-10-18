@@ -385,14 +385,14 @@ def check_rows_present(
     )
 
 
-def check_columns(k: Checks, shots: dict[str, str]) -> None:
+def check_columns(k: Checks, shots: dict[str, str], dir: Path) -> None:
     k.section("columns")
     k.holds(shots["plain"], "87.9M", "plain: size")
     k.holds(shots["default"], "87.9M 05/06  2024", "default: size + mtime")
     k.holds(shots["everything"], "drwxr-xr-x", "everything: permissions")
 
     check_owner(k, shots["everything"])
-    check_overflow(k, shots["overflow"])
+    check_overflow(k, shots["overflow"], dir)
 
     # widths: `size` stated at 10 beside `size` measured. In `data/` the widest
     # size is "1023.4K", so the measured column is 7; in `nested/` it is
@@ -627,10 +627,10 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     )
 
 
-def check_overflow(k: Checks, capture: str) -> None:
-    """`overflow` puts one over-long name through ellipsis, clip and grow.
+def check_overflow(k: Checks, capture: str, dir: Path) -> None:
+    """`overflow` puts every name in `data/` through ellipsis, clip and grow.
 
-    The same row must carry all four renderings of it -- Yazi truncates long
+    Three rows must each carry all four renderings of their name -- Yazi truncates long
     names in the parent pane by itself, and that ellipsis would satisfy a
     looser check -- and the cells are matched as one string, padding and all,
     so a cell that came back one short moves every space after it.
@@ -671,6 +671,33 @@ def check_overflow(k: Checks, capture: str) -> None:
         "a four-byte character is cut and measured like any other",
         "絵文字",
         "絵文字🎨の…  絵文字🎨のな 絵文字🎨のな 絵文字🎨のなまえ.txt",
+    )
+
+    # And the clipped renderable on every row: each name on disk cut to the
+    # column's 12 cells, padded, and followed by `grow`'s whole name. A name
+    # exactly one cell over is the length no `max` of `Line:truncate`'s gives
+    # 12 from, so the check says when `data/` stops holding one rather than
+    # passing over the lengths it does hold. The string clip is not swept
+    # with it: the long name's row is wider than the pane, which cuts it.
+    width = 12
+    names = sorted(p.name for p in yazi_data(dir).iterdir())
+
+    def clipped(name: str) -> str:
+        out, used = "", 0
+        for ch in name:
+            if used + sc.width(ch) > width:
+                break
+            out, used = out + ch, used + sc.width(ch)
+        return out + " " * (width - used)
+
+    pane = "\n".join(sc.current_fields(capture))
+    short = [n for n in names if f"{clipped(n)} {n}" not in pane]
+    k.verdict(
+        "overflow: a clipped renderable is cut to the column on every row",
+        short
+        and f"overflow: no row carries the clipped cell of {', '.join(short)}",
+        not any(sum(map(sc.width, n)) == width + 1 for n in names)
+        and f"overflow: no name in data/ is {width + 1} cells, one over",
     )
 
 
@@ -1216,7 +1243,7 @@ def main(argv: list[str]) -> int:
             k, yazi_log(r.dir, "state-broken"), r.shots["broken"], init
         )
         check_rows_present(k, r.shots, r.listing)
-        check_columns(k, r.shots)
+        check_columns(k, r.shots, r.dir)
         check_times(k, r.shots["times"], r.dir, init)
         check_panes(k, r.shots)
         check_toggle(k, r.shots, r.listing, init)
