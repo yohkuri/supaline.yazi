@@ -217,8 +217,10 @@ def broken_run(r: Run, init: str) -> None:
     """A second Yazi, with a log of its own, for the columns that are wrong.
 
     The separate log is the design: the clean run's log is held to no error at
-    all, unfiltered, and the errors this run makes land in a different file
-    read for the opposite claim, so neither check learns an exception. And
+    all, and the errors this run makes land in a different file read for the
+    opposite claim, so neither check learns an exception for a column. What
+    both leave out is only what `MACHINE` names Yazi logging about the machine
+    it runs on. And
     `broken/` arms a `refresh` that throws at every `cd` after it, which no
     capture of the clean run should be taken past.
     """
@@ -310,7 +312,11 @@ def left_out(machine: list[str]) -> str:
 
 def check_log(k: Checks, path: Path) -> None:
     k.section("log")
-    bad, machine = read_log(path.read_text() if path.is_file() else "")
+    # No file is no log at all, which would otherwise read as a clean one.
+    if not path.is_file():
+        k.fail(f"the clean run wrote no log at {path}")
+        return
+    bad, machine = read_log(path.read_text())
     for line in bad[:10]:
         print(line, file=sys.stderr)
     k.verdict(f"clean{left_out(machine)}", bad and "Yazi logged an error")
@@ -595,7 +601,8 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     `setup.py` gives the file four different days, so a column reading
     another's field draws the wrong one -- and when this machine would not
     give them, the check says it cannot tell the columns apart rather than
-    passing over equal answers.
+    passing over equal answers. `btime` alone is left out where `lstat` has no
+    birth time, as on Linux, and the label says so.
 
     The day alone, `MM/DD`, which both of a cell's forms begin with: which
     form a cell takes is `mtime`'s question in `default`, and copying the rule
@@ -613,8 +620,8 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     # a run on macOS still holds `btime` to its own.
     if hasattr(st, "st_birthtime"):
         field["btime"] = st.st_birthtime
-    skip = None if "btime" in field else "btime"
     listed = fixture.linemode_columns(init, "times") or []
+    skip = None if "btime" in field or "btime" not in listed else "btime"
     columns = [c for c in listed if c != skip]
     unknown = [c for c in columns if c not in field]
     want = (
@@ -635,14 +642,14 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     ]
     k.verdict(
         f"times: each column draws its own field of {name}"
-        + aside(skip and f"{skip} left out: no birth time here"),
+        + aside(skip and f"{skip} left out: `lstat` here has no birth time"),
         not columns and "times: no `times` linemode in init.lua to read",
         unknown
         and f"times: `lstat` here gives no field for {', '.join(unknown)}",
         cells is None and f"times: no current-pane row names {name}",
         cells is not None
         and drawn != want
-        and f"times: {name} drew {cells}, `lstat` says {want} for {' '.join(columns)}",
+        and f"times: {name} drew {cells if drawn is None else drawn}, `lstat` says {want} for {' '.join(columns)}",
         alike
         and f"times: {', '.join(alike)} fall on one day here, so a column cannot be told from another",
     )

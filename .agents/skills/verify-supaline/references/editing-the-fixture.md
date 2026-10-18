@@ -42,12 +42,12 @@ has been torn down.
 The shape is decided by what it must not be. `tell` writes to `yazi.log` as
 well as to the screen, and `e2e.py` fails a run in which Yazi logged an error,
 so pressing a `b` key in *that* run turns the suite red. The repair is not to
-teach the log check an exception — an allowlist there is the one check that
-reads the log learning to ignore the errors it was written to find. Two logs
-and two absolute claims cost one more Yazi and no exception at all: the clean
-run's log check still says that run logged no error, and the second log is
-read for the opposite thing — one line per broken column, and that many lines
-in all, so a line naming anything else has nowhere to sit.
+teach the log check an exception for a column — an allowlist of those is the
+one check that reads the log learning to ignore the errors it was written to
+find. Two logs and two absolute claims cost one more Yazi and no such
+exception: the clean run's log check still says that run logged no error, and
+the second log is read for the opposite thing — one line per broken column,
+and that many lines in all, so a line naming anything else has nowhere to sit.
 
 What both leave out is only what `MACHINE` in `harness.py` names: lines Yazi
 logs about the machine it runs on, and why no plugin's can match is written
