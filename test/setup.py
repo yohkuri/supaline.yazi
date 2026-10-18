@@ -1111,6 +1111,25 @@ def c_bg_grounds(init: str) -> list[str] | None:
     return re.findall(r"bg = ([A-Z_]+)[ ,}]", block)
 
 
+def cut_grounds(init: str) -> dict[str, str]:
+    """The ground under each of `overflow`'s columns, by the cut it shows.
+
+    Read off `CUT_GROUNDS`, which those columns name, so `e2e.py` finds a
+    column by the colour under it rather than by where it sits. Empty when
+    the table is gone or written in another shape; anchored on stylua's tabs.
+    """
+    block = re.search(
+        r"^local CUT_GROUNDS = \{\n((?:\t.*\n)+?)\}", init, re.MULTILINE
+    )
+    if not block:
+        return {}
+    return dict(
+        re.findall(
+            rf'^\t(\w+) = on\("({HEX})"\),$', block.group(1), re.MULTILINE
+        )
+    )
+
+
 def attribute_words(init: str) -> list[str] | None:
     """Every word `c_attrs` draws, in its order, or `None` if the block is gone.
 

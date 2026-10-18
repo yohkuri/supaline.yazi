@@ -124,12 +124,17 @@ line it decides already fits comes back **wider** than `max`: `❤️abc` at
 line to four, which is why `layout.cell` asks for one cell more than the column
 has and then cuts again while the result is still too wide.
 
-Asking for one more leaves a line exactly one cell over whole, and asking for
-the width drops a character too many, so no `max` cuts `abcde` to four either.
-`layout.cell` lengthens a line it clips by a cell before cutting, and the cut
-takes that cell off. A Line put inside another keeps its style, moved onto its
-spans: read off 26.9.1's `line.rs`, and seen on screen as `m 4`'s clipped Line
-column keeping its ground.
+Asking for one more leaves a line exactly one cell over by its own count
+whole, and asking for the width drops a character too many, so no `max` cuts
+`abcde` to four either -- and `❤️`, two cells and one character to it, puts a
+line back at that length after its first cut. So `layout.cell` lengthens a line
+it clips by a cell before every cut. The cell stays on only when the line comes
+back whole, and only then is `max` lowered. A Line put inside another keeps its
+style, moved onto its spans: read off 26.9.1's `line.rs`, and seen on screen as
+`m 4`'s clipped Line column keeping its ground.
+
+What no `max` steers around is a cluster across the column's edge: the cut
+keeps its first character, so `❤️` there is drawn as `❤`, seen on 26.9.1.
 
 Two more things it does, worth knowing before reaching for it: it mutates the
 line it is called on and hands the same one back, and the spans of a Line
@@ -141,8 +146,10 @@ the right thing would let the correction be deleted with the suite still green
 -- and `test/column_spec.lua` pins the corrected cut in both directions. On the
 screen side, `test/e2e.py` runs one column that hands back a string and one
 that hands back a Line through the same name and width, and fails unless the
-two read identically -- and holds the Line's clip against every name in
-`data/`, one exactly a cell over among them.
+two read identically. It also finds the Line's column by its ground and holds
+it, on every row of `data/`, to the name `grow` draws there, one exactly a cell
+over among them. `column_spec.lua` holds the Line's clip to the string's with
+`❤️` at every position short of the edge.
 
 ## Every module must return a table
 
