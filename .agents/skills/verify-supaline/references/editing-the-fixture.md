@@ -45,9 +45,14 @@ so pressing a `b` key in *that* run turns the suite red. The repair is not to
 teach the log check an exception — an allowlist there is the one check that
 reads the log learning to ignore the errors it was written to find. Two logs
 and two absolute claims cost one more Yazi and no exception at all: the clean
-run's log check stays unfiltered and still says that run logged no error, and
-the second log is read for the opposite thing — one line per broken column, and
-that many lines in all, so a line naming anything else has nowhere to sit.
+run's log check still says that run logged no error, and the second log is
+read for the opposite thing — one line per broken column, and that many lines
+in all, so a line naming anything else has nowhere to sit.
+
+What both leave out is only what `MACHINE` in `harness.py` names: lines Yazi
+logs about the machine it runs on, each matched by Yazi's own source and
+message, so no plugin can write one. A run in Ubuntu 24.04 under Docker logs
+all three, and macOS none. An entry there is never the way to quiet a column.
 
 The per-column count of exactly 1 is three claims in one number: the column
 reported, `told` held it down across two further `cd`s, and it survived two

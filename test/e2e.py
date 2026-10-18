@@ -45,6 +45,7 @@ from harness import (
     Driver,
     catch_term,
     need,
+    read_log,
     yazi_data,
     yazi_log,
     yazi_version,
@@ -62,9 +63,6 @@ SCALE_FLOOR = 16
 #: The note `W x` is given, and the title of the box it is typed into.
 WALK_NOTE = "e2e says no"
 WALK_ASKS = "What looks wrong?"
-
-#: What counts as an error in a Yazi log, on either side of the run.
-TROUBLE = re.compile(r"ERROR|WARN|attempt to|error converting", re.IGNORECASE)
 
 
 class Run(Driver):
@@ -296,23 +294,28 @@ def lines_with(text: str, needle: str) -> int:
     return sum(1 for line in text.splitlines() if needle in line)
 
 
-def troubles(body: str) -> list[str]:
-    """The lines of a log that report an error."""
-    return [line for line in body.splitlines() if TROUBLE.search(line)]
+def left_out(machine: list[str]) -> str:
+    """What a log check's label says of the lines `MACHINE` named, if any."""
+    return (
+        f" ({len(machine)} line(s) about this machine left out)"
+        if machine
+        else ""
+    )
 
 
 def check_log(k: Checks, path: Path) -> None:
     k.section("log")
-    bad = troubles(path.read_text() if path.is_file() else "")
+    bad, machine = read_log(path.read_text() if path.is_file() else "")
     for line in bad[:10]:
         print(line, file=sys.stderr)
-    k.verdict("clean", bad and "Yazi logged an error")
+    k.verdict(f"clean{left_out(machine)}", bad and "Yazi logged an error")
 
 
 def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
     """The broken run logged exactly what it was told to, and showed it.
 
-    Two logs, two absolute claims, no line filtered out of either.
+    Two logs, two absolute claims, and no line left out of either but what
+    `MACHINE` names Yazi logging about the machine it runs on.
     """
     k.section("the reports")
     wanted = fixture.broken_columns(init)
@@ -328,7 +331,7 @@ def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
         return
 
     body = path.read_text()
-    errors = troubles(body)
+    errors, machine = read_log(body)
     # A total beside the per-column counts closes the pair: each name exactly
     # once and this many lines in all leaves no room for a line naming
     # something else. What is printed is a line naming no column of ours.
@@ -336,7 +339,7 @@ def check_reports(k: Checks, path: Path, shown: str, init: str) -> None:
         for line in [e for e in errors if "torn_" not in e][:5]:
             print(line[:120], file=sys.stderr)
     k.verdict(
-        f"{len(errors)} error lines, one per broken column",
+        f"{len(errors)} error lines, one per broken column{left_out(machine)}",
         len(errors) != len(wanted)
         and f"the broken run logged {len(errors)} error line(s), expected "
         f"{len(wanted)} -- one per broken column",
@@ -597,10 +600,17 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     name = "large.bin"
     st = (yazi_data(dir) / name).lstat()
     field = {"mtime": st.st_mtime, "atime": st.st_atime, "ctime": st.st_ctime}
-    # macOS and the BSDs alone, among the platforms this runs on.
+    # A birth time is in `lstat` on macOS and the BSDs alone, among the
+    # platforms this runs on. Linux keeps one and cannot move it, so 26.9.1
+    # drew it there in the minute of the stamp, beside `ctime`, and no reading
+    # of it could tell the two columns apart. It is left out there, and the
+    # label says so: which field a column reads is Lua no platform changes, so
+    # a run on macOS still holds `btime` to its own.
     if hasattr(st, "st_birthtime"):
         field["btime"] = st.st_birthtime
-    columns = fixture.linemode_columns(init, "times") or []
+    listed = fixture.linemode_columns(init, "times") or []
+    skipped = [c for c in listed if c == "btime" and c not in field]
+    columns = [c for c in listed if c not in skipped]
     unknown = [c for c in columns if c not in field]
     want = (
         []
@@ -608,19 +618,29 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
         else [time.strftime("%m/%d", time.localtime(field[c])) for c in columns]
     )
     cells = sc.time_cells(capture, name)
+    drawn = (
+        None
+        if cells is None or len(cells) != len(listed)
+        else [cell[:5] for c, cell in zip(listed, cells) if c not in skipped]
+    )
     alike = [
         f"{a} and {b}"
         for (a, x), (b, y) in itertools.combinations(zip(columns, want), 2)
         if x == y
     ]
     k.verdict(
-        f"times: each column draws its own field of {name}",
+        f"times: each column draws its own field of {name}"
+        + (
+            f" ({', '.join(skipped)} left out: no birth time here)"
+            if skipped
+            else ""
+        ),
         not columns and "times: no `times` linemode in init.lua to read",
         unknown
         and f"times: `lstat` here gives no field for {', '.join(unknown)}",
         cells is None and f"times: no current-pane row names {name}",
         cells is not None
-        and [c[:5] for c in cells] != want
+        and drawn != want
         and f"times: {name} drew {cells}, `lstat` says {want} for {' '.join(columns)}",
         alike
         and f"times: {', '.join(alike)} fall on one day here, so a column cannot be told from another",

@@ -19,7 +19,15 @@ from unittest import mock
 
 # First, because importing it is what refuses too old a Python.
 import harness  # noqa: F401
-from harness import REFUSED, SUN_PATH, Session, own_socket, yazi_env
+from harness import (
+    REFUSED,
+    SUN_PATH,
+    Session,
+    own_socket,
+    read_log,
+    troubles,
+    yazi_env,
+)
 
 #: What `own_socket` puts after the scratch directory for its first Yazi, as
 #: long as what it puts there for any of its first thousand.
@@ -132,6 +140,48 @@ class Targets(unittest.TestCase):
         self.assertEqual(
             Session("supaline-e2e-123").target, "=supaline-e2e-123:"
         )
+
+
+#: Lines as 26.9.1 logged them in Ubuntu 24.04 under Docker, one of each
+#: `MACHINE` names, with the line after each.
+MACHINE_LOG = """\
+  2026-10-18T13:38:24.531263Z ERROR yazi_fs::mounts::linux: Cannot read /dev/disk/by-label
+    at yazi-fs/src/mounts/linux.rs:147
+
+  2026-10-18T13:38:24.533541Z ERROR yazi_emulator::mux: Failed to configure tmux passthrough and input buffer: status ExitStatus(unix_wait_status(256)), stderr: invalid option: input-buffer-size
+
+    at yazi-emulator/src/mux.rs:40
+
+  2026-10-18T13:38:24.590666Z ERROR yazi_scheduler::fetch::fetch: Error when running fetcher 'mime.local':
+Custom { kind: Other, code: None, message: "Failed to determine MIME type for `/tmp/supaline-e2e.1/fixture/data/link-broken`" }
+    at yazi-scheduler/src/fetch/fetch.rs:39
+"""
+
+
+class Logs(unittest.TestCase):
+    def test_what_yazi_logs_about_the_machine_is_set_apart(self) -> None:
+        kept, machine = read_log(MACHINE_LOG)
+        self.assertEqual(kept, [])
+        self.assertEqual(len(machine), 3)
+
+    def test_a_plugins_error_is_kept_beside_them(self) -> None:
+        mine = (
+            "  2026-10-18T13:39:05.440974Z ERROR yazi_plugin::utils::log: "
+            '"supaline: column `torn_render` threw from its `render`."'
+        )
+        self.assertEqual(troubles(f"{MACHINE_LOG}{mine}\n"), [mine])
+
+    def test_a_mime_failure_on_any_other_file_is_kept(self) -> None:
+        # The pattern names the fixture's one link to nothing, so the fetcher
+        # failing on a file that exists still fails the run.
+        other = MACHINE_LOG.replace("link-broken", "large.bin")
+        self.assertEqual(len(troubles(other)), 1)
+
+    def test_a_fetcher_of_another_name_is_kept(self) -> None:
+        # A plugin's fetcher is logged under its own name, so one that fails
+        # on the same file is never taken for Yazi's.
+        other = MACHINE_LOG.replace("mime.local", "supaline")
+        self.assertEqual(len(troubles(other)), 1)
 
 
 if __name__ == "__main__":
