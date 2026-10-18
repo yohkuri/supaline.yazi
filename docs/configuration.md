@@ -369,9 +369,12 @@ To hide the sign without the columns, or the columns without the sign, see
 - **A cell wider than its column is truncated, not allowed to push.** Yazi
   sizes the file name against whatever the linemode takes, so an overlong cell
   would otherwise eat the name. Use `overflow = "grow"` to opt out.
-- The cut lands on a grapheme cluster and counts what the terminal draws, so a
-  composed emoji is kept whole or dropped whole and a cell never comes back
-  wider than its column. It can come back a cell short, and is padded back.
+- The cut counts what the terminal draws, so a cell never comes back wider
+  than its column. It can come back a cell short, and is padded back. A string
+  is cut on a grapheme cluster, so a composed emoji is kept whole or dropped
+  whole. A renderable is cut by Yazi's `Line:truncate`, which can split a
+  cluster across the column's edge: `❤️` there is drawn as `❤`. The columns
+  after it stay in place.
 - Statistics and derived widths are cached, and measured again whenever Yazi
   reports that a folder's listing changed — which it does for a file written
   in place, and for a directory's size arriving under `sort_by = "size"`.
