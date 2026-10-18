@@ -294,12 +294,17 @@ def lines_with(text: str, needle: str) -> int:
     return sum(1 for line in text.splitlines() if needle in line)
 
 
+def aside(note: str | None) -> str:
+    """What a check's label carries after it of what it left out, if anything."""
+    return f" ({note})" if note else ""
+
+
 def left_out(machine: list[str]) -> str:
-    """What a log check's label says of the lines `MACHINE` named, if any."""
-    return (
-        f" ({len(machine)} line(s) about this machine left out)"
+    """The `aside` a log check's label carries for the lines `MACHINE` named."""
+    return aside(
+        f"{len(machine)} line(s) about this machine left out"
         if machine
-        else ""
+        else None
     )
 
 
@@ -608,9 +613,9 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     # a run on macOS still holds `btime` to its own.
     if hasattr(st, "st_birthtime"):
         field["btime"] = st.st_birthtime
+    skip = None if "btime" in field else "btime"
     listed = fixture.linemode_columns(init, "times") or []
-    skipped = [c for c in listed if c == "btime" and c not in field]
-    columns = [c for c in listed if c not in skipped]
+    columns = [c for c in listed if c != skip]
     unknown = [c for c in columns if c not in field]
     want = (
         []
@@ -621,7 +626,7 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     drawn = (
         None
         if cells is None or len(cells) != len(listed)
-        else [cell[:5] for c, cell in zip(listed, cells) if c not in skipped]
+        else [cell[:5] for c, cell in zip(listed, cells) if c != skip]
     )
     alike = [
         f"{a} and {b}"
@@ -630,11 +635,7 @@ def check_times(k: Checks, capture: str, dir: Path, init: str) -> None:
     ]
     k.verdict(
         f"times: each column draws its own field of {name}"
-        + (
-            f" ({', '.join(skipped)} left out: no birth time here)"
-            if skipped
-            else ""
-        ),
+        + aside(skip and f"{skip} left out: no birth time here"),
         not columns and "times: no `times` linemode in init.lua to read",
         unknown
         and f"times: `lstat` here gives no field for {', '.join(unknown)}",

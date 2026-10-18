@@ -50,9 +50,8 @@ read for the opposite thing — one line per broken column, and that many lines
 in all, so a line naming anything else has nowhere to sit.
 
 What both leave out is only what `MACHINE` in `harness.py` names: lines Yazi
-logs about the machine it runs on, each matched by Yazi's own source and
-message, so no plugin can write one. A run in Ubuntu 24.04 under Docker logs
-all three, and macOS none. An entry there is never the way to quiet a column.
+logs about the machine it runs on, and why no plugin's can match is written
+beside it. An entry there is never the way to quiet a column.
 
 The per-column count of exactly 1 is three claims in one number: the column
 reported, `told` held it down across two further `cd`s, and it survived two
