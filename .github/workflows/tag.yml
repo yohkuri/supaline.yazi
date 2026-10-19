@@ -15,10 +15,10 @@ name: Tag
 # or the head this tags is one the old Yazi cannot run, and nothing here can
 # tell, since no check starts a Yazi.
 #
-# A file of its own, because `check.yml`'s concurrency group cancels a pending
-# run when a newer one queues behind it, and a cancelled push here is a move
-# nobody tags. With no group, every push to main gets its run. A run that
-# fails is red on main, and re-running it reads the same push.
+# No concurrency group: a group holds one pending run and cancels it when a
+# newer one queues, and a cancelled push here is a move nobody tags.
+# Every push to main gets its run. A run that fails is red on main, and
+# re-running it reads the same push.
 on:
   push:
     branches: [main]
