@@ -1,0 +1,124 @@
+name: Tag
+
+# The README promises a `yazi-<version>` tag for each Yazi supaline leaves,
+# on the commit main stood at just before the move: `ya pkg upgrade` takes
+# main's head, and a newer `@since` refuses the older Yazi with no way back
+# but pinning that tag.
+#
+# What a user of a Yazi last received is main's head, so the promise is about
+# heads and each push decides it from its two ends alone: the head it
+# replaced, `before`, and the one it made. Commits in between were never
+# main's head, and a pull request lands by rebase with only its own head
+# checked, so one of them can be a commit no check ran on -- adapting to the
+# new Yazi while still declaring the old. The same holds across pushes: a
+# change that needs the newer Yazi lands in the push that raises `@since`,
+# or the head this tags is one the old Yazi cannot run, and nothing here can
+# tell, since no check starts a Yazi.
+#
+# A file of its own, because `check.yml`'s concurrency group cancels a pending
+# run when a newer one queues behind it, and a cancelled push here is a move
+# nobody tags. With no group, every push to main gets its run. A run that
+# fails is red on main, and re-running it reads the same push.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: The Yazi main left is tagged
+    # A fork's main is its own, and a tag there would name a commit upstream
+    # never stood on.
+    if: github.repository == 'yohkuri/supaline.yazi'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `before` is not in the default shallow clone.
+          fetch-depth: 0
+      # A tag that already exists is never moved. Once a pin has fetched it, a
+      # moved tag does not reach that user's ya cache -- a plain `git fetch`
+      # leaves a tag it already has -- so one in the wrong place is a person's
+      # to decide, not a fix for nobody.
+      #
+      # `run:` is `bash -e` with no `pipefail`, so a `git show | sed` reports
+      # `sed`'s status: a version that cannot be read comes back empty, and
+      # the test of it says so. Every other command that can fail is tested
+      # where it runs, so the step never stops without saying why.
+      - env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          since() { git show "$1:main.lua" 2>/dev/null | sed -n '1s/^--- @since //p'; }
+
+          case "$BEFORE" in
+            *[!0]*) ;;
+            *)
+              echo "main was created by this push, so no Yazi was left."
+              exit 0
+              ;;
+          esac
+          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "${BEFORE:0:8}, main before this push, is not in its history,"
+            echo "so what it declared cannot be read and nothing was tagged."
+            exit 1
+          fi
+
+          was=$(since "$BEFORE")
+          now=$(since "$AFTER")
+          if [ -z "$was" ] || [ -z "$now" ]; then
+            echo "cannot read @since from main.lua: '$was' at ${BEFORE:0:8},"
+            echo "'$now' at ${AFTER:0:8}. Nothing was tagged."
+            exit 1
+          fi
+          if [ "$was" = "$now" ]; then
+            echo "@since stays at $now, so no Yazi was left."
+            exit 0
+          fi
+          # `@since` is a floor, so a move down leaves every Yazi that loaded
+          # the old head able to load the new one.
+          if [ "$(printf '%s\n%s\n' "$was" "$now" | sort -V | tail -1)" = "$was" ]; then
+            echo "@since goes down from $was to $now, which leaves no Yazi"
+            echo "behind, so nothing is tagged."
+            exit 0
+          fi
+
+          tag=yazi-$was
+          # 2 is "no such ref"; anything else but 0 is the remote not
+          # answering, which is reported as itself.
+          found=0
+          git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null || found=$?
+          if [ "$found" = 2 ]; then
+            if git tag "$tag" "$BEFORE" && git push -q origin "refs/tags/$tag"; then
+              echo "@since moves from $was to $now: tagged $tag on ${BEFORE:0:8}."
+              exit 0
+            fi
+            echo "tagging $tag on ${BEFORE:0:8} failed, above. Re-run the job,"
+            echo "or, if it fails the same way, tag it by hand:"
+            echo
+            echo "    git tag $tag $BEFORE && git push origin refs/tags/$tag"
+            exit 1
+          fi
+          if [ "$found" != 0 ]; then
+            echo "origin did not answer for $tag, so nothing was tagged."
+            echo "Re-run the job."
+            exit 1
+          fi
+
+          # Origin's copy, whatever the checkout fetched beforehand.
+          if ! git fetch -q origin "+refs/tags/$tag:refs/tags/$tag" ||
+            ! there=$(git rev-parse "refs/tags/$tag^{commit}"); then
+            echo "$tag is on origin and could not be read. Re-run the job."
+            exit 1
+          fi
+          if [ "$there" = "$BEFORE" ]; then
+            echo "@since moves from $was to $now: $tag is already on ${BEFORE:0:8}."
+            exit 0
+          fi
+          echo "@since moves from $was to $now, and $tag already names"
+          echo "${there:0:8} rather than ${BEFORE:0:8}. It is not moved: a pin"
+          echo "that has fetched it would never see the move. Decide by hand"
+          echo "which commit it should name."
+          exit 1
