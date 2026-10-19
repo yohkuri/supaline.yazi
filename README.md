@@ -34,6 +34,37 @@ untested: Yazi changes its plugin API between releases.
 ya pkg add yohkuri/supaline
 ```
 
+`main` is the release: `ya pkg upgrade` takes its head. supaline supports one
+Yazi at a time and moves to the next when its maintainer does, on no fixed
+schedule, so a newer Yazi can be out for a while before supaline follows it.
+
+When it moves, the commit `main` stood at just before is tagged
+`yazi-<version>`, naming the Yazi it left: the last supaline for that Yazi. If
+your Yazi is older than the one under [Requirements](#requirements), pin the
+newest of the [tags](https://github.com/yohkuri/supaline.yazi/tags) whose
+version is not above your Yazi's. A Yazi supaline skipped has no tag of its
+own, and the tag you pin is untested on it. `ya pkg add` wrote an entry for
+supaline in
+`~/.config/yazi/package.toml`. Change its `rev` line to the tag with `=` in
+front, leave the rest of the entry as it is, and run `ya pkg install`:
+
+```diff
+ [[plugin.deps]]
+ use = "yohkuri/supaline"
+-rev = "d6c5cec"
++rev = "=yazi-<version>"
+ hash = "7a5cdbc4f27888c95ffb69e2e15d899a"
+```
+
+> [!IMPORTANT]
+> Keep the `=`. It is what makes `ya pkg upgrade` pass the entry by; without
+> it, the next upgrade takes `main`'s head again, which your Yazi refuses.
+
+The `rev` you start from and the `hash` will read differently in yours.
+Deleting the `rev` line and running `ya pkg upgrade` returns to `main`. The
+tags start at 26.9.1, with one for each Yazi from there on that supaline has
+left, and none for the one it supports now.
+
 ## Quick start
 
 ```lua
