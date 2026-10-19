@@ -6,12 +6,20 @@ on:
   pull_request:
 
 concurrency:
-  group: check-${{ github.ref }}
   # A pull request's superseded run is worth cancelling: every job in it reads
   # the tree, and the next run reads the same tree again. A push's run is not.
   # `landed` below reads a *range*, `before..sha`, and a range a cancelled run
-  # was carrying is examined by nothing, ever -- it has already happened once
-  # here, when two pull requests merged twelve seconds apart.
+  # was carrying is examined by nothing, ever. Leaving a running one alone is
+  # not enough, because a group holds one pending run and cancels it when a
+  # newer one queues, whatever `cancel-in-progress` says -- so every run but a
+  # pull request's has a group of its own, keyed on the run rather than the
+  # sha, which a push that puts main back on an earlier commit repeats.
+  #
+  # GitHub's concurrency page gives `queue: max` as keeping every pending run,
+  # and refuses it beside `cancel-in-progress: true`. Whether that refusal
+  # reaches a `cancel-in-progress` written as an expression, false on a push,
+  # was read nowhere and never tried.
+  group: check-${{ github.ref }}${{ github.event_name != 'pull_request' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
