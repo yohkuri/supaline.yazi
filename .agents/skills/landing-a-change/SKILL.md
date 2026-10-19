@@ -25,11 +25,12 @@ from this file. This is why each of those is the way it is, and what happens
 when one of them is skipped — which is what you want when something has just
 been refused, and not on the way past.
 
-The reason for a check lives beside the check, so `.github/workflows/check.yml`
-is the first place to read when one comes back red — every job there carries
-its own comment saying what it asks and why. What is here is what no comment
-beside a job can hold: the shape of the route itself, and the two places where
-nothing checks anything at all.
+The reason for a check lives beside the check, in the workflow that runs it:
+`.github/workflows/check.yml`, or `tag.yml` beside it for the tag a move to a
+new Yazi leaves on main. That is the first place to read when one comes back
+red — every job there carries its own comment saying what it asks and why. What
+is here is what no comment beside a job can hold: the shape of the route
+itself, and the two places where nothing checks anything at all.
 
 ## Why the message checks run on a pull request and nowhere else
 
