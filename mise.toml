@@ -6,8 +6,9 @@
 # to format with a stylua other than this one. mise is optional; without it,
 # install these versions by hand.
 #
-# Each on one line, with the full version: the hook and that step read them
-# with `sed` rather than a TOML parser.
+# Each as `name = "version"` on one line, with the full version: the hook and
+# that step read them line by line rather than through a TOML parser, and the
+# step refuses any other shape it finds under `[tools]`.
 #
 # Lua, uv and Python stay out, because none of their versions matters: any 5.5
 # runs the suite, `skills.py` resolves what it needs from its own lock, and the

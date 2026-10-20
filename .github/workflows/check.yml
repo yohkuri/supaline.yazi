@@ -25,6 +25,13 @@ concurrency:
 permissions:
   contents: read
 
+# The mise that reads `mise.toml`, for the two steps that install from it.
+# Pinned like the tools it installs: without it, mise-action takes the newest
+# release a day old, and one that resolves a tool differently would fail a
+# branch nobody touched.
+env:
+  MISE_VERSION: 2026.10.14
+
 jobs:
   test:
     # Two suites in two languages, for the two things under `test/`. 5.5,
@@ -75,7 +82,13 @@ jobs:
       # had just formatted. mise-action installs every tool in that file, here
       # and in `types` alike; naming one per job with `install_args` would be a
       # second list of them to keep, for a few seconds.
+      #
+      # This job saves mise's cache and `types` only restores it. The two run
+      # at once under one key, so with both saving, one fails to reserve it
+      # and warns on every run that misses.
       - uses: jdx/mise-action@v5
+        with:
+          version: ${{ env.MISE_VERSION }}
       - run: stylua --check .
 
   types:
@@ -180,6 +193,9 @@ jobs:
           exit $rc
       - name: The server itself, at the version mise.toml pins
         uses: jdx/mise-action@v5
+        with:
+          version: ${{ env.MISE_VERSION }}
+          cache_save: false
       # `--check` prints every diagnostic and exits 1 on the first warning.
       - run: lua-language-server --check .
 
@@ -193,9 +209,8 @@ jobs:
       # way round for a directory git executes every file in.
       #
       # Hooks are the only shell this repository keeps: git's there, and
-      # Claude Code's under `.claude/hooks`. `test/` was shell too until the
-      # harnesses were rewritten in Python; what lints them now is the ruff
-      # step in `Documents and skills`.
+      # Claude Code's under `.claude/hooks`. The Python under `test/` is the
+      # ruff step's, in `Documents and skills`.
       - run: shellcheck .githooks/* .claude/hooks/*
 
   docs:
@@ -290,8 +305,13 @@ jobs:
         #
         # Matched to the end of the number: `lua-language-server 3.19.10` is
         # not `lua-language-server 3.19.1`, and a plain substring match would
-        # take it for one. A `mise.toml` this reads no pin out of is refused
-        # rather than passed over, since that is a table compared with nothing.
+        # take it for one.
+        #
+        # Only `[tools]` is read, since a quoted value under any other table is
+        # not a pin, and a line there that is not `name = "version"` is refused
+        # rather than passed over: a tool mise-action installs and this step
+        # never compares is the hole it is for. A `mise.toml` with no pin at
+        # all is refused too, being a table compared with nothing.
         run: |
           rc=0
           pins=$(grep -oE '@?[a-z][a-z0-9-]*(/[a-z0-9-]+)?@[0-9][0-9.]*' \
@@ -306,23 +326,38 @@ jobs:
             done < <(git grep -noE -e "${pin%@*}@[0-9][0-9.]*" \
               -- ':!.github/workflows/check.yml' || true)
           done
-          tools=$(sed -nE \
-            's/^([a-z][a-z0-9-]*)[[:space:]]*=[[:space:]]*"([^"]*)".*/\1 \2/p' \
-            mise.toml)
-          [ -n "$tools" ] || {
-            echo 'mise.toml: no `tool = "version"` line read out of it, so'
+          tools=()
+          table=
+          pin_re='^([a-z][a-z0-9-]*)[[:space:]]*=[[:space:]]*"([^"]*)"[[:space:]]*(#.*)?$'
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [[ $line =~ ^\[([^]]*)\] ]]; then
+              table=${BASH_REMATCH[1]}
+              continue
+            fi
+            [ "$table" = tools ] || continue
+            [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+            if [[ $line =~ $pin_re ]]; then
+              tools+=("${BASH_REMATCH[1]} ${BASH_REMATCH[2]}")
+              continue
+            fi
+            echo "mise.toml: \`$line\` under [tools] is not read as a pin."
+            echo '  Write it as `name = "version"` on one line: this step and'
+            echo '  .claude/hooks/format-lua.sh read it that way and no other.'
+            rc=1
+          done < mise.toml
+          [ ${#tools[@]} -gt 0 ] || {
+            echo 'mise.toml: no `name = "version"` pin under [tools], so'
             echo "  CONTRIBUTING.md's table was compared with nothing."
             rc=1
           }
-          while IFS= read -r pin; do
-            [ -n "$pin" ] || continue
+          for pin in "${tools[@]}"; do
             re="${pin//./\\.}([^.0-9]|\\.([^0-9]|\$)|\$)"
             grep -qE -- "$re" CONTRIBUTING.md || {
               echo "CONTRIBUTING.md: does not say \`$pin\`, which mise.toml"
               echo "  pins and CI runs. Change the version in its table to match."
               rc=1
             }
-          done <<< "$tools"
+          done
           exit $rc
       - name: Every skill is reachable from .claude/skills
         # Claude Code reads `.claude/skills`; the skills live under
