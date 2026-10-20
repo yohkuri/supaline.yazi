@@ -1,0 +1,14 @@
+# The two tools whose version decides whether CI agrees with a contributor:
+# another stylua can format the same file differently, and another
+# lua-language-server can report what this one does not. CI installs both from
+# here, and `The documents name the versions CI runs` in `check.yml` holds
+# `CONTRIBUTING.md`'s table to them. mise is optional; without it, install these
+# versions by hand.
+#
+# Lua, uv and Python stay out, because none of their versions matters: any 5.5
+# runs the suite, `skills.py` resolves what it needs from its own lock, and the
+# harnesses ask for 3.11 or newer. A pin nothing depends on reads as one that
+# something does, and sends a contributor to a version manager for nothing.
+[tools]
+lua-language-server = "3.19.1"
+stylua = "2.6.0"
