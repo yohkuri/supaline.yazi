@@ -11,13 +11,14 @@
 # failure instead, as an `|| true` would, leaves the file unformatted and says
 # nothing.
 #
-# A file is formatted only where `stylua --check .` looks: inside a checkout of
-# this repository, a linked worktree included, outside every hidden path and
-# outside what Git's ignore rules match, tracked or not. Measured on stylua
-# 2.6.0, whose walk from `.` skips a hidden directory, and an ignored one
-# inside a Git repository even when a file in it is tracked -- it reads the
-# rules and never the index, which is why `check-ignore` below is given
-# `--no-index`.
+# A file is formatted only where `stylua --check .` in CI looks: inside a
+# checkout of this repository, a linked worktree included, outside every hidden
+# path and outside what a `.gitignore` matches, tracked or not. Measured on
+# stylua 2.6.0, whose walk from `.` skips a hidden directory, and an ignored
+# one inside a Git repository even when a file in it is tracked -- it reads the
+# rules and never the index. Only `.gitignore` counts, because
+# `.git/info/exclude` and `core.excludesFile` are one contributor's and CI's
+# checkout has neither.
 set -u
 
 fail() {
@@ -33,7 +34,7 @@ case "$input" in
 esac
 command -v jq >/dev/null 2>&1 || fail 'jq is not installed'
 file=$(printf '%s' "$input" |
-	jq -r '.tool_response.filePath // .tool_input.file_path // empty') ||
+	jq -r '.tool_response.filePath? // .tool_input.file_path? // empty') ||
 	fail 'jq could not read the hook input'
 case "$file" in
 *.lua) ;;
@@ -53,9 +54,9 @@ dir=$(dirname -- "$file")
 found=$(git -C "$dir" rev-parse --path-format=absolute --show-toplevel \
 	--git-common-dir --show-prefix 2>/dev/null) || exit 0
 {
-	read -r top
-	read -r common
-	read -r prefix
+	IFS= read -r top
+	IFS= read -r common
+	IFS= read -r prefix
 } <<EOF
 $found
 EOF
@@ -67,20 +68,24 @@ rel=$prefix$(basename -- "$file")
 case "/$rel" in
 */.*) exit 0 ;;
 esac
-# 0 is ignored, 1 is not, and anything else is Git failing to say.
-git -C "$top" check-ignore -q --no-index -- "$rel"
-case $? in
-0) exit 0 ;;
-1) ;;
-*) fail "git check-ignore failed for $file" ;;
-esac
+# Tracked and untracked alike, against the `.gitignore` files alone: a path
+# printed is one they match. Measured on Git 2.54, where neither
+# `.git/info/exclude` nor `core.excludesFile` makes this print a path.
+ignored=$(git -C "$top" ls-files --ignored --cached --others \
+	--exclude-per-directory=.gitignore -- "$rel") ||
+	fail "git ls-files could not say whether $file is ignored"
+[ -z "$ignored" ] || exit 0
 
 # Read from the file's own checkout, which may be on a branch pinning another
 # version than the project's, and from `[tools]` alone, where a `stylua` key
 # under any other table is not a pin. Spaces around `=` and a trailing comment
 # are what a person writes; the anchor keeps a commented-out pin from being
 # read.
+# A checkout with no `mise.toml` predates the pin -- a worktree on an older
+# main, say -- and has nothing to compare with, so it is left alone. One that
+# has the file and no readable pin in it is refused.
 pins=$top/mise.toml
+[ -f "$pins" ] || exit 0
 want=$(sed -n '/^\[tools\]/,/^\[/s/^stylua[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
 	"$pins")
 [ -n "$want" ] || fail "could not read the stylua version from $pins"
