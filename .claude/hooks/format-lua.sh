@@ -1,6 +1,9 @@
 #!/bin/sh
 # Format the Lua file a Write or an Edit just touched, with the stylua
-# `mise.toml` pins. `.claude/settings.json` runs this after either.
+# `mise.toml` pins. `.claude/settings.json` runs this after either, and only
+# when this file is there: a session can go on running the hook it started
+# with after a switch to a branch that has no such file, and calling it
+# regardless would fail every edit there, Lua or not.
 #
 # Every refusal exits 2, which hands stderr back to the agent: a missing tool,
 # a stylua CI does not run, or a file stylua cannot parse is dealt with in the
@@ -10,8 +13,11 @@
 #
 # A file is formatted only where `stylua --check .` looks: inside a checkout of
 # this repository, a linked worktree included, outside every hidden path and
-# outside what Git ignores. Measured on stylua 2.6.0, whose walk from `.` skips
-# a hidden directory, and an ignored one inside a Git repository.
+# outside what Git's ignore rules match, tracked or not. Measured on stylua
+# 2.6.0, whose walk from `.` skips a hidden directory, and an ignored one
+# inside a Git repository even when a file in it is tracked -- it reads the
+# rules and never the index, which is why `check-ignore` below is given
+# `--no-index`.
 set -u
 
 fail() {
@@ -42,10 +48,17 @@ command -v git >/dev/null 2>&1 || fail 'git is not installed'
 # shares the project's repository. Git resolves a symlinked path, such as
 # macOS's /tmp, on both sides.
 dir=$(dirname -- "$file")
-top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
-prefix=$(git -C "$dir" rev-parse --show-prefix) || exit 0
-common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir) ||
-	exit 0
+# One line each, in the order asked for; at the top of the checkout the
+# prefix is an empty line, which `$(...)` drops, and `read` leaves it empty.
+found=$(git -C "$dir" rev-parse --path-format=absolute --show-toplevel \
+	--git-common-dir --show-prefix 2>/dev/null) || exit 0
+{
+	read -r top
+	read -r common
+	read -r prefix
+} <<EOF
+$found
+EOF
 ours=$(git -C "$project" rev-parse --path-format=absolute --git-common-dir \
 	2>/dev/null) || exit 0
 [ "$common" = "$ours" ] || exit 0
@@ -55,7 +68,7 @@ case "/$rel" in
 */.*) exit 0 ;;
 esac
 # 0 is ignored, 1 is not, and anything else is Git failing to say.
-git -C "$top" check-ignore -q -- "$rel"
+git -C "$top" check-ignore -q --no-index -- "$rel"
 case $? in
 0) exit 0 ;;
 1) ;;
@@ -63,10 +76,13 @@ case $? in
 esac
 
 # Read from the file's own checkout, which may be on a branch pinning another
-# version than the project's. Spaces around `=` and a trailing comment are
-# what a person writes; the anchor keeps a commented-out pin from being read.
+# version than the project's, and from `[tools]` alone, where a `stylua` key
+# under any other table is not a pin. Spaces around `=` and a trailing comment
+# are what a person writes; the anchor keeps a commented-out pin from being
+# read.
 pins=$top/mise.toml
-want=$(sed -n 's/^stylua[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$pins")
+want=$(sed -n '/^\[tools\]/,/^\[/s/^stylua[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+	"$pins")
 [ -n "$want" ] || fail "could not read the stylua version from $pins"
 
 # mise's shims pick a version by the working directory, so stylua runs from

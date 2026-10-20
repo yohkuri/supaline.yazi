@@ -2,9 +2,10 @@
 
 The hook formats with whatever stylua is on `PATH` and refuses when that is
 not the one `mise.toml` pins, so what is worth holding is where it looks for
-the pin, which files it takes, and the directory and arguments stylua gets.
-A stand-in on `PATH` answers `--version` with what a test asks for and writes
-down the rest, so none of this needs a real stylua.
+the pin, which files it takes, the directory and arguments stylua gets, and
+that every refusal reaches the agent. A stand-in on `PATH` answers `--version`
+with what a test asks for and writes down the rest, so none of this needs a
+real stylua.
 
     python3 -m unittest discover -s test -p 'test_*.py'
 """
@@ -19,17 +20,30 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from examples import GIT_ENV
+
 REPO = Path(__file__).resolve().parent.parent
 HOOK = REPO / ".claude/hooks/format-lua.sh"
 
-#: Answers `--version` with $VERSION, and otherwise records where it ran and
-#: what it was given.
+#: Answers `--version` with $VERSION, fails the way a file it cannot parse
+#: does when $BROKEN is set, and otherwise records where it ran and what it
+#: was given.
 STYLUA = """#!/bin/sh
 [ "$1" = --version ] && { echo "stylua $VERSION"; exit; }
+[ -n "${BROKEN:-}" ] && { echo "error: could not parse $*" >&2; exit 1; }
 printf '%s\\n' "$(pwd -P)" "$*" > "$CALLED"
 """
 
-PIN = 'stylua = "9.9.9"\n'
+#: Git, except that `check-ignore` fails the way it does when Git cannot say.
+GIT = """#!/bin/sh
+[ "$3" = check-ignore ] && exit 128
+exec {git} "$@"
+"""
+
+#: What the hook runs besides jq, git and stylua.
+TOOLS = ["cat", "dirname", "basename", "sed"]
+
+PIN = '[tools]\nstylua = "9.9.9"\n'
 
 
 @unittest.skipUnless(shutil.which("jq") and shutil.which("git"), "needs both")
@@ -38,21 +52,24 @@ class TheHook(unittest.TestCase):
         made = tempfile.TemporaryDirectory()
         self.addCleanup(made.cleanup)
         self.tmp = Path(made.name).resolve()
-        # No global or system configuration, so a template, a hook or an
-        # `excludesFile` of whoever runs this cannot reach the repositories.
-        self.env = {
-            "PATH": os.environ["PATH"],
-            "HOME": str(self.tmp),
-            "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_GLOBAL": os.devnull,
-        }
+        # Git as nobody, so a template, a hook or an ignore file of whoever
+        # runs this cannot reach the repositories. HOME stays, because a jq or
+        # a git that is a mise shim finds its installs through it.
+        self.env = dict(os.environ, **GIT_ENV)
         self.root = self.repository("repo")
         self.called = self.tmp / "called"
-        bin_ = self.tmp / "bin"
+        self.path = self.bin("bin", ["jq", "git", *TOOLS], stylua=True)
+
+    def bin(self, name: str, tools: list[str], stylua: bool) -> str:
+        """A `PATH` of `tools` and nothing else, the stand-in if `stylua`."""
+        bin_ = self.tmp / name
         bin_.mkdir()
-        (bin_ / "stylua").write_text(STYLUA)
-        (bin_ / "stylua").chmod(0o755)
-        self.path = f"{bin_}{os.pathsep}{os.environ['PATH']}"
+        for tool in tools:
+            (bin_ / tool).symlink_to(shutil.which(tool))
+        if stylua:
+            (bin_ / "stylua").write_text(STYLUA)
+            (bin_ / "stylua").chmod(0o755)
+        return str(bin_)
 
     def repository(self, name: str) -> Path:
         root = self.tmp / name
@@ -76,6 +93,7 @@ class TheHook(unittest.TestCase):
         pins: str | None = PIN,
         payload: str = "tool_input",
         path: str | None = None,
+        broken: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         if pins is not None:
             (self.root / "mise.toml").write_text(pins)
@@ -91,9 +109,11 @@ class TheHook(unittest.TestCase):
             CALLED=str(self.called),
             PATH=self.path if path is None else path,
         )
+        if broken:
+            env["BROKEN"] = "1"
         # From somewhere else, as a session working in another checkout is.
         return subprocess.run(
-            ["sh", str(HOOK)],
+            [shutil.which("sh"), str(HOOK)],
             check=False,
             cwd=self.tmp,
             env=env,
@@ -122,7 +142,11 @@ class TheHook(unittest.TestCase):
         self.assertIsNone(self.stylua_got())
 
     def test_formats_from_the_file_checkout_when_the_pin_matches(self):
-        for pins in [PIN, 'stylua="9.9.9"  # the formatter\n']:
+        for pins in [
+            PIN,
+            '[tools]\nstylua="9.9.9"  # the formatter\n',
+            '[tools]\nstylua = "9.9.9"\n[tasks]\nstylua = "stylua ."\n',
+        ]:
             for payload in ["tool_input", "tool_response"]:
                 with self.subTest(pins=pins, payload=payload):
                     result = self.hook(
@@ -138,7 +162,11 @@ class TheHook(unittest.TestCase):
                     )
 
     def test_refuses_without_a_pin(self):
-        for pins in ['lua = "5.5.1"\n', '# stylua = "9.9.9"\n']:
+        for pins in [
+            '[tools]\nlua = "5.5.1"\n',
+            '[tools]\n# stylua = "9.9.9"\n',
+            '[tasks]\nstylua = "9.9.9"\n',
+        ]:
             with self.subTest(pins=pins):
                 result = self.hook(self.root / "sub/a.lua", pins=pins)
                 self.assertEqual(result.returncode, 2)
@@ -147,20 +175,35 @@ class TheHook(unittest.TestCase):
                 )
                 self.assertIsNone(self.stylua_got())
 
-    def test_refuses_without_a_stylua(self):
-        # jq and git and nothing else, so no stylua the machine has is found.
-        bare = self.tmp / "bare"
-        bare.mkdir()
-        for tool in ["jq", "git"]:
-            (bare / tool).symlink_to(shutil.which(tool))
-        path = f"{bare}{os.pathsep}/usr/bin{os.pathsep}/bin"
-        if shutil.which("stylua", path=path):
-            self.skipTest("a stylua is installed under /usr/bin or /bin")
+    def test_refuses_without_a_tool(self):
+        cases = {
+            "stylua is not installed; mise.toml pins 9.9.9": self.bin(
+                "no-stylua", ["jq", "git", *TOOLS], stylua=False
+            ),
+            "jq is not installed": self.bin(
+                "no-jq", ["git", *TOOLS], stylua=True
+            ),
+        }
+        for message, path in cases.items():
+            with self.subTest(message):
+                result = self.hook(self.root / "sub/a.lua", path=path)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertIsNone(self.stylua_got())
+
+    def test_hands_back_what_stylua_and_git_refuse(self):
+        result = self.hook(self.root / "sub/a.lua", broken=True)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("stylua could not format", result.stderr)
+        self.assertIn("error: could not parse", result.stderr)
+
+        path = self.bin("bad-git", ["jq", *TOOLS], stylua=True)
+        (Path(path) / "git").write_text(GIT.format(git=shutil.which("git")))
+        (Path(path) / "git").chmod(0o755)
         result = self.hook(self.root / "sub/a.lua", path=path)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn(
-            "stylua is not installed; mise.toml pins 9.9.9", result.stderr
-        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("git check-ignore failed", result.stderr)
+        self.assertIsNone(self.stylua_got())
 
     def test_formats_in_a_linked_worktree(self):
         (self.root / "mise.toml").write_text(PIN)
@@ -188,14 +231,22 @@ class TheHook(unittest.TestCase):
     def test_leaves_alone_what_stylua_check_does_not_look_at(self):
         other = self.repository("other")
         (other / "mise.toml").write_text(PIN)
-        for name in [".hidden/a.lua", "ignored/a.lua", "sub/a.txt"]:
+        for name in [
+            ".hidden/a.lua",
+            "ignored/a.lua",
+            "gen/a.lua",
+            "sub/a.txt",
+        ]:
             (self.root / name).parent.mkdir(exist_ok=True)
             (self.root / name).write_text("return 1\n")
-        (self.root / ".gitignore").write_text("ignored/\n")
+        (self.root / ".gitignore").write_text("ignored/\ngen/\n")
+        # Tracked and ignored at once, which stylua's walk still skips.
+        self.git(self.root, "add", "--force", "gen/a.lua")
         for file in [
             other / "sub/a.lua",
             self.root / ".hidden/a.lua",
             self.root / "ignored/a.lua",
+            self.root / "gen/a.lua",
             self.root / "sub/a.txt",
             self.root / "sub/gone.lua",
         ]:
