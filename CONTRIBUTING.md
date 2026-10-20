@@ -22,7 +22,7 @@ versions themselves:
 | unit tests | Lua 5.5, the one Yazi embeds — any 5.5 |
 | the test harnesses | Python 3.11 or newer |
 | `skills.py` | uv, new enough to read the lock beside it |
-| formatting and types | stylua 2.5.2, lua-language-server 3.19.1 |
+| formatting and types | stylua 2.6.0, lua-language-server 3.19.1 |
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
 | `test/gallery.py` | tmux and a browser |
