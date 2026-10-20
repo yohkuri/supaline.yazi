@@ -49,7 +49,10 @@ jobs:
         # either, and neither does holding `test/approved.toml` to the steps
         # the walk puts in the gallery. `test/test_examples.py` likewise holds
         # each picture in `docs/examples/` to the configuration above it, which
-        # takes reading the page and the SVG and no Yazi.
+        # takes reading the page and the SVG and no Yazi. And
+        # `test/test_format_hook.py` runs `.claude/hooks/format-lua.sh` against
+        # a stylua that only records what it was given, which needs jq and git
+        # and is skipped where either is missing; the runner has both.
         #
         # Before that split those parsers were `awk` inside the shell harness
         # and nothing tested them, which is the quietest hole a test harness
@@ -189,10 +192,11 @@ jobs:
       # fail this step on SC2148 rather than be skipped, which is the right
       # way round for a directory git executes every file in.
       #
-      # The hooks are the only shell this repository keeps. `test/` was shell
-      # too until the harnesses were rewritten in Python; what lints them now
-      # is the ruff step in `Documents and skills`.
-      - run: shellcheck .githooks/*
+      # Hooks are the only shell this repository keeps: git's there, and
+      # Claude Code's under `.claude/hooks`. `test/` was shell too until the
+      # harnesses were rewritten in Python; what lints them now is the ruff
+      # step in `Documents and skills`.
+      - run: shellcheck .githooks/* .claude/hooks/*
 
   docs:
     # Not `markdownlint` any more: it runs that, then the skills against the

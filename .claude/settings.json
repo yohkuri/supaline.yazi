@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; case \"$f\" in \"${CLAUDE_PROJECT_DIR:-/nonexistent}\"/*.lua) stylua --config-path \"$CLAUDE_PROJECT_DIR/stylua.toml\" \"$f\" ;; esac; } || true",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-lua.sh\"",
             "statusMessage": "Formatting Lua"
           }
         ]
