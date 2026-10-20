@@ -173,10 +173,12 @@ npx -p @commitlint/cli@21 -p @commitlint/config-conventional@21 \
   commitlint --from origin/main --to HEAD            # the commit messages
 ```
 
-Each of those refuses a wrong version of itself, with one exception worth
-knowing before you trust a green run: `lua-language-server --check .` compares
-the plugin against Yazi's own annotations, which `.luarc.json` expects at
-`~/.config/yazi/plugins/types.yazi/` and `ya pkg add yazi-rs/plugins:types`
+Each of those refuses a wrong version of itself, except `stylua` and
+`lua-language-server`: they run what `PATH` finds, which is `mise.toml`'s only
+through mise's shims, and only the format hook compares stylua's. One more is
+worth knowing before you trust a green run: `lua-language-server --check .`
+compares the plugin against Yazi's own annotations, which `.luarc.json` expects
+at `~/.config/yazi/plugins/types.yazi/` and `ya pkg add yazi-rs/plugins:types`
 installs. Without that directory the check still runs and still finds nothing,
 having quietly stopped comparing the plugin against anything but this
 repository.

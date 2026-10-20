@@ -23,7 +23,7 @@ themselves:
 | --- | ---- |
 | unit tests | Lua 5.5, the one Yazi embeds — any 5.5 |
 | the test harnesses | Python 3.11 or newer |
-| the Lua hook's tests | jq and git — without either, they're skipped |
+| the Claude Code hook that formats Lua | jq, and Git 2.31 or newer — its tests skip without jq or git |
 | `skills.py` | uv, new enough to read the lock beside it |
 | formatting and types | stylua 2.6.0, lua-language-server 3.19.1 |
 | Markdown and commit messages | Node, via `npx` |
