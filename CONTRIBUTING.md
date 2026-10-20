@@ -14,8 +14,10 @@ something you saw on screen, please mention which version you ran.
 
 Nothing else needs a version manager. The table gives a minimum where a
 newer version does just as well, and an exact version where only CI's own
-agrees with CI. The `npx` and `uvx` commands further down carry their
-versions themselves:
+agrees with CI. Those exact ones are pinned in `mise.toml` as well, so if
+you use [mise], `mise install` fetches them; if you don't, install them
+yourself. The `npx` and `uvx` commands further down carry their versions
+themselves:
 
 | For | What |
 | --- | ---- |
@@ -209,3 +211,4 @@ By contributing, you agree your work is licensed under the MIT License,
 as `LICENSE` says.
 
 [Conventional Commits]: https://www.conventionalcommits.org/
+[mise]: https://mise.jdx.dev/

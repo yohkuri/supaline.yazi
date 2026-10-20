@@ -25,15 +25,6 @@ concurrency:
 permissions:
   contents: read
 
-# The two versions an action or a download installs rather than a command
-# names, kept here rather than in the steps that use them so that `The
-# documents name the versions CI runs` can hold `CONTRIBUTING.md`'s table to
-# them. Every other pin in this file sits on the command that uses it, and that
-# step holds each quoted copy of the command to it.
-env:
-  STYLUA_VERSION: 2.6.0
-  LUALS_VERSION: 3.19.1
-
 jobs:
   test:
     # Two suites in two languages, for the two things under `test/`. 5.5,
@@ -76,13 +67,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Pinned, not `latest`: a stylua release that changes its defaults would
-      # otherwise fail CI on files the local hook had just formatted.
-      - uses: JohnnyMorganz/stylua-action@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ env.STYLUA_VERSION }}
-          args: --check .
+      # The version `mise.toml` pins, not `latest`: a stylua release that
+      # changes its defaults would otherwise fail CI on files the local hook
+      # had just formatted. mise-action installs every tool in that file, here
+      # and in `types` alike; naming one per job with `install_args` would be a
+      # second list of them to keep, for a few seconds.
+      - uses: jdx/mise-action@v5
+      - run: stylua --check .
 
   types:
     # `.luarc.json` is upstream's, verbatim, and points `workspace.library` at
@@ -184,16 +175,10 @@ jobs:
             rc=1
           done < <(git ls-files -z '*.lua' ':!:test/*')
           exit $rc
-      - name: The server itself
-        # There is no npm package, so a release tarball. The archive puts the
-        # launcher at `bin/`, which is why nothing here globs for it.
-        run: |
-          curl -fsSL -o /tmp/luals.tar.gz \
-            "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/lua-language-server-$LUALS_VERSION-linux-x64.tar.gz"
-          mkdir -p /tmp/luals
-          tar -xzf /tmp/luals.tar.gz -C /tmp/luals
+      - name: The server itself, at the version mise.toml pins
+        uses: jdx/mise-action@v5
       # `--check` prints every diagnostic and exits 1 on the first warning.
-      - run: /tmp/luals/bin/lua-language-server --check .
+      - run: lua-language-server --check .
 
   shell:
     name: shellcheck
@@ -285,21 +270,24 @@ jobs:
       - name: The documents name the versions CI runs
         # A contributor runs what the documents quote, and CI is what judges
         # the result, so a version the two disagree on is a file that passes
-        # locally and is refused here. The page once said every version was
-        # pinned in a `mise.toml` that pinned neither stylua nor
-        # lua-language-server, and that is the failure this step is for.
+        # locally and is refused here.
         #
         # Two halves, because the pins live in two shapes. A `name@version`
         # on a command here is found wherever a tracked file quotes it, and
         # every copy has to carry the same version -- the pins are read out of
         # this file rather than listed, so a new one is covered the day it is
-        # added. The two in `env` are a version with no command around it, and
-        # only `CONTRIBUTING.md`'s table has to repeat them; a document that
-        # records what was *measured* on one release is right to go on naming
-        # it after CI moves, which is why the second half reads one file.
+        # added. The ones in `mise.toml` are a version with no command around
+        # it, and only `CONTRIBUTING.md`'s table has to repeat them; a document
+        # that records what was *measured* on one release is right to go on
+        # naming it after CI moves, which is why the second half reads one
+        # file. The table names the versions rather than pointing at
+        # `mise.toml`, because that page promises to be all a contributor
+        # reads, and one without mise would otherwise have to open the file.
         #
-        # Matched to the end of the number: `stylua 2.5.20` is not
-        # `stylua 2.5.2`, and a plain substring match would take it for one.
+        # Matched to the end of the number: `lua-language-server 3.19.10` is
+        # not `lua-language-server 3.19.1`, and a plain substring match would
+        # take it for one. A `mise.toml` this reads no pin out of is refused
+        # rather than passed over, since that is a table compared with nothing.
         run: |
           rc=0
           pins=$(grep -oE '@?[a-z][a-z0-9-]*(/[a-z0-9-]+)?@[0-9][0-9.]*' \
@@ -314,15 +302,23 @@ jobs:
             done < <(git grep -noE -e "${pin%@*}@[0-9][0-9.]*" \
               -- ':!.github/workflows/check.yml' || true)
           done
-          for pin in "stylua $STYLUA_VERSION" \
-            "lua-language-server $LUALS_VERSION"; do
+          tools=$(sed -nE \
+            's/^([a-z][a-z0-9-]*)[[:space:]]*=[[:space:]]*"([^"]*)".*/\1 \2/p' \
+            mise.toml)
+          [ -n "$tools" ] || {
+            echo 'mise.toml: no `tool = "version"` line read out of it, so'
+            echo "  CONTRIBUTING.md's table was compared with nothing."
+            rc=1
+          }
+          while IFS= read -r pin; do
+            [ -n "$pin" ] || continue
             re="${pin//./\\.}([^.0-9]|\\.([^0-9]|\$)|\$)"
             grep -qE -- "$re" CONTRIBUTING.md || {
-              echo "CONTRIBUTING.md: does not say \`$pin\`, which is what CI"
-              echo "  runs. Change the version in its table to match."
+              echo "CONTRIBUTING.md: does not say \`$pin\`, which mise.toml"
+              echo "  pins and CI runs. Change the version in its table to match."
               rc=1
             }
-          done
+          done <<< "$tools"
           exit $rc
       - name: Every skill is reachable from .claude/skills
         # Claude Code reads `.claude/skills`; the skills live under
