@@ -28,8 +28,8 @@
 # worth folding together.
 #
 # What this cannot reach is a version written as data rather than as a
-# `uses:` -- the two in `mise.toml`, and the `npx` and `uvx` pins. Those
-# still move by hand.
+# `uses:` -- the two in `mise.toml`, mise's own `MISE_VERSION` in
+# `check.yml`, and the `npx` and `uvx` pins. Those still move by hand.
 version: 2
 updates:
   - package-ecosystem: github-actions
