@@ -20,10 +20,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from examples import GIT_ENV
+from examples import GIT_ENV, git
+from harness import ROOT
 
-REPO = Path(__file__).resolve().parent.parent
-HOOK = REPO / ".claude/hooks/format-lua.sh"
+HOOK = ROOT / ".claude/hooks/format-lua.sh"
 
 #: Answers `--version` with $VERSION, fails the way a file it cannot parse
 #: does when $BROKEN is set, and otherwise records where it ran and what it
@@ -40,8 +40,8 @@ GIT = """#!/bin/sh
 exec {git} "$@"
 """
 
-#: What the hook runs besides jq, git and stylua.
-TOOLS = ["cat", "dirname", "basename", "sed"]
+#: Everything the hook runs, stylua and its builtins aside.
+TOOLS = ["jq", "git", "cat", "dirname", "basename", "sed"]
 
 PIN = '[tools]\nstylua = "9.9.9"\n'
 
@@ -58,33 +58,35 @@ class TheHook(unittest.TestCase):
         self.env = dict(os.environ, **GIT_ENV)
         self.root = self.repository("repo")
         self.called = self.tmp / "called"
-        self.path = self.bin("bin", ["jq", "git", *TOOLS], stylua=True)
+        self.path = self.bin("bin")
 
-    def bin(self, name: str, tools: list[str], stylua: bool) -> str:
-        """A `PATH` of `tools` and nothing else, the stand-in if `stylua`."""
+    def bin(
+        self,
+        name: str,
+        without: tuple[str, ...] = (),
+        stand_ins: dict[str, str] | None = None,
+    ) -> str:
+        """A `PATH` of what the hook runs and nothing else: `TOOLS` and the
+        stylua stand-in, less `without`, with `stand_ins` written in place of
+        the tools they name."""
         bin_ = self.tmp / name
         bin_.mkdir()
-        for tool in tools:
-            (bin_ / tool).symlink_to(shutil.which(tool))
-        if stylua:
-            (bin_ / "stylua").write_text(STYLUA)
-            (bin_ / "stylua").chmod(0o755)
+        scripts = {"stylua": STYLUA, **(stand_ins or {})}
+        for tool in TOOLS:
+            if tool not in without and tool not in scripts:
+                (bin_ / tool).symlink_to(shutil.which(tool))
+        for tool, script in scripts.items():
+            if tool not in without:
+                (bin_ / tool).write_text(script)
+                (bin_ / tool).chmod(0o755)
         return str(bin_)
 
     def repository(self, name: str) -> Path:
         root = self.tmp / name
         (root / "sub").mkdir(parents=True)
-        self.git(root, "init", "--quiet")
+        git(root, "init", "--quiet")
         (root / "sub/a.lua").write_text("return 1\n")
         return root
-
-    def git(self, root: Path, *args: str) -> None:
-        subprocess.run(
-            ["git", "-C", str(root), *args],
-            env=self.env,
-            check=True,
-            capture_output=True,
-        )
 
     def hook(
         self,
@@ -132,7 +134,7 @@ class TheHook(unittest.TestCase):
         result = self.hook(
             self.root / "sub/a.lua",
             version="0.0.0",
-            pins=(REPO / "mise.toml").read_text(),
+            pins=(ROOT / "mise.toml").read_text(),
         )
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertRegex(
@@ -157,7 +159,7 @@ class TheHook(unittest.TestCase):
                         self.stylua_got(),
                         [
                             str(self.root),
-                            "--config-path stylua.toml -- sub/a.lua",
+                            "--config-path stylua.toml --respect-ignores -- sub/a.lua",
                         ],
                     )
 
@@ -178,11 +180,9 @@ class TheHook(unittest.TestCase):
     def test_refuses_without_a_tool(self):
         cases = {
             "stylua is not installed; mise.toml pins 9.9.9": self.bin(
-                "no-stylua", ["jq", "git", *TOOLS], stylua=False
+                "no-stylua", without=("stylua",)
             ),
-            "jq is not installed": self.bin(
-                "no-jq", ["git", *TOOLS], stylua=True
-            ),
+            "jq is not installed": self.bin("no-jq", without=("jq",)),
         }
         for message, path in cases.items():
             with self.subTest(message):
@@ -197,9 +197,9 @@ class TheHook(unittest.TestCase):
         self.assertIn("stylua could not format", result.stderr)
         self.assertIn("error: could not parse", result.stderr)
 
-        path = self.bin("bad-git", ["jq", *TOOLS], stylua=True)
-        (Path(path) / "git").write_text(GIT.format(git=shutil.which("git")))
-        (Path(path) / "git").chmod(0o755)
+        path = self.bin(
+            "bad-git", stand_ins={"git": GIT.format(git=shutil.which("git"))}
+        )
         result = self.hook(self.root / "sub/a.lua", path=path)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("git check-ignore failed", result.stderr)
@@ -207,47 +207,35 @@ class TheHook(unittest.TestCase):
 
     def test_formats_in_a_linked_worktree(self):
         (self.root / "mise.toml").write_text(PIN)
-        self.git(self.root, "add", ".")
-        self.git(
-            self.root,
-            "-c",
-            "user.name=t",
-            "-c",
-            "user.email=t@example.com",
-            "commit",
-            "--quiet",
-            "-m",
-            "t",
-        )
+        git(self.root, "add", ".")
+        git(self.root, "commit", "--quiet", "-m", "t")
         tree = self.tmp / "tree"
-        self.git(self.root, "worktree", "add", "--quiet", str(tree))
+        git(self.root, "worktree", "add", "--quiet", str(tree))
         result = self.hook(tree / "sub/a.lua", pins=None)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             self.stylua_got(),
-            [str(tree), "--config-path stylua.toml -- sub/a.lua"],
+            [
+                str(tree),
+                "--config-path stylua.toml --respect-ignores -- sub/a.lua",
+            ],
         )
 
     def test_leaves_alone_what_stylua_check_does_not_look_at(self):
         other = self.repository("other")
         (other / "mise.toml").write_text(PIN)
-        for name in [
-            ".hidden/a.lua",
-            "ignored/a.lua",
-            "gen/a.lua",
-            "sub/a.txt",
-        ]:
+        # Each made, so that what leaves it alone is its path and not its
+        # absence -- which `sub/gone.lua` is there for.
+        names = [".hidden/a.lua", "ignored/a.lua", "gen/a.lua", "sub/a.txt"]
+        for name in names:
             (self.root / name).parent.mkdir(exist_ok=True)
             (self.root / name).write_text("return 1\n")
         (self.root / ".gitignore").write_text("ignored/\ngen/\n")
         # Tracked and ignored at once, which stylua's walk still skips.
-        self.git(self.root, "add", "--force", "gen/a.lua")
+        git(self.root, "add", "--force", "gen/a.lua")
         for file in [
             other / "sub/a.lua",
-            self.root / ".hidden/a.lua",
-            self.root / "ignored/a.lua",
-            self.root / "gen/a.lua",
-            self.root / "sub/a.txt",
+            *(self.root / name for name in names),
             self.root / "sub/gone.lua",
         ]:
             with self.subTest(file=file.relative_to(self.tmp)):
