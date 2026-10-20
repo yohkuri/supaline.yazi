@@ -1,9 +1,13 @@
 # The two tools whose version decides whether CI agrees with a contributor:
 # another stylua can format the same file differently, and another
 # lua-language-server can report what this one does not. CI installs both from
-# here, and `The documents name the versions CI runs` in `check.yml` holds
-# `CONTRIBUTING.md`'s table to them. mise is optional; without it, install these
-# versions by hand.
+# here, `The documents name the versions CI runs` in `check.yml` holds
+# `CONTRIBUTING.md`'s table to them, and `.claude/hooks/format-lua.sh` refuses
+# to format with a stylua other than this one. mise is optional; without it,
+# install these versions by hand.
+#
+# Each on one line, with the full version: the hook and that step read them
+# with `sed` rather than a TOML parser.
 #
 # Lua, uv and Python stay out, because none of their versions matters: any 5.5
 # runs the suite, `skills.py` resolves what it needs from its own lock, and the
