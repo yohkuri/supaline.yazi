@@ -309,7 +309,9 @@ jobs:
         #
         # A line under `[tools]` this cannot read is refused rather than passed
         # over: a tool mise-action installs and this step never compares is the
-        # hole that would leave.
+        # hole that would leave. So is a version short of `x.y.z`, which mise
+        # resolves to a release and the hook compares, as written, with
+        # `stylua --version`.
         run: |
           rc=0
           pins=$(grep -oE '@?[a-z][a-z0-9-]*(/[a-z0-9-]+)?@[0-9][0-9.]*' \
@@ -326,7 +328,7 @@ jobs:
           done
           tools=()
           table=
-          pin_re='^([a-z][a-z0-9-]*)[[:space:]]*=[[:space:]]*"([^"]*)"[[:space:]]*(#.*)?$'
+          pin_re='^([a-z][a-z0-9-]*)[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*(#.*)?$'
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ $line =~ ^\[([^]]*)\] ]]; then
               table=${BASH_REMATCH[1]}
@@ -339,7 +341,7 @@ jobs:
               continue
             fi
             echo "mise.toml: \`$line\` under [tools] is not read as a pin."
-            echo '  Write it as `name = "version"` on one line: this step and'
+            echo '  Write it as `name = "x.y.z"` on one line: this step and'
             echo '  .claude/hooks/format-lua.sh read it that way and no other.'
             rc=1
           done < mise.toml
