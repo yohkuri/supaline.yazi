@@ -31,7 +31,7 @@ permissions:
 # them. Every other pin in this file sits on the command that uses it, and that
 # step holds each quoted copy of the command to it.
 env:
-  STYLUA_VERSION: 2.5.2
+  STYLUA_VERSION: 2.6.0
   LUALS_VERSION: 3.19.1
 
 jobs:
