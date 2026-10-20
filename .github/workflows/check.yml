@@ -307,11 +307,9 @@ jobs:
         # not `lua-language-server 3.19.1`, and a plain substring match would
         # take it for one.
         #
-        # Only `[tools]` is read, since a quoted value under any other table is
-        # not a pin, and a line there that is not `name = "version"` is refused
-        # rather than passed over: a tool mise-action installs and this step
-        # never compares is the hole it is for. A `mise.toml` with no pin at
-        # all is refused too, being a table compared with nothing.
+        # A line under `[tools]` this cannot read is refused rather than passed
+        # over: a tool mise-action installs and this step never compares is the
+        # hole that would leave.
         run: |
           rc=0
           pins=$(grep -oE '@?[a-z][a-z0-9-]*(/[a-z0-9-]+)?@[0-9][0-9.]*' \

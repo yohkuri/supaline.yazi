@@ -95,12 +95,14 @@ command -v stylua >/dev/null 2>&1 ||
 	fail "stylua is not installed; mise.toml pins $want, which is what CI runs"
 have=$(stylua --version) || fail 'stylua --version failed'
 have=${have#stylua }
-if [ "$have" != "$want" ]; then
-	why="stylua $have is installed, but CI runs $want, which mise.toml pins"
-	fix="install $want, with \`mise install\` in $top if you use mise"
-	fail "$file was not formatted: $why. To format it, $fix."
-fi
+[ "$have" = "$want" ] ||
+	fail "$file was not formatted: stylua $have is installed, but CI runs \
+$want, which mise.toml pins. To format it, install $want, with \
+\`mise install\` in $top if you use mise."
 
-out=$(stylua --config-path stylua.toml -- "$rel" 2>&1) ||
+# `--respect-ignores` because a path named outright is formatted whatever a
+# `.styluaignore` says, where `stylua --check .` skips what it lists. Measured
+# on stylua 2.6.0.
+out=$(stylua --config-path stylua.toml --respect-ignores -- "$rel" 2>&1) ||
 	fail "stylua could not format $file:
 $out"
