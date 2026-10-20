@@ -23,6 +23,7 @@ themselves:
 | --- | ---- |
 | unit tests | Lua 5.5, the one Yazi embeds — any 5.5 |
 | the test harnesses | Python 3.11 or newer |
+| the Lua hook's tests | jq and git — without either, they're skipped |
 | `skills.py` | uv, new enough to read the lock beside it |
 | formatting and types | stylua 2.6.0, lua-language-server 3.19.1 |
 | Markdown and commit messages | Node, via `npx` |
@@ -75,7 +76,7 @@ lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
 uv run .github/scripts/skills.py  # the instruction docs' length budgets
 
-python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers
+python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers, the Lua hook
 
 uvx ruff@0.16.7 check test .github/scripts           # Python lint
 uvx ruff@0.16.7 format --check test .github/scripts  # Python formatting

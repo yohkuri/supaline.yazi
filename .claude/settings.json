@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-lua.sh\"",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/hooks/format-lua.sh\"; [ ! -f \"$f\" ] || sh \"$f\"",
             "statusMessage": "Formatting Lua"
           }
         ]
