@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from examples import GIT_ENV, git
+from examples import as_nobody, git
 from harness import ROOT, run
 
 _spec = importlib.util.spec_from_file_location(
@@ -156,9 +156,13 @@ class TheComparison(Scratch):
         self.assertEqual(it.state(self.src, self.dst), "different")
 
     def test_nothing_fetched_never_matches(self) -> None:
-        self.dst.parent.mkdir(parents=True)
-        self.dst.write_bytes(b"")
+        self.dst.mkdir(parents=True)
         self.assertEqual(it.state(self.tmp / "missing", self.dst), "different")
+
+    def test_an_unreadable_lua_file_is_different(self) -> None:
+        (self.copy() / "main.lua").chmod(0)
+        self.addCleanup((self.dst / "main.lua").chmod, 0o644)
+        self.assertEqual(it.state(self.src, self.dst), "different")
 
     def test_a_file_in_its_place_is_different(self) -> None:
         self.dst.parent.mkdir(parents=True)
@@ -173,10 +177,16 @@ class TheComparison(Scratch):
 
 class TheInstall(Scratch):
     def run_main(
-        self, *argv: str, failure: BaseException | None = None
+        self,
+        *argv: str,
+        failure: BaseException | None = None,
+        version_error: str | None = None,
     ) -> tuple[int, str, mock.Mock]:
+        """`main`, with the tree's own `@since` out of it: `TheVersion` holds
+        that, and a test here should not fail because a Yazi moved."""
         out = io.StringIO()
         with (
+            mock.patch.object(it, "version_error", return_value=version_error),
             mock.patch.dict(os.environ, {"HOME": str(self.tmp / "home")}),
             mock.patch.object(
                 it, "fetch", return_value=self.src, side_effect=failure
@@ -221,10 +231,9 @@ class TheInstall(Scratch):
         self.assertEqual(self.siblings(), [])
 
     def test_a_wrong_version_stops_before_fetching(self) -> None:
-        with mock.patch.object(it, "version_error", return_value="no"):
-            code, out, fetch = self.run_main()
+        code, out, fetch = self.run_main(version_error="the planted refusal")
         self.assertEqual(code, 1)
-        self.assertIn("no", out)
+        self.assertEqual(out.strip(), "the planted refusal")
         fetch.assert_not_called()
         self.assertFalse(os.path.lexists(self.dst))
 
@@ -242,48 +251,63 @@ class TheInstall(Scratch):
         fetch.assert_not_called()
 
 
+@unittest.skipUnless(shutil.which("git"), "needs git")
 class TheFetch(Scratch):
     """`fetch` against a repository on disk standing in for yazi-rs/plugins."""
 
     def setUp(self) -> None:
         super().setUp()
-        # No GIT_DIR or the like from whatever ran the suite, a hook included.
-        env = mock.patch.dict(os.environ)
-        env.start()
-        self.addCleanup(env.stop)
-        for key in [key for key in os.environ if key.startswith("GIT_")]:
-            del os.environ[key]
+        as_nobody(self)
+        self.repo = self.tmp / "remote"
+        git(self.repo.parent, "init", "-q", "-b", "main", self.repo.name)
+        git(self.repo, "config", "uploadpack.allowFilter", "true")
 
-    def upstream(self, files: dict[str, bytes]) -> tuple[str, str]:
-        repo = write(self.tmp / "remote", files)
-        git(repo, "init", "-q", "-b", "main")
-        git(repo, "config", "uploadpack.allowFilter", "true")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-q", "-m", "feat: types for v0.0.0")
-        rev = run(["git", "-C", str(repo), "rev-parse", "HEAD"], env=GIT_ENV)
-        return repo.as_uri(), rev.stdout.strip()
+    def commit(self, files: dict[str, bytes], message: str) -> str:
+        write(self.repo, files)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", message)
+        return run(
+            ["git", "-C", str(self.repo), "rev-parse", "HEAD"]
+        ).stdout.strip()
 
-    def fetch(self, url: str, rev: str) -> Path:
+    def fetch(self, rev: str) -> tuple[Path, str]:
+        out = io.StringIO()
         with (
-            mock.patch.object(it, "UPSTREAM", url),
+            mock.patch.object(it, "UPSTREAM", self.repo.as_uri()),
             mock.patch.object(it, "REV", rev),
-            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stdout(out),
         ):
-            return it.fetch(self.tmp / "work")
+            src = it.fetch(self.tmp / "work")
+        return src, out.getvalue()
 
-    def test_takes_types_yazi_at_rev(self) -> None:
-        url, rev = self.upstream(
+    def test_takes_types_yazi_at_rev_not_at_the_head(self) -> None:
+        rev = self.commit(
             {f"types.yazi/{k}": v for k, v in ANNOTATIONS.items()}
-            | {"git.yazi/main.lua": b"return {}\n"}
+            | {"git.yazi/main.lua": b"return {}\n"},
+            "feat: types for v0.0.1",
         )
-        src = self.fetch(url, rev)
+        self.commit({"git.yazi/main.lua": b"return 1\n"}, "fix: git")
+        self.commit(
+            {"types.yazi/main.lua": b"-- newer\n"}, "feat: types for v0.0.2"
+        )
+        src, out = self.fetch(rev)
         self.assertEqual(snapshot(src), snapshot(self.src))
+        self.assertIn(f"last changed by {rev[:7]} feat: types for v0.0.1", out)
 
     def test_a_rev_without_types_yazi_is_refused(self) -> None:
-        url, rev = self.upstream({"git.yazi/main.lua": b"return {}\n"})
+        rev = self.commit({"git.yazi/main.lua": b"return {}\n"}, "feat: git")
         with self.assertRaises(SystemExit) as caught:
-            self.fetch(url, rev)
+            self.fetch(rev)
         self.assertIn("no types.yazi", str(caught.exception.code))
+
+    def test_a_rev_upstream_lacks_is_refused_with_why(self) -> None:
+        self.commit({"git.yazi/main.lua": b"return {}\n"}, "feat: git")
+        with (
+            self.assertRaises(SystemExit) as caught,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.fetch("0" * 40)
+        self.assertIn("not a commit", str(caught.exception.code))
 
 
 if __name__ == "__main__":

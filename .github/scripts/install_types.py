@@ -60,6 +60,10 @@ UPSTREAM = "https://github.com/yazi-rs/plugins"
 
 SINCE = "--- @since "
 
+# Long enough for a slow clone of the whole repository, short enough that a
+# stalled connection ends in a message rather than a wait with none.
+TIMEOUT = 300
+
 
 def since(main_lua: Path) -> str | None:
     """What follows `--- @since ` on `main_lua`'s first line, as `tag.yml`
@@ -112,8 +116,16 @@ def contents(tree: Path) -> dict[str, bytes | None] | None:
         for name in [f for f in files if f.endswith(".lua")] + linked:
             path = Path(top, name)
             rel = path.relative_to(tree).as_posix()
-            found[rel] = path.read_bytes() if path.is_file() else None
+            found[rel] = read(path)
     return found
+
+
+def read(path: Path) -> bytes | None:
+    """A file's bytes, or None for anything that cannot be read as one."""
+    try:
+        return path.read_bytes() if path.is_file() else None
+    except OSError:
+        return None
 
 
 def state(src: Path, dst: Path) -> str:
@@ -126,36 +138,60 @@ def state(src: Path, dst: Path) -> str:
     return "same"
 
 
+def git(*args: str, why: str, capture: bool = False) -> str:
+    """Git, stopped with `why` when it fails or has not answered in time."""
+    try:
+        done = subprocess.run(
+            ["git", *args],
+            check=True,
+            capture_output=capture,
+            text=True,
+            timeout=TIMEOUT,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        command = args[2] if args[0] == "-C" else args[0]
+        sys.exit(f"git {command}: {e}\n  {why}")
+    return done.stdout.strip() if capture else ""
+
+
 def fetch(into: Path) -> Path:
     """`types.yazi` at `REV`, cloned under `into`."""
-    clone = into / "plugins"
-
-    subprocess.run(
-        [
-            "git",
-            "clone",
-            "-q",
-            "--filter=blob:none",
-            "--no-checkout",
-            UPSTREAM,
-            str(clone),
-        ],
-        check=True,
+    clone = str(into / "plugins")
+    git(
+        "clone",
+        "-q",
+        "--filter=blob:none",
+        "--no-checkout",
+        UPSTREAM,
+        clone,
+        why=f"{UPSTREAM} could not be cloned. Nothing was installed.",
     )
-    subprocess.run(["git", "-C", str(clone), "checkout", "-q", REV], check=True)
-    src = clone / "types.yazi"
+    git(
+        "-C",
+        clone,
+        "checkout",
+        "-q",
+        REV,
+        why=f"REV in install_types.py is not a commit {UPSTREAM} has.",
+    )
+    src = Path(clone) / "types.yazi"
     if not src.is_dir():
         sys.exit(
             f"{UPSTREAM}@{REV[:7]} has no types.yazi directory, so REV in\n"
             "  install_types.py names the wrong commit. Nothing was installed."
         )
-    last = subprocess.run(
-        ["git", "-C", str(clone), "log", "-1", "--format=%h %s", REV, "--"]
-        + ["types.yazi"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    last = git(
+        "-C",
+        clone,
+        "log",
+        "-1",
+        "--format=%h %s",
+        REV,
+        "--",
+        "types.yazi",
+        why="Its history could not be read.",
+        capture=True,
+    )
     print(f"{UPSTREAM}@{REV[:7]}: types.yazi last changed by {last}")
     return src
 

@@ -49,8 +49,10 @@ import sys
 import tempfile
 import time
 import tomllib
+import unittest
 from dataclasses import dataclass
 from pathlib import Path
+from unittest import mock
 from xml.sax.saxutils import escape, quoteattr
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -542,6 +544,23 @@ GIT_ENV = {
     "GIT_CONFIG_KEY_1": "core.attributesFile",
     "GIT_CONFIG_VALUE_1": os.devnull,
 }
+
+
+def as_nobody(case: unittest.TestCase) -> None:
+    """Run the rest of `case` with every git it starts as nobody.
+
+    No GIT_DIR, GIT_INDEX_FILE or the like from whatever ran the suite, or
+    that git would work on that repository instead, and `GIT_ENV` over the
+    rest, so a hook, a template or an ignore file of whoever runs it cannot
+    reach one either. HOME stays, because a git that is a mise shim finds
+    its installs through it. Undone when `case` ends.
+    """
+    environ = mock.patch.dict(os.environ)
+    environ.start()
+    case.addCleanup(environ.stop)
+    for key in [key for key in os.environ if key.startswith("GIT_")]:
+        del os.environ[key]
+    os.environ.update(GIT_ENV)
 
 
 def git(folder: Path, *args: str) -> None:

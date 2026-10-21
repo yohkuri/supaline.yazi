@@ -20,9 +20,8 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
-from examples import GIT_ENV, git
+from examples import as_nobody, git
 from harness import ROOT
 
 HOOK = ROOT / ".claude/hooks/format-lua.sh"
@@ -64,17 +63,8 @@ class TheHook(unittest.TestCase):
         made = tempfile.TemporaryDirectory()
         self.addCleanup(made.cleanup)
         self.tmp = Path(made.name).resolve()
-        # No GIT_DIR, GIT_INDEX_FILE or the like from whatever ran the suite,
-        # or the git here would work on that repository instead of these.
-        environ = mock.patch.dict(os.environ)
-        environ.start()
-        self.addCleanup(environ.stop)
-        for key in [key for key in os.environ if key.startswith("GIT_")]:
-            del os.environ[key]
-        # Git as nobody, so a template, a hook or an ignore file of whoever
-        # runs this cannot reach the repositories. HOME stays, because a jq or
-        # a git that is a mise shim finds its installs through it.
-        self.env = dict(os.environ, **GIT_ENV)
+        as_nobody(self)
+        self.env = dict(os.environ)
         self.root = self.repository("repo")
         # Where `COMMAND` looks for the hook: CLAUDE_PROJECT_DIR is this.
         (self.root / ".claude/hooks").mkdir(parents=True)
