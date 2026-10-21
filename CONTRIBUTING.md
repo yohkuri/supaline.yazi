@@ -84,9 +84,10 @@ uvx ruff@0.16.7 format --check test .github/scripts  # Python formatting
 
 A few things worth knowing:
 
-- `lua-language-server --check .` passes quietly even when it can't find
-  Yazi's own type annotations, which makes it look like it checked more
-  than it did. Install them with `ya pkg add yazi-rs/plugins:types`.
+- `lua-language-server --check .` needs Yazi's own type annotations.
+  Without them it fails all over the plugin, which looks like the plugin is
+  broken rather than the setup. Install them with
+  `ya pkg add yazi-rs/plugins:types`.
 - `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py`
   and `test/readme.py` open a real Yazi, so they're not in CI. Run them
   yourself if your change affects what's on screen — and trust the exit

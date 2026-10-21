@@ -101,10 +101,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Yazi's annotations, where .luarc.json looks for them
-        # Their own step, because a missing library does not fail the check --
-        # it quietly reduces it to what this repository declares about itself,
-        # and a tree with nothing else wrong then passes. Here a failure to
-        # fetch them is a failure.
+        # Their own step, so that a failure to fetch them reads as one. The
+        # check below fails without them too, but all over the plugin -- each
+        # of Yazi's classes it builds on reported as undefined, and dozens of
+        # fields and globals with them -- and none of that says why.
         #
         # Pinned like every other tool: these annotations follow Yazi's main
         # branch, and a plugin that targets 26.9.1 has no business failing on
