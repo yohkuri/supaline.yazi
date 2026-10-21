@@ -25,7 +25,7 @@ themselves:
 | the test harnesses | Python 3.11 or newer |
 | the Claude Code hook that formats Lua | jq, and Git 2.31 or newer — its tests skip without jq or git |
 | `skills.py` | uv, new enough to read the lock beside it |
-| formatting and types | stylua 2.6.0, lua-language-server 3.19.1 |
+| formatting and types | stylua 2.6.0, lua-language-server 3.19.2 |
 | Markdown and commit messages | Node, via `npx` |
 | `test/e2e.py`, `test/manual.py` | tmux and a real terminal |
 | `test/gallery.py` | tmux and a browser |
