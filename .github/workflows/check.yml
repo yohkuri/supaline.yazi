@@ -154,17 +154,18 @@ jobs:
         # required by name.
         #
         # To this walk, a library that is not there is a silent pass rather
-        # than an error, so the guard below is not the clone step's failure
+        # than an error, so the guard below is not the install step's failure
         # said twice: `find` does fail per file, but `sort` exits 0 over the
         # empty output and `bash -e` sees a pipeline that succeeded, so the
-        # loop reports no collisions and the step exits 0. Unreachable while the clone runs
-        # first in this job; the guard is what makes reordering the two safe.
+        # loop reports no collisions and the step exits 0. Unreachable while
+        # the install runs first in this job; the guard is what makes
+        # reordering the two safe.
         run: |
           rc=0
           lib="$HOME/.config/yazi/plugins/types.yazi"
           if [ ! -d "$lib" ]; then
             echo "$lib is not there."
-            echo "  The step that clones Yazi's annotations has to run before"
+            echo "  The step that installs Yazi's annotations has to run before"
             echo "  this one. Without them there is nothing to compare this"
             echo "  plugin's module names against, and the walk below would"
             echo "  report no collisions rather than say it checked nothing."
@@ -421,24 +422,32 @@ jobs:
           # wherever it sits -- a glob of the root would miss one added in a
           # subdirectory. The version is pinned rather than left open because
           # an annotation older than the Yazi it names is exactly the stale
-          # one this job exists to catch. It is read from `YAZI_VERSION` in
-          # install_types.py, beside the type annotations written for that
-          # Yazi, so the two cannot be moved apart.
+          # one this job exists to catch. It is `YAZI_VERSION` in
+          # install_types.py, beside the revision of the type annotations
+          # written for that Yazi, so moving @since alone stops here. Whether
+          # that revision moved too is the pull request's to see; nothing here
+          # can tell which Yazi a revision is for.
           # Fed by process substitution, not a pipe, so the loop runs in this
           # shell and `rc` survives it -- every offender is named, not just
           # the first.
+          # Read by running the file rather than by matching its text, so a
+          # second line that looks like the assignment cannot change the
+          # answer. `run_path` runs it under a name other than `__main__`,
+          # which defines the constants and installs nothing.
           script=.github/scripts/install_types.py
-          yazi=$(sed -n 's/^YAZI_VERSION = "\([0-9.]*\)"$/\1/p' "$script")
-          if [ -z "$yazi" ]; then
-            echo "$script: no \`YAZI_VERSION = \"x.y.z\"\` line to check against."
-            exit 1
-          fi
+          yazi=$(python3 -c 'import runpy, sys
+          print(runpy.run_path(sys.argv[1])["YAZI_VERSION"])' "$script")
           while IFS= read -r -d '' f; do
             if [ "$(head -1 "$f")" != "--- @since $yazi" ]; then
               echo "$f: first line is not '--- @since $yazi'"
               rc=1
             fi
           done < <(git ls-files -z '*.lua' ':!:test/*')
+          if [ $rc != 0 ]; then
+            echo
+            echo "$yazi is YAZI_VERSION in $script. Moving to another Yazi"
+            echo "moves it, REV beside it, and every line above together."
+          fi
           exit $rc
 
   sync:
