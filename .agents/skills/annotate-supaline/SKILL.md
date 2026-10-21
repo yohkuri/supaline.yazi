@@ -19,8 +19,7 @@ description: >-
 # Writing the type annotations
 
 `AGENTS.md` lists `lua-language-server --check .` and says what it needs
-installed to compare the plugin against anything. This is what it reaches once
-it runs.
+installed. This is what it reaches once it runs.
 
 ## What the check reaches
 
