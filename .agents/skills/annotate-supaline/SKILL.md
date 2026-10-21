@@ -45,11 +45,13 @@ for keys its class does not declare, and marking those classes `(exact)` was
 measured to change that at no site here. What a user writes wrong is still
 `setup`'s to refuse at runtime, which is what all those errors are for.
 
-A local whose next value in a loop is computed from its previous one is a
-second limit, and the tool's rather than an annotation's: after
-`line = line:truncate {...}`, or the same through a fresh local, it can lose its
-class for the rest of the loop body, so a misspelt call there goes unrefused.
-Cast it on each pass, as the `for` in `cut` in `layout.lua` does.
+A local a loop carries from one pass into the next is a second limit, and the
+tool's rather than an annotation's: when each pass computes it from the last
+one's, as `line = line:truncate {...}` does, it can lose its class for the rest
+of the loop body, so a misspelt call there goes unrefused. Give it its class back
+once on each pass with a cast: the `for` in `cut` in `layout.lua` casts where it
+truncates, and the `while` beside it where it rebuilds the line, so the truncate
+after that needs none.
 
 ### What holds the specs inside it
 

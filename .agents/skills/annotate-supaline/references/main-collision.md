@@ -13,9 +13,9 @@ that is the whole of the working knowledge. Read this file for the other case:
 a checkout somewhere new, an annotations revision that moves, CI reporting a
 shadowed module, or the upstream issue landing.
 
-Measured on `lua-language-server` 3.19.2 against `yazi-rs/plugins@0be29a9`, at
-`ac2490e`; the `---@meta _` demo under Filed upstream, on 3.19.1. Which two
-revisions CI runs is `mise.toml`'s and the `lua-language-server` job's to say.
+Measured on `lua-language-server` 3.19.2 against `yazi-rs/plugins@0be29a9`; the
+`---@meta _` demo under Filed upstream, on 3.19.1. Which two revisions CI runs
+is `mise.toml`'s and the `lua-language-server` job's to say.
 
 ## Contents
 
@@ -50,11 +50,13 @@ their name, and checking a planted `require(".main").setup(42)` in each:
 | `~/zz-supaline-probe` | not reported, no problems |
 | `~/!supaline-probe` | `param-type-mismatch` reported, the only problem |
 
-So the library loaded either way and the one diagnostic that moved is the call
-through `require(".main")`. A checkout at `~/開発/` or `~/!work/` sits on the second
-row — the URI encodes them as `%E9…` and `%21`, and `%` sorts before `.` — and
-reads `.main` from this tree, with `supaline.Main` claimed over it regardless.
-The class stays right there; what stops applying is the reason given for it.
+With no library at all the same tree reports dozens of problems under either
+name, so the library loaded both times, and the one diagnostic that moved is
+the call through `require(".main")`. A checkout at `~/開発/` or `~/!work/` sits
+on the second row — the URI encodes them as `%E9…` and `%21`, and `%` sorts
+before `.` — and reads `.main` from this tree, with `supaline.Main` claimed over
+it regardless. The class stays right there; what stops applying is the reason
+given for it.
 
 ## Re-taking it
 
@@ -65,8 +67,9 @@ the mismatch at `~/!supaline-probe` reports none from a `mktemp -d`.
 
 Take the annotations at the revision CI pins, too. `ya pkg add` installs the
 newest, so `~/.config/yazi/plugins/types.yazi/` can be some other revision:
-point the copied `.luarc.json` at a checkout of CI's, kept under `~/.` so it
-sorts where `~/.config/` does.
+point the copied `.luarc.json` at the `types.yazi/` inside a checkout of CI's,
+kept under `~/.` so it sorts where `~/.config/` does. Not the checkout's root:
+every other plugin's `main.lua` there would join the candidates for `.main`.
 
 Read the total off the final `Diagnosis complete` line, never off `Found N
 problems`, which is a progress checkpoint and is printed more than once.
@@ -113,12 +116,12 @@ and CI pins that revision by hash.
 directory holds a single Lua file, so nothing there shadows `.builtin` or
 `.column`. A `builtin.lua` planted there silences a misspelt `builtin.extremez`
 as the depth probe below has a `column.lua` silence `column.normalizze`, and
-only where the library sorts first, as in both arrangements above; with the
-workspace first, no plant shadows anything. The `lua-language-server` job
-reads the directory rather than this sentence — beside the clone, it names any
-tracked plugin file the annotations ship a file of that name, at any depth and
-`main.lua` excepted. Growing a `builtin.lua` fails that step instead of quietly
-retiring this section.
+only where the library sorts first, as it does for this checkout and on CI;
+with the workspace first, no plant shadows anything. The `lua-language-server`
+job reads the directory rather than this sentence — beside the clone, it names
+any tracked plugin file the annotations ship a file of that name, at any depth
+and `main.lua` excepted. Growing a `builtin.lua` fails that step instead of
+quietly retiring this section.
 
 Depth is the part that is not guessable. `runtime.pathStrict` defaults to
 false, so `?.lua` is tried against every subdirectory of a library root, and
