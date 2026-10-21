@@ -1,6 +1,6 @@
 # The `.main` collision
 
-`types.yazi` ships its annotations as a single `main.lua` — 3,235 lines with no
+`types.yazi` ships its annotations as a single `main.lua` — 3,300 lines with no
 `return` — and a Yazi plugin's entry point is also `main.lua`. So
 `require(".main")` has two candidates and `lua-language-server` takes exactly
 one. Which one is a property of the absolute path the tree sits at, not of
@@ -13,9 +13,9 @@ that is the whole of the working knowledge. Read this file for the other case:
 a checkout somewhere new, an annotations revision that moves, CI reporting a
 shadowed module, or the upstream issue landing.
 
-Measured on `lua-language-server` 3.19.2 against `yazi-rs/plugins@0be29a9`; the
+Measured on `lua-language-server` 3.19.2 against `yazi-rs/plugins@4dc7f1b`; the
 `---@meta _` demo under Filed upstream, on 3.19.1. Which two revisions CI runs
-is `mise.toml`'s and the `lua-language-server` job's to say.
+is `mise.toml`'s and `.github/scripts/install_types.py`'s to say.
 
 ## Contents
 
@@ -65,11 +65,13 @@ Use two real directories under `$HOME`. A scratch directory measures nothing:
 resolves, so the annotations win there under every name — the tree that reports
 the mismatch at `~/!supaline-probe` reports none from a `mktemp -d`.
 
-Take the annotations at the revision CI pins, too. `ya pkg add` installs the
-newest, so `~/.config/yazi/plugins/types.yazi/` can be some other revision:
-point the copied `.luarc.json` at the `types.yazi/` inside a checkout of CI's,
-kept under `~/.` so it sorts where `~/.config/` does. Not the checkout's root:
-every other plugin's `main.lua` there would join the candidates for `.main`.
+Take the annotations at the revision CI pins, too. Once
+`install_types.py` has run without refusing,
+`~/.config/yazi/plugins/types.yazi/` holds that revision's, and the copied
+`.luarc.json` can point where it already does. A copy of them elsewhere has to
+be kept under `~/.` so it sorts where `~/.config/` does, and has to be
+`types.yazi/` alone rather than a checkout's root: every other plugin's
+`main.lua` there would join the candidates for `.main`.
 
 Read the total off the final `Diagnosis complete` line, never off `Found N
 problems`, which is a progress checkpoint and is printed more than once.
@@ -112,7 +114,7 @@ and CI pins that revision by hash.
 
 ## `.main` is the only name that can collide
 
-`.luarc.json` puts one directory on `workspace.library`, and at `0be29a9` that
+`.luarc.json` puts one directory on `workspace.library`, and at `4dc7f1b` that
 directory holds a single Lua file, so nothing there shadows `.builtin` or
 `.column`. A `builtin.lua` planted there silences a misspelt `builtin.extremez`
 as the depth probe below has a `column.lua` silence `column.normalizze`, and
