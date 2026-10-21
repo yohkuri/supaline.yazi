@@ -15,5 +15,5 @@
 # harnesses ask for 3.11 or newer. A pin nothing depends on reads as one that
 # something does, and sends a contributor to a version manager for nothing.
 [tools]
-lua-language-server = "3.19.1"
+lua-language-server = "3.19.2"
 stylua = "2.6.0"
