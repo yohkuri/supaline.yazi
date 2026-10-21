@@ -14,7 +14,10 @@ a checkout somewhere new, an annotations revision that moves, CI reporting a
 shadowed module, or the upstream issue landing.
 
 Everything here was measured on `lua-language-server` 3.19.1 against
-`yazi-rs/plugins@0be29a9`, the two revisions CI pins.
+`yazi-rs/plugins@0be29a9`, and the probes on this plugin's own files came out
+the same on 3.19.2; the `---@meta _` demo under Filed upstream was not re-run.
+Which two revisions CI runs is `mise.toml`'s and the `lua-language-server`
+job's to say.
 
 ## Contents
 
@@ -40,16 +43,16 @@ arrangements this repository is written for, and both land on the same side.
 
 ## Measured on this plugin's own files
 
-By copying `main.lua`, `column.lua`, `builtin.lua` and `.luarc.json` into two
-directories differing in nothing but their name, and checking a planted
+By copying every Lua file at the root and `.luarc.json` into two directories
+differing in nothing but their name, and checking a planted
 `require(".main").setup(42)` in each:
 
 | workspace | the planted `setup(42)` |
 | --- | --- |
-| `~/zz-supaline-probe` | not reported, 12 problems |
-| `~/!supaline-probe` | `param-type-mismatch` reported, 13 problems |
+| `~/zz-supaline-probe` | not reported, 13 problems |
+| `~/!supaline-probe` | `param-type-mismatch` reported, 14 problems |
 
-The other 12 are the same 12 in both runs, so the library loaded either way and
+The other 13 are the same 13 in both runs, so the library loaded either way and
 the one diagnostic that moved is the call through `require(".main")`. A
 checkout at `~/開発/` or `~/!work/` sits on the second row — the URI encodes
 them as `%E9…` and `%21`, and `%` sorts before `.` — and reads `.main` from
@@ -62,6 +65,11 @@ Use two real directories under `$HOME`. A scratch directory measures nothing:
 `mktemp -d` gives `/var/folders/…`, which sorts after `/Users/…` however it
 resolves, so the annotations win there under every name — the tree that reports
 the mismatch at `~/!supaline-probe` reports none from a `mktemp -d`.
+
+Take the annotations at the revision CI pins, too. `ya pkg add` installs the
+newest, so `~/.config/yazi/plugins/types.yazi/` can be some other revision:
+point the copied `.luarc.json` at a checkout of CI's, kept under `~/.` so it
+sorts where `~/.config/` does.
 
 Read the total off the final `Diagnosis complete` line, never off `Found N
 problems`, which is a progress checkpoint and is printed more than once.
@@ -106,12 +114,13 @@ and CI pins that revision by hash.
 
 `.luarc.json` puts one directory on `workspace.library`, and at `0be29a9` that
 directory holds a single Lua file, so nothing there shadows `.builtin` or
-`.column`. No probe reached that: `.builtin` returns a bare `{}`, and an empty
-table looks the same whichever module it came from. The `lua-language-server`
-job reads the directory rather than this sentence — beside the clone, it names
-any tracked plugin file the annotations ship a file of that name, at any depth
-and `main.lua` excepted. Growing a `builtin.lua` fails that step instead of
-quietly retiring this section.
+`.column`: against that directory a misspelled `builtin.extremez` and
+`column.normalizze` are both refused, and an annotation file planted there as
+`builtin.lua` silences the first exactly as one named `column.lua` silences the
+second. The `lua-language-server` job reads the directory rather than this
+sentence — beside the clone, it names any tracked plugin file the annotations
+ship a file of that name, at any depth and `main.lua` excepted. Growing a
+`builtin.lua` fails that step instead of quietly retiring this section.
 
 Depth is the part that is not guessable. `runtime.pathStrict` defaults to
 false, so `?.lua` is tried against every subdirectory of a library root, and
@@ -121,10 +130,13 @@ file with no `return` — the shape `types.yazi`'s own `main.lua` has — and
 watching `--check` go from refusing a misspelled `column.normalizze` to
 reporting no problems at all.
 
-Two things the same probe found. A planted file that *does* return a table is
-loud rather than silent. And `column/init.lua` did not shadow: `Lua.runtime.path`
-is walked entry by entry, `?.lua` before `?/init.lua`, and the URI sort above
-only breaks ties inside one entry, so a `column.lua` anywhere beats every
+Two things the same probe found. A planted file that returns a table is
+silent as well unless something types it: `return {}` and `return { x = 1 }`
+reported nothing, where a table under a `---@class`, or a `return 1`, was loud,
+refusing `column.normalizze` and every `column.new_registry` in the tree
+besides. And `column/init.lua` did not shadow: `Lua.runtime.path` is walked
+entry by entry, `?.lua` before `?/init.lua`, and the URI sort above only breaks
+ties inside one entry, so a `column.lua` anywhere beats every
 `column/init.lua`.
 
 Turning `runtime.pathStrict` on would narrow this to the root and is not on the
