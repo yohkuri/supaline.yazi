@@ -116,12 +116,12 @@ and CI pins that revision by hash.
 directory holds a single Lua file, so nothing there shadows `.builtin` or
 `.column`. A `builtin.lua` planted there silences a misspelt `builtin.extremez`
 as the depth probe below has a `column.lua` silence `column.normalizze`, and
-only where the library sorts first, as it does for this checkout and on CI;
-with the workspace first, no plant shadows anything. The `lua-language-server`
-job reads the directory rather than this sentence — beside the clone, it names
-any tracked plugin file the annotations ship a file of that name, at any depth
-and `main.lua` excepted. Growing a `builtin.lua` fails that step instead of
-quietly retiring this section.
+only where the library sorts first, as it does for this checkout and, read off
+the paths, on CI; with the workspace first, no plant shadows anything. The
+`lua-language-server` job reads the directory rather than this sentence —
+beside the clone, it names any tracked plugin file the annotations ship a file
+of that name, at any depth and `main.lua` excepted. Growing a `builtin.lua`
+fails that step instead of quietly retiring this section.
 
 Depth is the part that is not guessable. `runtime.pathStrict` defaults to
 false, so `?.lua` is tried against every subdirectory of a library root, and

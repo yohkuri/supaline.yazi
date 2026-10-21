@@ -164,8 +164,8 @@ local function cut(line, width, ellipsis)
 	if ellipsis ~= "" then
 		for max = width, 0, -1 do
 			-- Cast on each pass, for the loop limit `annotate-supaline` states:
-			-- without it, a misspelt call after this line was refused in at
-			-- most 3 of 10 `--check` runs on lua-language-server 3.19.2.
+			-- without it, measured on lua-language-server 3.19.2, a misspelt
+			-- call after this line is refused in only some `--check` runs.
 			line = (line:truncate { max = max, ellipsis = ellipsis }) --[[@as supaline.Line]]
 			if line:width() <= width then
 				break
@@ -175,6 +175,8 @@ local function cut(line, width, ellipsis)
 	end
 	local max, w = width + 1, line:width()
 	while w > width do
+		-- The cast also gives `line` its class back on each pass, as the one
+		-- in the `for` above does, so the truncate below needs none.
 		line = (ui.Line { line, " " }) --[[@as supaline.Line]]
 		line = line:truncate { max = max, ellipsis = "" }
 		local now = line:width()
