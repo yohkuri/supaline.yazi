@@ -30,7 +30,13 @@
 
 --- The exposed complement of Yazi's internal `AuthKind::is_local()`. Upstream's
 --- `Spec` declares `is_regular`, the spelling CI refuses, and not this.
----@class supaline.UrlSpec : Spec
+---
+--- A class of its own rather than one inheriting `Spec`: inheriting would
+--- type `is_regular`, `scheme` and `domain` too, and the stub's `spec_of`
+--- returns no `scheme` or `domain`, so a column reading one would pass the
+--- check and get nil in the unit suite where 26.9.1 hands it a string. This
+--- declares the one field the plugin reads.
+---@class supaline.UrlSpec
 ---@field is_virtual boolean
 
 ---@class supaline.Url : Url
