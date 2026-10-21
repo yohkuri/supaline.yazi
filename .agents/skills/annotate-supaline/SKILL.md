@@ -78,9 +78,10 @@ to read it off.
 ## Where types.yazi and Yazi disagree
 
 Yazi's own annotations are not the last word on Yazi. `types.yazi` describes
-neither `file.idx`, `file.in_current` nor `Url.spec`, gives `Cha.perm` as a
-string where 26.9.1 has a method, declares `ui.truncate` but nothing for
-`Line:truncate`, which 26.9.1 has, describes no `Tab:history`, which
+neither `file.idx` nor `file.in_current`, gives `Url.spec` no `is_virtual`,
+gives `Cha.perm` as a string where 26.9.1 has a method, declares
+`ui.truncate` but nothing for `Line:truncate`, which 26.9.1 has, describes
+no `Tab:history`, which
 `builtin.lua` asks a directory for its entry count, no `Style:raw`, which
 `style.lua` reads every `ui.Style` it is handed through, no `Linemode` at
 all, whose `_children` a `toggle` reads, and no `Cha.ctime`, which the

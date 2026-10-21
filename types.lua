@@ -28,9 +28,9 @@
 ---@field ctime number?
 ---@field perm fun(self: self): string?
 
---- The exposed complement of Yazi's internal `AuthKind::is_local()`. Upstream
---- declares `is_regular`, the spelling CI refuses, and not this.
----@class supaline.UrlSpec
+--- The exposed complement of Yazi's internal `AuthKind::is_local()`. Upstream's
+--- `Spec` declares `is_regular`, the spelling CI refuses, and not this.
+---@class supaline.UrlSpec : Spec
 ---@field is_virtual boolean
 
 ---@class supaline.Url : Url
