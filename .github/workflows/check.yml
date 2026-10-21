@@ -421,13 +421,21 @@ jobs:
           # wherever it sits -- a glob of the root would miss one added in a
           # subdirectory. The version is pinned rather than left open because
           # an annotation older than the Yazi it names is exactly the stale
-          # one this job exists to catch; AGENTS.md holds the number.
+          # one this job exists to catch. It is read from `YAZI_VERSION` in
+          # install_types.py, beside the type annotations written for that
+          # Yazi, so the two cannot be moved apart.
           # Fed by process substitution, not a pipe, so the loop runs in this
           # shell and `rc` survives it -- every offender is named, not just
           # the first.
+          script=.github/scripts/install_types.py
+          yazi=$(sed -n 's/^YAZI_VERSION = "\([0-9.]*\)"$/\1/p' "$script")
+          if [ -z "$yazi" ]; then
+            echo "$script: no \`YAZI_VERSION = \"x.y.z\"\` line to check against."
+            exit 1
+          fi
           while IFS= read -r -d '' f; do
-            if ! head -1 "$f" | grep -q '^--- @since 26\.9\.1$'; then
-              echo "$f: first line is not '--- @since 26.9.1'"
+            if [ "$(head -1 "$f")" != "--- @since $yazi" ]; then
+              echo "$f: first line is not '--- @since $yazi'"
               rc=1
             fi
           done < <(git ls-files -z '*.lua' ':!:test/*')

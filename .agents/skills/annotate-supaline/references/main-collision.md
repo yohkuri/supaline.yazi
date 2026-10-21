@@ -1,10 +1,9 @@
 # The `.main` collision
 
-`types.yazi` ships its annotations as a single `main.lua` — 3,300 lines with no
-`return` — and a Yazi plugin's entry point is also `main.lua`. So
-`require(".main")` has two candidates and `lua-language-server` takes exactly
-one. Which one is a property of the absolute path the tree sits at, not of
-either file's name.
+`types.yazi` ships its annotations as a single `main.lua` with no `return` —
+and a Yazi plugin's entry point is also `main.lua`. So `require(".main")` has
+two candidates and `lua-language-server` takes exactly one. Which one is a
+property of the absolute path the tree sits at, not of either file's name.
 
 None of that is needed to write a spec or an annotation. `annotate-supaline`
 and `verify-supaline` each say what to do about it in a paragraph — declare
