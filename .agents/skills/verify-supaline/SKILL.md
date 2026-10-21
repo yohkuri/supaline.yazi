@@ -179,6 +179,11 @@ exiting 0 over a configuration it never saw. And it says nothing about the
 screen — `setup` took the configuration is the whole of the claim, and `e2e.py`
 is still what says the configuration draws what `MANUAL.md` describes.
 
+Its three Lua files are the only ones under `test/` that Yazi runs, so the
+stub stands between them and none of the traps. Read `yazi-platform-traps`
+before a change there resolves a colour or reads the theme, writes a fetcher,
+touches a pane child, or adds a render, as you would for the plugin.
+
 ### What it puts on the screen, and what holds that together
 
 The fixture opens on a directory carrying the cases that break width

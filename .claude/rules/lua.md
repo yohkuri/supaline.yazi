@@ -1,11 +1,10 @@
 ---
-# Root-level Lua only, and the leading slash is what says so. Claude Code
-# matches `paths` by gitignore's rules, so a bare `*.lua` reaches every
-# directory, whatever its own documentation says of `*.md`. Measured on Claude
-# Code 2.1.306, one fresh `claude -p` session per file read: `*.lua` attached
-# this rule to `test/run.lua`, and `/*.lua` attached it to `main.lua` but not
-# to `test/run.lua` or `test/fixture/init.lua`. Not run in an interactive
-# session.
+# Root-level Lua only. Claude Code matches `paths` with node-ignore after
+# cutting a trailing `/**`, so a pattern without a slash reaches every
+# directory -- whatever its documentation says of `*.md` -- and the leading
+# slash is what anchors this one. Measured on Claude Code 2.1.306, one fresh
+# `claude -p` session and one Read per file: `main.lua` attached this rule,
+# `test/run.lua` and `test/fixture/init.lua` did not. Not run interactively.
 paths:
   - "/*.lua"
 ---
@@ -25,9 +24,9 @@ far the type check reaches, where it stops, and why a difference from
 `types.yazi` is declared by inheriting from Yazi's class rather than re-opening
 it.
 
-Root-level `.lua` only — the plugin itself. The stubs and specs under `test/`
-model these traps rather than falling into them, and the fixture there that
-Yazi does run is `verify-supaline`'s.
+Root-level `.lua` only — the plugin itself. The rest of `test/` runs outside
+Yazi and never meets these traps, except the fixture Yazi does run, where
+`verify-supaline` points at the same skill.
 
 This rule is a pointer, not a gate. A skill loads when the model decides it is
 relevant, and the whole point of a trap is that it is a surprise; a path-scoped

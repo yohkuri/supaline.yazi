@@ -84,7 +84,7 @@ by the last sentence, not by the first.
 Read for length, these documents show two things that agree with everything
 else and look cuttable, and both stay. `.claude/rules/lua.md` closes by
 restating what `SKILL.md` says about a rule being a pointer: that file is what
-fires on a Lua file, as it says itself, and this skill is not, so the
+fires on the plugin's Lua, as it says itself, and this skill is not, so the
 restatement is the copy a Lua edit meets. The descriptions run close to the
 cap and stay as they are: trimming one in advance buys room nothing needs
 yet, and when one has to give way, the sentence to take is the one added
