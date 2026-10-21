@@ -14,17 +14,19 @@ a checkout somewhere new, an annotations revision that moves, CI reporting a
 shadowed module, or the upstream issue landing.
 
 Everything here was measured on `lua-language-server` 3.19.1 against
-`yazi-rs/plugins@0be29a9`, and the probes on this plugin's own files came out
-the same on 3.19.2; the `---@meta _` demo under Filed upstream was not re-run.
-Which two revisions CI runs is `mise.toml`'s and the `lua-language-server`
-job's to say.
+`yazi-rs/plugins@0be29a9`. The probes on this plugin's own files were re-taken
+at `842c2c1` on 3.19.1 and on 3.19.2, which agreed with each other on every
+one, and what follows is what those runs found; the `---@meta _` demo under
+Filed upstream was not re-run. Which two revisions CI runs is `mise.toml`'s and
+the `lua-language-server` job's to say.
 
 ## Contents
 
 - Which candidate wins — the sort order that decides it
 - Measured on this plugin's own files — the two-directory probe
-- Re-taking it — the scratch-directory trap and how to count
-- Where the collision is stated — the six places, and how to count them
+- Re-taking it — the scratch-directory trap, the annotations' revision, and
+  how to count
+- Where the collision is stated — the five places, and how to count them
 - Filed upstream — `---@meta _`, and what it would retire
 - `.main` is the only name that can collide — depth, and `init.lua`
 
@@ -52,12 +54,15 @@ differing in nothing but their name, and checking a planted
 | `~/zz-supaline-probe` | not reported, 13 problems |
 | `~/!supaline-probe` | `param-type-mismatch` reported, 14 problems |
 
-The other 13 are the same 13 in both runs, so the library loaded either way and
-the one diagnostic that moved is the call through `require(".main")`. A
-checkout at `~/開発/` or `~/!work/` sits on the second row — the URI encodes
-them as `%E9…` and `%21`, and `%` sorts before `.` — and reads `.main` from
-this tree, with `supaline.Main` claimed over it regardless. The class stays
-right there; what stops applying is the reason given for it.
+What holds is N under the first name and N + 1 under the second; the 13 are
+this tree's at `842c2c1`, and move with it. They are what only `test/stub.lua`
+declares — `Linemode`, `ui.width`, `ya.readable_size`, `th.supaline` — which a
+copy of the root leaves behind. They are the same 13 in both runs, so the
+library loaded either way and the one diagnostic that moved is the call through
+`require(".main")`. A checkout at `~/開発/` or `~/!work/` sits on the second
+row — the URI encodes them as `%E9…` and `%21`, and `%` sorts before `.` — and
+reads `.main` from this tree, with `supaline.Main` claimed over it regardless.
+The class stays right there; what stops applying is the reason given for it.
 
 ## Re-taking it
 
@@ -114,21 +119,23 @@ and CI pins that revision by hash.
 
 `.luarc.json` puts one directory on `workspace.library`, and at `0be29a9` that
 directory holds a single Lua file, so nothing there shadows `.builtin` or
-`.column`: against that directory a misspelled `builtin.extremez` and
-`column.normalizze` are both refused, and an annotation file planted there as
+`.column`. In the two arrangements above, where the library sorts first,
+`builtin.extremez` and `column.normalizze` — fields neither module has — are
+both refused against that directory, and an annotation file planted there as
 `builtin.lua` silences the first exactly as one named `column.lua` silences the
-second. The `lua-language-server` job reads the directory rather than this
-sentence — beside the clone, it names any tracked plugin file the annotations
-ship a file of that name, at any depth and `main.lua` excepted. Growing a
-`builtin.lua` fails that step instead of quietly retiring this section.
+second. Where the workspace sorts first, no plant shadows anything. The
+`lua-language-server` job reads the directory rather than this sentence —
+beside the clone, it names any tracked plugin file the annotations ship a file
+of that name, at any depth and `main.lua` excepted. Growing a `builtin.lua`
+fails that step instead of quietly retiring this section.
 
 Depth is the part that is not guessable. `runtime.pathStrict` defaults to
 false, so `?.lua` is tried against every subdirectory of a library root, and
 `nested/column.lua` shadows `.column` exactly as a `column.lua` beside
 `main.lua` does; `a/b/c/column.lua` too. Measured by planting an annotation
 file with no `return` — the shape `types.yazi`'s own `main.lua` has — and
-watching `--check` go from refusing a misspelled `column.normalizze` to
-reporting no problems at all.
+watching `--check` go from refusing `column.normalizze` to reporting no
+problems at all.
 
 Two things the same probe found. A planted file that returns a table is
 silent as well unless something types it: `return {}` and `return { x = 1 }`

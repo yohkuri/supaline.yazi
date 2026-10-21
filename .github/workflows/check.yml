@@ -137,10 +137,10 @@ jobs:
         # tried against every subdirectory of a library root: measured on
         # 3.19.1 and 3.19.2 by planting an annotation file with no `return` at
         # `nested/column.lua` and at `a/b/c/column.lua`, each of which took
-        # `--check` from refusing a misspelled `column.normalizze` to
-        # reporting no problems at all. Turning `runtime.pathStrict` on would
-        # narrow it to the root; `.luarc.json` is copied verbatim from
-        # yazi-rs/plugins and stays that way.
+        # `--check` from refusing `column.normalizze`, a field `column` does
+        # not have, to reporting no problems at all. Turning
+        # `runtime.pathStrict` on would narrow it to the root; `.luarc.json`
+        # is copied verbatim from yazi-rs/plugins and stays that way.
         #
         # Read off the tree rather than from a list of names, so a plugin file
         # added tomorrow is covered without anyone remembering to come back
