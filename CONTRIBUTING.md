@@ -22,7 +22,7 @@ themselves:
 | For | What |
 | --- | ---- |
 | unit tests | Lua 5.5, the one Yazi embeds — any 5.5 |
-| the test harnesses | Python 3.11 or newer |
+| the test harnesses, and installing the type annotations | Python 3.11 or newer |
 | the Claude Code hook that formats Lua | jq, and Git 2.31 or newer — its tests skip without jq or git |
 | `skills.py` | uv, new enough to read the lock beside it |
 | formatting and types | stylua 2.6.0, lua-language-server 3.19.2 |
@@ -76,7 +76,7 @@ lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
 uv run .github/scripts/skills.py  # the instruction docs' length budgets
 
-python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers, the Lua hook
+python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers, the Lua hook, the installer
 
 uvx ruff@0.16.7 check test .github/scripts           # Python lint
 uvx ruff@0.16.7 format --check test .github/scripts  # Python formatting
@@ -87,7 +87,10 @@ A few things worth knowing:
 - `lua-language-server --check .` needs Yazi's own type annotations.
   Without them it fails all over the plugin, which looks like the plugin is
   broken rather than the setup. Install them with
-  `ya pkg add yazi-rs/plugins:types`.
+  `python3 .github/scripts/install_types.py`, which fetches the revision CI
+  checks against. It leaves a `types.yazi` you already have alone unless it
+  matches; if `ya pkg` put that one there, remove it with
+  `ya pkg delete yazi-rs/plugins:types` and run the script again.
 - `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py`
   and `test/readme.py` open a real Yazi, so they're not in CI. Run them
   yourself if your change affects what's on screen — and trust the exit

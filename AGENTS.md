@@ -178,9 +178,10 @@ Each of those refuses a wrong version of itself, except `stylua` and
 through mise's shims, and only the format hook compares stylua's. One more is
 worth knowing before you read a red run: `lua-language-server --check .`
 compares the plugin against Yazi's own annotations, which `.luarc.json` expects
-at `~/.config/yazi/plugins/types.yazi/` and `ya pkg add yazi-rs/plugins:types`
-installs. Without that directory the check fails all over the plugin, and
-nothing in it says the annotations are what is missing.
+at `~/.config/yazi/plugins/types.yazi/` and
+`python3 .github/scripts/install_types.py` installs at the revision CI pins.
+Without that directory the check fails all over the plugin, and nothing in it
+says the annotations are what is missing.
 
 `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py` and
 `test/readme.py` need a real Yazi and a real terminal and are deliberately not
