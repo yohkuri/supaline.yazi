@@ -29,7 +29,9 @@
 #
 # What this cannot reach is a version written as data rather than as a
 # `uses:` -- the two in `mise.toml`, mise's own `MISE_VERSION` in
-# `check.yml`, and the `npx` and `uvx` pins. Those still move by hand.
+# `check.yml`, the `npx` and `uvx` pins, and the revision of Yazi's type
+# annotations in `.github/scripts/install_types.py`. Those still move by
+# hand. The last moves with `@since` and refuses to run when it has not.
 version: 2
 updates:
   - package-ecosystem: github-actions

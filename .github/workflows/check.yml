@@ -106,22 +106,19 @@ jobs:
         # of Yazi's classes it builds on reported as undefined, and dozens of
         # fields and globals with them -- and none of that says why.
         #
-        # Pinned like every other tool: these annotations follow Yazi's main
-        # branch, and a plugin that targets 26.9.1 has no business failing on
-        # ones written for the release after it.
-        run: |
-          git clone -q --filter=blob:none \
-            https://github.com/yazi-rs/plugins /tmp/plugins
-          git -C /tmp/plugins checkout -q 0be29a9
-          mkdir -p ~/.config/yazi/plugins
-          cp -R /tmp/plugins/types.yazi ~/.config/yazi/plugins/
+        # Pinned like every other tool, to the annotations for the Yazi
+        # `@since` names: they follow Yazi's main branch, and a plugin that
+        # targets one release has no business passing or failing on another's.
+        # The script holds the revision beside that Yazi and refuses to run
+        # when `@since` says otherwise; why that is all it can check is beside
+        # it. A contributor runs the same script, so the two check alike.
+        run: python3 .github/scripts/install_types.py
       - name: None of them shadow this plugin's own modules
         # A `require` is resolved by file name, and `workspace.library` is
-        # searched along with the workspace. At 0be29a9 these annotations hold
-        # one Lua file, `main.lua`, which is why `require(".main")` in a spec
-        # reaches 3,235 lines of annotations rather than this plugin on this
-        # runner -- `supaline.Main` and `module_spec.lua` are the repair for
-        # that one. A second such file would do the same to another module in
+        # searched along with the workspace. These annotations hold one Lua
+        # file, `main.lua`, which is why `require(".main")` in a spec reaches
+        # Yazi's annotations rather than this plugin on this runner --
+        # `supaline.Main` and `module_spec.lua` are the repair for that one. A second such file would do the same to another module in
         # silence: the check below still passes, having compared the plugin
         # against something nobody here wrote.
         #
