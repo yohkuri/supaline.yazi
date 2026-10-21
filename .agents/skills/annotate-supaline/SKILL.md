@@ -46,16 +46,13 @@ measured to change that at no site here. What a user writes wrong is still
 `setup`'s to refuse at runtime, which is what all those errors are for.
 
 A value reassigned from its own method inside a loop is a second limit, and
-this one is the tool's rather than an annotation's: measured with
-lua-language-server 3.19.1 and 3.19.2, a local written as
-`line = line:truncate {...}` inside a `for` or a `while` keeps its class for
-that call and, in most runs, loses it for the rest of the loop body.
-`line:widthh()` on the next line was refused in at most three of ten identical
-runs, where the same typo after the loop ends, or outside one, was refused in
-all ten. The `for` in `cut` in `layout.lua` is that shape, so what covers the
-`line:width()` inside it is `column_spec.lua` at runtime, and nothing at check
-time that can be counted on. Its `while` casts `line` again on each pass, and a
-typo there was refused in every run.
+this one is the tool's rather than an annotation's. A local written as
+`line = line:truncate {...}` inside a loop keeps its class for that call and,
+in most `--check` runs but not every one, loses it for the rest of the loop
+body: a misspelt call on the next line goes by, where the same typo after the
+loop is refused. So give it its class back on each pass with a cast, as both
+loops in `cut` in `layout.lua` do; without one, what covers the call is a spec
+at runtime and nothing at check time.
 
 ### What holds the specs inside it
 

@@ -163,7 +163,10 @@ end
 local function cut(line, width, ellipsis)
 	if ellipsis ~= "" then
 		for max = width, 0, -1 do
-			line = line:truncate { max = max, ellipsis = ellipsis }
+			-- Cast on each pass: a local reassigned from its own method loses
+			-- its class for the rest of a loop body in most `--check` runs,
+			-- so a misspelt call after it would go by unrefused.
+			line = (line:truncate { max = max, ellipsis = ellipsis }) --[[@as supaline.Line]]
 			if line:width() <= width then
 				break
 			end
