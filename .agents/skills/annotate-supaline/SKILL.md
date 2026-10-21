@@ -82,10 +82,9 @@ neither `file.idx` nor `file.in_current`, gives `Url.spec` no `is_virtual`,
 gives `Cha.perm` as a string where 26.9.1 has a method, declares
 `ui.truncate` but nothing for `Line:truncate`, which 26.9.1 has, describes
 no `Tab:history`, which `builtin.lua` asks a directory for its entry count,
-no `Style:raw`, which
-`style.lua` reads every `ui.Style` it is handed through, no `Linemode` at
-all, whose `_children` a `toggle` reads, and no `Cha.ctime`, which the
-`ctime` column draws — so `types.lua` declares the
+no `Style:raw`, which `style.lua` reads every `ui.Style` it is handed
+through, no `Linemode` at all, whose `_children` a `toggle` reads, and no
+`Cha.ctime`, which the `ctime` column draws — so `types.lua` declares the
 difference, in one place, with the evidence written beside the classes: a
 probe for the four read off `cx`, `test/stub_spec.lua` for the one method,
 which pins what it does, `colour_spec.lua` against
@@ -93,7 +92,9 @@ which pins what it does, `colour_spec.lua` against
 again for `_children`, against the stub's port of `linemode.lua`, and a
 linemode drawing `ctime` against `stat` for the last. A newer Yazi
 is a reason to run those again and correct them there, never to work around
-them at the call site.
+them at the call site. `supaline.UrlSpec` alone inherits nothing, though
+upstream has a `Spec` for it: that would type fields the stub does not
+return, and `types.lua` says which.
 
 ### What declaring one buys
 

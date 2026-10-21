@@ -1,7 +1,7 @@
 """Yazi's own type annotations, at the revision this plugin is checked against.
 
 `lua-language-server --check .` reads them from where `.luarc.json` points,
-`~/.config/yazi/plugins/types.yazi/`, and fails all over the plugin without
+which is where this installs them, and fails all over the plugin without
 them. CI installs them with this script and so does a contributor, so both
 check against the same annotations:
 
@@ -9,8 +9,9 @@ check against the same annotations:
 
 `yazi-rs/plugins` writes them for Yazi's main branch, with a commit for each
 release and nothing that names one, so they are pinned by hash, beside the
-Yazi they are for. The script refuses a `YAZI_VERSION` other than the
-`@since` `main.lua` declares, so raising `@since` stops here until this file
+Yazi they are for. `YAZI_VERSION` is the one number: the `@since` job in
+`check.yml` holds every plugin file to it, and this refuses to install while
+`main.lua` declares another, so raising `@since` stops both until this file
 moves with it. That is all it can say: that `REV` really is
 `YAZI_VERSION`'s annotations is the pull request's to judge, by the upstream
 commit that last touched `types.yazi` -- printed below on every run -- and
@@ -29,10 +30,12 @@ package whose files no longer match it -- `delete` included, short of
 leaves it refusing to remove what it put there. Which directory it manages
 depends on `YAZI_CONFIG_HOME` and `XDG_CONFIG_HOME`, while `.luarc.json`
 reads this one path whatever they say, so the refusal names the path and
-leaves the choice to whoever installed it. The one thing the comparison
-passes over is `.DS_Store`, which Finder writes into any directory it shows
-and no Lua reader looks at; any other extra file is refused, since a `.lua`
-there can shadow one of this plugin's modules.
+leaves the choice to whoever installed it.
+
+What is compared is what lua-language-server reads: every `.lua` file, at
+any depth and hidden or not, since one there can shadow a module of this
+plugin, and any link to a directory, which it may walk into. A README, a
+LICENSE or Finder's `.DS_Store` differing is not the annotations differing.
 
 Standard library only, and Python 3.11 or newer, as the harnesses under
 `test/` ask.
@@ -40,6 +43,7 @@ Standard library only, and Python 3.11 or newer, as the harnesses under
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -55,11 +59,6 @@ REV = "4dc7f1b6458c2578f4494f10d468c68c1082214f"
 UPSTREAM = "https://github.com/yazi-rs/plugins"
 
 SINCE = "--- @since "
-IGNORED = {".DS_Store"}
-
-
-class FetchError(Exception):
-    pass
 
 
 def since(main_lua: Path) -> str | None:
@@ -91,21 +90,26 @@ def version_error(root: Path = ROOT) -> str | None:
     )
 
 
+def library() -> Path:
+    """The directory `.luarc.json` puts on `workspace.library`."""
+    luarc = json.loads((ROOT / ".luarc.json").read_text())
+    return Path(luarc["workspace.library"][0]).expanduser()
+
+
 def contents(tree: Path) -> dict[str, bytes | None] | None:
-    """Every entry under `tree` by relative path, a file by its bytes.
+    """What lua-language-server reads under `tree`, by relative path: each
+    `.lua` file by its bytes, and each link to a directory as None.
 
     A symlink to a file counts as the file, since that is what a reader of it
-    gets; anything else that is not a directory -- a broken link, a link to a
-    directory -- is None, so it never matches a file. None for `tree` itself
-    when it is not a directory at all.
+    gets; a broken one is None, so it never matches a file. None for `tree`
+    itself when it is not a directory at all.
     """
     if not tree.is_dir():
         return None
     found: dict[str, bytes | None] = {}
     for top, dirs, files in os.walk(tree):
-        for name in files + [d for d in dirs if Path(top, d).is_symlink()]:
-            if name in IGNORED:
-                continue
+        linked = [d for d in dirs if Path(top, d).is_symlink()]
+        for name in [f for f in files if f.endswith(".lua")] + linked:
             path = Path(top, name)
             rel = path.relative_to(tree).as_posix()
             found[rel] = path.read_bytes() if path.is_file() else None
@@ -126,27 +130,32 @@ def fetch(into: Path) -> Path:
     """`types.yazi` at `REV`, cloned under `into`."""
     clone = into / "plugins"
 
-    def git(*args: str) -> str:
-        return subprocess.run(
-            ["git", "-C", str(clone), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-
     subprocess.run(
-        ["git", "clone", "-q", "--filter=blob:none", "--no-checkout"]
-        + [UPSTREAM, str(clone)],
+        [
+            "git",
+            "clone",
+            "-q",
+            "--filter=blob:none",
+            "--no-checkout",
+            UPSTREAM,
+            str(clone),
+        ],
         check=True,
     )
-    git("checkout", "-q", REV)
+    subprocess.run(["git", "-C", str(clone), "checkout", "-q", REV], check=True)
     src = clone / "types.yazi"
     if not src.is_dir():
-        raise FetchError(
+        sys.exit(
             f"{UPSTREAM}@{REV[:7]} has no types.yazi directory, so REV in\n"
             "  install_types.py names the wrong commit. Nothing was installed."
         )
-    last = git("log", "-1", "--format=%h %s", REV, "--", "types.yazi")
+    last = subprocess.run(
+        ["git", "-C", str(clone), "log", "-1", "--format=%h %s", REV, "--"]
+        + ["types.yazi"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     print(f"{UPSTREAM}@{REV[:7]}: types.yazi last changed by {last}")
     return src
 
@@ -172,13 +181,9 @@ def main(argv: list[str]) -> int:
         print(error, file=sys.stderr)
         return 1
 
-    dst = Path.home() / ".config/yazi/plugins/types.yazi"
+    dst = library()
     with tempfile.TemporaryDirectory() as tmp:
-        try:
-            src = fetch(Path(tmp))
-        except FetchError as e:
-            print(e, file=sys.stderr)
-            return 1
+        src = fetch(Path(tmp))
         found = state(src, dst)
         if found == "absent":
             install(src, dst)
