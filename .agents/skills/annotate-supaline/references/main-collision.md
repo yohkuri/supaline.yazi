@@ -65,13 +65,15 @@ Use two real directories under `$HOME`. A scratch directory measures nothing:
 resolves, so the annotations win there under every name — the tree that reports
 the mismatch at `~/!supaline-probe` reports none from a `mktemp -d`.
 
-Take the annotations at the revision CI pins, too. Once
-`install_types.py` has run without refusing,
+Take the annotations at the revision CI pins, too. Run `install_types.py`
+right before the probe: if it ends without refusing,
 `~/.config/yazi/plugins/types.yazi/` holds that revision's, and the copied
-`.luarc.json` can point where it already does. A copy of them elsewhere has to
-be kept under `~/.` so it sorts where `~/.config/` does, and has to be
-`types.yazi/` alone rather than a checkout's root: every other plugin's
-`main.lua` there would join the candidates for `.main`.
+`.luarc.json` can point where it already does. Not long before it, since a
+`ya pkg upgrade` in between can replace a directory `ya pkg` still manages.
+A copy of them elsewhere has to be kept under `~/.` so it sorts where
+`~/.config/` does, and has to be `types.yazi/` alone rather than a checkout's
+root: every other plugin's `main.lua` there would join the candidates for
+`.main`.
 
 Read the total off the final `Diagnosis complete` line, never off `Found N
 problems`, which is a progress checkpoint and is printed more than once.

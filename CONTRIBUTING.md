@@ -88,8 +88,9 @@ A few things worth knowing:
   Without them it fails all over the plugin, which looks like the plugin is
   broken rather than the setup. Install them with
   `python3 .github/scripts/install_types.py`, which fetches the revision CI
-  checks against. It leaves a `types.yazi` you already have alone unless it
-  matches; if `ya pkg` put that one there, remove it with
+  checks against. It never touches a `types.yazi` you already have: one
+  that matches is left as it is, and one that does not stops the script.
+  If `ya pkg` put that one there, remove it with
   `ya pkg delete yazi-rs/plugins:types` and run the script again.
 - `test/e2e.py`, `test/manual.py`, `test/gallery.py`, `test/examples.py`
   and `test/readme.py` open a real Yazi, so they're not in CI. Run them

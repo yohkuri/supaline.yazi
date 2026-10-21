@@ -164,7 +164,7 @@ lua-language-server --check .     # Lua types
 npx --yes markdownlint-cli2@0.19  # Markdown
 uv run .github/scripts/skills.py  # Agent Skills, and this file's budget
 
-python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers, the gallery, the examples, the Lua hook
+python3 -m unittest discover -s test -p 'test_*.py'  # the screen parsers, the gallery, the examples, the Lua hook, the installer
 
 uvx ruff@0.16.7 check test .github/scripts           # the Python lint
 uvx ruff@0.16.7 format --check test .github/scripts  # ... and its shape

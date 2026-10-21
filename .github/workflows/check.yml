@@ -60,6 +60,8 @@ jobs:
         # `test/test_format_hook.py` runs `.claude/hooks/format-lua.sh` against
         # a stylua that only records what it was given, which needs jq and git
         # and is skipped where either is missing; the runner has both.
+        # `test/test_install_types.py` holds the script that installs Yazi's
+        # annotations to its refusals, with the clone stood in for.
         #
         # Before that split those parsers were `awk` inside the shell harness
         # and nothing tested them, which is the quietest hole a test harness
@@ -118,9 +120,10 @@ jobs:
         # searched along with the workspace. These annotations hold one Lua
         # file, `main.lua`, which is why `require(".main")` in a spec reaches
         # Yazi's annotations rather than this plugin on this runner --
-        # `supaline.Main` and `module_spec.lua` are the repair for that one. A second such file would do the same to another module in
-        # silence: the check below still passes, having compared the plugin
-        # against something nobody here wrote.
+        # `supaline.Main` and `module_spec.lua` are the repair for that one.
+        # A second such file would do the same to another module in silence:
+        # the check below still passes, having compared the plugin against
+        # something nobody here wrote.
         #
         # Which of two files of one name wins is a property of the absolute
         # path each sits at, so this step does not work the winner out. A name
