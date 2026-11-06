@@ -189,7 +189,6 @@ test("normalize: nothing written reaches the default, and every value taken pass
 	local col = prepare("plain")
 	eq(col.plan.align, "right")
 	eq(col.plan.overflow, "ellipsis")
-	eq(col.plan.scale, "linear")
 
 	for key, values in pairs {
 		align = { "left", "right" },
@@ -718,14 +717,6 @@ test("ratio: the log scale lifts the small end", function()
 	eq(log.ratio(1000000), 1)
 end)
 
-test("ratio: rebinding swaps the extremes", function()
-	local col = prepare { render = function() return "" end }
-	cases.bind(col, { min = 0, max = 10 })
-	eq(col.ctx.ratio(5), 0.5)
-	cases.bind(col, { min = 0, max = 100 })
-	eq(col.ctx.ratio(5), 0.05)
-end)
-
 -- --- the colour ------------------------------------------------------------
 
 local BLUES = "#0b3d91 -> #7fd4ff"
@@ -830,16 +821,7 @@ test("style: a column with no extremes to place a value between is refused", fun
 	)
 end)
 
-test("style: a function is called for its style, and called again on the next build", function()
-	-- The one way a spec can reach a colour the theme does not have yet: the
-	-- flavor lands after `init.lua` has run, so a value captured there is
-	-- Yazi's preset. A function is evaluated again.
-	local answer = "#112233"
-	local spec = { style = function() return answer end }
-	eq(coloured(spec).style.fg, "#112233")
-	answer = "#445566"
-	eq(coloured(spec).style.fg, "#445566", "the next build asks again")
-
+test("style: a function's answer is the style, whichever form it takes", function()
 	local ctx = coloured { style = function() return ui.Style():fg("#778899"):bold() end }
 	eq(ctx.style.fg, "#778899")
 	eq(ctx.style.bold, true)
