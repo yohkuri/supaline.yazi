@@ -17,8 +17,9 @@ description: >-
 
 ## Stubs are worth exactly their fidelity
 
-`ui.truncate` and `Line:truncate` are line-by-line ports of Yazi's own, and
-`stub_spec.lua` pins them: the first against the assertions in Yazi's test
+`ui.truncate` and `Line:truncate` are line-by-line ports of Yazi's own, the
+first less the `rtl` direction the plugin never passes and the stub refuses,
+and `stub_spec.lua` pins them: the first against the assertions in Yazi's test
 suite, the second against a table measured from a running 26.9.1, since it has
 no suite to copy. If you stub something new, pin it the same way — a stub
 nothing measures is a stub that drifts, and it drifts towards making tests

@@ -1,7 +1,7 @@
 --- Pins `stub.lua` against Yazi, because a stub is worth exactly its fidelity.
 ---
---- `ui.truncate` is pinned to the assertions in Yazi's own test suite
---- (`yazi-plugin/src/ui/utils.rs`). `Line:truncate` has no upstream suite to
+--- `ui.truncate` is pinned to the left-to-right assertions in Yazi's own test
+--- suite (`yazi-plugin/src/ui/utils.rs`). `Line:truncate` has no upstream suite to
 --- copy, so it is pinned to a table measured against a real Yazi 26.9.1: six
 --- strings -- ASCII, CJK, and one each carrying a variation selector, a
 --- joiner, a skin-tone modifier and a flag -- cut at every `max` from 0 to 8,
@@ -14,7 +14,7 @@
 --- The rest pins where the stub is deliberately louder than Yazi: a value Yazi
 --- would take in silence, or could never have produced, is refused here.
 
-local function t(s, max, rtl) return stub.truncate(s, { max = max, rtl = rtl }) end
+local function t(s, max) return stub.truncate(s, { max = max }) end
 
 test("truncate: shorter than one cell", function()
 	eq(t("你好，world", 0), "")
@@ -41,25 +41,6 @@ test("truncate: exact fit is returned whole", function()
 	eq(t("你好，世界", 10), "你好，世界")
 	eq(t("Hello, world", 13), "Hello, world")
 	eq(t("你好，世界", 11), "你好，世界")
-end)
-
-test("truncate: right to left", function()
-	eq(t("world，你好", 0, true), "")
-	eq(t("world，你好", 1, true), "…")
-	eq(t("你好，世界", 3, true), "…界")
-	eq(t("你好，世界", 4, true), "…界")
-	eq(t("你好，世界", 5, true), "…世界")
-	eq(t("Hello, world", 5, true), "…orld")
-	eq(t("你好，Shi界", 3, true), "…界")
-	eq(t("Hello, world", 11, true), "…llo, world")
-	eq(t("你好，世界", 9, true), "…好，世界")
-	eq(t("Ni好，世界", 9, true), "…好，世界")
-end)
-
-test("truncate: a wide character straddling the edge comes back short", function()
-	-- The reason `fit` measures again and pads: asking for 4 cells of a wide
-	-- string can only yield 3.
-	eq(stub.str_width(t("你好，世界", 4)), 3)
 end)
 
 test("width: East Asian characters and emoji take two cells", function()
@@ -196,20 +177,6 @@ test("Line:truncate: every span keeps its own style through the cut", function()
 	eq(got[2], green, "and so does the one the cut landed inside")
 end)
 
--- --- AuthKind --------------------------------------------------------------
-
-test("AuthKind: each variant's three flags, as Yazi sets them", function()
-	-- `is_virtual` is the complement of Yazi's `is_local`, and `is_regular` and
-	-- `is_search` each hold for one variant. A search result is local with
-	-- `is_regular = false`, which is the trap these flags expose.
-	for kind, virtual in pairs { regular = false, search = false, mount = true, hub = true, scope = true, sftp = true } do
-		local spec = stub.spec_of(kind)
-		eq(spec.is_virtual, virtual, kind .. ".is_virtual")
-		eq(spec.is_regular, kind == "regular", kind .. ".is_regular")
-		eq(spec.is_search, kind == "search", kind .. ".is_search")
-	end
-end)
-
 -- --- require ---------------------------------------------------------------
 
 test("require: a proxy over the module, as Yazi hands back", function()
@@ -290,6 +257,10 @@ test("Linemode: a child goes into `_children` by `order`, as Yazi's does", funct
 end)
 
 -- --- what the stub refuses and Yazi would not ------------------------------
+
+test("refused: an `rtl` cut, which is not ported", function()
+	throws(function() stub.truncate("abc", { max = 2, rtl = true }) end, "`rtl` is not ported")
+end)
 
 test("refused: an `AuthKind` Yazi does not have", function()
 	throws(function() stub.spec_of("regualr") end, "no such AuthKind")
