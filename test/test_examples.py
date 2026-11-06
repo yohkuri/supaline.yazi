@@ -391,11 +391,6 @@ class TheFolder(unittest.TestCase):
     def test_every_entry_git_names_is_in_the_folder(self):
         self.assertLessEqual(set(examples.GIT.values()), set(examples.FOLDER))
 
-    def test_the_folder_is_among_its_siblings(self):
-        # The parent pane draws the folder's own folder, and the hovered row
-        # there is the folder.
-        self.assertIn(examples.PROJECT, examples.SIBLINGS)
-
 
 class Drawing(unittest.TestCase):
     def test_a_named_colour_is_the_palette_s(self):

@@ -2,10 +2,10 @@
 --- under a plain Lua interpreter.
 ---
 --- These are only worth anything if they behave like the real thing.
---- `ui.truncate` in particular is a line-by-line port of Yazi's own, because
---- the layout code leans on two of its habits: it appends an ellipsis of its
---- own, and it returns *at most* `max` cells. `stub_spec.lua` pins the port
---- against the assertions in Yazi's own test suite, and pins `Line:truncate`
+--- `ui.truncate` in particular is a line-by-line port of Yazi's own, less the
+--- `rtl` direction the plugin never passes, because the layout code leans on
+--- the ellipsis it appends. `stub_spec.lua` pins the port against the
+--- left-to-right assertions in Yazi's own test suite, and pins `Line:truncate`
 --- -- which has no upstream test suite to copy -- against what a real Yazi put
 --- on screen and against the contract `layout.cell` relies on.
 ---
@@ -184,11 +184,16 @@ M.str_width = str_width
 ---@return string
 local function char_at(s, at) return s:match("^[^\128-\191][\128-\191]*", at + 1) end
 
---- A port of `Utils::truncate` from `yazi-plugin/src/ui/utils.rs`.
+--- A port of `Utils::truncate` from `yazi-plugin/src/ui/utils.rs`, left to
+--- right only: the plugin never passes `rtl`, and one that started to would
+--- otherwise be tested against the wrong end of the string.
 ---@param s string
----@param opts table `{ max: integer, rtl: boolean? }`
+---@param opts table `{ max: integer }`
 ---@return string
 local function truncate(s, opts)
+	if opts.rtl then
+		error("stub: `rtl` is not ported; port it from `Utils::truncate` to use it")
+	end
 	local max = opts.max
 	if #s == 0 then
 		return s
@@ -198,25 +203,15 @@ local function truncate(s, opts)
 		return ""
 	end
 
-	local seq = {}
-	for at, ch in chars(s) do
-		seq[#seq + 1] = { at, ch }
-	end
-	if opts.rtl then
-		for i = 1, math.floor(#seq / 2) do
-			seq[i], seq[#seq - i + 1] = seq[#seq - i + 1], seq[i]
-		end
-	end
-
 	-- `take_while` evaluates its predicate on the first failing element too, so
 	-- `last` advances one step further than `idx` does.
 	local adv, last, idx = 0, 0, nil
-	for _, c in ipairs(seq) do
-		last, adv = adv, adv + char_width(c[2])
+	for at, ch in chars(s) do
+		last, adv = adv, adv + char_width(ch)
 		if adv > max then
 			break
 		end
-		idx = c[1]
+		idx = at
 	end
 
 	if idx == nil then
@@ -225,15 +220,10 @@ local function truncate(s, opts)
 		return s
 	end
 
-	if not opts.rtl then
-		if last == max then
-			return s:sub(1, idx) .. "…"
-		end
-		return s:sub(1, idx + #char_at(s, idx)) .. "…"
-	elseif last == max then
-		return "…" .. s:sub(idx + #char_at(s, idx) + 1)
+	if last == max then
+		return s:sub(1, idx) .. "…"
 	end
-	return "…" .. s:sub(idx + 1)
+	return s:sub(1, idx + #char_at(s, idx)) .. "…"
 end
 
 M.truncate = truncate
