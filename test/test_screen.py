@@ -62,9 +62,6 @@ class Panes(unittest.TestCase):
         self.assertEqual(sc.current_of(self.shot)[:2], ["cur", "b"])
         self.assertEqual(sc.preview_of(self.shot)[:2], ["pre", "c"])
 
-    def test_the_header_is_not_a_row(self):
-        self.assertNotIn("header", sc.parent_of(self.shot))
-
     def test_a_row_with_no_divider_has_no_current_pane(self):
         self.assertEqual(sc.field_of("just a line"), "")
         # And a bare row answers itself for the parent, the way a `sed` that

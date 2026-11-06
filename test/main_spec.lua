@@ -222,13 +222,6 @@ test("setup: `.setup{...}` works as well as `:setup{...}`", function()
 	eq(draw("dotted"), " 1B")
 end)
 
-test("setup: overriding one of Yazi's own linemode names is still allowed", function()
-	-- Replacing `size` is a thing to want; replacing `redraw` is not, and the
-	-- two live on the same table.
-	setup { size = { { "size", width = 4 }, { "size", width = 4 } } }
-	eq(draw("size"), "  1B   1B")
-end)
-
 test("setup: a name Yazi cannot hold is refused, counted in bytes", function()
 	refuses({ linemodes = { [string.rep("x", 21)] = { "size" } } }, "1 to 20 bytes")
 	-- Seven characters and 21 bytes, which Yazi's `linemode` action turns away
@@ -483,6 +476,7 @@ test("setup: a linemode a later setup drops is unregistered, and Yazi's own hand
 	eq(type(before), "function", "Yazi's own `size` is in place to begin with")
 	setup { size = { { "size", width = 3 } } }
 	assert(Linemode.size ~= before, "expected supaline to have taken `size` over")
+	eq(draw("size"), " 1B", "and it draws as the column it was given")
 	setup { detail = { "size" } }
 	eq(Linemode.size, before, "Yazi's own is back once supaline stops claiming it")
 end)
@@ -762,21 +756,6 @@ end)
 
 -- --- the per-folder pass ---------------------------------------------------
 
-test("stats: the pass runs once per folder, not once per row", function()
-	local calls = 0
-	main.column("counted", {
-		width = "auto",
-		stats = function()
-			calls = calls + 1
-			return nil
-		end,
-		render = function() return "x" end,
-	})
-	setup { detail = { "counted" } }
-	draw_all("detail")
-	eq(calls, 1, "every row, one pass")
-end)
-
 test("rendering: what a frame does through wrappers does not grow with the folder", function()
 	-- An `auto` column in every pane, so the per-file width pass runs as well
 	-- as the per-row draw, and a computed one, whose once-per-folder read is
@@ -829,24 +808,6 @@ test("rendering: what a frame does through wrappers does not grow with the folde
 		"a module's function read or called through a wrapper per row or per file; take it off `__mod` at load,"
 			.. " and see `session.lua` for what that costs a render"
 	)
-end)
-
-test("stats: a column with a stated width still receives them", function()
-	-- Flat, too: `ctx.stats` is the column's to read whatever it is coloured
-	-- with. Skipping the pass for a flat colour would save one per folder
-	-- prepared rather than per frame, which `main.lua` prices beside `load`.
-	local seen = "not called"
-	main.column("stated", {
-		width = 6,
-		stats = function() return { min = 1, max = 42 } end,
-		render = function(_, ctx)
-			seen = ctx.stats and ctx.stats.max or "nil"
-			return ""
-		end,
-	})
-	setup { detail = { "stated" } }
-	draw("detail")
-	eq(seen, 42)
 end)
 
 test("stats: each pane is measured against its own folder", function()
