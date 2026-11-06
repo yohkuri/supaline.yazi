@@ -37,6 +37,9 @@
 # key that goes there, rather than sleeping: the panes either side draw the
 # neighbouring folders, so a name they hold is on screen before the `cd` that
 # makes it current. `setup.py` refuses one that another folder holds as well.
+# It has to fit the narrowest name column a case leaves, or the wait runs out
+# on a folder already on screen: `c_attrs` cuts `exactly-1k.bin` to
+# `exactl….bin`.
 #
 # `g` is Yazi's own leader and binds only letters under itself, so the digits
 # are free.
@@ -44,7 +47,7 @@
 [[folder]]
 path     = "data"
 key      = "g 1"
-landmark = "exactly-1k.bin"
+landmark = "huge.bin"
 desc     = "supaline: go to the layout fixture"
 
 [[folder]]

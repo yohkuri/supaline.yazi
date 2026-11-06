@@ -790,7 +790,8 @@ folder is three edits, and a fourth treatment of an existing folder is two:
 2. the linemode, in the `linemodes` table of `test/fixture/init.lua`;
 3. a `[[case]]` in `test/fixture/cases.toml`, and for a new folder a
    `[[folder]]` beside it with a `landmark` — a name only that folder holds,
-   so `e2e.py` can wait for it rather than sleep through the press.
+   short enough that no case's name column cuts it, so `e2e.py` can wait for
+   it rather than sleep through the press.
 
 Then give it a row in the table above. `e2e.py` presses every case the list
 holds and keeps a capture under its id, and the unit suite refuses a case whose
