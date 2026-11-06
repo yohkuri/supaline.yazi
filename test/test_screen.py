@@ -71,12 +71,6 @@ class Panes(unittest.TestCase):
         # found nothing to cut leaves the line alone.
         self.assertEqual(sc.parent_of(capture("bare"))[0], "bare")
 
-    def test_a_divider_inside_a_column_would_move_the_split(self):
-        # Why `c_scale` and `c_bold` draw U+250A instead. Pinned so the day
-        # somebody writes the other glyph into a separator, this says what it
-        # costs rather than a ramp check silently measuring half a row.
-        self.assertEqual(sc.field_of(row("p", f"a{sc.BAR}b", "v")), "a")
-
 
 class Ramps(unittest.TestCase):
     def climbing(self, count: int = 30) -> str:

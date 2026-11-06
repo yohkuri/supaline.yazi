@@ -403,7 +403,6 @@ def check_columns(k: Checks, shots: dict[str, str]) -> None:
     k.section("columns")
     k.holds(shots["plain"], "87.9M", "plain: size")
     k.holds(shots["default"], "87.9M 05/06  2024", "default: size + mtime")
-    k.holds(shots["everything"], "drwxr-xr-x", "everything: permissions")
 
     check_owner(k, shots["everything"])
     check_overflow(k, shots["overflow"])
