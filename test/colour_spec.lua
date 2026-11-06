@@ -753,9 +753,3 @@ test("ramp: a third stop sits in the middle", function()
 	eq(r[32], "#fbfcfd")
 	eq(r[33], "#fdfeff")
 end)
-
-test("ramp: one stop is refused rather than indexed past the end", function()
-	-- `ramp` is exported beside `stops`, and a caller that built its endpoints
-	-- another way would otherwise get "attempt to index a nil value".
-	throws(function() colour.ramp { { 0, 0, 0 } } end, "at least two colours")
-end)

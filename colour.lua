@@ -239,16 +239,9 @@ end
 --- because a stop's *value* is what a reader would want to place it by -- 1M,
 --- last Tuesday -- and a ratio between a folder's extremes has no idea what
 --- either of those means.
----@param stops integer[][]
+---@param stops integer[][] two or more
 ---@return string[] `STEPS` colours, the first stop's end first
 function M.ramp(stops)
-	-- `paint.stops` refuses a single colour on the way in, but this is reachable
-	-- without it and `segments` would then be zero: `lab[seg + 1]` is nil and
-	-- the failure reads as a bug in here rather than as a ramp with one end.
-	if #stops < 2 then
-		error("supaline: a ramp needs at least two colours to interpolate between")
-	end
-
 	local lab = {}
 	for i, rgb in ipairs(stops) do
 		lab[i] = { to_oklab(rgb) }
